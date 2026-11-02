@@ -21,6 +21,9 @@ export type SourceRequest =
   | { kind: "TEXT"; name: null; text: string }
   | { kind: "FILE"; name: string; text: string };
 
+/** POST /api/sources 응답(202) */
+export type SourceSubmitted = { sourceId: number; jobId: number; status: "ANALYZING" };
+
 /** 분석 작업 상태 — 분석 중 / 완료 / 실패 */
 export type JobStatus = "ANALYZING" | "COMPLETED" | "FAILED";
 

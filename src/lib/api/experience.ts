@@ -1,11 +1,12 @@
 // 자료 넣기 · 분석 작업 · 활동 · 경험 — ETC docs/contracts/experience-api.md
 // MOCK(timeline-activities): API 주소가 없을 때만 src/lib/mock/activities.ts 로 화면을 확인한다. 실제 API 실패 시 사용하지 않는다.
-// MOCK(source-analysis): BE#5 연동 전까지 자료 넣기 · 작업 조회 · 재시도는 src/lib/mock/analysis.ts 를 유지한다.
+// MOCK(source-analysis): API 주소가 없는 목 모드에서만 자료 넣기 · 작업 조회 · 재시도를 모의한다.
 
 import { MOCK_ACTIVITIES } from "../mock/activities";
 import { mockAddedActivities, mockFetchJob, mockRetryJob, mockSubmitSource } from "../mock/analysis";
 import { ApiError } from "./errors";
 import type { ActivityDetail, ActivitySummary, Job, SourceRequest, Experience, UpdateActivityRequest, UpdateExperienceRequest } from "./types";
+import { MAX_TEXT_LENGTH, type SourceSubmitted } from "./types";
 
 export { ApiError };
 
@@ -43,17 +44,22 @@ export async function fetchActivity(id: number): Promise<ActivityDetail> {
 export async function submitSource(
   req: SourceRequest,
   mock: MockAnalysis = null,
-): Promise<{ sourceId: number; jobId: number; status: "ANALYZING" }> {
+): Promise<SourceSubmitted> {
+  if (!req.text.trim()) throw new ApiError("EMPTY_TEXT", "내용이 비어 있어요.");
+  if (req.text.length > MAX_TEXT_LENGTH) throw new ApiError("TEXT_TOO_LONG", "한 번에 50,000자까지 넣을 수 있어요.");
+  if (!isMockMode()) return request("/sources", req, "POST");
   return mockSubmitSource(req, mock ?? "ok");
 }
 
 /** GET /api/jobs/{jobId} */
 export async function fetchJob(jobId: number): Promise<Job> {
+  if (!isMockMode()) return request(`/jobs/${jobId}`);
   return mockFetchJob(jobId);
 }
 
 /** POST /api/jobs/{jobId}/retry — 같은 원본으로 같은 작업을 다시 돌린다(202) */
 export async function retryJob(jobId: number): Promise<Job> {
+  if (!isMockMode()) return request(`/jobs/${jobId}/retry`, undefined, "POST");
   return mockRetryJob(jobId);
 }
 
@@ -62,13 +68,13 @@ export function isMockMode() {
   return !process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
 }
 
-async function request<T>(path: string, data?: unknown): Promise<T> {
+async function request<T>(path: string, data?: unknown, method = data === undefined ? "GET" : "PATCH"): Promise<T> {
   const base = process.env.NEXT_PUBLIC_API_BASE_URL?.trim().replace(/\/+$/, "");
   if (!base) throw new ApiError("API_NOT_CONFIGURED", "목 모드에서는 서버에 저장할 수 없어요. API 주소 설정이 필요해요.");
   let response: Response;
   try {
     response = await fetch(`${base}${path}`, {
-      method: data === undefined ? "GET" : "PATCH",
+      method,
       cache: "no-store",
       ...(data === undefined ? {} : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }),
     });

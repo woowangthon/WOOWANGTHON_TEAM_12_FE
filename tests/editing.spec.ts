@@ -186,16 +186,14 @@ test("PATCH response values replace drafts in activity, timeline and experience"
   await expect(page.getByRole("button", { name: /Server activity/ })).toBeVisible();
 });
 
-test("real activity mode keeps source analysis mock and never mixes mock activities", async ({ page }) => {
+test("source HTTP failure keeps the text and never shows mock analysis success", async ({ page }) => {
   await setup(page);
-  const sourceCalls: string[] = [];
-  page.on("request", (req) => { if (/\/api\/(sources|jobs)/.test(req.url())) sourceCalls.push(req.url()); });
+  await page.route("**/api/sources", (route) => route.fulfill({ status: 503, json: { error: { code: "INTERNAL_ERROR", message: "Source unavailable" } } }));
   if (page.viewportSize()!.width < 1024) await page.getByRole("button", { name: "타임라인", exact: true }).click();
   await page.getByRole("button", { name: "자료 넣기", exact: true }).filter({ visible: true }).first().click();
   await page.getByRole("dialog").getByRole("textbox").fill("Mock source text");
   await page.getByRole("button", { name: "분석 시작", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("목 분석 결과", { timeout: 15000 });
-  expect(sourceCalls).toEqual([]);
-  await expect(page.getByRole("button", { name: /API test activity/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: /목 결과/ })).toHaveCount(0);
+  await expect(page.getByRole("dialog").getByRole("alert")).toHaveText("Source unavailable");
+  await expect(page.getByRole("dialog").getByRole("textbox")).toHaveValue("Mock source text");
+  await expect(page.getByText(/목 분석 결과/)).toHaveCount(0);
 });

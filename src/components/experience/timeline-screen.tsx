@@ -64,8 +64,10 @@ export function TimelineScreen() {
 
   const analysis = useAnalysisJob((job) => {
     if (!job.activityIds.length) return; // 활동 0개는 상태 화면 · 띠로 알린다
-    if (isMockMode()) loadList(mock);
-    showToast(`목 분석 결과 활동 ${job.activityIds.length}개예요. 서버에 저장된 결과가 아니에요.`);
+    loadList(mock);
+    showToast(isMockMode()
+      ? `목 분석 결과 활동 ${job.activityIds.length}개예요. 서버에 저장된 결과가 아니에요.`
+      : `분석이 완료됐어요. 활동 ${job.activityIds.length}개를 불러오고 있어요.`);
   });
   const view = analysisView(analysis.tracked);
 
@@ -130,7 +132,7 @@ export function TimelineScreen() {
       <AppHeader className={cn(selected && "hidden lg:flex")} addSource={addSource} />
       <p className="m-0 border-b border-hairline px-4 py-2 text-xs text-muted" role="note">
         {isMockMode() ? "목 모드 · 예시 데이터이며 서버에 저장할 수 없어요." : "실제 API 모드 · 활동과 경험 수정은 서버에 저장해요."}
-        {" 자료 넣기·분석은 BE #5 연동 전까지 목 기능이에요."}
+        {isMockMode() ? " 자료 넣기·분석도 목 기능이에요." : " 자료 넣기·분석 상태도 실제 API로 확인해요."}
       </p>
       <div className={cn("flex-1 lg:grid lg:min-h-0", selected && "lg:grid-cols-[minmax(0,1fr)_440px]")}>
         <main
