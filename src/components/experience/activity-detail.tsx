@@ -1,0 +1,159 @@
+"use client";
+
+// 활동 세부 — 이름 · 기간 · 이 활동을 만든 자료 · 경험들 (SPEC S-08 · S-09 · DESIGN.md 「활동 세부」)
+// PC 는 타임라인 옆 패널, 모바일은 전체 화면 + 근거는 하단 시트
+import { useState } from "react";
+import { ArrowsClockwiseIcon, CaretLeftIcon, XIcon } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import type { ActivityDetail, ActivitySummary } from "@/lib/api/types";
+import { durationText, periodText } from "@/lib/period";
+import { CitationList, SourceFile } from "./citation-list";
+import { ExperienceItem, ExperienceMeta } from "./experience-item";
+
+const FIRST_COUNT = 3;
+
+export type DetailState =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ready"; activity: ActivityDetail };
+
+type Props = {
+  summary: ActivitySummary;
+  state: DetailState;
+  now: number;
+  onClose: () => void;
+  onRetry: () => void;
+};
+
+export function ActivityDetailView({ summary, state, now, onClose, onRetry }: Props) {
+  const activity = state.status === "ready" ? state.activity : null;
+  const period = activity?.period ?? summary.period;
+  const sources = activity
+    ? [...new Set(activity.experiences.flatMap((e) => e.citations.map((c) => c.sourceName)))]
+    : [];
+
+  return (
+    <div className="flex min-h-full flex-col">
+      {/* 모바일 — 타임라인으로 돌아가기 */}
+      <div className="sticky top-0 z-10 flex h-14 items-center border-b border-hairline bg-canvas px-3 lg:hidden">
+        <button
+          type="button"
+          onClick={onClose}
+          className="inline-flex h-11 items-center gap-0.5 pr-2 text-[15px] font-medium text-ink"
+        >
+          <CaretLeftIcon className="size-[1.15em]" aria-hidden="true" />
+          타임라인
+        </button>
+      </div>
+
+      <header className="grid gap-2.5 border-b border-hairline px-4.5 pt-5 pb-4 lg:px-7 lg:pt-7 lg:pb-5">
+        <div className="flex items-start gap-2">
+          <h2 className="m-0 flex-1 text-[21px] leading-snug font-[650] tracking-[-0.3px] text-balance">
+            {activity?.name ?? summary.name}
+          </h2>
+          <Button variant="ghost" size="icon" className="hidden lg:inline-flex" onClick={onClose} aria-label="세부 닫기">
+            <XIcon />
+          </Button>
+        </div>
+        <p className="m-0 flex flex-wrap items-center gap-2.5 text-sm text-body tabular-nums">
+          {periodText(period)}
+          <span className="text-muted">{durationText(period, now)}</span>
+        </p>
+        {sources.length > 0 && (
+          <p className="m-0 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px] text-muted">
+            이 활동을 만든 자료
+            {sources.map((s) => (
+              <SourceFile key={s} name={s} />
+            ))}
+          </p>
+        )}
+      </header>
+
+      <div className="px-4.5 pt-2 pb-10 lg:px-7 lg:pb-8">
+        {state.status === "loading" && <p className="pt-4 text-sm text-muted">경험을 불러오고 있어요…</p>}
+        {state.status === "error" && (
+          <div className="grid justify-items-start gap-3 pt-4">
+            <p className="m-0 text-sm font-medium text-error">이 활동의 경험을 불러오지 못했어요.</p>
+            <Button size="sm" onClick={onRetry}>
+              <ArrowsClockwiseIcon />
+              다시 시도
+            </Button>
+          </div>
+        )}
+        {activity && <ExperienceList key={activity.id} activity={activity} />}
+      </div>
+    </div>
+  );
+}
+
+function ExperienceList({ activity }: { activity: ActivityDetail }) {
+  const [showAll, setShowAll] = useState(false);
+  const [openIds, setOpenIds] = useState<Set<number>>(() => new Set());
+  const [sheetId, setSheetId] = useState<number | null>(null);
+
+  const { experiences } = activity;
+  const visible = showAll ? experiences : experiences.slice(0, FIRST_COUNT);
+  const rest = experiences.length - FIRST_COUNT;
+  const sheetExp = experiences.find((e) => e.id === sheetId);
+
+  const toggle = (id: number) =>
+    setOpenIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  return (
+    <>
+      <p className="m-0 pt-4 pb-1 text-[13px] font-medium text-muted">이 활동에서 한 일 {experiences.length}</p>
+      <ul className="m-0 list-none p-0">
+        {visible.map((e) => (
+          <ExperienceItem
+            key={e.id}
+            experience={e}
+            citationsOpen={openIds.has(e.id)}
+            onToggleCitations={() => toggle(e.id)}
+            onShowCitations={() => setSheetId(e.id)}
+          />
+        ))}
+      </ul>
+      {rest > 0 && (
+        <button
+          type="button"
+          onClick={() => setShowAll((v) => !v)}
+          className="mt-3 w-full rounded-sm bg-surface-soft p-3 text-sm font-semibold text-ink hover:bg-surface-strong"
+        >
+          {showAll ? `처음 ${FIRST_COUNT}개만 보기` : `나머지 ${rest}개 더 보기`}
+        </button>
+      )}
+      <p className="m-0 mt-5 hidden text-[13px] leading-relaxed text-muted lg:block">
+        AI 가 자료에서 찾아 채운 기록이에요. 「확인 필요」는 원문과 맞는지 한번 봐 주세요. 자료에서 찾지 못했다고 경험이
+        없는 건 아니에요.
+      </p>
+
+      {/* 모바일 — 근거 하단 시트 */}
+      <Sheet open={sheetExp != null} onOpenChange={(open) => !open && setSheetId(null)}>
+        <SheetContent
+          side="bottom"
+          className="max-h-[78dvh] gap-3 overflow-auto rounded-t-lg border-t-0 px-5 pt-2.5 pb-7 lg:hidden"
+        >
+          <span className="h-1 w-9 justify-self-center rounded-full bg-hairline self-center" aria-hidden="true" />
+          {sheetExp && (
+            <>
+              <SheetHeader className="gap-2 p-0 pr-10">
+                <SheetTitle className="text-[17px] font-semibold">근거 {sheetExp.citations.length}</SheetTitle>
+                <SheetDescription className="text-[15px] leading-relaxed text-body">{sheetExp.content}</SheetDescription>
+              </SheetHeader>
+              <div className="flex flex-wrap items-center gap-1.5 text-[13px] font-medium text-muted">
+                <ExperienceMeta experience={sheetExp} />
+              </div>
+              <CitationList citations={sheetExp.citations} />
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
+    </>
+  );
+}

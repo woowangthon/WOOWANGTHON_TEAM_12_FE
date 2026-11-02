@@ -1,29 +1,134 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-/* 색 · 글꼴은 디자인 시안(ETC#7)이 나오면 바꾼다 */
+/*
+  토큰의 원본은 ETC docs/design/DESIGN.md frontmatter 다. 이름도 그대로 둔다(--primary · --evidence …).
+  흰 바탕에 산호 한 색. 색이 있는 꼬리표는 「확인 필요」 하나. 어두운 화면은 스프린트 1 에서 만들지 않는다.
+*/
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --canvas: #ffffff;
+  --surface-soft: #f8f6f5;
+  --surface-strong: #f1eeec;
+  --ink: #23201f;
+  --body: #3e3937;
+  --muted: #6e6562;
+  --muted-soft: #9b928e;
+  --hairline: #e6e1de;
+  --hairline-soft: #f0ecea;
+  --primary: #e24947;
+  --primary-active: #c73a38;
+  --primary-soft: #fdedec;
+  --on-primary: #ffffff;
+  --evidence: #0b5a68;
+  --evidence-soft: #e8f2f3;
+  --review: #9a5410;
+  --review-soft: #fdf1e3;
+  --review-line: #e9a35a;
+  --error: #b4321f;
+  --scrim: rgb(26 21 20 / 0.45);
+  --float: 0 0 0 1px rgb(0 0 0 / 0.02), 0 2px 6px rgb(0 0 0 / 0.04), 0 4px 10px rgb(0 0 0 / 0.08);
+
+  /* shadcn 부품이 쓰는 이름 → 위 토큰 */
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --card: var(--canvas);
+  --card-foreground: var(--ink);
+  --popover: var(--canvas);
+  --popover-foreground: var(--ink);
+  --primary-foreground: var(--on-primary);
+  --secondary: var(--canvas);
+  --secondary-foreground: var(--ink);
+  --muted-foreground: var(--muted);
+  --accent: var(--surface-soft);
+  --accent-foreground: var(--ink);
+  --destructive: var(--error);
+  --border: var(--hairline);
+  --input: var(--hairline);
+  --ring: var(--ink);
+  color-scheme: light;
 }
 
 @theme inline {
+  --font-sans:
+    "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo",
+    "Malgun Gothic", sans-serif;
+  --font-heading: var(--font-sans);
+
+  --color-canvas: var(--canvas);
+  --color-surface-soft: var(--surface-soft);
+  --color-surface-strong: var(--surface-strong);
+  --color-ink: var(--ink);
+  --color-body: var(--body);
+  --color-muted: var(--muted);
+  --color-muted-soft: var(--muted-soft);
+  --color-hairline: var(--hairline);
+  --color-hairline-soft: var(--hairline-soft);
+  --color-primary: var(--primary);
+  --color-primary-active: var(--primary-active);
+  --color-primary-soft: var(--primary-soft);
+  --color-on-primary: var(--on-primary);
+  --color-evidence: var(--evidence);
+  --color-evidence-soft: var(--evidence-soft);
+  --color-review: var(--review);
+  --color-review-soft: var(--review-soft);
+  --color-review-line: var(--review-line);
+  --color-error: var(--error);
+  --color-scrim: var(--scrim);
+  --shadow-float: var(--float);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans:
-    system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic",
-    "Noto Sans KR", sans-serif;
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* DESIGN.md rounded — 버튼 · 입력 8, 떠 있는 상자 14, 하단 시트 위쪽 20 */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-size: 16px;
+    line-height: 1.6;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans);
-  word-break: keep-all;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }
