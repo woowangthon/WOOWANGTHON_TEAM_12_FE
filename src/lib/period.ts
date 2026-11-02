@@ -58,56 +58,15 @@ export function yearsOf(spans: Span[]): number[] {
   return years;
 }
 
-export type YearBar<T> = {
-  item: T;
-  lane: number;
-  /** 1 – 12 */
-  fromMonth: number;
-  toMonth: number;
-  /** 앞 해에서 이어짐 · 다음 해로 이어짐 */
-  continuesBefore: boolean;
-  continuesAfter: boolean;
-  /** 한 달짜리 — 이름을 막대 옆에 쓴다. 연말(10월~)이면 칸을 넘지 않게 왼쪽에 */
-  narrow: "right" | "left" | null;
-};
-
-/**
- * 한 해 안에 놓일 막대와 줄(lane). 겹치는 기간은 다른 줄로 쌓는다.
- * 한 달짜리 막대는 이름이 옆으로 삐져나오므로 그쪽으로 3칸을 더 차지한 것으로 본다.
- */
-export function layoutYear<T>(
-  year: number,
-  items: { item: T; span: Span }[],
-): { bars: YearBar<T>[]; laneCount: number } {
+/** 한 해에 걸친 활동 — 그해 시작한 것(시간 순)과 앞 해에서 이어진 것 */
+export function groupYear<T>(year: number, items: { item: T; span: Span }[]) {
   const first = year * 12;
   const last = first + 11;
   const inYear = items
     .filter(({ span }) => span.start <= last && span.end >= first)
-    .sort((a, b) => a.span.start - b.span.start || b.span.end - a.span.end);
-
-  const laneEnds: number[] = [];
-  const bars = inYear.map(({ item, span }): YearBar<T> => {
-    const from = Math.max(span.start, first) - first;
-    const to = Math.min(span.end, last) - first;
-    const narrow = from !== to ? null : from >= 9 ? "left" : "right";
-    const occupiedFrom = narrow === "left" ? from - 3 : from;
-    const occupiedUntil = narrow === "right" ? to + 3 : to;
-    let lane = laneEnds.findIndex((end) => end < occupiedFrom);
-    if (lane === -1) {
-      lane = laneEnds.length;
-      laneEnds.push(occupiedUntil);
-    } else {
-      laneEnds[lane] = occupiedUntil;
-    }
-    return {
-      item,
-      lane,
-      fromMonth: from + 1,
-      toMonth: to + 1,
-      continuesBefore: span.start < first,
-      continuesAfter: span.end > last,
-      narrow,
-    };
-  });
-  return { bars, laneCount: Math.max(laneEnds.length, 1) };
+    .sort((a, b) => a.span.start - b.span.start);
+  return {
+    starts: inYear.filter(({ span }) => span.start >= first),
+    continuing: inYear.filter(({ span }) => span.start < first),
+  };
 }

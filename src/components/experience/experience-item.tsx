@@ -1,0 +1,112 @@
+"use client";
+
+// 경험 하나 — 이 화면의 주인공. 상자 없이 구분선, 근거는 접어 둔다 (SPEC S-08 · DESIGN.md 「경험」)
+import { CaretDownIcon, CheckIcon, PencilSimpleIcon, QuotesIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { cn } from "@/lib/utils";
+import type { Actor, Experience, SourceStatus } from "@/lib/api/types";
+import { CitationList } from "./citation-list";
+
+const ACTOR: Record<Actor, string> = { ME: "나", TEAM: "팀", UNKNOWN: "알 수 없음" };
+
+/** 출처 상태 — 색만이 아니라 아이콘 · 글자로. 색이 있는 꼬리표는 「확인 필요」 하나 */
+export function SourceStatusMark({ status }: { status: SourceStatus }) {
+  if (status === "SOURCE_CONFIRMED") {
+    return (
+      <span className="inline-flex items-center gap-0.5 text-evidence">
+        <CheckIcon className="size-[1.15em]" aria-hidden="true" />
+        원문 확인
+      </span>
+    );
+  }
+  if (status === "USER_ENTERED") {
+    return (
+      <span className="inline-flex items-center gap-0.5">
+        <PencilSimpleIcon className="size-[1.15em]" aria-hidden="true" />
+        내가 입력
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-0.5 rounded-full border border-dashed border-review-line bg-review-soft py-px pr-2.5 pl-2 text-xs font-semibold text-review">
+      <WarningCircleIcon className="size-[1.15em]" aria-hidden="true" />
+      확인 필요
+    </span>
+  );
+}
+
+/** 수행 주체 · AI 가 붙인 관점 · 출처 상태 */
+export function ExperienceMeta({ experience: e }: { experience: Experience }) {
+  const sep = <span className="text-hairline">·</span>;
+  return (
+    <>
+      <span>{ACTOR[e.actor]}</span>
+      {e.perspective && (
+        <>
+          {sep}
+          <span>
+            <span
+              className="mr-1 inline-block rounded-[4px] border border-hairline px-1 align-[1px] text-[10px] leading-[15px] font-bold tracking-[0.02em]"
+              title="AI 가 붙인 관점"
+            >
+              AI
+            </span>
+            {e.perspective}
+          </span>
+        </>
+      )}
+      {sep}
+      <SourceStatusMark status={e.sourceStatus} />
+    </>
+  );
+}
+
+type Props = {
+  experience: Experience;
+  citationsOpen: boolean;
+  /** PC — 경험 아래에 근거를 펼친다 */
+  onToggleCitations: () => void;
+  /** 모바일 — 하단 시트로 근거를 띄운다 */
+  onShowCitations: () => void;
+};
+
+export function ExperienceItem({ experience: e, citationsOpen, onToggleCitations, onShowCitations }: Props) {
+  const n = e.citations.length;
+  const citeBtn =
+    "ml-auto inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-[13px] font-semibold text-evidence hover:bg-evidence-soft";
+  return (
+    <li className="grid gap-1.5 border-b border-hairline py-4">
+      <p className="m-0 text-base leading-relaxed text-ink">{e.content}</p>
+      <div className="flex flex-wrap items-center gap-1.5 text-[13px] font-medium text-muted">
+        <ExperienceMeta experience={e} />
+        {n === 0 ? (
+          <span className="ml-auto text-muted-soft">근거 없음</span>
+        ) : (
+          <>
+            <button
+              type="button"
+              className={cn(citeBtn, "hidden lg:inline-flex")}
+              aria-expanded={citationsOpen}
+              onClick={onToggleCitations}
+            >
+              <QuotesIcon className="size-[1.15em]" aria-hidden="true" />
+              근거 {n}
+              <CaretDownIcon
+                className={cn("size-[1.15em] transition-transform", citationsOpen && "rotate-180")}
+                aria-hidden="true"
+              />
+            </button>
+            <button type="button" className={cn(citeBtn, "lg:hidden")} onClick={onShowCitations}>
+              <QuotesIcon className="size-[1.15em]" aria-hidden="true" />
+              근거 {n}
+            </button>
+          </>
+        )}
+      </div>
+      {citationsOpen && (
+        <div className="mt-1.5 hidden lg:block">
+          <CitationList citations={e.citations} />
+        </div>
+      )}
+    </li>
+  );
+}

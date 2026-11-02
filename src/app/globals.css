@@ -2,143 +2,80 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-/* 어두운 화면은 시스템 설정을 따른다 — 시안(ETC#7)과 같다 */
-@custom-variant dark (@media (prefers-color-scheme: dark));
-
 /*
-  색 토큰의 원본은 디자인 시안 ETC docs/design/timeline.html 의 :root 블록이다.
-  시안 이름 그대로 두고(--leaf · --paper …), shadcn 부품이 쓰는 이름(--primary · --border …)은 아래에서 이 토큰을 가리킨다.
+  토큰의 원본은 ETC docs/design/DESIGN.md frontmatter 다. 이름도 그대로 둔다(--primary · --evidence …).
+  흰 바탕에 산호 한 색. 색이 있는 꼬리표는 「확인 필요」 하나. 어두운 화면은 스프린트 1 에서 만들지 않는다.
 */
 :root {
-  /* 바탕 · 글자 */
-  --board: #eef1e8;
-  --paper: #fbfaf4;
-  --surface: #ffffff;
-  --ink: #1e2a1f;
-  --ink-2: #4a5649;
-  --ink-3: #7a8577;
-  --line: #e0e5d8;
-  --line-2: #cbd3c2;
-  /* 주 색 — 연두(성장형) */
-  --leaf: #5c9b2e;
-  --leaf-ink: #3d6f18;
-  --leaf-soft: #e7f3d8;
-  --leaf-on: #ffffff;
-  /* 보조 색 — 상태 · 꼬리표에만 */
-  --sky: #3b8bcb;
-  --sky-ink: #1d669f;
-  --sky-soft: #e1effa;
-  --lilac-ink: #5a4aae;
-  --lilac-soft: #edeafb;
-  --apricot: #e1883a;
-  --apricot-ink: #9a5210;
-  --apricot-soft: #fdeddb;
-  --mint: #2a9e83;
-  --mint-ink: #15705b;
-  --mint-soft: #dcf3ec;
-  --danger: #c94c38;
-  --danger-ink: #9c311f;
-  --danger-soft: #fae3de;
-  --shadow-card: 0 1px 2px rgb(30 42 31 / 0.06), 0 6px 20px rgb(30 42 31 / 0.07);
-  --shadow-lift: 0 10px 30px rgb(30 42 31 / 0.18);
-  --dim: rgb(20 28 21 / 0.38);
+  --canvas: #ffffff;
+  --surface-soft: #f8f6f5;
+  --surface-strong: #f1eeec;
+  --ink: #23201f;
+  --body: #3e3937;
+  --muted: #6e6562;
+  --muted-soft: #9b928e;
+  --hairline: #e6e1de;
+  --hairline-soft: #f0ecea;
+  --primary: #e24947;
+  --primary-active: #c73a38;
+  --primary-soft: #fdedec;
+  --on-primary: #ffffff;
+  --evidence: #0b5a68;
+  --evidence-soft: #e8f2f3;
+  --review: #9a5410;
+  --review-soft: #fdf1e3;
+  --review-line: #e9a35a;
+  --error: #b4321f;
+  --scrim: rgb(26 21 20 / 0.45);
+  --float: 0 0 0 1px rgb(0 0 0 / 0.02), 0 2px 6px rgb(0 0 0 / 0.04), 0 4px 10px rgb(0 0 0 / 0.08);
 
-  /* shadcn 부품용 이름 → 위 토큰 */
-  --background: var(--paper);
+  /* shadcn 부품이 쓰는 이름 → 위 토큰 */
+  --background: var(--canvas);
   --foreground: var(--ink);
-  --card: var(--surface);
+  --card: var(--canvas);
   --card-foreground: var(--ink);
-  --popover: var(--surface);
+  --popover: var(--canvas);
   --popover-foreground: var(--ink);
-  --primary: var(--leaf);
-  --primary-foreground: var(--leaf-on);
-  --secondary: var(--leaf-soft);
-  --secondary-foreground: var(--leaf-ink);
-  --muted: var(--paper);
-  --muted-foreground: var(--ink-3);
-  --accent: var(--paper);
+  --primary-foreground: var(--on-primary);
+  --secondary: var(--canvas);
+  --secondary-foreground: var(--ink);
+  --muted-foreground: var(--muted);
+  --accent: var(--surface-soft);
   --accent-foreground: var(--ink);
-  --destructive: var(--danger);
-  --border: var(--line);
-  --input: var(--line-2);
-  --ring: var(--sky);
-  --radius: 0.625rem;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --board: #101511;
-    --paper: #151b16;
-    --surface: #1c241d;
-    --ink: #e6ece1;
-    --ink-2: #b7c1b2;
-    --ink-3: #8a9585;
-    --line: #2a342b;
-    --line-2: #3a463b;
-    --leaf: #8cc95a;
-    --leaf-ink: #a9db7f;
-    --leaf-soft: #233420;
-    --leaf-on: #10200a;
-    --sky: #6fb2e6;
-    --sky-ink: #9bcbf0;
-    --sky-soft: #172b3b;
-    --lilac-ink: #b9aef2;
-    --lilac-soft: #262240;
-    --apricot: #f0a55e;
-    --apricot-ink: #f6c08c;
-    --apricot-soft: #3a2814;
-    --mint: #52c7a9;
-    --mint-ink: #86dcc5;
-    --mint-soft: #13332b;
-    --danger: #e77b67;
-    --danger-ink: #f2a596;
-    --danger-soft: #3d1d17;
-    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 6px 20px rgb(0 0 0 / 0.3);
-    --shadow-lift: 0 10px 30px rgb(0 0 0 / 0.5);
-    --dim: rgb(0 0 0 / 0.55);
-    color-scheme: dark;
-  }
+  --destructive: var(--error);
+  --border: var(--hairline);
+  --input: var(--hairline);
+  --ring: var(--ink);
+  color-scheme: light;
 }
 
 @theme inline {
   --font-sans:
     "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo",
-    "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
+    "Malgun Gothic", sans-serif;
   --font-heading: var(--font-sans);
-  /* 숫자는 Plex Mono, 사이에 낀 한글(「진행 중」 등)은 본문 글꼴로 */
-  --font-mono:
-    var(--font-plex-mono), "Pretendard Variable", Pretendard, ui-monospace,
-    "SFMono-Regular", Menlo, monospace;
 
-  --color-board: var(--board);
-  --color-paper: var(--paper);
-  --color-surface: var(--surface);
+  --color-canvas: var(--canvas);
+  --color-surface-soft: var(--surface-soft);
+  --color-surface-strong: var(--surface-strong);
   --color-ink: var(--ink);
-  --color-ink-2: var(--ink-2);
-  --color-ink-3: var(--ink-3);
-  --color-line: var(--line);
-  --color-line-2: var(--line-2);
-  --color-leaf: var(--leaf);
-  --color-leaf-ink: var(--leaf-ink);
-  --color-leaf-soft: var(--leaf-soft);
-  --color-leaf-on: var(--leaf-on);
-  --color-sky: var(--sky);
-  --color-sky-ink: var(--sky-ink);
-  --color-sky-soft: var(--sky-soft);
-  --color-lilac-ink: var(--lilac-ink);
-  --color-lilac-soft: var(--lilac-soft);
-  --color-apricot: var(--apricot);
-  --color-apricot-ink: var(--apricot-ink);
-  --color-apricot-soft: var(--apricot-soft);
-  --color-mint: var(--mint);
-  --color-mint-ink: var(--mint-ink);
-  --color-mint-soft: var(--mint-soft);
-  --color-danger: var(--danger);
-  --color-danger-ink: var(--danger-ink);
-  --color-danger-soft: var(--danger-soft);
-  --color-dim: var(--dim);
-  --shadow-card: var(--shadow-card);
-  --shadow-lift: var(--shadow-lift);
+  --color-body: var(--body);
+  --color-muted: var(--muted);
+  --color-muted-soft: var(--muted-soft);
+  --color-hairline: var(--hairline);
+  --color-hairline-soft: var(--hairline-soft);
+  --color-primary: var(--primary);
+  --color-primary-active: var(--primary-active);
+  --color-primary-soft: var(--primary-soft);
+  --color-on-primary: var(--on-primary);
+  --color-evidence: var(--evidence);
+  --color-evidence-soft: var(--evidence-soft);
+  --color-review: var(--review);
+  --color-review-soft: var(--review-soft);
+  --color-review-line: var(--review-line);
+  --color-error: var(--error);
+  --color-scrim: var(--scrim);
+  --shadow-float: var(--float);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -146,11 +83,9 @@
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
@@ -158,10 +93,11 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.6);
+
+  /* DESIGN.md rounded — 버튼 · 입력 8, 떠 있는 상자 14, 하단 시트 위쪽 20 */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
 }
 
 @layer base {
@@ -173,6 +109,8 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-size: 16px;
+    line-height: 1.6;
     word-break: keep-all;
     overflow-wrap: anywhere;
   }
@@ -181,7 +119,7 @@
     cursor: pointer;
   }
   :focus-visible {
-    outline: 2px solid var(--sky);
+    outline: 2px solid var(--ink);
     outline-offset: 2px;
   }
 }

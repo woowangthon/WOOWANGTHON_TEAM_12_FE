@@ -1,15 +1,15 @@
 "use client";
 
-// 활동 세부 — 이름 · 기간 · 경험들 (SPEC S-08 · S-09). PC 는 타임라인 옆 패널, 모바일은 전체 화면 + 근거는 하단 시트
+// 활동 세부 — 이름 · 기간 · 이 활동을 만든 자료 · 경험들 (SPEC S-08 · S-09 · DESIGN.md 「활동 세부」)
+// PC 는 타임라인 옆 패널, 모바일은 전체 화면 + 근거는 하단 시트
 import { useState } from "react";
-import { ChevronLeftIcon, CircleHelpIcon, RotateCwIcon, XIcon } from "lucide-react";
+import { ArrowsClockwiseIcon, CaretLeftIcon, XIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import type { ActivityDetail, ActivitySummary, SourceStatus } from "@/lib/api/types";
+import type { ActivityDetail, ActivitySummary } from "@/lib/api/types";
 import { durationText, periodText } from "@/lib/period";
-import { ActorChip, STATUS, StatusBadge } from "./badges";
-import { CitationList } from "./citation-list";
-import { ExperienceCard } from "./experience-card";
+import { CitationList, SourceFile } from "./citation-list";
+import { ExperienceItem, ExperienceMeta } from "./experience-item";
 
 const FIRST_COUNT = 3;
 
@@ -29,44 +29,54 @@ type Props = {
 export function ActivityDetailView({ summary, state, now, onClose, onRetry }: Props) {
   const activity = state.status === "ready" ? state.activity : null;
   const period = activity?.period ?? summary.period;
+  const sources = activity
+    ? [...new Set(activity.experiences.flatMap((e) => e.citations.map((c) => c.sourceName)))]
+    : [];
 
   return (
     <div className="flex min-h-full flex-col">
       {/* 모바일 — 타임라인으로 돌아가기 */}
-      <div className="sticky top-0 z-10 flex min-h-13 items-center border-b border-line bg-surface px-3 lg:hidden">
+      <div className="sticky top-0 z-10 flex h-14 items-center border-b border-hairline bg-canvas px-3 lg:hidden">
         <button
           type="button"
           onClick={onClose}
-          className="inline-flex items-center gap-0.5 rounded-md py-1 pr-2 text-sm text-ink-2"
+          className="inline-flex h-11 items-center gap-0.5 pr-2 text-[15px] font-medium text-ink"
         >
-          <ChevronLeftIcon className="size-4" aria-hidden="true" />
+          <CaretLeftIcon className="size-[1.15em]" aria-hidden="true" />
           타임라인
         </button>
       </div>
 
-      <header className="grid gap-2 border-b border-line bg-surface px-4 pt-5 pb-3.5 lg:sticky lg:top-0 lg:z-10 lg:px-5.5">
+      <header className="grid gap-2.5 border-b border-hairline px-4.5 pt-5 pb-4 lg:px-7 lg:pt-7 lg:pb-5">
         <div className="flex items-start gap-2">
-          <h2 className="m-0 flex-1 text-xl leading-snug font-bold text-balance lg:text-[19px]">
+          <h2 className="m-0 flex-1 text-[21px] leading-snug font-[650] tracking-[-0.3px] text-balance">
             {activity?.name ?? summary.name}
           </h2>
           <Button variant="ghost" size="icon" className="hidden lg:inline-flex" onClick={onClose} aria-label="세부 닫기">
             <XIcon />
           </Button>
         </div>
-        <p className="m-0 flex flex-wrap items-center gap-2 font-mono text-[13px] text-ink-2">
+        <p className="m-0 flex flex-wrap items-center gap-2.5 text-sm text-body tabular-nums">
           {periodText(period)}
-          <span className="font-sans text-ink-3">{durationText(period, now)}</span>
+          <span className="text-muted">{durationText(period, now)}</span>
         </p>
-        {activity && <StatusSummary activity={activity} />}
+        {sources.length > 0 && (
+          <p className="m-0 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px] text-muted">
+            이 활동을 만든 자료
+            {sources.map((s) => (
+              <SourceFile key={s} name={s} />
+            ))}
+          </p>
+        )}
       </header>
 
-      <div className="grid gap-3 px-4 pt-4 pb-7 lg:px-5.5">
-        {state.status === "loading" && <p className="text-sm text-ink-3">경험을 불러오고 있어요…</p>}
+      <div className="px-4.5 pt-2 pb-10 lg:px-7 lg:pb-8">
+        {state.status === "loading" && <p className="pt-4 text-sm text-muted">경험을 불러오고 있어요…</p>}
         {state.status === "error" && (
-          <div className="grid justify-items-start gap-2 rounded-lg border border-danger/40 bg-danger-soft p-3.5 text-sm text-danger-ink">
-            <p className="m-0">이 활동의 경험을 불러오지 못했어요.</p>
-            <Button variant="outline" size="sm" onClick={onRetry}>
-              <RotateCwIcon />
+          <div className="grid justify-items-start gap-3 pt-4">
+            <p className="m-0 text-sm font-medium text-error">이 활동의 경험을 불러오지 못했어요.</p>
+            <Button size="sm" onClick={onRetry}>
+              <ArrowsClockwiseIcon />
               다시 시도
             </Button>
           </div>
@@ -74,27 +84,6 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry }: Pr
         {activity && <ExperienceList key={activity.id} activity={activity} />}
       </div>
     </div>
-  );
-}
-
-function StatusSummary({ activity }: { activity: ActivityDetail }) {
-  const counts = new Map<SourceStatus, number>();
-  for (const e of activity.experiences) counts.set(e.sourceStatus, (counts.get(e.sourceStatus) ?? 0) + 1);
-  const order: SourceStatus[] = ["SOURCE_CONFIRMED", "USER_ENTERED", "NEEDS_REVIEW"];
-  return (
-    <p className="m-0 flex flex-wrap gap-2.5 text-xs text-ink-3">
-      {order
-        .filter((s) => counts.get(s))
-        .map((s) => {
-          const { label, Icon } = STATUS[s];
-          return (
-            <span key={s} className="inline-flex items-center gap-1">
-              <Icon />
-              {label} {counts.get(s)}
-            </span>
-          );
-        })}
-    </p>
   );
 }
 
@@ -106,7 +95,6 @@ function ExperienceList({ activity }: { activity: ActivityDetail }) {
   const { experiences } = activity;
   const visible = showAll ? experiences : experiences.slice(0, FIRST_COUNT);
   const rest = experiences.length - FIRST_COUNT;
-  const sources = [...new Set(experiences.flatMap((e) => e.citations.map((c) => c.sourceName)))];
   const sheetExp = experiences.find((e) => e.id === sheetId);
 
   const toggle = (id: number) =>
@@ -119,13 +107,10 @@ function ExperienceList({ activity }: { activity: ActivityDetail }) {
 
   return (
     <>
-      <div className="flex flex-wrap justify-between gap-x-3 gap-y-1 text-[13px] text-ink-3">
-        <span>이 활동에서 한 일 {experiences.length}</span>
-        <span>자료 {sources.length ? sources.join(", ") : "없음"}</span>
-      </div>
-      <ul className="m-0 grid list-none gap-2.5 p-0">
+      <p className="m-0 pt-4 pb-1 text-[13px] font-medium text-muted">이 활동에서 한 일 {experiences.length}</p>
+      <ul className="m-0 list-none p-0">
         {visible.map((e) => (
-          <ExperienceCard
+          <ExperienceItem
             key={e.id}
             experience={e}
             citationsOpen={openIds.has(e.id)}
@@ -138,31 +123,31 @@ function ExperienceList({ activity }: { activity: ActivityDetail }) {
         <button
           type="button"
           onClick={() => setShowAll((v) => !v)}
-          className="w-full rounded-lg border border-dashed border-line-2 p-2.5 text-[13px] font-semibold text-ink-2 hover:bg-paper"
+          className="mt-3 w-full rounded-sm bg-surface-soft p-3 text-sm font-semibold text-ink hover:bg-surface-strong"
         >
           {showAll ? `처음 ${FIRST_COUNT}개만 보기` : `나머지 ${rest}개 더 보기`}
         </button>
       )}
-      <p className="m-0 flex items-start gap-1.5 pt-1 text-xs leading-normal text-ink-3">
-        <CircleHelpIcon className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-        <span>
-          AI 가 자료에서 찾은 결과예요. 「확인 필요」는 원문과 맞는지 한번 봐 주세요. 자료에 없다고 경험이 없는 건
-          아니에요.
-        </span>
+      <p className="m-0 mt-5 hidden text-[13px] leading-relaxed text-muted lg:block">
+        AI 가 자료에서 찾아 채운 기록이에요. 「확인 필요」는 원문과 맞는지 한번 봐 주세요. 자료에서 찾지 못했다고 경험이
+        없는 건 아니에요.
       </p>
 
       {/* 모바일 — 근거 하단 시트 */}
       <Sheet open={sheetExp != null} onOpenChange={(open) => !open && setSheetId(null)}>
-        <SheetContent side="bottom" className="max-h-[75dvh] gap-3 overflow-auto rounded-t-2xl px-4.5 pb-6 lg:hidden">
+        <SheetContent
+          side="bottom"
+          className="max-h-[78dvh] gap-3 overflow-auto rounded-t-lg border-t-0 px-5 pt-2.5 pb-7 lg:hidden"
+        >
+          <span className="h-1 w-9 justify-self-center rounded-full bg-hairline self-center" aria-hidden="true" />
           {sheetExp && (
             <>
-              <SheetHeader className="p-0 pt-4 pr-10">
-                <SheetTitle className="text-base font-bold">근거 {sheetExp.citations.length}</SheetTitle>
-                <SheetDescription className="text-ink-2">{sheetExp.content}</SheetDescription>
+              <SheetHeader className="gap-2 p-0 pr-10">
+                <SheetTitle className="text-[17px] font-semibold">근거 {sheetExp.citations.length}</SheetTitle>
+                <SheetDescription className="text-[15px] leading-relaxed text-body">{sheetExp.content}</SheetDescription>
               </SheetHeader>
-              <div className="flex flex-wrap gap-1.5">
-                <ActorChip actor={sheetExp.actor} />
-                <StatusBadge status={sheetExp.sourceStatus} />
+              <div className="flex flex-wrap items-center gap-1.5 text-[13px] font-medium text-muted">
+                <ExperienceMeta experience={sheetExp} />
               </div>
               <CitationList citations={sheetExp.citations} />
             </>
