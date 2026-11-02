@@ -41,14 +41,22 @@ export function TimelineScreen() {
   const [toast, setToast] = useState<string | null>(null);
   const detailRequest = useRef(0);
   const listRequest = useRef(0);
+  const selectedRef = useRef<number | null>(null);
   const listScrollY = useRef(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const loadList = (mode: MockMode) => {
     const request = ++listRequest.current;
     return fetchActivities(mode).then(
-      (activities) => request === listRequest.current && setList({ status: "ready", activities, now: monthNumber(new Date()) }),
-      (e: Error) => request === listRequest.current && setList({ status: "error", message: e.message }),
+      (activities) => {
+        if (request !== listRequest.current) return null;
+        setList({ status: "ready", activities, now: monthNumber(new Date()) });
+        return activities;
+      },
+      (e: Error) => {
+        if (request === listRequest.current) setList({ status: "error", message: e.message });
+        return null;
+      },
     );
   };
 
@@ -62,15 +70,6 @@ export function TimelineScreen() {
     toastTimer.current = setTimeout(() => setToast(null), 4000);
   };
 
-  const analysis = useAnalysisJob((job) => {
-    if (!job.activityIds.length) return; // 활동 0개는 상태 화면 · 띠로 알린다
-    loadList(mock);
-    showToast(isMockMode()
-      ? `목 분석 결과 활동 ${job.activityIds.length}개예요. 서버에 저장된 결과가 아니에요.`
-      : `분석이 완료됐어요. 활동 ${job.activityIds.length}개를 불러오고 있어요.`);
-  });
-  const view = analysisView(analysis.tracked);
-
   const loadDetail = (id: number) => {
     const request = ++detailRequest.current;
     setDetail({ status: "loading" });
@@ -80,7 +79,28 @@ export function TimelineScreen() {
     );
   };
 
+  const analysis = useAnalysisJob(async (job) => {
+    const activities = await loadList(mock);
+    if (!activities) {
+      showToast("분석은 완료됐지만 활동을 불러오지 못했어요. 다시 시도해 주세요.");
+      return;
+    }
+    const current = activities.find((a) => a.id === selectedRef.current);
+    const next = current?.id ?? (isMockMode() ? undefined : job.activityIds.find((id) => activities.some((a) => a.id === id)));
+    if (next != null) {
+      selectedRef.current = next;
+      setSelectedId(next);
+      loadDetail(next);
+    }
+    // 활동 0개는 기존의 빈 결과 화면 · 띠로 알린다.
+    if (job.activityIds.length) showToast(isMockMode()
+      ? `목 분석 결과 활동 ${job.activityIds.length}개예요. 서버에 저장된 결과가 아니에요.`
+      : `분석이 완료됐어요. 활동 ${job.activityIds.length}개를 확인해 보세요.`);
+  });
+  const view = analysisView(analysis.tracked);
+
   const select = (id: number) => {
+    selectedRef.current = id;
     if (selectedId == null) listScrollY.current = window.scrollY;
     setSelectedId(id);
     loadDetail(id);
@@ -88,6 +108,7 @@ export function TimelineScreen() {
   };
 
   const close = () => {
+    selectedRef.current = null;
     ++detailRequest.current;
     setSelectedId(null);
     requestAnimationFrame(() => window.scrollTo(0, listScrollY.current));

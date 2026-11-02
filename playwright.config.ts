@@ -14,8 +14,8 @@ export default defineConfig({
   },
   projects: [
     { name: "api", testMatch: "api.spec.ts" },
-    { name: "desktop", testMatch: mock ? "mock.spec.ts" : "editing.spec.ts", use: { viewport: { width: 1440, height: 1000 } } },
-    { name: "mobile", testMatch: mock ? "mock.spec.ts" : "editing.spec.ts", use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
+    { name: "desktop", testMatch: mock ? "mock.spec.ts" : ["editing.spec.ts", "analysis.spec.ts"], use: { viewport: { width: 1440, height: 1000 } } },
+    { name: "mobile", testMatch: mock ? "mock.spec.ts" : ["editing.spec.ts", "analysis.spec.ts"], use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
   ],
   webServer: {
     command: "node node_modules/next/dist/bin/next dev --port 3100",
