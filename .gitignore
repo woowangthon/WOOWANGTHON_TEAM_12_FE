@@ -29,3 +29,8 @@ next-env.d.ts
 # 로그
 npm-debug.log*
 *.pem
+
+# Local test tools and reports
+/.cache/
+/test-results/
+/playwright-report/

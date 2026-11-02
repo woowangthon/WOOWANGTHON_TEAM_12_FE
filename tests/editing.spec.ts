@@ -1,0 +1,117 @@
+import { test, expect, type Page } from "@playwright/test";
+import type { ActivityDetail, UpdateActivityRequest, UpdateExperienceRequest } from "../src/lib/api/types";
+
+// Test-only HTTP fixture; this is not a deployed backend or persistence verification.
+async function setup(page: Page) {
+  const activity: ActivityDetail = {
+    id: 7, name: "API test activity", period: { start: "2025-03", end: "2025-06", ongoing: false },
+    experiences: [{ id: 101, activityId: 7, content: "Original experience", perspective: null, actor: "ME", sourceStatus: "SOURCE_CONFIRMED", citations: [{ id: 201, sourceId: 12, sourceName: "original.md", quote: "Original quote", matched: true, location: { startLine: 1, endLine: 1 } }] }],
+  };
+  const state = { patches: [] as { url: string; body: UpdateActivityRequest | UpdateExperienceRequest }[], fail: false, delay: 0 };
+  await page.route("**/api/**", async (route) => {
+    const req = route.request();
+    const path = new URL(req.url()).pathname;
+    if (req.method() === "PATCH") {
+      state.patches.push({ url: path, body: req.postDataJSON() });
+      if (state.delay) await new Promise((resolve) => setTimeout(resolve, state.delay));
+      if (state.fail) return route.fulfill({ status: 400, json: { error: { code: "INVALID_REQUEST", message: "Server rejected edit" } } });
+      if (path === "/api/activities/7") {
+        Object.assign(activity, req.postDataJSON());
+        return route.fulfill({ json: { id: activity.id, name: activity.name, period: activity.period, experienceCount: 1 } });
+      }
+      Object.assign(activity.experiences[0], req.postDataJSON(), { sourceStatus: "USER_ENTERED" });
+      return route.fulfill({ json: activity.experiences[0] });
+    }
+    return route.fulfill({ json: path === "/api/activities" ? { activities: [{ id: activity.id, name: activity.name, period: activity.period, experienceCount: 1 }] } : activity });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: /API test activity/ }).click();
+  await expect(page.getByText("Original experience", { exact: true })).toBeVisible();
+  return state;
+}
+
+test("activity cancel, validation, period save, timeline sync and GET after reload", async ({ page }) => {
+  const state = await setup(page);
+  await page.getByRole("button", { name: "활동 수정", exact: true }).click();
+  await page.getByLabel("활동 이름").fill("Discarded");
+  await page.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "API test activity" })).toBeVisible();
+  expect(state.patches).toHaveLength(0);
+  await page.getByRole("button", { name: "활동 수정", exact: true }).click();
+  await page.getByLabel("활동 이름").fill(" ");
+  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(page.locator("form").getByRole("alert")).toContainText("활동 이름");
+  await page.getByLabel("활동 이름").fill("Updated activity");
+  await page.getByLabel("시작일").fill("2025-02-30");
+  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(page.locator("form").getByRole("alert")).toContainText("날짜");
+  await page.getByLabel("시작일").fill("2026");
+  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(page.locator("form").getByRole("alert")).toContainText("시작일");
+  expect(state.patches).toHaveLength(0);
+  await page.getByLabel("진행 중", { exact: true }).check();
+  await expect(page.getByLabel("종료일")).toBeDisabled();
+  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Updated activity" })).toBeVisible();
+  expect(state.patches[0].body).toEqual({ name: "Updated activity", period: { start: "2026", end: null, ongoing: true } });
+  if (page.viewportSize()!.width < 1024) await page.getByRole("button", { name: "타임라인", exact: true }).click();
+  await expect(page.getByRole("button", { name: /Updated activity/ }).first()).toBeVisible();
+  await page.reload();
+  await page.getByRole("button", { name: /Updated activity/ }).first().click();
+  await expect(page.getByRole("heading", { name: "Updated activity" })).toBeVisible();
+});
+
+test("experience cancel, no-op, empty validation, changed fields, source status and citations", async ({ page }) => {
+  const state = await setup(page);
+  const edit = () => page.getByRole("button", { name: /^경험 수정:/ }).click();
+  await edit();
+  await page.getByLabel("경험 내용").fill("Discarded");
+  await page.getByRole("button", { name: "취소", exact: true }).click();
+  await edit();
+  await expect(page.getByLabel("경험 내용")).toHaveValue("Original experience");
+  await page.getByRole("button", { name: "저장", exact: true }).click();
+  expect(state.patches).toHaveLength(0);
+  await edit();
+  await page.getByLabel("경험 내용").fill(" \n ");
+  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(page.locator("form").getByRole("alert")).toContainText("경험 내용");
+  expect(state.patches).toHaveLength(0);
+  await page.getByLabel("경험 내용").fill("Updated\nexperience");
+  await page.getByLabel("관점", { exact: true }).fill("My perspective");
+  await page.getByLabel("수행 주체").selectOption("TEAM");
+  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(page.getByText("내가 입력", { exact: true })).toBeVisible();
+  expect(state.patches[0].body).toEqual({ content: "Updated\nexperience", perspective: "My perspective", actor: "TEAM" });
+  await page.getByRole("button", { name: /근거 1/ }).filter({ visible: true }).click();
+  await expect(page.getByText("Original quote", { exact: true }).filter({ visible: true })).toBeVisible();
+  if (page.viewportSize()!.width < 1024) await expect(page.getByRole("dialog")).toContainText("Updated");
+});
+
+for (const kind of ["activity", "experience"] as const) {
+  test(`${kind}: pending prevents duplicate submit; failure retains draft and retry succeeds`, async ({ page }) => {
+    const state = await setup(page);
+    state.fail = true;
+    state.delay = 500;
+    await page.getByRole("button", { name: kind === "activity" ? "활동 수정" : /^경험 수정:/ }).click();
+    const field = page.getByLabel(kind === "activity" ? "활동 이름" : "경험 내용");
+    await field.fill("Keep my draft");
+    await page.locator("form").evaluate((form: HTMLFormElement) => { form.requestSubmit(); form.requestSubmit(); });
+    await expect(page.getByRole("button", { name: "저장 중…" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "취소", exact: true })).toBeDisabled();
+    await expect(page.locator("form").getByRole("alert")).toHaveText("Server rejected edit");
+    await expect(field).toHaveValue("Keep my draft");
+    expect(state.patches).toHaveLength(1);
+    state.fail = false;
+    await page.getByRole("button", { name: "저장", exact: true }).click();
+    await expect(field).toHaveCount(0);
+    expect(state.patches).toHaveLength(2);
+  });
+}
+
+test("API list failure shows error and retry, without mock fallback", async ({ page }) => {
+  await page.route("**/api/activities", (route) => route.fulfill({ status: 503, json: { error: { code: "UNAVAILABLE", message: "Backend unavailable" } } }));
+  await page.goto("/");
+  await expect(page.getByText("Backend unavailable", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "다시 시도" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /바꿔요/ })).toHaveCount(0);
+});
