@@ -11,3 +11,21 @@ Thumbs.db
 
 # 에이전트 개인 설정
 .claude/settings.local.json
+
+# 의존성
+/node_modules
+
+# Next.js · 빌드 결과
+/.next/
+/out/
+/build
+/coverage
+*.tsbuildinfo
+next-env.d.ts
+
+# Vercel CLI 로컬 연결
+.vercel
+
+# 로그
+npm-debug.log*
+*.pem
