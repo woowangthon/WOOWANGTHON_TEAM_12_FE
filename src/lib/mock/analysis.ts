@@ -1,5 +1,5 @@
-// MOCK(source-analysis): BE 자료 넣기 · 분석 작업 API(POST /api/sources · GET /api/jobs/{id} · POST /api/jobs/{id}/retry)가 붙기 전까지
-// 브라우저 탭 저장소(sessionStorage — 새로고침엔 남고 탭을 닫으면 사라진다)에 작업을 두고, 몇 초 뒤 정해진 결과로 끝낸다 (SPEC F-01, FE#6 — FE#7 에서 뺀다)
+// MOCK(source-analysis): API 주소가 없는 목 모드에서만 자료 넣기 · 분석 작업을 모의한다.
+// 탭 저장소(sessionStorage — 새로고침엔 남고 탭을 닫으면 사라진다)에 작업을 두고 정해진 결과로 끝낸다. 실제 API 실패 대체용이 아니다.
 // 결과는 실제 분석이 아니다 — 활동 이름에 「목 결과」를 달고, 근거는 넣은 자료의 첫 줄을 「대조 안 함」으로 붙인다
 // 주소에 ?analysis=fail · ?analysis=empty 를 붙이면 실패 · 활동 0개로 끝난다
 

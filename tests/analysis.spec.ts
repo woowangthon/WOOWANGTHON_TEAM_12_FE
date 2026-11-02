@@ -132,3 +132,64 @@ test("completed analysis does not hide a failed activity refresh with fake resul
   await expect(page.getByText("Server extracted experience", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /목 결과/ })).toHaveCount(0);
 });
+
+test("text.length blocks 50001 UTF-16 units, accepts 50000 and prevents duplicate submit", async ({ page }) => {
+  const state = await setup(page);
+  await page.getByRole("button", { name: "자료 넣기", exact: true }).filter({ visible: true }).first().click();
+  const input = page.getByLabel("붙여넣을 자료");
+  const button = page.getByRole("button", { name: "분석 시작", exact: true });
+  await input.fill(" \n ");
+  await expect(button).toBeDisabled();
+  await input.fill("😀".repeat(25000) + "a");
+  await expect(button).toBeDisabled();
+  await expect(input).toHaveAttribute("aria-invalid", "true");
+  expect(state.sources).toHaveLength(0);
+  await input.fill("😀".repeat(25000));
+  await expect(button).toBeEnabled();
+  await button.evaluate((element: HTMLButtonElement) => { element.click(); element.click(); });
+  await expect(page.getByRole("progressbar")).toBeVisible();
+  expect(state.sources).toHaveLength(1);
+  expect(state.sources[0].text.length).toBe(50000);
+});
+
+test("file validation and JSON upload keep original name and text", async ({ page }) => {
+  const state = await setup(page);
+  await page.getByRole("button", { name: "자료 넣기", exact: true }).filter({ visible: true }).first().click();
+  await page.getByRole("tab", { name: ".md · .txt 파일", exact: true }).click();
+  const input = page.locator('input[type="file"]');
+  const button = page.getByRole("button", { name: "분석 시작", exact: true });
+  await input.setInputFiles({ name: "bad.pdf", mimeType: "application/pdf", buffer: Buffer.from("invalid") });
+  await expect(button).toBeDisabled();
+  await input.setInputFiles({ name: "long.txt", mimeType: "text/plain", buffer: Buffer.from("😀".repeat(25000) + "a") });
+  await expect(page.getByText(/지금 50,001자/)).toBeVisible();
+  await expect(button).toBeDisabled();
+  expect(state.sources).toHaveLength(0);
+  const text = "원본\n😀";
+  await input.setInputFiles({ name: "notes.md", mimeType: "text/markdown", buffer: Buffer.from(text) });
+  await expect(button).toBeEnabled();
+  await button.click();
+  await expect(page.getByRole("progressbar")).toBeVisible();
+  expect(state.sources).toEqual([{ kind: "FILE", name: "notes.md", text }]);
+});
+
+test("restore validates storage, separates mock jobs and shows a missing job error", async ({ page }) => {
+  const state = await setup(page);
+  const key = "analysis:pending-job:http://localhost:3100/api";
+  await page.evaluate((key) => {
+    localStorage.setItem(key, JSON.stringify({ jobId: 34, name: "Restored source" }));
+    localStorage.setItem("analysis:pending-job:mock", JSON.stringify({ jobId: 999, name: "Mock source" }));
+  }, key);
+  state.getError = 404;
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "분석 상태를 확인하지 못했어요" })).toBeVisible();
+  await expect(page.getByText("Job lookup failed", { exact: true })).toBeVisible();
+  expect(await page.evaluate((key) => localStorage.getItem(key), key)).toBeNull();
+  await page.evaluate((key) => localStorage.setItem(key, JSON.stringify({ jobId: "invalid", name: "Invalid" })), key);
+  const gets = state.gets;
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "어떤 일을 해 왔나요?" })).toBeVisible();
+  await page.clock.install();
+  await page.clock.runFor(6000);
+  expect(state.gets).toBe(gets);
+  expect(state.sources).toHaveLength(0);
+});
