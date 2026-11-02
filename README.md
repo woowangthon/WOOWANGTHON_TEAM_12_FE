@@ -1,5 +1,7 @@
 # WOOWANGTHON_TEAM_12_FE
 
+**운영 URL: https://woowangthon-team-12-fe.vercel.app** (main 이 올라갈 때마다 Vercel 이 자동 배포)
+
 2026 AI 우왕톤 12팀 「내가 우왕이 될 상인가」 — 프론트엔드
 
 전체 개요 · 명세 · 아키텍처 · 결정 기록은 [ETC 레포](https://github.com/woowangthon/WOOWANGTHON_TEAM_12_ETC). 스택을 고른 이유는 ETC `docs/decisions/ADR-005-fe-stack.md`.
