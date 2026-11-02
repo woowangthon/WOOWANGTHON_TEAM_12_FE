@@ -87,6 +87,37 @@ test("experience cancel, no-op, empty validation, changed fields, source status 
   if (page.viewportSize()!.width < 1024) await expect(page.getByRole("dialog")).toContainText("Updated");
 });
 
+test("nullable perspective: omit unchanged null, set a string, clear with null, then no-op", async ({ page }) => {
+  const state = await setup(page);
+  const edit = () => page.getByRole("button", { name: /^경험 수정:/ }).click();
+  const save = () => page.getByRole("button", { name: "저장", exact: true }).click();
+  await edit();
+  await expect(page.getByLabel("관점", { exact: true })).toHaveValue("");
+  await page.getByLabel("수행 주체").selectOption("UNKNOWN");
+  await save();
+  await expect(page.getByLabel("관점", { exact: true })).toHaveCount(0);
+  expect(state.patches[0].body).toEqual({ actor: "UNKNOWN" });
+  await edit();
+  await page.getByLabel("관점", { exact: true }).fill("New perspective");
+  await save();
+  await expect(page.getByText("New perspective", { exact: true })).toBeVisible();
+  expect(state.patches[1].body).toEqual({ perspective: "New perspective" });
+  await edit();
+  await page.getByLabel("관점", { exact: true }).fill("");
+  await save();
+  await expect(page.getByLabel("관점", { exact: true })).toHaveCount(0);
+  expect(state.patches[2].body).toEqual({ perspective: null });
+  await expect(page.getByText("New perspective", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("내가 입력", { exact: true })).toBeVisible();
+  await edit();
+  await expect(page.getByLabel("관점", { exact: true })).toHaveValue("");
+  await save();
+  await expect(page.getByLabel("관점", { exact: true })).toHaveCount(0);
+  expect(state.patches).toHaveLength(3);
+  await page.getByRole("button", { name: /근거 1/ }).filter({ visible: true }).click();
+  await expect(page.getByText("Original quote", { exact: true }).filter({ visible: true })).toBeVisible();
+});
+
 for (const kind of ["activity", "experience"] as const) {
   test(`${kind}: pending prevents duplicate submit; failure retains draft and retry succeeds`, async ({ page }) => {
     const state = await setup(page);

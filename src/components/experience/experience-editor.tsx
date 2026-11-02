@@ -24,7 +24,7 @@ export function ExperienceEditor({ experience, onSaved, onCancel }: {
       if (!content.trim()) { setError("경험 내용을 입력해 주세요."); return; }
       const data: UpdateExperienceRequest = {};
       if (content !== experience.content) data.content = content;
-      if (perspective !== (experience.perspective ?? "")) data.perspective = perspective;
+      if (perspective !== (experience.perspective ?? "")) data.perspective = perspective === "" ? null : perspective;
       if (actor !== experience.actor) data.actor = actor;
       if (!Object.keys(data).length) { onCancel(); return; }
       setError(null);

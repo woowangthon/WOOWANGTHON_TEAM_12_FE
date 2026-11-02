@@ -35,6 +35,18 @@ test("PATCH sends JSON and preserves server status and citations", async () => {
   expect(calls[1].url).toBe("https://backend.example/api/activities/7");
 });
 
+test("PATCH distinguishes explicit null perspective from an omitted field", async () => {
+  process.env.NEXT_PUBLIC_API_BASE_URL = "https://backend.example/api";
+  const bodies: unknown[] = [];
+  globalThis.fetch = async (_url, options) => {
+    bodies.push(JSON.parse(options!.body as string));
+    return Response.json({ id: 101, perspective: null, sourceStatus: "USER_ENTERED", citations: [] });
+  };
+  expect(await updateExperience(101, { perspective: null })).toMatchObject({ perspective: null });
+  await updateExperience(101, { actor: "TEAM" });
+  expect(bodies).toEqual([{ perspective: null }, { actor: "TEAM" }]);
+});
+
 test("HTTP, network and invalid JSON errors remain distinguishable; never fallback", async () => {
   process.env.NEXT_PUBLIC_API_BASE_URL = "https://backend.example/api";
   globalThis.fetch = async () => Response.json({ error: { code: "INVALID_PERIOD", message: "period rejected" } }, { status: 400 });

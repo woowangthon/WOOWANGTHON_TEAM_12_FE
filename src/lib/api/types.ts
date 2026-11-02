@@ -73,5 +73,5 @@ export type ActivityDetail = {
 };
 
 export type UpdateActivityRequest = { name?: string; period?: Period };
-// 현재 PATCH 계약은 문자열. 조회 응답의 null 과 구분한다.
-export type UpdateExperienceRequest = { content?: string; perspective?: string; actor?: Actor };
+// 생략하면 유지하고, null 을 보내면 관점을 지운다.
+export type UpdateExperienceRequest = { content?: string; perspective?: string | null; actor?: Actor };
