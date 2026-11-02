@@ -76,6 +76,8 @@ async function request<T>(path: string, data?: unknown, method = data === undefi
     response = await fetch(`${base}${path}`, {
       method,
       cache: "no-store",
+      // 공개 전엔 Cloudflare Access 로그인 쿠키를 실어 보내야 한다(BE#9). BE 는 CORS_ALLOWED_ORIGINS 의 주소에만 쿠키 요청을 허용한다
+      credentials: "include",
       ...(data === undefined ? {} : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }),
     });
   } catch {
