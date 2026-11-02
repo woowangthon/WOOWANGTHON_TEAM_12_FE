@@ -70,19 +70,18 @@ type Props = {
   onToggleCitations: () => void;
   /** 모바일 — 하단 시트로 근거를 띄운다 */
   onShowCitations: () => void;
-  onSaved?: (experience: Experience) => void;
+  onSaved: (experience: Experience) => void;
 };
 
 export function ExperienceItem({ experience, citationsOpen, onToggleCitations, onShowCitations, onSaved }: Props) {
   const [editing, setEditing] = useState(false);
-  const [saved, setSaved] = useState<Experience | null>(null);
-  const e = saved ?? experience;
+  const e = experience;
   const n = e.citations.length;
   const citeBtn =
     "ml-auto inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-[13px] font-semibold text-evidence hover:bg-evidence-soft";
   return (
     <li className="grid gap-1.5 border-b border-hairline py-4">
-      {editing ? <ExperienceEditor experience={e} onCancel={() => setEditing(false)} onSaved={(result) => { setSaved(result); setEditing(false); onSaved?.(result); }} /> : (
+      {editing ? <ExperienceEditor experience={e} onCancel={() => setEditing(false)} onSaved={(result) => { onSaved(result); setEditing(false); }} /> : (
         <div className="flex items-start gap-2"><p className="m-0 flex-1 whitespace-pre-wrap text-base leading-relaxed text-ink">{e.content}</p><Button variant="ghost" size="sm" onClick={() => setEditing(true)} aria-label={`경험 수정: ${e.content}`}>수정</Button></div>
       )}
       <div className="flex flex-wrap items-center gap-1.5 text-[13px] font-medium text-muted">

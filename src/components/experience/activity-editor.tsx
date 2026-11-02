@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { updateActivity } from "@/lib/api/experience";
 import { activityError } from "@/lib/api/editing";
@@ -15,19 +15,21 @@ export function ActivityEditor({ activity, onSaved, onCancel }: {
   const [period, setPeriod] = useState(activity.period);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const pending = useRef(false);
   return (
     <form className="grid gap-3 text-sm" onSubmit={async (event) => {
       event.preventDefault();
-      if (saving) return;
+      if (pending.current) return;
       const invalid = activityError(name, period);
       setError(invalid);
       if (invalid) return;
       if (name === activity.name && JSON.stringify(period) === JSON.stringify(activity.period)) { onCancel(); return; }
+      pending.current = true;
       setSaving(true);
       try { onSaved(await updateActivity(activity.id, { name: name.trim(), period })); }
       catch (e) { setError(e instanceof Error ? e.message : "저장하지 못했어요. 다시 시도해 주세요."); }
-      finally { setSaving(false); }
-    }}>
+      finally { pending.current = false; setSaving(false); }
+    }} aria-busy={saving}>
       <fieldset disabled={saving} className="grid min-w-0 gap-3 border-0 p-0">
         <label className="grid gap-1">활동 이름<input autoFocus className="min-h-11 w-full rounded-sm border border-hairline p-2" value={name} onChange={(e) => setName(e.target.value)} /></label>
         {(["start", "end"] as const).map((field) => (

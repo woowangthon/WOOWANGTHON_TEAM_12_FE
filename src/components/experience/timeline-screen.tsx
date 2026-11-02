@@ -12,15 +12,15 @@ import { AnalysisBanner, AnalysisCenter, analysisView } from "@/components/sourc
 import { useAnalysisJob } from "@/components/source/use-analysis-job";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { fetchActivities, fetchActivity, type MockAnalysis, type MockMode } from "@/lib/api/experience";
-import type { ActivitySummary } from "@/lib/api/types";
+import { fetchActivities, fetchActivity, isMockMode, type MockAnalysis, type MockMode } from "@/lib/api/experience";
+import type { ActivitySummary, Experience } from "@/lib/api/types";
 import { monthNumber, spanOf, yearsOf, type Span } from "@/lib/period";
 import { ActivityDetailView, type DetailState } from "./activity-detail";
 import { Timeline } from "./timeline";
 
 type ListState =
   | { status: "loading" }
-  | { status: "error" }
+  | { status: "error"; message: string }
   | { status: "ready"; activities: ActivitySummary[]; now: number };
 
 function toMockMode(value: string | null): MockMode {
@@ -40,14 +40,17 @@ export function TimelineScreen() {
   const [addOpen, setAddOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const detailRequest = useRef(0);
+  const listRequest = useRef(0);
   const listScrollY = useRef(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const loadList = (mode: MockMode) =>
-    fetchActivities(mode).then(
-      (activities) => setList({ status: "ready", activities, now: monthNumber(new Date()) }),
-      () => setList({ status: "error" }),
+  const loadList = (mode: MockMode) => {
+    const request = ++listRequest.current;
+    return fetchActivities(mode).then(
+      (activities) => request === listRequest.current && setList({ status: "ready", activities, now: monthNumber(new Date()) }),
+      (e: Error) => request === listRequest.current && setList({ status: "error", message: e.message }),
     );
+  };
 
   useEffect(() => {
     loadList(mock);
@@ -61,8 +64,8 @@ export function TimelineScreen() {
 
   const analysis = useAnalysisJob((job) => {
     if (!job.activityIds.length) return; // 활동 0개는 상태 화면 · 띠로 알린다
-    loadList(mock);
-    showToast(`활동 ${job.activityIds.length}개를 더했어요. 타임라인에서 확인해 보세요.`);
+    if (isMockMode()) loadList(mock);
+    showToast(`목 분석 결과 활동 ${job.activityIds.length}개예요. 서버에 저장된 결과가 아니에요.`);
   });
   const view = analysisView(analysis.tracked);
 
@@ -83,8 +86,19 @@ export function TimelineScreen() {
   };
 
   const close = () => {
+    ++detailRequest.current;
     setSelectedId(null);
     requestAnimationFrame(() => window.scrollTo(0, listScrollY.current));
+  };
+
+  const activitySaved = (activity: ActivitySummary) => {
+    ++listRequest.current;
+    setList((prev) => prev.status === "ready" ? { ...prev, activities: prev.activities.map((a) => a.id === activity.id ? activity : a) } : prev);
+    setDetail((prev) => prev.status === "ready" && prev.activity.id === activity.id ? { ...prev, activity: { ...prev.activity, name: activity.name, period: activity.period } } : prev);
+  };
+
+  const experienceSaved = (experience: Experience) => {
+    setDetail((prev) => prev.status === "ready" && prev.activity.id === experience.activityId ? { ...prev, activity: { ...prev.activity, experiences: prev.activity.experiences.map((e) => e.id === experience.id ? experience : e) } } : prev);
   };
 
   const ready = list.status === "ready" ? list : null;
@@ -114,6 +128,10 @@ export function TimelineScreen() {
   return (
     <div className="flex min-h-dvh flex-1 flex-col bg-canvas lg:h-dvh">
       <AppHeader className={cn(selected && "hidden lg:flex")} addSource={addSource} />
+      <p className="m-0 border-b border-hairline px-4 py-2 text-xs text-muted" role="note">
+        {isMockMode() ? "목 모드 · 예시 데이터이며 서버에 저장할 수 없어요." : "실제 API 모드 · 활동과 경험 수정은 서버에 저장해요."}
+        {" 자료 넣기·분석은 BE #5 연동 전까지 목 기능이에요."}
+      </p>
       <div className={cn("flex-1 lg:grid lg:min-h-0", selected && "lg:grid-cols-[minmax(0,1fr)_440px]")}>
         <main
           className={cn(
@@ -126,7 +144,7 @@ export function TimelineScreen() {
             <CenterState
               icon={<WarningCircleIcon className="text-error" />}
               title="타임라인을 불러오지 못했어요"
-              body="넣어 둔 자료와 경험은 그대로 있어요. 잠시 뒤 다시 시도해 주세요."
+              body={list.message}
             >
               <Button onClick={() => loadList(mock)}>
                 <ArrowsClockwiseIcon />
@@ -178,6 +196,8 @@ export function TimelineScreen() {
               now={ready.now}
               onClose={close}
               onRetry={() => loadDetail(selected.id)}
+              onActivitySaved={activitySaved}
+              onExperienceSaved={experienceSaved}
             />
           </aside>
         )}
