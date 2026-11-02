@@ -7,7 +7,7 @@ async function setup(page: Page) {
     id: 7, name: "API test activity", period: { start: "2025-03", end: "2025-06", ongoing: false },
     experiences: [{ id: 101, activityId: 7, content: "Original experience", perspective: null, actor: "ME", sourceStatus: "SOURCE_CONFIRMED", citations: [{ id: 201, sourceId: 12, sourceName: "original.md", quote: "Original quote", matched: true, location: { startLine: 1, endLine: 1 } }] }],
   };
-  const state = { patches: [] as { url: string; body: UpdateActivityRequest | UpdateExperienceRequest }[], fail: false, delay: 0 };
+  const state = { activity, patches: [] as { url: string; body: UpdateActivityRequest | UpdateExperienceRequest }[], fail: false, delay: 0 };
   await page.route("**/api/**", async (route) => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
@@ -145,4 +145,57 @@ test("API list failure shows error and retry, without mock fallback", async ({ p
   await expect(page.getByText("Backend unavailable", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "다시 시도" })).toBeVisible();
   await expect(page.getByRole("button", { name: /바꿔요/ })).toHaveCount(0);
+});
+
+test("detail 404 uses BE error message and retry reloads the actual response", async ({ page }) => {
+  await setup(page);
+  await page.route("**/api/activities/7", (route) => route.fulfill({ status: 404, json: { error: { code: "ACTIVITY_NOT_FOUND", message: "Activity missing" } } }));
+  await page.reload();
+  await page.getByRole("button", { name: /API test activity/ }).click();
+  await expect(page.getByRole("complementary").getByRole("alert")).toHaveText("Activity missing");
+  await expect(page.getByRole("button", { name: "활동 수정", exact: true })).toHaveCount(0);
+  await page.unroute("**/api/activities/7");
+  await page.getByRole("button", { name: "다시 시도", exact: true }).click();
+  await expect(page.getByText("Original experience", { exact: true })).toBeVisible();
+});
+
+test("PATCH response values replace drafts in activity, timeline and experience", async ({ page }) => {
+  const state = await setup(page);
+  await page.route("**/api/**", async (route) => {
+    if (route.request().method() !== "PATCH") return route.fallback();
+    if (new URL(route.request().url()).pathname === "/api/activities/7") {
+      return route.fulfill({ json: { id: 7, name: "Server activity", period: { start: null, end: null, ongoing: false }, experienceCount: 1 } });
+    }
+    return route.fulfill({ json: { ...state.activity.experiences[0], content: "Server experience", perspective: null, sourceStatus: "USER_ENTERED" } });
+  });
+  await page.getByRole("button", { name: "활동 수정", exact: true }).click();
+  await page.getByLabel("활동 이름").fill("Activity draft");
+  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Server activity" })).toBeVisible();
+  await page.getByRole("button", { name: /^경험 수정:/ }).click();
+  await page.getByLabel("경험 내용").fill("Experience draft");
+  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(page.getByText("Server experience", { exact: true })).toBeVisible();
+  await expect(page.getByText("내가 입력", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /근거 1/ }).filter({ visible: true }).click();
+  await expect(page.getByText("Original quote", { exact: true }).filter({ visible: true })).toBeVisible();
+  if (page.viewportSize()!.width < 1024) {
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "타임라인", exact: true }).click();
+  }
+  await expect(page.getByRole("button", { name: /Server activity/ })).toBeVisible();
+});
+
+test("real activity mode keeps source analysis mock and never mixes mock activities", async ({ page }) => {
+  await setup(page);
+  const sourceCalls: string[] = [];
+  page.on("request", (req) => { if (/\/api\/(sources|jobs)/.test(req.url())) sourceCalls.push(req.url()); });
+  if (page.viewportSize()!.width < 1024) await page.getByRole("button", { name: "타임라인", exact: true }).click();
+  await page.getByRole("button", { name: "자료 넣기", exact: true }).filter({ visible: true }).first().click();
+  await page.getByRole("dialog").getByRole("textbox").fill("Mock source text");
+  await page.getByRole("button", { name: "분석 시작", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("목 분석 결과", { timeout: 15000 });
+  expect(sourceCalls).toEqual([]);
+  await expect(page.getByRole("button", { name: /API test activity/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /목 결과/ })).toHaveCount(0);
 });

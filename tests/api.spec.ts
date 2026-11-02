@@ -57,6 +57,11 @@ test("HTTP, network and invalid JSON errors remain distinguishable; never fallba
   await expect(fetchActivity(7)).rejects.toMatchObject({ code: "HTTP_403", status: 403 });
   globalThis.fetch = async () => new Response("invalid", { status: 200 });
   await expect(fetchActivity(7)).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
+  for (const code of ["ACTIVITY_NOT_FOUND", "EXPERIENCE_NOT_FOUND"]) {
+    globalThis.fetch = async () => Response.json({ error: { code, message: "Resource missing" } }, { status: 404 });
+    const request = code === "ACTIVITY_NOT_FOUND" ? fetchActivity(999999) : updateExperience(999999, { actor: "ME" });
+    await expect(request).rejects.toMatchObject({ code, message: "Resource missing", status: 404 });
+  }
 });
 
 test("mock reads stay available, mock writes fail without HTTP or mutation", async () => {

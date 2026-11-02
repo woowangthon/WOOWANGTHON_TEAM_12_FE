@@ -1,6 +1,6 @@
 // 자료 넣기 · 분석 작업 · 활동 · 경험 — ETC docs/contracts/experience-api.md
-// MOCK(timeline-activities): 활동 조회는 지금 BE 대신 src/lib/mock/activities.ts 를 돌려준다. FE#7 에서 fetch 로 바꾸고 이 마커를 뺀다
-// MOCK(source-analysis): 자료 넣기 · 작업 조회 · 다시 시도는 지금 src/lib/mock/analysis.ts 로 돈다. FE#7 에서 fetch 로 바꾸고 이 마커를 뺀다
+// MOCK(timeline-activities): API 주소가 없을 때만 src/lib/mock/activities.ts 로 화면을 확인한다. 실제 API 실패 시 사용하지 않는다.
+// MOCK(source-analysis): BE#5 연동 전까지 자료 넣기 · 작업 조회 · 재시도는 src/lib/mock/analysis.ts 를 유지한다.
 
 import { MOCK_ACTIVITIES } from "../mock/activities";
 import { mockAddedActivities, mockFetchJob, mockRetryJob, mockSubmitSource } from "../mock/analysis";

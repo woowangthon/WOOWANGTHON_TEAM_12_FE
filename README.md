@@ -66,6 +66,8 @@ Remove-Item Env:TEST_MOCK
 
 ### 백엔드 배포 후 확인할 것
 
+최신 BE Controller·DTO·서비스·오류 처리 대조, 로컬 `SEED_SAMPLE=true` 실행 방법과 `http://localhost:8080/api` 설정, 발견한 기간 비교 규칙 차이는 [FE #7 API 검증 기록](docs/fe-7-api-verification.md)에 정리했다. 서버 연결 코드는 기존 클라이언트를 재사용하며, 실제 BE·DB 검증은 실행 환경이 준비된 뒤 수행해야 한다.
+
 BE #9의 실제 주소를 설정한 뒤 실제 DB 저장·새로고침 후 유지, 운영·미리보기 도메인의 CORS, Cloudflare Access를 확인한다. BE #5의 자료 등록·작업 조회·재시도는 이번 작업의 실제 연동 범위 밖이다. 이 항목들은 현재 미검증이다.
 
 ## 배포 · 미리보기
