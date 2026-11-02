@@ -1,13 +1,18 @@
 "use client";
 
-// 첫 화면 — 연도별 타임라인 + 활동 세부 (SPEC F-03). PC 는 타임라인 옆 패널, 모바일은 목록 → 전체 화면 세부
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+// 첫 화면 — 연도별 타임라인 + 활동 세부 (SPEC F-03) · 자료 넣기 + 분석 상태 (F-01)
+// PC 는 타임라인 옆 패널, 모바일은 목록 → 전체 화면 세부
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowsClockwiseIcon, PlusIcon, WarningCircleIcon } from "@phosphor-icons/react";
-import { AddSourceButton, AppHeader } from "@/components/app-header";
+import { AddSourceButton, AppHeader, type AddSourceProps } from "@/components/app-header";
+import { CenterState } from "@/components/center-state";
+import { AddSourceDialog } from "@/components/source/add-source-dialog";
+import { AnalysisBanner, AnalysisCenter, analysisView } from "@/components/source/analysis-status";
+import { useAnalysisJob } from "@/components/source/use-analysis-job";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { fetchActivities, fetchActivity, type MockMode } from "@/lib/api/experience";
+import { fetchActivities, fetchActivity, type MockAnalysis, type MockMode } from "@/lib/api/experience";
 import type { ActivitySummary } from "@/lib/api/types";
 import { monthNumber, spanOf, yearsOf, type Span } from "@/lib/period";
 import { ActivityDetailView, type DetailState } from "./activity-detail";
@@ -21,14 +26,22 @@ type ListState =
 function toMockMode(value: string | null): MockMode {
   return value === "empty" || value === "error" ? value : null;
 }
+function toMockAnalysis(value: string | null): MockAnalysis {
+  return value === "fail" || value === "empty" ? value : null;
+}
 
 export function TimelineScreen() {
-  const mock = toMockMode(useSearchParams().get("mock"));
+  const params = useSearchParams();
+  const mock = toMockMode(params.get("mock"));
+  const mockAnalysis = toMockAnalysis(params.get("analysis"));
   const [list, setList] = useState<ListState>({ status: "loading" });
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detail, setDetail] = useState<DetailState>({ status: "loading" });
+  const [addOpen, setAddOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const detailRequest = useRef(0);
   const listScrollY = useRef(0);
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const loadList = (mode: MockMode) =>
     fetchActivities(mode).then(
@@ -39,6 +52,19 @@ export function TimelineScreen() {
   useEffect(() => {
     loadList(mock);
   }, [mock]);
+
+  const showToast = (text: string) => {
+    clearTimeout(toastTimer.current);
+    setToast(text);
+    toastTimer.current = setTimeout(() => setToast(null), 4000);
+  };
+
+  const analysis = useAnalysisJob((job) => {
+    if (!job.activityIds.length) return; // 활동 0개는 상태 화면 · 띠로 알린다
+    loadList(mock);
+    showToast(`활동 ${job.activityIds.length}개를 더했어요. 타임라인에서 확인해 보세요.`);
+  });
+  const view = analysisView(analysis.tracked);
 
   const loadDetail = (id: number) => {
     const request = ++detailRequest.current;
@@ -74,10 +100,20 @@ export function TimelineScreen() {
 
   const selected = ready?.activities.find((a) => a.id === selectedId) ?? null;
   const hasActivities = !!ready && ready.activities.length > 0;
+  const addSource: AddSourceProps = { onClick: () => setAddOpen(true), busy: view === "analyzing" };
+  const analysisActions = {
+    onRetry: analysis.retry,
+    onRecheck: analysis.recheck,
+    onDismiss: analysis.dismiss,
+    onAddSource: () => {
+      analysis.dismiss();
+      setAddOpen(true);
+    },
+  };
 
   return (
     <div className="flex min-h-dvh flex-1 flex-col bg-canvas lg:h-dvh">
-      <AppHeader className={cn(selected && "hidden lg:flex")} />
+      <AppHeader className={cn(selected && "hidden lg:flex")} addSource={addSource} />
       <div className={cn("flex-1 lg:grid lg:min-h-0", selected && "lg:grid-cols-[minmax(0,1fr)_440px]")}>
         <main
           className={cn(
@@ -98,7 +134,12 @@ export function TimelineScreen() {
               </Button>
             </CenterState>
           )}
-          {ready && !hasActivities && <EmptyState />}
+          {ready && !hasActivities &&
+            (view && analysis.tracked ? (
+              <AnalysisCenter view={view} tracked={analysis.tracked} {...analysisActions} />
+            ) : (
+              <EmptyState addSource={addSource} />
+            ))}
           {ready && timeline && hasActivities && (
             <>
               <div className="flex items-baseline gap-3">
@@ -111,6 +152,9 @@ export function TimelineScreen() {
                   </span>
                 </span>
               </div>
+              {view && analysis.tracked && (
+                <AnalysisBanner view={view} tracked={analysis.tracked} {...analysisActions} />
+              )}
               <Timeline
                 activities={ready.activities}
                 spans={timeline.spans}
@@ -141,38 +185,34 @@ export function TimelineScreen() {
 
       {/* 모바일 — 「자료 넣기」는 오른쪽 아래 떠 있는 버튼 */}
       {hasActivities && !selected && (
-        <AddSourceButton className="fixed right-4 bottom-[calc(20px+env(safe-area-inset-bottom,0px))] rounded-full shadow-float lg:hidden" />
+        <AddSourceButton
+          {...addSource}
+          className="fixed right-4 bottom-[calc(20px+env(safe-area-inset-bottom,0px))] rounded-full shadow-float lg:hidden"
+        />
+      )}
+
+      <AddSourceDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        mock={mockAnalysis}
+        onSubmitted={(pending) => analysis.start(pending)}
+      />
+
+      {/* 알림 — ink 면 · 흰 글 (DESIGN.md 「떠 있는 것」) */}
+      {toast && (
+        <div
+          className="fixed bottom-[calc(84px+env(safe-area-inset-bottom,0px))] left-1/2 z-40 w-max max-w-[calc(100%-32px)] -translate-x-1/2 rounded-sm bg-ink px-4 py-3 text-sm text-canvas shadow-float lg:bottom-6"
+          role="status"
+        >
+          {toast}
+        </div>
       )}
     </div>
   );
 }
 
-/** 가운데 정렬 덩어리 하나, 아이콘은 하나만 (DESIGN.md 「상태 화면」) */
-function CenterState({
-  icon,
-  title,
-  body,
-  children,
-}: {
-  icon: ReactNode;
-  title: string;
-  body: string;
-  children?: ReactNode;
-}) {
-  return (
-    <div className="grid place-items-center px-2 py-16 lg:py-24">
-      <div className="grid w-full max-w-[480px] justify-items-center gap-3.5 text-center">
-        <span className="text-[34px] text-ink [&_svg]:size-[1em]">{icon}</span>
-        <h2 className="m-0 text-[21px] leading-snug font-[650] tracking-[-0.3px] text-balance">{title}</h2>
-        <p className="m-0 text-[15px] text-body">{body}</p>
-        {children}
-      </div>
-    </div>
-  );
-}
-
 /** 활동이 하나도 없을 때 — 「자료 넣기」로 이끈다 */
-function EmptyState() {
+function EmptyState({ addSource }: { addSource: AddSourceProps }) {
   return (
     <CenterState
       icon={<PlusIcon />}
@@ -186,7 +226,7 @@ function EmptyState() {
           </span>
         ))}
       </div>
-      <AddSourceButton />
+      <AddSourceButton {...addSource} />
       <p className="m-0 text-[13px] text-muted">한 번에 다 넣지 않아도 돼요. 생각날 때 하나씩 넣으면 쌓여요.</p>
     </CenterState>
   );

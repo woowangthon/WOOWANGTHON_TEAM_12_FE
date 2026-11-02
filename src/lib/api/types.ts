@@ -13,6 +13,30 @@ export type Period = {
   ongoing: boolean;
 };
 
+/** 자료 한 건의 최대 길이(자) — 계약 「POST /api/sources」 한도 */
+export const MAX_TEXT_LENGTH = 50000;
+
+/** 자료 넣기 요청 — POST /api/sources. 파일도 브라우저에서 읽어 text 로 보낸다 */
+export type SourceRequest =
+  | { kind: "TEXT"; name: null; text: string }
+  | { kind: "FILE"; name: string; text: string };
+
+/** 분석 작업 상태 — 분석 중 / 완료 / 실패 */
+export type JobStatus = "ANALYZING" | "COMPLETED" | "FAILED";
+
+/** GET /api/jobs/{jobId} */
+export type Job = {
+  jobId: number;
+  sourceId: number;
+  status: JobStatus;
+  /** 이 작업으로 생긴 활동. 완료인데 [] 면 자료에서 활동을 찾지 못한 것 — 실패가 아니다 */
+  activityIds: number[];
+  /** code: AI_TIMEOUT · AI_UNAVAILABLE · AI_FAILED · INTERNAL_ERROR */
+  error: { code: string; message: string } | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ActivitySummary = {
   id: number;
   name: string;

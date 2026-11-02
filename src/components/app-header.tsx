@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 // 위 막대 — 왼쪽 이름(가칭), 가운데 메뉴(다음 스프린트 메뉴는 흐리게), 오른쪽 「자료 넣기」 (DESIGN.md 「위 막대」)
 // 모바일은 이름만 두고 「자료 넣기」는 화면 오른쪽 아래 떠 있는 버튼으로
-export function AppHeader({ className }: { className?: string }) {
+export function AppHeader({ className, addSource }: { className?: string; addSource: AddSourceProps }) {
   return (
     <header
       className={cn("flex h-14 items-center gap-7 border-b border-hairline bg-canvas px-4.5 lg:h-16 lg:px-7", className)}
@@ -22,15 +22,25 @@ export function AppHeader({ className }: { className?: string }) {
         <span className="font-medium text-muted-soft">지원 문항 · 다음 스프린트</span>
       </nav>
       <span className="flex-1" />
-      <AddSourceButton className="hidden lg:inline-flex" />
+      <AddSourceButton {...addSource} className="hidden lg:inline-flex" />
     </header>
   );
 }
 
-/** 자료 넣기 — FE#6 에서 붙인다. 그 전엔 눌리지 않는다 */
-export function AddSourceButton({ className }: { className?: string }) {
+export type AddSourceProps = {
+  onClick: () => void;
+  /** 분석이 돌고 있으면 끝날 때까지 하나만 */
+  busy?: boolean;
+};
+
+export function AddSourceButton({ onClick, busy, className }: AddSourceProps & { className?: string }) {
   return (
-    <Button disabled title="자료 넣기는 다음 작업(FE#6)에서 열려요" className={className}>
+    <Button
+      onClick={onClick}
+      disabled={busy}
+      title={busy ? "지금 넣은 자료의 분석이 끝나면 더 넣을 수 있어요" : undefined}
+      className={className}
+    >
       <PlusIcon />
       자료 넣기
     </Button>

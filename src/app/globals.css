@@ -124,6 +124,16 @@
   }
 }
 
+/* 분석 중 막대 — 정해진 진행률이 아니라 「돌고 있다」는 표시 */
+@keyframes analysis-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(260%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
