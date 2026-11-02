@@ -14,7 +14,7 @@
 - `common/GlobalExceptionHandler.java`: `{ error: { code, message } }` 오류 응답
 - 기존 `activity/ActivityController.java`, `ActivityResponses.java`, `ActivityService.java`와 `experience/ExperienceController.java`, `ExperienceResponse.java`, `ExperienceService.java`: 기존 4개 조회·수정 API 계약 유지 확인
 
-[BE 구현](https://github.com/woowangthon/WOOWANGTHON_TEAM_12_BE/tree/fbef4f9cda3b2f6553442f292be0c0b0ea73d602/src/main/java/com/woowangthon/backend)과 [ETC 계약](https://github.com/woowangthon/WOOWANGTHON_TEAM_12_ETC/blob/main/docs/contracts/experience-api.md)의 이번 3개 API 경로·JSON 구조·오류 코드는 일치한다. 기존 기간 비교 해석 차이는 이전 검증 문서에 기록한 상태로 유지했다.
+[BE 구현](https://github.com/woowangthon/WOOWANGTHON_TEAM_12_BE/tree/fbef4f9cda3b2f6553442f292be0c0b0ea73d602/src/main/java/com/woowangthon/backend)과 [ETC 계약](https://github.com/woowangthon/WOOWANGTHON_TEAM_12_ETC/blob/main/docs/contracts/experience-api.md)의 이번 3개 API 경로·JSON 구조·오류 코드는 일치한다. 기간 비교도 이후 PM 확정대로 BE와 동일한 공통 길이 비교·연도 0000 허용을 FE에 반영했다. 이전 검증 문서의 기간 항목에 수정 결과를 기록했다.
 
 ## 실제 요청·응답
 
@@ -77,7 +77,7 @@ ETC는 읽기 전용이므로 변경하지 않았다. `docs/ai-scope.md` §3에�
 
 자동 테스트는 계약에 맞춘 테스트 응답을 사용한다. 실제 BE·DB·AI 통합 성공으로 표시하지 않는다. 테스트는 등록 JSON, 파일 읽기, UTF-16 한도, 상태 폴링·중단, 새로고침 복원, 재시도·충돌, 오류·빈 결과, 목록·상세 재조회, 기존 조회·수정 회귀를 포함한다.
 
-- `PW_CHANNEL=msedge npm test`: API 8개 + 데스크톱·모바일 34개, 총 42개 통과.
+- PM 기간 규칙 반영 후 `PW_CHANNEL=msedge npm test` 재검증: API 9개 + 데스크톱·모바일 36개, 총 45개 통과.
 - `TEST_MOCK=1 PW_CHANNEL=msedge npm test -- --project=desktop --project=mobile`: 기존 목 기능 회귀 4개 통과.
 - `npm.cmd run check`: lint·타입 검사·운영 빌드 통과. Windows PowerShell 실행 정책 때문에 동일 npm 명령을 `.cmd`로 실행했다.
 

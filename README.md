@@ -53,7 +53,7 @@ npx playwright install chromium
 npm test
 ```
 
-`npm test`는 API·검증 테스트 8개와 데스크톱(1440px)·모바일(390px) 편집·자료 분석 테스트를 실행한다. nullable 관점, 폴링·새로고침 복원·재시도·빈 결과·실패, 50,000자 UTF-16 경계와 파일 JSON 등록을 검증한다. 3100 포트에 격리된 개발 서버를 띄우고 브라우저 요청을 테스트 응답으로 처리한다. 실제 DB 저장이나 배포된 서버·AI와의 통합 테스트가 아니다.
+`npm test`는 API·검증 테스트 9개와 데스크톱(1440px)·모바일(390px) 편집·자료 분석 테스트를 실행한다. 기간의 공통 정밀도 비교·연도 0000, nullable 관점, 폴링·새로고침 복원·재시도·빈 결과·실패, 50,000자 UTF-16 경계와 파일 JSON 등록을 검증한다. 3100 포트에 격리된 개발 서버를 띄우고 브라우저 요청을 테스트 응답으로 처리한다. 실제 DB 저장이나 배포된 서버·AI와의 통합 테스트가 아니다.
 
 목 타임라인·목 저장 실패·자료 넣기 회귀 테스트는 PowerShell에서 다음과 같이 실행한다. Windows 실행 정책으로 `npm.ps1`이 차단되면 `npm.cmd`를 사용한다.
 
@@ -67,7 +67,7 @@ Remove-Item Env:TEST_MOCK
 
 ### 백엔드 배포 후 확인할 것
 
-최신 BE Controller·DTO·서비스·오류 처리 대조, 로컬 `SEED_SAMPLE=true` 실행 방법과 `http://localhost:8080/api` 설정, 발견한 기간 비교 규칙 차이는 [FE #7 API 검증 기록](docs/fe-7-api-verification.md)에 정리했다. 서버 연결 코드는 기존 클라이언트를 재사용하며, 실제 BE·DB 검증은 실행 환경이 준비된 뒤 수행해야 한다.
+최신 BE Controller·DTO·서비스·오류 처리 대조, 로컬 `SEED_SAMPLE=true` 실행 방법과 `http://localhost:8080/api` 설정은 [FE #7 API 검증 기록](docs/fe-7-api-verification.md)에 정리했다. 기간은 PM 확정대로 BE `Period.startsAfter()`와 동일하게 짧은 날짜 길이까지 비교한다. `2025-03 → 2025`는 유효하며 연도 `0000`을 별도로 금지하지 않는다. 실제 BE·DB 검증은 실행 환경이 준비된 뒤 수행해야 한다.
 
 BE #4·#5의 조회·수정·자료 등록·작업 조회·재시도 연결 코드는 준비됐다. BE와 AI 서버를 실행한 뒤 DB 저장·새로고침 후 유지, 운영·미리보기 도메인의 CORS, Cloudflare Access를 확인해야 한다. 실제 서버·DB·AI 통합 검증은 미완료다.
 

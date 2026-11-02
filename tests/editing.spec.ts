@@ -61,6 +61,44 @@ test("activity cancel, validation, period save, timeline sync and GET after relo
   await expect(page.getByRole("heading", { name: "Updated activity" })).toBeVisible();
 });
 
+test("activity editor applies PM partial-date and year-zero rules before PATCH", async ({ page }) => {
+  const state = await setup(page);
+  const valid = [
+    { start: "2025-03", end: "2025", ongoing: false },
+    { start: "2025-03-31", end: "2025-03", ongoing: false },
+    { start: "2024", end: "2025", ongoing: false },
+    { start: "2025-01", end: "2025-12", ongoing: false },
+    { start: "0000-02-29", end: "0000", ongoing: false },
+    { start: "0000", end: "0000-12", ongoing: false },
+    { start: "2026", end: null, ongoing: true },
+  ];
+  for (const period of valid) {
+    await page.getByRole("button", { name: "활동 수정", exact: true }).click();
+    await page.getByLabel("진행 중", { exact: true }).uncheck();
+    await page.getByLabel("시작일").fill(period.start);
+    await page.getByLabel("종료일").fill(period.end ?? "");
+    if (period.ongoing) {
+      await page.getByLabel("진행 중", { exact: true }).check();
+      await expect(page.getByLabel("종료일")).toBeDisabled();
+    }
+    const count = state.patches.length;
+    await page.getByRole("button", { name: "저장", exact: true }).click();
+    await expect(page.getByLabel("시작일")).toHaveCount(0);
+    expect(state.patches).toHaveLength(count + 1);
+    expect(state.patches.at(-1)!.body).toEqual({ name: "API test activity", period });
+  }
+  await page.getByRole("button", { name: "활동 수정", exact: true }).click();
+  await page.getByLabel("진행 중", { exact: true }).uncheck();
+  for (const [start, end] of [["2026", "2025"], ["2025-04", "2025-03"], ["0001", "0000"]]) {
+    await page.getByLabel("시작일").fill(start);
+    await page.getByLabel("종료일").fill(end);
+    await page.getByRole("button", { name: "저장", exact: true }).click();
+    await expect(page.locator("form").getByRole("alert")).toContainText("시작일은 종료일보다 늦을 수 없어요");
+    await expect(page.getByLabel("시작일")).toHaveValue(start);
+    expect(state.patches).toHaveLength(valid.length);
+  }
+});
+
 test("experience cancel, no-op, empty validation, changed fields, source status and citations", async ({ page }) => {
   const state = await setup(page);
   const edit = () => page.getByRole("button", { name: /^경험 수정:/ }).click();

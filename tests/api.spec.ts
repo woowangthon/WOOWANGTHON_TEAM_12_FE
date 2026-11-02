@@ -78,12 +78,40 @@ test("mock reads stay available, mock writes fail without HTTP or mutation", asy
 });
 
 test("partial dates, leap years, real dates, empty name and reversed periods", () => {
-  for (const value of [null, "2025", "2025-06", "2024-02-29", "0099-12-31"]) expect(validDate(value)).toBe(true);
-  for (const value of ["", "2025-02-29", "2024-04-31", "2025-13", "2025-00", "2025-1", "0000", "2025-06-00"]) expect(validDate(value)).toBe(false);
+  for (const value of [null, "2025", "2025-06", "2024-02-29", "0099-12-31", "0000", "0000-02", "0000-02-29"]) expect(validDate(value)).toBe(true);
+  for (const value of ["", "2025-02-29", "2024-04-31", "2025-13", "2025-00", "2025-1", "2025-06-00", "0000-02-30", "0000-13"]) expect(validDate(value)).toBe(false);
   expect(activityError(" ", { start: null, end: null, ongoing: false })).toBeTruthy();
   expect(activityError("name", { start: "2026", end: "2025", ongoing: false })).toBeTruthy();
   expect(activityError("name", { start: null, end: "2025", ongoing: true })).toBeTruthy();
   expect(activityError("name", { start: "2025", end: null, ongoing: true })).toBeNull();
+});
+
+test("period ordering matches BE common precision, including year zero and ongoing", () => {
+  const valid = [
+    { start: "2025-03", end: "2025", ongoing: false },
+    { start: "2025", end: "2025-03", ongoing: false },
+    { start: "2025-03-31", end: "2025-03", ongoing: false },
+    { start: "2025-03", end: "2025-03-01", ongoing: false },
+    { start: "2024", end: "2025", ongoing: false },
+    { start: "2025-01", end: "2025-12", ongoing: false },
+    { start: "2025-03-01", end: "2025-03-31", ongoing: false },
+    { start: "0000-02-29", end: "0000", ongoing: false },
+    { start: "0000", end: "0000-12", ongoing: false },
+    { start: "0000", end: null, ongoing: true },
+    { start: null, end: null, ongoing: true },
+    { start: "2025-03", end: null, ongoing: false },
+  ];
+  const invalid = [
+    { start: "2026", end: "2025-12", ongoing: false },
+    { start: "2026-01", end: "2025", ongoing: false },
+    { start: "2025-04", end: "2025-03-31", ongoing: false },
+    { start: "2025-03-31", end: "2025-03-01", ongoing: false },
+    { start: "0001", end: "0000", ongoing: false },
+    { start: "0000-03", end: "0000-02", ongoing: false },
+    { start: "0000", end: "0000-12", ongoing: true },
+  ];
+  for (const period of valid) expect(activityError("name", period), JSON.stringify(period)).toBeNull();
+  for (const period of invalid) expect(activityError("name", period), JSON.stringify(period)).toBeTruthy();
 });
 
 test("source POST, job GET and bodyless retry POST follow the BE contract", async () => {
