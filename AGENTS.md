@@ -107,7 +107,8 @@ SPEC 항목 → plan-feature 로 이슈 → implement-issue: 읽기 → (모르�
 
 ## 이 레포 — FE (프론트엔드)
 
-- 스택: 미정
-- 실행: 미정 — 정해지면 README 와 여기에
-- 검증 명령: 미정 — 정해지면 여기에. 비어 있는 동안은 무엇으로 확인할지 묻는다
+- 스택: Next.js 16(App Router) · React 19 · TypeScript · Tailwind CSS 4 · Vercel(PR 미리보기). 이유는 ETC ADR-005
+- 실행: `npm install` → `npm run dev` (http://localhost:3000). 자세한 건 README
+- 검증 명령: `npm run check` (= `lint` → `typecheck` → `build`). CI 가 PR 마다 같은 것을 돌린다
+- 미리보기: PR 을 열면 Vercel 봇 댓글에 URL 이 뜬다 — UI PR 본문에 그 링크를 붙인다
 - 영역 담당(논의 상대 — 이슈 담당은 시작하는 사람): @Zino03 프론트 주력 · @Rulrudino0911 디자인 주력 · @wjstpdnjs25-oss
