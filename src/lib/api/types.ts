@@ -59,7 +59,7 @@ export type Experience = {
   activityId: number;
   content: string;
   /** AI 가 붙인 자유 문자열(SPEC 미결정 2) */
-  perspective: string;
+  perspective: string | null;
   actor: Actor;
   sourceStatus: SourceStatus;
   citations: Citation[];
@@ -71,3 +71,7 @@ export type ActivityDetail = {
   period: Period;
   experiences: Experience[];
 };
+
+export type UpdateActivityRequest = { name?: string; period?: Period };
+// 현재 PATCH 계약은 문자열. 조회 응답의 null 과 구분한다.
+export type UpdateExperienceRequest = { content?: string; perspective?: string; actor?: Actor };
