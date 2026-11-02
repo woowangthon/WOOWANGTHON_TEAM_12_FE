@@ -21,6 +21,9 @@ export type SourceRequest =
   | { kind: "TEXT"; name: null; text: string }
   | { kind: "FILE"; name: string; text: string };
 
+/** POST /api/sources 응답(202) */
+export type SourceSubmitted = { sourceId: number; jobId: number; status: "ANALYZING" };
+
 /** 분석 작업 상태 — 분석 중 / 완료 / 실패 */
 export type JobStatus = "ANALYZING" | "COMPLETED" | "FAILED";
 
@@ -59,7 +62,7 @@ export type Experience = {
   activityId: number;
   content: string;
   /** AI 가 붙인 자유 문자열(SPEC 미결정 2) */
-  perspective: string;
+  perspective: string | null;
   actor: Actor;
   sourceStatus: SourceStatus;
   citations: Citation[];
@@ -71,3 +74,7 @@ export type ActivityDetail = {
   period: Period;
   experiences: Experience[];
 };
+
+export type UpdateActivityRequest = { name?: string; period?: Period };
+// 생략하면 유지하고, null 을 보내면 관점을 지운다.
+export type UpdateExperienceRequest = { content?: string; perspective?: string | null; actor?: Actor };

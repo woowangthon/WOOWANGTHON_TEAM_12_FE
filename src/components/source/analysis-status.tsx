@@ -3,7 +3,8 @@
 // 분석 상태 — 분석 중 → 완료 / 실패 (SPEC S-02 · DESIGN.md 「상태 화면」)
 // 첫 사용(타임라인이 비었을 때)은 가운데 덩어리로, 이미 타임라인이 있으면 위에 얇은 띠로
 // 실패를 정해진 결과로 덮지 않는다 — 이유와 「다시 시도」를 보인다(AGENTS 대회 규칙 2)
-import { useState } from "react";
+import { useRef, useState } from "react";
+import type { Job } from "@/lib/api/types";
 import { ArrowsClockwiseIcon, CheckIcon, FileTextIcon, MagnifyingGlassIcon, WarningCircleIcon, XIcon } from "@phosphor-icons/react";
 import { CenterState } from "@/components/center-state";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,8 @@ const FAIL_REASONS: Record<string, string> = {
   AI_UNAVAILABLE: "AI 서버에 연결하지 못했어요.",
   AI_FAILED: "AI 가 자료를 분석하다 오류가 났어요.",
 };
-const failReason = (code: string | undefined) => (code && FAIL_REASONS[code]) || "서버에서 문제가 생겼어요.";
+const failReason = (error: Job["error"] | undefined) =>
+  [error && FAIL_REASONS[error.code], error?.message].filter(Boolean).join(" ") || "서버에서 문제가 생겼어요.";
 
 export type AnalysisView = "analyzing" | "failed" | "check-failed" | "none-found" | null;
 
@@ -61,15 +63,19 @@ function Progress({ className }: { className?: string }) {
 /** 「다시 시도」 — 누르는 동안 막고, retry 자체가 실패하면 그렇다고 적는다 */
 function useRetry(onRetry: () => Promise<void>) {
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const pending = useRef(false);
   const run = async () => {
+    if (pending.current) return;
+    pending.current = true;
     setBusy(true);
-    setError(false);
+    setError(null);
     try {
       await onRetry();
-    } catch {
-      setError(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "다시 시도를 보내지 못했어요. 잠시 뒤 다시 눌러 주세요.");
     } finally {
+      pending.current = false;
       setBusy(false);
     }
   };
@@ -99,14 +105,15 @@ export function AnalysisCenter({ view, tracked, ...a }: { view: Exclude<Analysis
     return (
       <CenterState icon={<WarningCircleIcon className="text-error" />} title="분석하지 못했어요">
         <SourceName name={tracked.name} />
-        <p className="m-0 text-sm font-medium text-error">{failReason(tracked.job?.error?.code)}</p>
+        <p className="m-0 text-sm font-medium text-error">{failReason(tracked.job?.error)}</p>
         <p className="m-0 text-[15px] text-body">넣은 자료는 저장돼 있어요. 다시 시도하면 같은 자료로 다시 분석해요.</p>
-        {retry.error && <p className="m-0 text-sm text-error">다시 시도를 보내지 못했어요. 잠시 뒤 다시 눌러 주세요.</p>}
+        {retry.error && <p role="alert" className="m-0 text-sm text-error">{retry.error}</p>}
         <div className="flex flex-wrap justify-center gap-2">
           <Button onClick={retry.run} disabled={retry.busy}>
             <ArrowsClockwiseIcon />
             다시 시도
           </Button>
+          {retry.error && <Button variant="ghost" onClick={a.onRecheck}>상태 다시 확인</Button>}
           <Button variant="secondary" onClick={a.onAddSource}>
             다른 자료 넣기
           </Button>
@@ -119,7 +126,7 @@ export function AnalysisCenter({ view, tracked, ...a }: { view: Exclude<Analysis
       <CenterState
         icon={<WarningCircleIcon className="text-error" />}
         title="분석 상태를 확인하지 못했어요"
-        body="연결이 끊겼을 수 있어요. 분석은 서버에서 계속되고 있을 수 있으니 다시 확인해 주세요."
+        body={tracked.checkError ?? "연결이 끊겼을 수 있어요. 분석은 서버에서 계속되고 있을 수 있으니 다시 확인해 주세요."}
       >
         <SourceName name={tracked.name} />
         <Button onClick={a.onRecheck}>
@@ -171,14 +178,15 @@ export function AnalysisBanner({ view, tracked, ...a }: { view: Exclude<Analysis
         <>
           <WarningCircleIcon className="size-[1.15em] shrink-0" aria-hidden="true" />
           <span className="min-w-0 flex-1">
-            자료(<b className="font-semibold">{tracked.name}</b>)를 분석하지 못했어요. {failReason(tracked.job?.error?.code)} 자료는 저장돼
+            자료(<b className="font-semibold">{tracked.name}</b>)를 분석하지 못했어요. {failReason(tracked.job?.error)} 자료는 저장돼
             있어요.
-            {retry.error && " 다시 시도를 보내지 못했어요."}
+            {retry.error && <span role="alert"> {retry.error}</span>}
           </span>
           <Button variant="secondary" size="sm" onClick={retry.run} disabled={retry.busy}>
             <ArrowsClockwiseIcon />
             다시 시도
           </Button>
+          {retry.error && <Button variant="ghost" size="sm" onClick={a.onRecheck}>상태 다시 확인</Button>}
           {close}
         </>
       )}
@@ -186,7 +194,7 @@ export function AnalysisBanner({ view, tracked, ...a }: { view: Exclude<Analysis
         <>
           <WarningCircleIcon className="size-[1.15em] shrink-0" aria-hidden="true" />
           <span className="min-w-0 flex-1">
-            자료(<b className="font-semibold">{tracked.name}</b>)의 분석 상태를 확인하지 못했어요.
+            자료(<b className="font-semibold">{tracked.name}</b>)의 분석 상태를 확인하지 못했어요. {tracked.checkError}
           </span>
           <Button variant="secondary" size="sm" onClick={a.onRecheck}>
             <ArrowsClockwiseIcon />

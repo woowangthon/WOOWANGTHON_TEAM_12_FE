@@ -2,7 +2,7 @@
 
 // 자료 넣기 — 붙여넣기 또는 .md · .txt 파일 하나 (SPEC S-01). 분석을 시작하기 전에 외부 AI 로 보내진다는 걸 보인다 (S-16)
 // PC 는 가운데 대화창, 모바일은 아래에 붙는 시트(ui/dialog)
-import { useState, type DragEvent } from "react";
+import { useRef, useState, type DragEvent } from "react";
 import { FileTextIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -40,6 +40,7 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted }: Props
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const pending = useRef(false);
 
   const reset = () => {
     setMode("paste");
@@ -96,7 +97,8 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted }: Props
         : null;
 
   const submit = async () => {
-    if (!request) return;
+    if (!request || pending.current) return;
+    pending.current = true;
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -106,9 +108,10 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted }: Props
       onOpenChange(false);
     } catch (e) {
       setSubmitError(
-        (e instanceof ApiError && SUBMIT_ERRORS[e.code]) || "자료를 보내지 못했어요. 잠시 뒤 다시 시도해 주세요.",
+        (e instanceof ApiError && (SUBMIT_ERRORS[e.code] || e.message)) || "자료를 보내지 못했어요. 잠시 뒤 다시 시도해 주세요.",
       );
     } finally {
+      pending.current = false;
       setSubmitting(false);
     }
   };

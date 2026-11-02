@@ -6,10 +6,11 @@ import { useState } from "react";
 import { ArrowsClockwiseIcon, CaretLeftIcon, XIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import type { ActivityDetail, ActivitySummary } from "@/lib/api/types";
+import type { ActivityDetail, ActivitySummary, Experience } from "@/lib/api/types";
 import { durationText, periodText } from "@/lib/period";
 import { CitationList, SourceFile } from "./citation-list";
 import { ExperienceItem, ExperienceMeta } from "./experience-item";
+import { ActivityEditor } from "./activity-editor";
 
 const FIRST_COUNT = 3;
 
@@ -24,11 +25,15 @@ type Props = {
   now: number;
   onClose: () => void;
   onRetry: () => void;
+  onActivitySaved: (activity: ActivitySummary) => void;
+  onExperienceSaved: (experience: Experience) => void;
 };
 
-export function ActivityDetailView({ summary, state, now, onClose, onRetry }: Props) {
+export function ActivityDetailView({ summary, state, now, onClose, onRetry, onActivitySaved, onExperienceSaved }: Props) {
+  const [editing, setEditing] = useState(false);
   const activity = state.status === "ready" ? state.activity : null;
-  const period = activity?.period ?? summary.period;
+  const current = activity ?? summary;
+  const period = current.period;
   const sources = activity
     ? [...new Set(activity.experiences.flatMap((e) => e.citations.map((c) => c.sourceName)))]
     : [];
@@ -50,12 +55,14 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry }: Pr
       <header className="grid gap-2.5 border-b border-hairline px-4.5 pt-5 pb-4 lg:px-7 lg:pt-7 lg:pb-5">
         <div className="flex items-start gap-2">
           <h2 className="m-0 flex-1 text-[21px] leading-snug font-[650] tracking-[-0.3px] text-balance">
-            {activity?.name ?? summary.name}
+            {current.name}
           </h2>
           <Button variant="ghost" size="icon" className="hidden lg:inline-flex" onClick={onClose} aria-label="세부 닫기">
             <XIcon />
           </Button>
         </div>
+        {activity && !editing && <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>활동 수정</Button>}
+        {editing && <ActivityEditor activity={{ ...summary, name: current.name, period }} onCancel={() => setEditing(false)} onSaved={(result) => { onActivitySaved(result); setEditing(false); }} />}
         <p className="m-0 flex flex-wrap items-center gap-2.5 text-sm text-body tabular-nums">
           {periodText(period)}
           <span className="text-muted">{durationText(period, now)}</span>
@@ -74,20 +81,20 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry }: Pr
         {state.status === "loading" && <p className="pt-4 text-sm text-muted">경험을 불러오고 있어요…</p>}
         {state.status === "error" && (
           <div className="grid justify-items-start gap-3 pt-4">
-            <p className="m-0 text-sm font-medium text-error">이 활동의 경험을 불러오지 못했어요.</p>
+            <p role="alert" className="m-0 text-sm font-medium text-error">{state.message}</p>
             <Button size="sm" onClick={onRetry}>
               <ArrowsClockwiseIcon />
               다시 시도
             </Button>
           </div>
         )}
-        {activity && <ExperienceList key={activity.id} activity={activity} />}
+        {activity && <ExperienceList key={activity.id} activity={activity} onSaved={onExperienceSaved} />}
       </div>
     </div>
   );
 }
 
-function ExperienceList({ activity }: { activity: ActivityDetail }) {
+function ExperienceList({ activity, onSaved }: { activity: ActivityDetail; onSaved: (experience: Experience) => void }) {
   const [showAll, setShowAll] = useState(false);
   const [openIds, setOpenIds] = useState<Set<number>>(() => new Set());
   const [sheetId, setSheetId] = useState<number | null>(null);
@@ -113,6 +120,7 @@ function ExperienceList({ activity }: { activity: ActivityDetail }) {
           <ExperienceItem
             key={e.id}
             experience={e}
+            onSaved={onSaved}
             citationsOpen={openIds.has(e.id)}
             onToggleCitations={() => toggle(e.id)}
             onShowCitations={() => setSheetId(e.id)}
