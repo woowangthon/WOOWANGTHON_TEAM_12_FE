@@ -5,6 +5,9 @@ import { CaretDownIcon, CheckIcon, PencilSimpleIcon, QuotesIcon, WarningCircleIc
 import { cn } from "@/lib/utils";
 import type { Actor, Experience, SourceStatus } from "@/lib/api/types";
 import { CitationList } from "./citation-list";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { ExperienceEditor } from "./experience-editor";
 
 const ACTOR: Record<Actor, string> = { ME: "나", TEAM: "팀", UNKNOWN: "알 수 없음" };
 
@@ -44,12 +47,12 @@ export function ExperienceMeta({ experience: e }: { experience: Experience }) {
         <>
           {sep}
           <span>
-            <span
+            {e.sourceStatus !== "USER_ENTERED" && <span
               className="mr-1 inline-block rounded-[4px] border border-hairline px-1 align-[1px] text-[10px] leading-[15px] font-bold tracking-[0.02em]"
               title="AI 가 붙인 관점"
             >
               AI
-            </span>
+            </span>}
             {e.perspective}
           </span>
         </>
@@ -67,15 +70,21 @@ type Props = {
   onToggleCitations: () => void;
   /** 모바일 — 하단 시트로 근거를 띄운다 */
   onShowCitations: () => void;
+  onSaved?: (experience: Experience) => void;
 };
 
-export function ExperienceItem({ experience: e, citationsOpen, onToggleCitations, onShowCitations }: Props) {
+export function ExperienceItem({ experience, citationsOpen, onToggleCitations, onShowCitations, onSaved }: Props) {
+  const [editing, setEditing] = useState(false);
+  const [saved, setSaved] = useState<Experience | null>(null);
+  const e = saved ?? experience;
   const n = e.citations.length;
   const citeBtn =
     "ml-auto inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-[13px] font-semibold text-evidence hover:bg-evidence-soft";
   return (
     <li className="grid gap-1.5 border-b border-hairline py-4">
-      <p className="m-0 text-base leading-relaxed text-ink">{e.content}</p>
+      {editing ? <ExperienceEditor experience={e} onCancel={() => setEditing(false)} onSaved={(result) => { setSaved(result); setEditing(false); onSaved?.(result); }} /> : (
+        <div className="flex items-start gap-2"><p className="m-0 flex-1 whitespace-pre-wrap text-base leading-relaxed text-ink">{e.content}</p><Button variant="ghost" size="sm" onClick={() => setEditing(true)} aria-label={`경험 수정: ${e.content}`}>수정</Button></div>
+      )}
       <div className="flex flex-wrap items-center gap-1.5 text-[13px] font-medium text-muted">
         <ExperienceMeta experience={e} />
         {n === 0 ? (
