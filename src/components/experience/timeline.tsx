@@ -2,10 +2,12 @@
 
 // 연도별 타임라인 — 활동 줄 목록 + 오른쪽 얇은 기간 띠(그해 1–12월). 겹침은 띠끼리 견줘 읽는다 (SPEC S-07 · DESIGN.md 「활동 줄」)
 // PC 는 이름 옆에 띠, 모바일은 이름 아래에 띠
-import { useState, type DragEvent, type ReactNode } from "react";
+import { useState, type DragEvent, type PointerEvent, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import type { ActivitySummary, Experience, Period } from "@/lib/api/types";
 import { groupYear, periodText, type Span } from "@/lib/period";
+
+type Edge = "start" | "end";
 
 type Props = {
   activities: ActivitySummary[];
@@ -16,7 +18,16 @@ type Props = {
   /** PC 끌어다 놓기 — 세부에서 끌고 있는 경험. 그 경험의 활동이 아닌 줄이 놓을 곳이 된다 (S-12) */
   dragging: Experience | null;
   onDropExperience: (experience: Experience, toActivityId: number) => void;
+  /** PC — 기간 띠 끝을 끌어 기간을 고친다 (S-17). 놓았을 때 한 번 부른다 */
+  onPeriodChange: (activity: ActivitySummary, period: Period) => void;
 };
+
+/** 끈 쪽 끝만 「YYYY-MM」 으로 바꾼다. 종료가 비어 있던(한 달짜리) 활동의 시작을 끌면 원래 시작을 종료로 남긴다 */
+function movedPeriod(period: Period, edge: Edge, month: number): Period {
+  const value = `${String(Math.floor(month / 12)).padStart(4, "0")}-${String((month % 12) + 1).padStart(2, "0")}`;
+  if (edge === "end") return { ...period, end: value };
+  return { ...period, start: value, end: period.end ?? (period.ongoing ? null : period.start) };
+}
 
 /** 줄마다 넘기는 끌어다 놓기 상태 */
 type Drop = {
@@ -28,9 +39,24 @@ type Drop = {
 
 const rowLayout = "lg:grid-cols-[minmax(0,1fr)_264px] lg:items-center lg:gap-6";
 
-export function Timeline({ activities, spans, years, selectedId, onSelect, dragging, onDropExperience }: Props) {
+export function Timeline({ activities, spans, years, selectedId, onSelect, dragging, onDropExperience, onPeriodChange }: Props) {
   const [overId, setOverId] = useState<number | null>(null);
   const drop: Drop = { dragging, overId: dragging ? overId : null, setOverId, onDrop: onDropExperience };
+  // 띠 끝을 끄는 동안의 미리보기 — 놓기 전엔 저장하지 않는다
+  const [preview, setPreview] = useState<{ id: number; span: Span; period: Period } | null>(null);
+
+  const edgeHandler = (item: ActivitySummary, span: Span) => (edge: Edge, month: number | null, done: boolean) => {
+    if (month == null) return setPreview(null);
+    const next = edge === "start" ? { start: Math.min(month, span.end), end: span.end } : { start: span.start, end: Math.max(month, span.start) };
+    const changed = next.start !== span.start || next.end !== span.end;
+    const period = movedPeriod(item.period, edge, edge === "start" ? next.start : next.end);
+    if (!done) return setPreview(changed ? { id: item.id, span: next, period } : null);
+    setPreview(null);
+    if (changed) onPeriodChange(item, period);
+  };
+  const shown = (id: number, span: Span) => (preview?.id === id ? preview.span : span);
+  const previewSub = (id: number) =>
+    preview?.id === id ? <span className="font-medium text-ink">바꿀 기간 {periodText(preview.period)}</span> : null;
 
   const dated = activities.filter((a) => spans.has(a.id)).map((a) => ({ item: a, span: spans.get(a.id)! }));
   const undated = activities.filter((a) => !spans.has(a.id));
@@ -53,12 +79,14 @@ export function Timeline({ activities, spans, years, selectedId, onSelect, dragg
                     onSelect={onSelect}
                     drop={drop}
                     sub={
-                      <>
-                        <PeriodLabel period={item.period} />
-                        <span className="ml-2.5">경험 {item.experienceCount}</span>
-                      </>
+                      previewSub(item.id) ?? (
+                        <>
+                          <PeriodLabel period={item.period} />
+                          <span className="ml-2.5">경험 {item.experienceCount}</span>
+                        </>
+                      )
                     }
-                    band={<PeriodBand span={span} year={year} ongoing={item.period.ongoing} selected={selected} />}
+                    band={<PeriodBand id={item.id} span={shown(item.id, span)} year={year} ongoing={item.period.ongoing} selected={selected} onEdge={edgeHandler(item, span)} />}
                   />
                 );
               })}
@@ -72,9 +100,9 @@ export function Timeline({ activities, spans, years, selectedId, onSelect, dragg
                     onSelect={onSelect}
                     drop={drop}
                     continuing
-                    sub={`${Math.floor(span.start / 12)}년부터 이어짐`}
+                    sub={previewSub(item.id) ?? `${Math.floor(span.start / 12)}년부터 이어짐`}
                     band={
-                      <PeriodBand span={span} year={year} ongoing={item.period.ongoing} selected={selected} faint />
+                      <PeriodBand id={item.id} span={shown(item.id, span)} year={year} ongoing={item.period.ongoing} selected={selected} faint onEdge={edgeHandler(item, span)} />
                     }
                   />
                 );
@@ -153,7 +181,7 @@ function Row({
   };
   return (
     <li
-      className="border-b border-hairline-soft"
+      className="group/row border-b border-hairline-soft"
       onDragOver={dragOver}
       onDragLeave={(e) => {
         if (over && !e.currentTarget.contains(e.relatedTarget as Node | null)) drop.setOverId(null);
@@ -217,31 +245,82 @@ function PeriodLabel({ period }: { period: Period }) {
 const ON = "color-mix(in srgb, var(--primary) 55%, var(--primary-soft))";
 const ON_FAINT = "color-mix(in srgb, var(--primary) 25%, var(--primary-soft))";
 
-/** 그해 1–12월 12칸. 활동한 달은 산호, 진행 중이면 마지막 칸을 흐리게 (DESIGN.md 「기간 띠」) */
+/** 그해 1–12월 12칸. 활동한 달은 산호, 진행 중이면 마지막 칸을 흐리게 (DESIGN.md 「기간 띠」)
+ *  PC 는 줄에 마우스를 올리면 그해 안에 있는 시작 · 종료 끝에 손잡이가 나와 끌 수 있다 (S-17) */
 function PeriodBand({
+  id,
   span,
   year,
   ongoing,
   selected,
   faint,
+  onEdge,
 }: {
+  id: number;
   span: Span;
   year: number;
   ongoing: boolean;
   selected: boolean;
   faint?: boolean;
+  /** month 가 null 이면 끌기 취소 */
+  onEdge: (edge: Edge, month: number | null, done: boolean) => void;
 }) {
+  const first = year * 12;
   const on = faint ? ON_FAINT : ON;
   const off = selected ? "var(--canvas)" : "var(--hairline-soft)";
+  const inYear = (month: number) => month >= first && month <= first + 11;
+
+  // 손잡이의 부모가 띠다. 끄는 중인지는 포인터 캡처로 안다
+  const monthAt = (e: PointerEvent<HTMLElement>) => {
+    const r = e.currentTarget.parentElement!.getBoundingClientRect();
+    return first + Math.min(11, Math.max(0, Math.floor(((e.clientX - r.left) / r.width) * 12)));
+  };
+
+  const handle = (edge: Edge) => (
+    <span
+      key={edge}
+      aria-hidden="true"
+      data-testid={`band-${edge}-${id}-${year}`}
+      title={edge === "start" ? "끌어서 시작 달 바꾸기" : "끌어서 끝 달 바꾸기"}
+      className={cn(
+        "absolute top-1/2 hidden h-6 w-4 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center lg:flex",
+        "opacity-0 group-hover/row:opacity-100",
+      )}
+      style={{ left: `${(((edge === "start" ? span.start : span.end + 1) - first) / 12) * 100}%` }}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation(); // 띠 끝을 누른 건 세부 열기가 아니다
+      }}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.currentTarget.setPointerCapture(e.pointerId);
+      }}
+      onPointerMove={(e) => {
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) onEdge(edge, monthAt(e), false);
+      }}
+      onPointerUp={(e) => {
+        if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+        e.currentTarget.releasePointerCapture(e.pointerId);
+        onEdge(edge, monthAt(e), true);
+      }}
+      onPointerCancel={() => onEdge(edge, null, true)}
+    >
+      <i className="h-4 w-1 rounded-full bg-primary-active shadow-[0_0_0_2px_var(--canvas)]" />
+    </span>
+  );
+
   return (
-    <span className="grid grid-cols-12 gap-0.5" aria-hidden="true">
+    <span className="relative grid grid-cols-12 gap-0.5">
       {Array.from({ length: 12 }, (_, i) => {
-        const month = year * 12 + i;
+        const month = first + i;
         const active = month >= span.start && month <= span.end;
         const fade = active && ongoing && month === span.end;
         const background = !active ? off : fade ? `linear-gradient(to right, ${on}, var(--primary-soft))` : on;
-        return <i key={i} className="h-1.5 rounded-[2px]" style={{ background }} />;
+        return <i key={i} className="h-1.5 rounded-[2px]" style={{ background }} aria-hidden="true" />;
       })}
+      {inYear(span.start) && handle("start")}
+      {!ongoing && inYear(span.end) && handle("end")}
     </span>
   );
 }
