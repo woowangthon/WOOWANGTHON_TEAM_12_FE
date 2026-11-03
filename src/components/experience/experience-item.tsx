@@ -1,7 +1,7 @@
 "use client";
 
 // 경험 하나 — 이 화면의 주인공. 상자 없이 구분선, 근거는 접어 둔다 (SPEC S-08 · DESIGN.md 「경험」)
-import { CaretDownIcon, CheckIcon, DotsThreeIcon, PencilSimpleIcon, QuotesIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { CaretDownIcon, CheckIcon, DotsSixVerticalIcon, DotsThreeIcon, PencilSimpleIcon, QuotesIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { DropdownMenu } from "radix-ui";
 import { cn } from "@/lib/utils";
 import { COMPETENCIES, type Actor, type Experience, type SourceStatus } from "@/lib/api/types";
@@ -73,16 +73,40 @@ type Props = {
   onShowCitations: () => void;
   onSaved: (experience: Experience) => void;
   onDelete: (experience: Experience) => void;
+  /** 메뉴 「다른 활동으로 옮기기」 — 모바일 · 끌기 어려운 곳 (S-12) */
+  onMove: (experience: Experience) => void;
+  /** PC — 손잡이를 끌어 타임라인의 다른 활동 위에 놓는다 (S-12) */
+  onDragChange: (experience: Experience | null) => void;
+  dragging: boolean;
 };
 
-export function ExperienceItem({ experience, citationsOpen, onToggleCitations, onShowCitations, onSaved, onDelete }: Props) {
+export function ExperienceItem({ experience, citationsOpen, onToggleCitations, onShowCitations, onSaved, onDelete, onMove, onDragChange, dragging }: Props) {
   const [editing, setEditing] = useState(false);
   const e = experience;
   const n = e.citations.length;
   const citeBtn =
     "ml-auto inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-[13px] font-semibold text-evidence hover:bg-evidence-soft";
   return (
-    <li className="grid gap-1.5 border-b border-hairline py-4">
+    <li className={cn("group relative grid gap-1.5 border-b border-hairline py-4", dragging && "opacity-40")}>
+      {!editing && (
+        <span
+          draggable
+          onDragStart={(ev) => {
+            ev.dataTransfer.effectAllowed = "move";
+            ev.dataTransfer.setData("text/plain", String(e.id));
+            const li = ev.currentTarget.parentElement;
+            if (li) ev.dataTransfer.setDragImage(li, 16, 16);
+            onDragChange(e);
+          }}
+          onDragEnd={() => onDragChange(null)}
+          title="끌어서 타임라인의 다른 활동에 놓으면 옮겨져요"
+          aria-hidden="true"
+          data-testid={`drag-${e.id}`}
+          className="absolute top-4.5 -left-6 hidden h-7 w-5 cursor-grab items-center justify-center rounded-sm text-muted opacity-0 group-hover:opacity-100 hover:bg-surface-strong active:cursor-grabbing lg:flex"
+        >
+          <DotsSixVerticalIcon className="size-4" />
+        </span>
+      )}
       {editing ? <ExperienceEditor experience={e} onCancel={() => setEditing(false)} onSaved={(result) => { onSaved(result); setEditing(false); }} /> : (
         <div className="flex items-start gap-2">
           <p className="m-0 flex-1 whitespace-pre-wrap text-base leading-relaxed text-ink">{e.content}</p>
@@ -94,6 +118,7 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
             <DropdownMenu.Portal>
               <DropdownMenu.Content align="end" sideOffset={4} className="z-50 min-w-32 rounded-md border border-hairline bg-canvas p-1 shadow-float">
                 <DropdownMenu.Item onSelect={() => setEditing(true)} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">고치기</DropdownMenu.Item>
+                <DropdownMenu.Item onSelect={() => onMove(e)} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">다른 활동으로 옮기기</DropdownMenu.Item>
                 <DropdownMenu.Item onSelect={() => onDelete(e)} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm text-error outline-none focus:bg-surface-soft">지우기</DropdownMenu.Item>
               </DropdownMenu.Content>
             </DropdownMenu.Portal>

@@ -12,10 +12,11 @@ import { AnalysisBanner, AnalysisCenter, analysisView } from "@/components/sourc
 import { useAnalysisJob } from "@/components/source/use-analysis-job";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { fetchActivities, fetchActivity, isMockMode, type MockAnalysis, type MockMode } from "@/lib/api/experience";
+import { fetchActivities, fetchActivity, isMockMode, mergeActivities, moveExperience, type MockAnalysis, type MockMode } from "@/lib/api/experience";
 import type { ActivitySummary, Experience } from "@/lib/api/types";
 import { monthNumber, spanOf, yearsOf, type Span } from "@/lib/period";
 import { ActivityDetailView, type DetailState } from "./activity-detail";
+import { MergeActivityDialog, MoveExperienceDialog } from "./regroup-dialogs";
 import { Timeline } from "./timeline";
 import { useExperienceDeletion } from "./use-experience-deletion";
 
@@ -39,7 +40,10 @@ export function TimelineScreen() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detail, setDetail] = useState<DetailState>({ status: "loading" });
   const [addOpen, setAddOpen] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ text: string; alert: boolean } | null>(null);
+  const [dragging, setDragging] = useState<Experience | null>(null);
+  const [moving, setMoving] = useState<Experience | null>(null);
+  const [mergeOpen, setMergeOpen] = useState(false);
   const detailRequest = useRef(0);
   const listRequest = useRef(0);
   const selectedRef = useRef<number | null>(null);
@@ -65,10 +69,10 @@ export function TimelineScreen() {
     loadList(mock);
   }, [mock]);
 
-  const showToast = (text: string) => {
+  const showToast = (text: string, alert = false) => {
     clearTimeout(toastTimer.current);
-    setToast(text);
-    toastTimer.current = setTimeout(() => setToast(null), 4000);
+    setToast({ text, alert });
+    toastTimer.current = setTimeout(() => setToast(null), alert ? 7000 : 4000);
   };
 
   const loadDetail = (id: number) => {
@@ -131,6 +135,57 @@ export function TimelineScreen() {
     setDetail((prev) => prev.status === "ready" && prev.activity.id === experience.activityId
       ? { ...prev, activity: { ...prev.activity, experiences: [...prev.activity.experiences, experience] } } : prev);
     setList((prev) => prev.status === "ready" ? { ...prev, activities: prev.activities.map((a) => a.id === experience.activityId ? { ...a, experienceCount: a.experienceCount + 1 } : a) } : prev);
+  };
+
+  const shiftCount = (counts: Record<number, number>) =>
+    setList((prev) => prev.status === "ready" ? { ...prev, activities: prev.activities.map((a) => a.id in counts ? { ...a, experienceCount: a.experienceCount + counts[a.id] } : a) } : prev);
+
+  /** 경험 옮기기(S-12) — 바로 반영하고, 실패하면 원래 자리로 돌린 뒤 알린다 */
+  const moveTo = (experience: Experience, toId: number) => {
+    setDragging(null);
+    setMoving(null);
+    const fromId = experience.activityId;
+    if (fromId === toId) return;
+    const toName = list.status === "ready" ? list.activities.find((a) => a.id === toId)?.name : undefined;
+    const index = detail.status === "ready" && detail.activity.id === fromId ? detail.activity.experiences.findIndex((e) => e.id === experience.id) : -1;
+    ++listRequest.current;
+    if (detail.status === "ready") ++detailRequest.current;
+    setDetail((prev) => prev.status === "ready" && prev.activity.id === fromId
+      ? { ...prev, activity: { ...prev.activity, experiences: prev.activity.experiences.filter((e) => e.id !== experience.id) } } : prev);
+    shiftCount({ [fromId]: -1, [toId]: 1 });
+    moveExperience(experience.id, toId).then(
+      (moved) => {
+        // 그새 옮겨 간 활동을 열었으면 뒤에 붙인다(계약: 옮겨 온 경험은 뒤에)
+        setDetail((prev) => prev.status === "ready" && prev.activity.id === moved.activityId && !prev.activity.experiences.some((e) => e.id === moved.id)
+          ? { ...prev, activity: { ...prev.activity, experiences: [...prev.activity.experiences, moved] } } : prev);
+        showToast(toName ? `「${toName}」(으)로 옮겼어요.` : "다른 활동으로 옮겼어요.");
+      },
+      (e: Error) => {
+        ++listRequest.current;
+        shiftCount({ [fromId]: 1, [toId]: -1 });
+        setDetail((prev) => {
+          if (prev.status !== "ready" || prev.activity.id !== fromId || prev.activity.experiences.some((x) => x.id === experience.id)) return prev;
+          const experiences = [...prev.activity.experiences];
+          experiences.splice(index < 0 ? experiences.length : Math.min(index, experiences.length), 0, experience);
+          return { ...prev, activity: { ...prev.activity, experiences } };
+        });
+        showToast(`옮기지 못해서 원래 활동에 돌려 놨어요. ${e.message}`, true);
+      },
+    );
+  };
+
+  /** 활동 합치기(S-13) — 확인 창에서 응답을 기다린다. 실패하면 던져서 창에 이유를 남기고 화면은 그대로 둔다 */
+  const merge = async (keepId: number, fromId: number) => {
+    const kept = await mergeActivities(keepId, fromId);
+    ++listRequest.current;
+    ++detailRequest.current;
+    setList((prev) => prev.status === "ready" ? { ...prev, activities: prev.activities.filter((a) => a.id !== fromId)
+      .map((a) => a.id === keepId ? { ...a, name: kept.name, period: kept.period, experienceCount: kept.experiences.length } : a) } : prev);
+    selectedRef.current = keepId;
+    setSelectedId(keepId);
+    setDetail({ status: "ready", activity: kept });
+    setMergeOpen(false);
+    showToast(`활동을 합쳤어요. 「${kept.name}」에 경험 ${kept.experiences.length}개가 모였어요.`);
   };
 
   const deletion = useExperienceDeletion((experience) => {
@@ -226,6 +281,8 @@ export function TimelineScreen() {
                 years={timeline.years}
                 selectedId={selectedId}
                 onSelect={select}
+                dragging={dragging}
+                onDropExperience={moveTo}
               />
             </>
           )}
@@ -247,6 +304,10 @@ export function TimelineScreen() {
               onExperienceSaved={experienceSaved}
               onExperienceAdded={experienceAdded}
               onExperienceDelete={deletion.remove}
+              onExperienceMove={setMoving}
+              onDragChange={setDragging}
+              draggingId={dragging?.id ?? null}
+              onMergeRequest={ready.activities.length > 1 ? () => setMergeOpen(true) : undefined}
             />
           </aside>
         )}
@@ -260,6 +321,11 @@ export function TimelineScreen() {
         />
       )}
 
+      <MoveExperienceDialog experience={moving} activities={ready?.activities ?? []} onClose={() => setMoving(null)} onPick={moveTo} />
+      {selected && ready && (
+        <MergeActivityDialog key={selected.id} activity={selected} activities={ready.activities} open={mergeOpen} onOpenChange={setMergeOpen} onMerge={merge} />
+      )}
+
       <AddSourceDialog
         open={addOpen}
         onOpenChange={setAddOpen}
@@ -268,7 +334,7 @@ export function TimelineScreen() {
       />
 
       {/* 알림 — ink 면 · 흰 글 (DESIGN.md 「떠 있는 것」) */}
-      {(deletion.pending.length > 0 || deletion.error) && (
+      {(deletion.pending.length > 0 || deletion.error || toast) && (
         <div className="fixed bottom-[calc(84px+env(safe-area-inset-bottom,0px))] left-1/2 z-40 grid w-max max-w-[calc(100%-32px)] -translate-x-1/2 gap-2 lg:bottom-6">
           {deletion.pending.map(({ experience, saving }) => (
             <div key={experience.id} role="status" className="flex items-center gap-3 rounded-sm bg-ink px-4 py-2 text-sm text-canvas shadow-float">
@@ -282,14 +348,7 @@ export function TimelineScreen() {
           {deletion.error && <div role="alert" className="flex items-center gap-3 rounded-sm bg-ink px-4 py-2 text-sm text-canvas shadow-float">
             <span>{deletion.error}</span><button type="button" className="min-h-11 shrink-0" onClick={deletion.dismissError}>닫기</button>
           </div>}
-        </div>
-      )}
-      {toast && !deletion.pending.length && !deletion.error && (
-        <div
-          className="fixed bottom-[calc(84px+env(safe-area-inset-bottom,0px))] left-1/2 z-40 w-max max-w-[calc(100%-32px)] -translate-x-1/2 rounded-sm bg-ink px-4 py-3 text-sm text-canvas shadow-float lg:bottom-6"
-          role="status"
-        >
-          {toast}
+          {toast && <div role={toast.alert ? "alert" : "status"} className="rounded-sm bg-ink px-4 py-3 text-sm text-canvas shadow-float">{toast.text}</div>}
         </div>
       )}
     </div>

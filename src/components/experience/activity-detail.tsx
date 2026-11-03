@@ -3,7 +3,8 @@
 // 활동 세부 — 이름 · 기간 · 이 활동을 만든 자료 · 경험들 (SPEC S-08 · S-09 · DESIGN.md 「활동 세부」)
 // PC 는 타임라인 옆 패널, 모바일은 전체 화면 + 근거는 하단 시트
 import { useState } from "react";
-import { ArrowsClockwiseIcon, CaretLeftIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
+import { ArrowsClockwiseIcon, CaretLeftIcon, DotsThreeIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
+import { DropdownMenu } from "radix-ui";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { ActivityDetail, ActivitySummary, Experience } from "@/lib/api/types";
@@ -30,9 +31,14 @@ type Props = {
   onExperienceSaved: (experience: Experience) => void;
   onExperienceAdded: (experience: Experience) => void;
   onExperienceDelete: (experience: Experience) => void;
+  onExperienceMove: (experience: Experience) => void;
+  onDragChange: (experience: Experience | null) => void;
+  draggingId: number | null;
+  /** 다른 활동이 없으면 undefined — 메뉴를 숨긴다 */
+  onMergeRequest?: () => void;
 };
 
-export function ActivityDetailView({ summary, state, now, onClose, onRetry, onActivitySaved, onExperienceSaved, onExperienceAdded, onExperienceDelete }: Props) {
+export function ActivityDetailView({ summary, state, now, onClose, onRetry, onActivitySaved, onExperienceSaved, onExperienceAdded, onExperienceDelete, onExperienceMove, onDragChange, draggingId, onMergeRequest }: Props) {
   const [editing, setEditing] = useState(false);
   const activity = state.status === "ready" ? state.activity : null;
   const current = activity ?? summary;
@@ -60,6 +66,19 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
           <h2 className="m-0 flex-1 text-[21px] leading-snug font-[650] tracking-[-0.3px] text-balance">
             {current.name}
           </h2>
+          {activity && onMergeRequest && (
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger asChild>
+                <Button variant="ghost" size="icon" className="size-11 lg:size-9" aria-label="활동 메뉴"><DotsThreeIcon /></Button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content align="end" sideOffset={4} className="z-50 min-w-40 rounded-md border border-hairline bg-canvas p-1 shadow-float">
+                  <DropdownMenu.Item onSelect={() => setEditing(true)} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">활동 고치기</DropdownMenu.Item>
+                  <DropdownMenu.Item onSelect={onMergeRequest} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">다른 활동과 합치기</DropdownMenu.Item>
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
+          )}
           <Button variant="ghost" size="icon" className="hidden lg:inline-flex" onClick={onClose} aria-label="세부 닫기">
             <XIcon />
           </Button>
@@ -91,17 +110,21 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
             </Button>
           </div>
         )}
-        {activity && <ExperienceList key={activity.id} activity={activity} onSaved={onExperienceSaved} onAdded={onExperienceAdded} onDelete={onExperienceDelete} />}
+        {activity && <ExperienceList key={activity.id} activity={activity} onSaved={onExperienceSaved} onAdded={onExperienceAdded} onDelete={onExperienceDelete}
+          onMove={onExperienceMove} onDragChange={onDragChange} draggingId={draggingId} />}
       </div>
     </div>
   );
 }
 
-function ExperienceList({ activity, onSaved, onAdded, onDelete }: {
+function ExperienceList({ activity, onSaved, onAdded, onDelete, onMove, onDragChange, draggingId }: {
   activity: ActivityDetail;
   onSaved: (experience: Experience) => void;
   onAdded: (experience: Experience) => void;
   onDelete: (experience: Experience) => void;
+  onMove: (experience: Experience) => void;
+  onDragChange: (experience: Experience | null) => void;
+  draggingId: number | null;
 }) {
   const [adding, setAdding] = useState(false);
   const [showAll, setShowAll] = useState(false);
@@ -131,6 +154,9 @@ function ExperienceList({ activity, onSaved, onAdded, onDelete }: {
             experience={e}
             onSaved={onSaved}
             onDelete={onDelete}
+            onMove={onMove}
+            onDragChange={onDragChange}
+            dragging={e.id === draggingId}
             citationsOpen={openIds.has(e.id)}
             onToggleCitations={() => toggle(e.id)}
             onShowCitations={() => setSheetId(e.id)}
@@ -159,7 +185,7 @@ function ExperienceList({ activity, onSaved, onAdded, onDelete }: {
       </div>
       <p className="m-0 mt-5 hidden text-[13px] leading-relaxed text-muted lg:block">
         AI 가 자료에서 찾아 채운 기록이에요. 「확인 필요」는 원문과 맞는지 한번 봐 주세요. 자료에서 찾지 못했다고 경험이
-        없는 건 아니에요.
+        없는 건 아니에요. 다른 활동의 일이면 경험 왼쪽 손잡이를 끌어 타임라인의 그 활동에 놓아 주세요.
       </p>
 
       {/* 모바일 — 근거 하단 시트 */}

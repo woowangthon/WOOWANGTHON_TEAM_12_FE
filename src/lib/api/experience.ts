@@ -120,3 +120,15 @@ export async function createExperience(activityId: number, data: CreateExperienc
 export function deleteExperience(id: number): Promise<void> {
   return request(`/experiences/${id}`, undefined, "DELETE");
 }
+
+/** POST /api/experiences/{id}/move — 묶음만 바뀐다. 내용 · 근거 · 출처 상태는 그대로 (S-12) */
+export async function moveExperience(id: number, toActivityId: number): Promise<Experience> {
+  return checkCompetencies(await request(`/experiences/${id}/move`, { toActivityId }, "POST"));
+}
+
+/** POST /api/activities/{keepId}/merge — fromId 의 경험을 keepId 로 옮기고 fromId 를 지운다. 응답은 남은 활동의 세부 (S-13) */
+export async function mergeActivities(keepId: number, fromId: number): Promise<ActivityDetail> {
+  const activity = await request<ActivityDetail>(`/activities/${keepId}/merge`, { fromActivityId: fromId }, "POST");
+  activity.experiences.forEach(checkCompetencies);
+  return activity;
+}
