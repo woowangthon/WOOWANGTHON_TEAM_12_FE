@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowsClockwiseIcon, PlusIcon, WarningCircleIcon } from "@phosphor-icons/react";
-import { AddSourceButton, AppHeader, type AddSourceProps } from "@/components/app-header";
+import { AddSourceButton, AppHeader, AppSidebar, type AddSourceProps } from "@/components/app-header";
 import { CenterState } from "@/components/center-state";
 import { AddSourceDialog } from "@/components/source/add-source-dialog";
 import { AnalysisBanner, AnalysisCenter, analysisView } from "@/components/source/analysis-status";
@@ -98,9 +98,12 @@ export function TimelineScreen() {
       loadDetail(next);
     }
     // 활동 0개는 기존의 빈 결과 화면 · 띠로 알린다.
+    // AI 가 한 일을 한 줄로 — 무엇을 몇 개 찾았나(ETC#19 「AI 가 유능한 동료로 보이게」). 숫자는 서버가 돌려준 활동에서 센다
+    const found = activities.filter((a) => job.activityIds.includes(a.id));
+    const foundText = `활동 ${job.activityIds.length}개${found.length ? ` · 경험 ${found.reduce((n, a) => n + a.experienceCount, 0)}개` : ""}`;
     if (job.activityIds.length) showToast(isMockMode()
       ? `목 분석 결과 활동 ${job.activityIds.length}개예요. 서버에 저장된 결과가 아니에요.`
-      : `분석이 완료됐어요. 활동 ${job.activityIds.length}개를 확인해 보세요.`);
+      : `자료에서 ${foundText}를 찾았어요. 「확인 필요」가 붙은 것부터 봐 주세요.`);
   });
   const view = analysisView(analysis.tracked);
 
@@ -248,9 +251,11 @@ export function TimelineScreen() {
   };
 
   return (
-    <div className="flex min-h-dvh flex-1 flex-col bg-canvas lg:h-dvh">
-      <AppHeader className={cn(selected && "hidden lg:flex")} addSource={addSource} />
-      <p className="m-0 border-b border-hairline px-4 py-2 text-xs text-muted" role="note">
+    <div className="flex min-h-dvh flex-1 flex-col bg-canvas lg:h-dvh lg:flex-row">
+      <AppSidebar className="hidden lg:flex" addSource={addSource} />
+      <div className="flex min-w-0 flex-1 flex-col lg:min-h-0">
+      <AppHeader className={cn("lg:hidden", selected && "hidden")} />
+      <p className="m-0 border-b border-hairline px-4 py-2 text-xs text-muted lg:px-8" role="note">
         {isMockMode() ? "목 모드 · 예시 데이터이며 서버에 저장할 수 없어요." : "실제 API 모드 · 활동과 경험 수정은 서버에 저장해요."}
         {isMockMode() ? " 자료 넣기·분석도 목 기능이에요." : " 자료 넣기·분석 상태도 실제 API로 확인해요."}
       </p>
@@ -282,15 +287,15 @@ export function TimelineScreen() {
             ))}
           {ready && timeline && hasActivities && (
             <>
-              <div className="flex items-baseline gap-3">
-                <h1 className="m-0 text-2xl font-bold tracking-[-0.4px] lg:text-[26px]">내 경험</h1>
-                <span className="text-sm text-muted tabular-nums">
-                  활동 {ready.activities.length}
-                  <span className="hidden lg:inline">
-                    {" "}
-                    · 경험 {ready.activities.reduce((n, a) => n + a.experienceCount, 0)}
-                  </span>
-                </span>
+              {/* 쌓인 만큼만 센다 — 주간 비교 · 빈 요일 같은 재촉은 두지 않는다(ETC#19) */}
+              <div className="grid gap-1.5">
+                <h1 className="m-0 text-[22px] leading-snug font-bold tracking-[-0.4px] text-balance lg:text-[26px]">
+                  경험이 차곡차곡 쌓이고 있어요
+                </h1>
+                <p className="m-0 text-sm text-body tabular-nums lg:text-[15px]">
+                  지금까지 활동 {ready.activities.length} · 경험 {ready.activities.reduce((n, a) => n + a.experienceCount, 0)}
+                  <span className="text-muted"> — 필요할 때 꺼내 쓰세요</span>
+                </p>
               </div>
               {view && analysis.tracked && (
                 <AnalysisBanner view={view} tracked={analysis.tracked} {...analysisActions} />
@@ -332,6 +337,7 @@ export function TimelineScreen() {
             />
           </aside>
         )}
+      </div>
       </div>
 
       {/* 모바일 — 「자료 넣기」는 오른쪽 아래 떠 있는 버튼 */}
@@ -382,7 +388,7 @@ function EmptyState({ addSource }: { addSource: AddSourceProps }) {
     <CenterState
       icon={<PlusIcon />}
       title="어떤 일을 해 왔나요?"
-      body="프로젝트 README · 회고 · 활동 정리 노트를 그대로 넣어 주세요. 활동과 그 안에서 한 일을 찾아 연도별로 정리해 둘게요."
+      body="프로젝트 README · 회고 · 활동 정리 노트를 그대로 넣어 주세요. AI 가 읽고 활동과 그 안에서 한 일을 찾아, 원문 근거와 함께 연도별로 쌓아 둘게요."
     >
       <div className="flex flex-wrap justify-center gap-1.5">
         {["README.md", "프로젝트 회고", "노션에서 복사한 활동 목록", ".md · .txt · 붙여넣기"].map((t) => (

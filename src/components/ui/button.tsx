@@ -3,7 +3,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
 import { Slot } from "radix-ui"
 
-// shadcn button 을 ETC docs/design/DESIGN.md 「버튼」 표대로 고쳤다 — 주(산호) · 보조(먹색 테두리) · 글자
+// shadcn button 을 ETC docs/design/DESIGN.md 「버튼」 표대로 고쳤다 — 주(연두) · 보조(먹색 테두리) · 글자
 const buttonVariants = cva(
   "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-sm font-semibold leading-none whitespace-nowrap transition-colors outline-none select-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-[1.15em]",
   {

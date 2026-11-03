@@ -3,30 +3,32 @@
 @import "shadcn/tailwind.css";
 
 /*
-  토큰의 원본은 ETC docs/design/DESIGN.md frontmatter 다. 이름도 그대로 둔다(--primary · --evidence …).
-  흰 바탕에 산호 한 색. 색이 있는 꼬리표는 「확인 필요」 하나. 어두운 화면은 스프린트 1 에서 만들지 않는다.
+  토큰의 원본은 ETC docs/design/DESIGN.md frontmatter 다(초안 2 — ETC#19). 이름은 초안 1 그대로 둔다(--primary · --evidence …).
+  흰 바탕 + 연두(내 기록 · 주 버튼) + 하늘(원문 · 근거). 노트 인덱스 탭처럼 채도를 낮춘 두 색만 쓰고, 면 전체를 칠하지 않는다.
+  색이 있는 꼬리표는 「확인 필요」(호박) 하나. 어두운 화면은 아직 만들지 않는다.
 */
 :root {
   --canvas: #ffffff;
-  --surface-soft: #f8f6f5;
-  --surface-strong: #f1eeec;
-  --ink: #23201f;
-  --body: #3e3937;
-  --muted: #6e6562;
-  --muted-soft: #9b928e;
-  --hairline: #e6e1de;
-  --hairline-soft: #f0ecea;
-  --primary: #e24947;
-  --primary-active: #c73a38;
-  --primary-soft: #fdedec;
+  --paper: #f6f6f1;
+  --surface-soft: #f5f5f0;
+  --surface-strong: #ecece5;
+  --ink: #20231e;
+  --body: #3a3e37;
+  --muted: #676b62;
+  --muted-soft: #9a9d94;
+  --hairline: #e3e3da;
+  --hairline-soft: #efefe8;
+  --primary: #4a7a2c;
+  --primary-active: #3b6322;
+  --primary-soft: #edf3e2;
   --on-primary: #ffffff;
-  --evidence: #0b5a68;
-  --evidence-soft: #e8f2f3;
+  --evidence: #2e6487;
+  --evidence-soft: #e8f0f5;
   --review: #9a5410;
   --review-soft: #fdf1e3;
   --review-line: #e9a35a;
   --error: #b4321f;
-  --scrim: rgb(26 21 20 / 0.45);
+  --scrim: rgb(24 27 22 / 0.45);
   --float: 0 0 0 1px rgb(0 0 0 / 0.02), 0 2px 6px rgb(0 0 0 / 0.04), 0 4px 10px rgb(0 0 0 / 0.08);
 
   /* shadcn 부품이 쓰는 이름 → 위 토큰 */
@@ -56,6 +58,7 @@
   --font-heading: var(--font-sans);
 
   --color-canvas: var(--canvas);
+  --color-paper: var(--paper);
   --color-surface-soft: var(--surface-soft);
   --color-surface-strong: var(--surface-strong);
   --color-ink: var(--ink);

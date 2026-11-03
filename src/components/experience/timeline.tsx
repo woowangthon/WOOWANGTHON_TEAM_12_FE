@@ -37,7 +37,8 @@ type Drop = {
   onDrop: (experience: Experience, toActivityId: number) => void;
 };
 
-const rowLayout = "lg:grid-cols-[minmax(0,1fr)_264px] lg:items-center lg:gap-6";
+// 줄 배치는 화면 폭이 아니라 타임라인 칸의 폭으로 — PC 에서 사이드바 · 세부 패널이 함께 열려 칸이 좁아지면 띠가 이름 아래로 내려간다
+const rowLayout = "@xl:grid-cols-[minmax(0,1fr)_264px] @xl:items-center @xl:gap-6";
 
 export function Timeline({ activities, spans, years, selectedId, onSelect, dragging, onDropExperience, onPeriodChange }: Props) {
   const [overId, setOverId] = useState<number | null>(null);
@@ -62,7 +63,7 @@ export function Timeline({ activities, spans, years, selectedId, onSelect, dragg
   const undated = activities.filter((a) => !spans.has(a.id));
 
   return (
-    <div>
+    <div className="@container">
       {years.map((year) => {
         const { starts, continuing } = groupYear(year, dated);
         return (
@@ -140,13 +141,13 @@ function experienceCountText(count: number) {
 
 function YearHead({ label, count, showMonths }: { label: string; count: number; showMonths?: boolean }) {
   return (
-    <div className={cn("grid border-b border-ink pb-2 lg:items-end", rowLayout)}>
+    <div className={cn("grid border-b border-ink pb-2 @xl:items-end", rowLayout)}>
       <b className="text-[17px] font-semibold tabular-nums">
         {label}
         <small className="ml-2 text-[13px] font-medium text-muted">활동 {count}</small>
       </b>
       {showMonths && (
-        <span className="hidden grid-cols-12 text-[11px] text-muted-soft tabular-nums lg:grid" aria-hidden="true">
+        <span className="hidden grid-cols-12 text-[11px] text-muted-soft tabular-nums @xl:grid" aria-hidden="true">
           {Array.from({ length: 12 }, (_, i) => (
             <span key={i} className={cn(i % 3 === 0 && "text-muted")}>
               {i + 1}
@@ -250,7 +251,7 @@ function PeriodLabel({ period }: { period: Period }) {
 const ON = "color-mix(in srgb, var(--primary) 55%, var(--primary-soft))";
 const ON_FAINT = "color-mix(in srgb, var(--primary) 25%, var(--primary-soft))";
 
-/** 그해 1–12월 12칸. 활동한 달은 산호, 진행 중이면 마지막 칸을 흐리게 (DESIGN.md 「기간 띠」)
+/** 그해 1–12월 12칸. 활동한 달은 연두(옅게), 진행 중이면 마지막 칸을 흐리게 (DESIGN.md 「기간 띠」)
  *  PC 는 줄에 마우스를 올리면 그해 안에 있는 시작 · 종료 끝에 손잡이가 나와 끌 수 있다 (S-17) */
 function PeriodBand({
   id,

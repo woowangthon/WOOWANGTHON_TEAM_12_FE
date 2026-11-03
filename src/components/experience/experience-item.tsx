@@ -12,19 +12,22 @@ import { ExperienceEditor } from "./experience-editor";
 
 const ACTOR: Record<Actor, string> = { ME: "나", TEAM: "팀", UNKNOWN: "알 수 없음" };
 
-/** 출처 상태 — 색만이 아니라 아이콘 · 글자로. 색이 있는 꼬리표는 「확인 필요」 하나 */
+/**
+ * 출처 상태 — 지우지 않고 낮춘다(ETC#19). 색만이 아니라 아이콘 · 글자로.
+ * 원문 확인은 작은 체크 하나(글자는 읽기 도구 · 툴팁), 내가 입력은 흐린 글자, 「확인 필요」만 색이 있는 꼬리표
+ */
 export function SourceStatusMark({ status }: { status: SourceStatus }) {
   if (status === "SOURCE_CONFIRMED") {
     return (
-      <span className="inline-flex items-center gap-0.5 text-evidence">
-        <CheckIcon className="size-[1.15em]" aria-hidden="true" />
-        원문 확인
+      <span className="inline-flex items-center text-evidence" title="원문에서 확인한 경험이에요">
+        <CheckIcon className="size-[1.15em]" weight="bold" aria-hidden="true" />
+        <span className="sr-only">원문 확인</span>
       </span>
     );
   }
   if (status === "USER_ENTERED") {
     return (
-      <span className="inline-flex items-center gap-0.5">
+      <span className="inline-flex items-center gap-0.5 text-muted-soft">
         <PencilSimpleIcon className="size-[1.15em]" aria-hidden="true" />
         내가 입력
       </span>
@@ -38,28 +41,35 @@ export function SourceStatusMark({ status }: { status: SourceStatus }) {
   );
 }
 
-/** 수행 주체 · 역량 · 출처 상태 */
+/**
+ * 출처 상태 · 수행 주체 · 역량.
+ * 「나」는 기본이라 숨기고 팀 · 알 수 없음만 적는다. 역량은 해시태그 — AI 가 붙인 건 점선, 내가 고른 건 실선(ETC#19)
+ */
 export function ExperienceMeta({ experience: e }: { experience: Experience }) {
-  const sep = <span className="text-hairline">·</span>;
+  const byAi = e.sourceStatus !== "USER_ENTERED";
   return (
     <>
-      <span>{ACTOR[e.actor]}</span>
-      {e.competencies.length > 0 && (
-        <>
-          {sep}
-          <span>
-            {e.sourceStatus !== "USER_ENTERED" && <span
-              className="mr-1 inline-block rounded-[4px] border border-hairline px-1 align-[1px] text-[10px] leading-[15px] font-bold tracking-[0.02em]"
-              title="AI 가 붙인 역량 — 해석이에요"
-            >
-              AI
-            </span>}
-            {e.competencies.map((c) => COMPETENCIES[c]).join(" · ")}
-          </span>
-        </>
-      )}
-      {sep}
       <SourceStatusMark status={e.sourceStatus} />
+      {e.actor !== "ME" && <span>{ACTOR[e.actor]}</span>}
+      {e.competencies.length > 0 && (
+        <span
+          className="inline-flex flex-wrap gap-1"
+          title={byAi ? "AI 가 붙인 역량이에요 — 해석이라 고칠 수 있어요" : undefined}
+        >
+          {byAi && <span className="sr-only">AI 가 붙인 역량:</span>}
+          {e.competencies.map((c) => (
+            <span
+              key={c}
+              className={cn(
+                "rounded-full px-2 py-px text-xs font-medium",
+                byAi ? "border border-dashed border-muted-soft text-body" : "border border-hairline bg-surface-soft text-body",
+              )}
+            >
+              #{COMPETENCIES[c]}
+            </span>
+          ))}
+        </span>
+      )}
     </>
   );
 }

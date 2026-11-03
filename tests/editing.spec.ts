@@ -166,7 +166,7 @@ test("competencies: edit picks up to 3 in order, order-only change counts, clear
   await page.reload();
   await page.getByRole("button", { name: /API test activity/ }).click();
   const meta = page.getByRole("complementary").locator("li").first();
-  await expect(meta).toContainText("협업 · 문제 해결 · 기술 구현");
+  await expect(meta).toContainText("#협업#문제 해결#기술 구현"); // 역량은 해시태그 — 순서 그대로(ETC#19)
   const edit = () => page.getByRole("button", { name: /^경험 수정:/ }).click();
   const save = () => page.getByRole("button", { name: "저장", exact: true }).click();
   const pick = (label: string) => page.getByLabel(label, { exact: true });
@@ -184,7 +184,7 @@ test("competencies: edit picks up to 3 in order, order-only change counts, clear
   await save();
   await expect(page.getByLabel("경험 내용")).toHaveCount(0);
   expect(state.patches[0].body).toEqual({ competencies: ["COLLABORATION", "IMPLEMENTATION", "PLANNING"] });
-  await expect(meta).toContainText("협업 · 기술 구현 · 기획");
+  await expect(meta).toContainText("#협업#기술 구현#기획");
 
   // 같은 역량이어도 순서만 바뀌면 바뀐 것이다
   await edit();
