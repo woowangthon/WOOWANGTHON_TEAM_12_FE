@@ -3,7 +3,7 @@
 // 활동 세부 — 이름 · 기간 · 이 활동을 만든 자료 · 경험들 (SPEC S-08 · S-09 · DESIGN.md 「활동 세부」)
 // PC 는 타임라인 옆 패널, 모바일은 전체 화면 + 근거는 하단 시트
 import { useState } from "react";
-import { ArrowsClockwiseIcon, CaretLeftIcon, XIcon } from "@phosphor-icons/react";
+import { ArrowsClockwiseIcon, CaretLeftIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { ActivityDetail, ActivitySummary, Experience } from "@/lib/api/types";
@@ -11,6 +11,7 @@ import { durationText, periodText } from "@/lib/period";
 import { CitationList, SourceFile } from "./citation-list";
 import { ExperienceItem, ExperienceMeta } from "./experience-item";
 import { ActivityEditor } from "./activity-editor";
+import { ExperienceEditor } from "./experience-editor";
 
 const FIRST_COUNT = 3;
 
@@ -27,9 +28,11 @@ type Props = {
   onRetry: () => void;
   onActivitySaved: (activity: ActivitySummary) => void;
   onExperienceSaved: (experience: Experience) => void;
+  onExperienceAdded: (experience: Experience) => void;
+  onExperienceDelete: (experience: Experience) => void;
 };
 
-export function ActivityDetailView({ summary, state, now, onClose, onRetry, onActivitySaved, onExperienceSaved }: Props) {
+export function ActivityDetailView({ summary, state, now, onClose, onRetry, onActivitySaved, onExperienceSaved, onExperienceAdded, onExperienceDelete }: Props) {
   const [editing, setEditing] = useState(false);
   const activity = state.status === "ready" ? state.activity : null;
   const current = activity ?? summary;
@@ -88,13 +91,19 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
             </Button>
           </div>
         )}
-        {activity && <ExperienceList key={activity.id} activity={activity} onSaved={onExperienceSaved} />}
+        {activity && <ExperienceList key={activity.id} activity={activity} onSaved={onExperienceSaved} onAdded={onExperienceAdded} onDelete={onExperienceDelete} />}
       </div>
     </div>
   );
 }
 
-function ExperienceList({ activity, onSaved }: { activity: ActivityDetail; onSaved: (experience: Experience) => void }) {
+function ExperienceList({ activity, onSaved, onAdded, onDelete }: {
+  activity: ActivityDetail;
+  onSaved: (experience: Experience) => void;
+  onAdded: (experience: Experience) => void;
+  onDelete: (experience: Experience) => void;
+}) {
+  const [adding, setAdding] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [openIds, setOpenIds] = useState<Set<number>>(() => new Set());
   const [sheetId, setSheetId] = useState<number | null>(null);
@@ -121,6 +130,7 @@ function ExperienceList({ activity, onSaved }: { activity: ActivityDetail; onSav
             key={e.id}
             experience={e}
             onSaved={onSaved}
+            onDelete={onDelete}
             citationsOpen={openIds.has(e.id)}
             onToggleCitations={() => toggle(e.id)}
             onShowCitations={() => setSheetId(e.id)}
@@ -136,6 +146,17 @@ function ExperienceList({ activity, onSaved }: { activity: ActivityDetail; onSav
           {showAll ? `처음 ${FIRST_COUNT}개만 보기` : `나머지 ${rest}개 더 보기`}
         </button>
       )}
+      <div className="mt-4">
+        {adding ? (
+          <ExperienceEditor activityId={activity.id} onCancel={() => setAdding(false)} onSaved={(experience) => {
+            onAdded(experience);
+            setShowAll(true);
+            setAdding(false);
+          }} />
+        ) : (
+          <Button variant="ghost" className="w-full justify-start" onClick={() => { setShowAll(true); setAdding(true); }}><PlusIcon />경험 직접 추가</Button>
+        )}
+      </div>
       <p className="m-0 mt-5 hidden text-[13px] leading-relaxed text-muted lg:block">
         AI 가 자료에서 찾아 채운 기록이에요. 「확인 필요」는 원문과 맞는지 한번 봐 주세요. 자료에서 찾지 못했다고 경험이
         없는 건 아니에요.

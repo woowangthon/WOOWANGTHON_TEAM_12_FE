@@ -17,6 +17,7 @@ import type { ActivitySummary, Experience } from "@/lib/api/types";
 import { monthNumber, spanOf, yearsOf, type Span } from "@/lib/period";
 import { ActivityDetailView, type DetailState } from "./activity-detail";
 import { Timeline } from "./timeline";
+import { useExperienceDeletion } from "./use-experience-deletion";
 
 type ListState =
   | { status: "loading" }
@@ -124,7 +125,30 @@ export function TimelineScreen() {
     setDetail((prev) => prev.status === "ready" && prev.activity.id === experience.activityId ? { ...prev, activity: { ...prev.activity, experiences: prev.activity.experiences.map((e) => e.id === experience.id ? experience : e) } } : prev);
   };
 
-  const ready = list.status === "ready" ? list : null;
+  const experienceAdded = (experience: Experience) => {
+    if (selectedRef.current === experience.activityId) ++detailRequest.current;
+    ++listRequest.current;
+    setDetail((prev) => prev.status === "ready" && prev.activity.id === experience.activityId
+      ? { ...prev, activity: { ...prev.activity, experiences: [...prev.activity.experiences, experience] } } : prev);
+    setList((prev) => prev.status === "ready" ? { ...prev, activities: prev.activities.map((a) => a.id === experience.activityId ? { ...a, experienceCount: a.experienceCount + 1 } : a) } : prev);
+  };
+
+  const deletion = useExperienceDeletion((experience) => {
+    ++listRequest.current;
+    if (selectedRef.current === experience.activityId) ++detailRequest.current;
+    setDetail((prev) => prev.status === "ready" && prev.activity.id === experience.activityId
+      ? { ...prev, activity: { ...prev.activity, experiences: prev.activity.experiences.filter((e) => e.id !== experience.id) } } : prev);
+    setList((prev) => prev.status === "ready" ? { ...prev, activities: prev.activities.map((a) => a.id === experience.activityId ? { ...a, experienceCount: a.experienceCount - 1 } : a) } : prev);
+    // 다른 활동을 보고 있어도 삭제는 계속된다. 진행 중이던 GET 이 삭제 전 응답을 덮지 않게 다시 조회한다.
+    if (selectedRef.current === experience.activityId && detail.status !== "ready") loadDetail(experience.activityId);
+  });
+
+  const hiddenIds = new Set(deletion.pending.map((item) => item.experience.id));
+  const visibleDetail: DetailState = detail.status === "ready"
+    ? { ...detail, activity: { ...detail.activity, experiences: detail.activity.experiences.filter((e) => !hiddenIds.has(e.id)) } } : detail;
+  const ready = useMemo(() => list.status === "ready" ? { ...list, activities: list.activities.map((a) => ({
+    ...a, experienceCount: Math.max(0, a.experienceCount - deletion.pending.filter((item) => item.experience.activityId === a.id).length),
+  })) } : null, [list, deletion.pending]);
   const timeline = useMemo(() => {
     if (!ready) return null;
     const spans = new Map<number, Span>();
@@ -215,12 +239,14 @@ export function TimelineScreen() {
             <ActivityDetailView
               key={selected.id}
               summary={selected}
-              state={detail}
+              state={visibleDetail}
               now={ready.now}
               onClose={close}
               onRetry={() => loadDetail(selected.id)}
               onActivitySaved={activitySaved}
               onExperienceSaved={experienceSaved}
+              onExperienceAdded={experienceAdded}
+              onExperienceDelete={deletion.remove}
             />
           </aside>
         )}
@@ -242,7 +268,23 @@ export function TimelineScreen() {
       />
 
       {/* 알림 — ink 면 · 흰 글 (DESIGN.md 「떠 있는 것」) */}
-      {toast && (
+      {(deletion.pending.length > 0 || deletion.error) && (
+        <div className="fixed bottom-[calc(84px+env(safe-area-inset-bottom,0px))] left-1/2 z-40 grid w-max max-w-[calc(100%-32px)] -translate-x-1/2 gap-2 lg:bottom-6">
+          {deletion.pending.map(({ experience, saving }) => (
+            <div key={experience.id} role="status" className="flex items-center gap-3 rounded-sm bg-ink px-4 py-2 text-sm text-canvas shadow-float">
+              <span>{saving ? "경험을 지우고 있어요…" : "경험을 지웠어요."}</span>
+              {!saving && <>
+                <button type="button" className="min-h-11 shrink-0 font-semibold underline" onClick={() => deletion.undo(experience.id)}>되돌리기</button>
+                <button type="button" className="min-h-11 shrink-0" onClick={() => void deletion.confirm(experience.id)} aria-label="삭제 알림 닫기">닫기</button>
+              </>}
+            </div>
+          ))}
+          {deletion.error && <div role="alert" className="flex items-center gap-3 rounded-sm bg-ink px-4 py-2 text-sm text-canvas shadow-float">
+            <span>{deletion.error}</span><button type="button" className="min-h-11 shrink-0" onClick={deletion.dismissError}>닫기</button>
+          </div>}
+        </div>
+      )}
+      {toast && !deletion.pending.length && !deletion.error && (
         <div
           className="fixed bottom-[calc(84px+env(safe-area-inset-bottom,0px))] left-1/2 z-40 w-max max-w-[calc(100%-32px)] -translate-x-1/2 rounded-sm bg-ink px-4 py-3 text-sm text-canvas shadow-float lg:bottom-6"
           role="status"

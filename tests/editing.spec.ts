@@ -5,7 +5,7 @@ import type { ActivityDetail, UpdateActivityRequest, UpdateExperienceRequest } f
 async function setup(page: Page) {
   const activity: ActivityDetail = {
     id: 7, name: "API test activity", period: { start: "2025-03", end: "2025-06", ongoing: false },
-    experiences: [{ id: 101, activityId: 7, content: "Original experience", perspective: null, actor: "ME", sourceStatus: "SOURCE_CONFIRMED", citations: [{ id: 201, sourceId: 12, sourceName: "original.md", quote: "Original quote", matched: true, location: { startLine: 1, endLine: 1 } }] }],
+    experiences: [{ id: 101, activityId: 7, content: "Original experience", competencies: [], actor: "ME", sourceStatus: "SOURCE_CONFIRMED", citations: [{ id: 201, sourceId: 12, sourceName: "original.md", quote: "Original quote", matched: true, location: { startLine: 1, endLine: 1 } }] }],
   };
   const state = { activity, patches: [] as { url: string; body: UpdateActivityRequest | UpdateExperienceRequest }[], fail: false, delay: 0 };
   await page.route("**/api/**", async (route) => {
@@ -115,43 +115,27 @@ test("experience cancel, no-op, empty validation, changed fields, source status 
   await expect(page.locator("form").getByRole("alert")).toContainText("경험 내용");
   expect(state.patches).toHaveLength(0);
   await page.getByLabel("경험 내용").fill("Updated\nexperience");
-  await page.getByLabel("관점", { exact: true }).fill("My perspective");
   await page.getByLabel("수행 주체").selectOption("TEAM");
   await page.getByRole("button", { name: "저장", exact: true }).click();
   await expect(page.getByText("내가 입력", { exact: true })).toBeVisible();
-  expect(state.patches[0].body).toEqual({ content: "Updated\nexperience", perspective: "My perspective", actor: "TEAM" });
+  expect(state.patches[0].body).toEqual({ content: "Updated\nexperience", actor: "TEAM" });
   await page.getByRole("button", { name: /근거 1/ }).filter({ visible: true }).click();
   await expect(page.getByText("Original quote", { exact: true }).filter({ visible: true })).toBeVisible();
   if (page.viewportSize()!.width < 1024) await expect(page.getByRole("dialog")).toContainText("Updated");
 });
 
-test("nullable perspective: omit unchanged null, set a string, clear with null, then no-op", async ({ page }) => {
+test("editing content and actor preserves competencies without sending the field reserved for FE #18", async ({ page }) => {
   const state = await setup(page);
-  const edit = () => page.getByRole("button", { name: /^경험 수정:/ }).click();
-  const save = () => page.getByRole("button", { name: "저장", exact: true }).click();
-  await edit();
-  await expect(page.getByLabel("관점", { exact: true })).toHaveValue("");
+  state.activity.experiences[0].competencies = ["COLLABORATION", "PROBLEM_SOLVING", "IMPLEMENTATION"];
+  await page.reload();
+  await page.getByRole("button", { name: /API test activity/ }).click();
+  await page.getByRole("button", { name: /^경험 수정:/ }).click();
+  await page.getByLabel("경험 내용").fill("Changed content");
   await page.getByLabel("수행 주체").selectOption("UNKNOWN");
-  await save();
-  await expect(page.getByLabel("관점", { exact: true })).toHaveCount(0);
-  expect(state.patches[0].body).toEqual({ actor: "UNKNOWN" });
-  await edit();
-  await page.getByLabel("관점", { exact: true }).fill("New perspective");
-  await save();
-  await expect(page.getByText("New perspective", { exact: true })).toBeVisible();
-  expect(state.patches[1].body).toEqual({ perspective: "New perspective" });
-  await edit();
-  await page.getByLabel("관점", { exact: true }).fill("");
-  await save();
-  await expect(page.getByLabel("관점", { exact: true })).toHaveCount(0);
-  expect(state.patches[2].body).toEqual({ perspective: null });
-  await expect(page.getByText("New perspective", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("내가 입력", { exact: true })).toBeVisible();
-  await edit();
-  await expect(page.getByLabel("관점", { exact: true })).toHaveValue("");
-  await save();
-  await expect(page.getByLabel("관점", { exact: true })).toHaveCount(0);
-  expect(state.patches).toHaveLength(3);
+  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(page.getByLabel("경험 내용")).toHaveCount(0);
+  expect(state.patches[0].body).toEqual({ content: "Changed content", actor: "UNKNOWN" });
+  expect(state.activity.experiences[0].competencies).toEqual(["COLLABORATION", "PROBLEM_SOLVING", "IMPLEMENTATION"]);
   await page.getByRole("button", { name: /근거 1/ }).filter({ visible: true }).click();
   await expect(page.getByText("Original quote", { exact: true }).filter({ visible: true })).toBeVisible();
 });
@@ -204,7 +188,7 @@ test("PATCH response values replace drafts in activity, timeline and experience"
     if (new URL(route.request().url()).pathname === "/api/activities/7") {
       return route.fulfill({ json: { id: 7, name: "Server activity", period: { start: null, end: null, ongoing: false }, experienceCount: 1 } });
     }
-    return route.fulfill({ json: { ...state.activity.experiences[0], content: "Server experience", perspective: null, sourceStatus: "USER_ENTERED" } });
+    return route.fulfill({ json: { ...state.activity.experiences[0], content: "Server experience", competencies: [], sourceStatus: "USER_ENTERED" } });
   });
   await page.getByRole("button", { name: "활동 수정", exact: true }).click();
   await page.getByLabel("활동 이름").fill("Activity draft");

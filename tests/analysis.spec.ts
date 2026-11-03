@@ -3,7 +3,7 @@ import type { Job, SourceRequest, ActivityDetail } from "../src/lib/api/types";
 
 // Contract fixtures only. These tests do not run BE, DB or an AI model.
 async function setup(page: Page) {
-  const detail: ActivityDetail = { id: 70, name: "Extracted activity", period: { start: "2026-11", end: null, ongoing: true }, experiences: [{ id: 710, activityId: 70, content: "Server extracted experience", perspective: null, actor: "ME", sourceStatus: "NEEDS_REVIEW", citations: [{ id: 720, sourceId: 12, sourceName: "note.md", quote: "Original source", matched: null, location: null }] }] };
+  const detail: ActivityDetail = { id: 70, name: "Extracted activity", period: { start: "2026-11", end: null, ongoing: true }, experiences: [{ id: 710, activityId: 70, content: "Server extracted experience", competencies: [], actor: "ME", sourceStatus: "NEEDS_REVIEW", citations: [{ id: 720, sourceId: 12, sourceName: "note.md", quote: "Original source", matched: null, location: null }] }] };
   const state = {
     status: "ANALYZING" as Job["status"], error: null as Job["error"], empty: false,
     sources: [] as SourceRequest[], gets: 0, lists: 0, details: 0, retries: 0,

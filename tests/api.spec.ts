@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { fetchActivities, fetchActivity, updateActivity, updateExperience, isMockMode, ApiError, submitSource, fetchJob, retryJob } from "../src/lib/api/experience";
+import { fetchActivities, fetchActivity, updateActivity, updateExperience, isMockMode, ApiError, submitSource, fetchJob, retryJob, createExperience, deleteExperience } from "../src/lib/api/experience";
 import { activityError, validDate } from "../src/lib/api/editing";
 
 const originalFetch = globalThis.fetch;
@@ -20,31 +20,31 @@ test("GET unwraps activities, uses configured base, no auth, no cache", async ()
   expect(await fetchActivities("error")).toEqual([{ id: 7 }]);
   expect(await fetchActivity(7)).toEqual({ id: 7, experiences: [] });
   expect(calls.map((c) => c.url)).toEqual(["https://backend.example/api/activities", "https://backend.example/api/activities/7"]);
-  expect(calls[0].options).toEqual({ method: "GET", cache: "no-store" });
+  expect(calls[0].options).toEqual({ method: "GET", cache: "no-store", credentials: "include" });
 });
 
 test("PATCH sends JSON and preserves server status and citations", async () => {
   process.env.NEXT_PUBLIC_API_BASE_URL = "https://backend.example/api";
   const calls: { url: string; options?: RequestInit }[] = [];
-  const response = { id: 101, sourceStatus: "USER_ENTERED", citations: [{ id: 201, quote: "original" }] };
+  const response = { id: 101, competencies: [], sourceStatus: "USER_ENTERED", citations: [{ id: 201, quote: "original" }] };
   globalThis.fetch = async (url, options) => { calls.push({ url: String(url), options }); return Response.json(response); };
   expect(await updateExperience(101, { content: "changed", actor: "TEAM" })).toEqual(response);
   await updateActivity(7, { period: { start: "2025", end: null, ongoing: true } });
   expect(calls[0].url).toBe("https://backend.example/api/experiences/101");
-  expect(calls[0].options).toEqual({ method: "PATCH", cache: "no-store", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: "changed", actor: "TEAM" }) });
+  expect(calls[0].options).toEqual({ method: "PATCH", cache: "no-store", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: "changed", actor: "TEAM" }) });
   expect(calls[1].url).toBe("https://backend.example/api/activities/7");
 });
 
-test("PATCH distinguishes explicit null perspective from an omitted field", async () => {
+test("PATCH distinguishes empty competencies from an omitted field", async () => {
   process.env.NEXT_PUBLIC_API_BASE_URL = "https://backend.example/api";
   const bodies: unknown[] = [];
   globalThis.fetch = async (_url, options) => {
     bodies.push(JSON.parse(options!.body as string));
-    return Response.json({ id: 101, perspective: null, sourceStatus: "USER_ENTERED", citations: [] });
+    return Response.json({ id: 101, competencies: [], sourceStatus: "USER_ENTERED", citations: [] });
   };
-  expect(await updateExperience(101, { perspective: null })).toMatchObject({ perspective: null });
+  expect(await updateExperience(101, { competencies: [] })).toMatchObject({ competencies: [] });
   await updateExperience(101, { actor: "TEAM" });
-  expect(bodies).toEqual([{ perspective: null }, { actor: "TEAM" }]);
+  expect(bodies).toEqual([{ competencies: [] }, { actor: "TEAM" }]);
 });
 
 test("HTTP, network and invalid JSON errors remain distinguishable; never fallback", async () => {
@@ -72,6 +72,8 @@ test("mock reads stay available, mock writes fail without HTTP or mutation", asy
   expect((await fetchActivities()).length).toBeGreaterThan(0);
   await expect(updateActivity(7, { name: "fake" })).rejects.toBeInstanceOf(ApiError);
   await expect(updateExperience(101, { content: "fake" })).rejects.toMatchObject({ code: "API_NOT_CONFIGURED" });
+  await expect(createExperience(7, { content: "fake", actor: "ME", competencies: [] })).rejects.toMatchObject({ code: "API_NOT_CONFIGURED" });
+  await expect(deleteExperience(101)).rejects.toMatchObject({ code: "API_NOT_CONFIGURED" });
   expect(await fetchActivity(7)).toEqual(before);
   expect(await fetchActivities("empty")).toEqual([]);
   await expect(fetchActivities("error")).rejects.toMatchObject({ code: "MOCK_ERROR" });
@@ -127,10 +129,10 @@ test("source POST, job GET and bodyless retry POST follow the BE contract", asyn
   await submitSource({ kind: "FILE", name: "note.md", text: "file text" });
   expect(await fetchJob(34)).toEqual(job);
   expect(await retryJob(34)).toEqual(job);
-  expect(calls[0]).toEqual({ url: "https://backend.example/api/sources", options: { method: "POST", cache: "no-store", headers: { "Content-Type": "application/json" }, body: JSON.stringify(source) } });
+  expect(calls[0]).toEqual({ url: "https://backend.example/api/sources", options: { method: "POST", cache: "no-store", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(source) } });
   expect(JSON.parse(calls[1].options!.body as string)).toEqual({ kind: "FILE", name: "note.md", text: "file text" });
-  expect(calls[2]).toEqual({ url: "https://backend.example/api/jobs/34", options: { method: "GET", cache: "no-store" } });
-  expect(calls[3]).toEqual({ url: "https://backend.example/api/jobs/34/retry", options: { method: "POST", cache: "no-store" } });
+  expect(calls[2]).toEqual({ url: "https://backend.example/api/jobs/34", options: { method: "GET", cache: "no-store", credentials: "include" } });
+  expect(calls[3]).toEqual({ url: "https://backend.example/api/jobs/34/retry", options: { method: "POST", cache: "no-store", credentials: "include" } });
 });
 
 test("source limit uses UTF-16 length; source and retry errors never fallback", async () => {
@@ -149,4 +151,37 @@ test("source limit uses UTF-16 length; source and retry errors never fallback", 
   await expect(retryJob(34)).rejects.toMatchObject({ code: "JOB_NOT_FAILED", status: 409 });
   globalThis.fetch = async () => Response.json({ error: { code: "JOB_NOT_FOUND", message: "Not found" } }, { status: 404 });
   await expect(fetchJob(34)).rejects.toMatchObject({ code: "JOB_NOT_FOUND", status: 404 });
+});
+
+test("experience POST returns the server record; DELETE accepts empty 204 without JSON or request body", async () => {
+  process.env.NEXT_PUBLIC_API_BASE_URL = "https://backend.example/api";
+  const calls: { url: string; options?: RequestInit }[] = [];
+  const experience = { id: 107, activityId: 7, content: "Manual", competencies: ["COLLABORATION"], actor: "ME", sourceStatus: "USER_ENTERED", citations: [] };
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url: String(url), options });
+    return options?.method === "DELETE" ? new Response(null, { status: 204 }) : Response.json(experience, { status: 201 });
+  };
+  const body = { content: "Manual", competencies: ["COLLABORATION" as const], actor: "ME" as const };
+  expect(await createExperience(7, body)).toEqual(experience);
+  expect(await deleteExperience(107)).toBeUndefined();
+  expect(calls).toEqual([
+    { url: "https://backend.example/api/activities/7/experiences", options: { method: "POST", cache: "no-store", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } },
+    { url: "https://backend.example/api/experiences/107", options: { method: "DELETE", cache: "no-store", credentials: "include" } },
+  ]);
+});
+
+test("experience mutations propagate HTTP and network errors; old perspective responses are rejected", async () => {
+  process.env.NEXT_PUBLIC_API_BASE_URL = "https://backend.example/api";
+  for (const [status, code] of [[400, "INVALID_REQUEST"], [404, "ACTIVITY_NOT_FOUND"]] as const) {
+    globalThis.fetch = async () => Response.json({ error: { code, message: "Create rejected" } }, { status });
+    await expect(createExperience(7, { content: "Manual", actor: "ME" })).rejects.toMatchObject({ code, status });
+  }
+  globalThis.fetch = async () => Response.json({ error: { code: "EXPERIENCE_NOT_FOUND", message: "Missing" } }, { status: 404 });
+  await expect(deleteExperience(107)).rejects.toMatchObject({ code: "EXPERIENCE_NOT_FOUND", status: 404 });
+  globalThis.fetch = async () => { throw new TypeError("offline"); };
+  await expect(deleteExperience(107)).rejects.toMatchObject({ code: "NETWORK_ERROR" });
+  for (const competencies of [undefined, null, ["UNKNOWN"], ["PLANNING", "PLANNING"], ["PLANNING", "ANALYSIS", "OPERATION", "LEARNING"]]) {
+    globalThis.fetch = async () => Response.json({ id: 7, experiences: [{ id: 101, perspective: null, competencies }] });
+    await expect(fetchActivity(7)).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
+  }
 });
