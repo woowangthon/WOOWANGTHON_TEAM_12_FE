@@ -12,9 +12,9 @@ import { AnalysisBanner, AnalysisCenter, analysisView } from "@/components/sourc
 import { useAnalysisJob } from "@/components/source/use-analysis-job";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { fetchActivities, fetchActivity, isMockMode, mergeActivities, moveExperience, type MockAnalysis, type MockMode } from "@/lib/api/experience";
-import type { ActivitySummary, Experience } from "@/lib/api/types";
-import { monthNumber, spanOf, yearsOf, type Span } from "@/lib/period";
+import { fetchActivities, fetchActivity, isMockMode, mergeActivities, moveExperience, updateActivity, type MockAnalysis, type MockMode } from "@/lib/api/experience";
+import type { ActivitySummary, Experience, Period } from "@/lib/api/types";
+import { monthNumber, periodText, spanOf, yearsOf, type Span } from "@/lib/period";
 import { ActivityDetailView, type DetailState } from "./activity-detail";
 import { MergeActivityDialog, MoveExperienceDialog } from "./regroup-dialogs";
 import { Timeline } from "./timeline";
@@ -123,6 +123,26 @@ export function TimelineScreen() {
     ++listRequest.current;
     setList((prev) => prev.status === "ready" ? { ...prev, activities: prev.activities.map((a) => a.id === activity.id ? activity : a) } : prev);
     setDetail((prev) => prev.status === "ready" && prev.activity.id === activity.id ? { ...prev, activity: { ...prev.activity, name: activity.name, period: activity.period } } : prev);
+  };
+
+  /** 타임라인 띠 끝을 끌어 기간 바꾸기(S-17) — 바로 반영하고, 실패하면 원래 기간으로 돌린 뒤 알린다 */
+  const periodDragged = (activity: ActivitySummary, period: Period) => {
+    const apply = (p: Period) => {
+      ++listRequest.current;
+      setList((prev) => prev.status === "ready" ? { ...prev, activities: prev.activities.map((a) => a.id === activity.id ? { ...a, period: p } : a) } : prev);
+      setDetail((prev) => prev.status === "ready" && prev.activity.id === activity.id ? { ...prev, activity: { ...prev.activity, period: p } } : prev);
+    };
+    apply(period);
+    updateActivity(activity.id, { period }).then(
+      (saved) => {
+        activitySaved(saved);
+        showToast(`「${saved.name}」 기간을 ${periodText(saved.period)}(으)로 바꿨어요.`);
+      },
+      (e: Error) => {
+        apply(activity.period);
+        showToast(`기간을 바꾸지 못해서 원래대로 돌려 놨어요. ${e.message}`, true);
+      },
+    );
   };
 
   const experienceSaved = (experience: Experience) => {
@@ -283,6 +303,7 @@ export function TimelineScreen() {
                 onSelect={select}
                 dragging={dragging}
                 onDropExperience={moveTo}
+                onPeriodChange={periodDragged}
               />
             </>
           )}
