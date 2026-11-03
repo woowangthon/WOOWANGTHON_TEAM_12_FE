@@ -179,14 +179,17 @@ function ExperienceList({ activity, onSaved, onAdded, onDelete, onMove, onDragCh
             setShowAll(true);
             setAdding(false);
           }} />
+        ) : experiences.length === 0 ? (
+          <EmptyExperiences onAdd={() => setAdding(true)} />
         ) : (
           <Button variant="ghost" className="w-full justify-start" onClick={() => { setShowAll(true); setAdding(true); }}><PlusIcon />경험 직접 추가</Button>
         )}
       </div>
-      <p className="m-0 mt-5 hidden text-[13px] leading-relaxed text-muted lg:block">
+      {/* 경험이 0개면 빈 상태 안내가 같은 말을 하므로 숨긴다 (FE#22) */}
+      {experiences.length > 0 && <p className="m-0 mt-5 hidden text-[13px] leading-relaxed text-muted lg:block">
         AI 가 자료에서 찾아 채운 기록이에요. 「확인 필요」는 원문과 맞는지 한번 봐 주세요. 자료에서 찾지 못했다고 경험이
         없는 건 아니에요. 다른 활동의 일이면 경험 왼쪽 손잡이를 끌어 타임라인의 그 활동에 놓아 주세요.
-      </p>
+      </p>}
 
       {/* 모바일 — 근거 하단 시트 */}
       <Sheet open={sheetExp != null} onOpenChange={(open) => !open && setSheetId(null)}>
@@ -210,5 +213,25 @@ function ExperienceList({ activity, onSaved, onAdded, onDelete, onMove, onDragCh
         </SheetContent>
       </Sheet>
     </>
+  );
+}
+
+/**
+ * 경험이 0개인 활동 (FE#22 · SPEC S-03). 원본에 활동 이름 · 기간만 있었거나, 사용자가 다 지우거나 옮겼을 때 —
+ * 어느 쪽인지 알 수 없으니 「자료에서 못 찾았다」로 단정하지 않는다. 「자료에서 확인 안 됨」은 「경험 없음」이 아니다(SPEC §0)
+ */
+function EmptyExperiences({ onAdd }: { onAdd: () => void }) {
+  return (
+    <div className="grid justify-items-start gap-2 rounded-sm bg-surface-soft px-4 py-4">
+      <p className="m-0 text-[15px] font-semibold text-ink">아직 이 활동에 적힌 경험이 없어요</p>
+      <p className="m-0 text-sm leading-relaxed text-body">
+        자료에 활동 이름 · 기간만 있었거나, 경험을 지우거나 다른 활동으로 옮겼을 수 있어요. 자료에서 찾지 못했다고 한 일이
+        없는 건 아니에요 — 기억나는 일을 한 줄씩 적어 두면 여기에 쌓여요.
+      </p>
+      <Button variant="secondary" size="sm" className="mt-1" onClick={onAdd}>
+        <PlusIcon />
+        경험 직접 추가
+      </Button>
+    </div>
   );
 }

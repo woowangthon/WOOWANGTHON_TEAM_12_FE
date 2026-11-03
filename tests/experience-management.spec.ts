@@ -179,5 +179,31 @@ test("deleting the last experience keeps the activity and prevents duplicate DEL
   expect(state.deletes).toEqual([101]);
   await expect(page.getByRole("heading", { name: "Management activity" })).toBeVisible();
   await expect(page.getByText("이 활동에서 한 일 0", { exact: true })).toBeVisible();
+  await expect(page.getByText("아직 이 활동에 적힌 경험이 없어요", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "경험 직접 추가", exact: true })).toBeVisible();
+});
+
+// FE#22 — 원본에 이름 · 기간만 있어 경험 0개로 온 활동. 실패처럼 보이지 않고, 직접 추가로 이어진다
+test("activity with no experiences shows a neutral empty state that leads to direct add", async ({ page }) => {
+  const state = await setup(page);
+  state.activity.experiences = [];
+  await page.reload();
+  await expect(page.getByRole("button", { name: /Management activity/ }).first()).toContainText("경험 아직 없음");
+  await openActivity(page);
+  const detail = page.getByRole("complementary");
+  await expect(detail.getByText("아직 이 활동에 적힌 경험이 없어요", { exact: true })).toBeVisible();
+  await expect(detail).not.toContainText("찾지 못했어요");
+  await expect(detail.locator("li")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "경험 직접 추가", exact: true })).toHaveCount(1);
+
+  await page.getByRole("button", { name: "경험 직접 추가", exact: true }).click();
+  await expect(page.getByLabel("경험 내용")).toBeFocused();
+  await expect(detail.getByText("아직 이 활동에 적힌 경험이 없어요", { exact: true })).toHaveCount(0);
+  await page.getByLabel("경험 내용").fill("First manual experience");
+  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(detail.locator("li")).toHaveCount(1);
+  await expect(detail.locator("li").first()).toContainText("Saved by server");
+  await expect(detail.getByText("이 활동에서 한 일 1", { exact: true })).toBeVisible();
+  await expect(detail.getByText("아직 이 활동에 적힌 경험이 없어요", { exact: true })).toHaveCount(0);
+  expect(state.posts).toEqual([{ content: "First manual experience", competencies: [], actor: "ME" }]);
 });
