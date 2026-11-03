@@ -1,6 +1,6 @@
 # WOOWANGTHON_TEAM_12_FE
 
-**운영 URL: https://woowangthon-team-12-fe.vercel.app** (main 이 올라갈 때마다 Vercel 이 자동 배포)
+**운영 URL: https://app-woowang.miroda.live** (main 이 올라갈 때마다 Vercel 이 자동 배포) — 실제 API 를 보려면 먼저 Access 로그인([아래](#운영에서-실제-api-로-보기))
 
 2026 AI 우왕톤 12팀 「내가 우왕이 될 상인가」 — 프론트엔드
 
@@ -85,6 +85,23 @@ BE #4·#5의 조회·수정·자료 등록·작업 조회·재시도 연결 코�
 - **PR 을 열면** Vercel 봇이 PR 에 미리보기 URL 을 댓글로 단다. 커밋을 더 올리면 같은 댓글이 새 URL 로 바뀐다.
 - **main 에 머지되면** 운영 URL 이 갱신된다.
 - 배포 계정 · 도메인 · 환경 변수는 사람만 다룬다. 레포엔 `.env.example` 만 둔다.
+
+### 운영에서 실제 API 로 보기
+
+| 주소 | 무엇 |
+| --- | --- |
+| `https://app-woowang.miroda.live` | 운영 화면. 공개. `NEXT_PUBLIC_API_BASE_URL=https://api-woowang.miroda.live/api` 로 빌드된다 |
+| `https://api-woowang.miroda.live/api` | 실제 BE. **Cloudflare Access 뒤** — 허용 목록의 이메일로 로그인해야 열린다(LLM 비용이 새지 않게) |
+| PR 미리보기 · `*.vercel.app` | API 주소를 비워 둔 **목 모드**. `*.vercel.app` 은 API 와 도메인이 달라 Access 쿠키가 안 실리므로 실제 API 를 못 부른다 |
+
+1. 같은 브라우저에서 `https://api-woowang.miroda.live/` 를 먼저 연다 → 이메일 입력 → 메일로 온 코드 입력(1주일 유지).
+2. 그다음 `https://app-woowang.miroda.live/` 를 연다.
+3. 「타임라인을 불러오지 못했어요」가 뜨면 로그인이 만료된 것 — 1번부터 다시.
+
+- 코드 메일이 안 오면 허용 목록에 없는 것이다. BE 담당에게 이메일을 보내 추가를 부탁한다.
+- 공용 PC 에선 로그인하지 않는다. 했으면 그 PC 에서 `https://api-woowang.miroda.live/cdn-cgi/access/logout` 을 연다.
+- **에이전트는 Access 로그인(메일 코드)을 할 수 없다.** 실제 서버 확인은 사람이 로그인한 브라우저에서 하고, 에이전트의 시험은 로컬 BE 나 `tests/` 의 HTTP 응답 흉내로 한다.
+- 운영 데이터는 팀 공용이다(스프린트 1 은 고정 사용자 하나). 합치기 · 지우기는 되돌릴 수 없으니 운영에서 시험 삼아 하지 않는다.
 
 ### 처음 한 번 — Vercel 연결 (사람이)
 
