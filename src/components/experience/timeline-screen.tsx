@@ -19,6 +19,7 @@ import { ActivityDetailView, type DetailState } from "./activity-detail";
 import { MergeActivityDialog, MoveExperienceDialog } from "./regroup-dialogs";
 import { Timeline } from "./timeline";
 import { useExperienceDeletion } from "./use-experience-deletion";
+import { QuestionTimelineScreen } from "@/components/questions/question-timeline-screen";
 
 type ListState =
   | { status: "loading" }
@@ -33,6 +34,12 @@ function toMockAnalysis(value: string | null): MockAnalysis {
 }
 
 export function TimelineScreen() {
+  const params = useSearchParams();
+  // 문항 목에서 이동한 경우 실제 API·진행 중인 자료 분석을 호출하지 않는다.
+  return params.get("questionMock") === "1" ? <QuestionTimelineScreen /> : <TimelineWorkspace />;
+}
+
+function TimelineWorkspace() {
   const params = useSearchParams();
   const mock = toMockMode(params.get("mock"));
   const mockAnalysis = toMockAnalysis(params.get("analysis"));

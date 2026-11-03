@@ -69,6 +69,7 @@ export function ExperienceMeta({ experience: e }: { experience: Experience }) {
 }
 
 type Props = {
+  readOnly?: boolean;
   experience: Experience;
   citationsOpen: boolean;
   /** PC — 경험 아래에 근거를 펼친다 */
@@ -84,7 +85,7 @@ type Props = {
   dragging: boolean;
 };
 
-export function ExperienceItem({ experience, citationsOpen, onToggleCitations, onShowCitations, onSaved, onDelete, onMove, onDragChange, dragging }: Props) {
+export function ExperienceItem({ experience, citationsOpen, onToggleCitations, onShowCitations, onSaved, onDelete, onMove, onDragChange, dragging, readOnly = false }: Props) {
   const [editing, setEditing] = useState(false);
   const e = experience;
   const n = e.citations.length;
@@ -92,7 +93,7 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
     "ml-auto inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-[13px] font-semibold text-evidence hover:bg-evidence-soft";
   return (
     <li className={cn("group relative grid gap-1.5 border-b border-hairline py-4", dragging && "opacity-40")}>
-      {!editing && (
+      {!editing && !readOnly && (
         <span
           draggable
           onDragStart={(ev) => {
@@ -114,7 +115,7 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
       {editing ? <ExperienceEditor experience={e} onCancel={() => setEditing(false)} onSaved={(result) => { onSaved(result); setEditing(false); }} /> : (
         <div className="flex items-start gap-2">
           <p className="m-0 flex-1 whitespace-pre-wrap text-base leading-relaxed text-ink">{e.content}</p>
-          <Button variant="ghost" size="sm" onClick={() => setEditing(true)} aria-label={`경험 수정: ${e.content}`}>수정</Button>
+          {!readOnly && <><Button variant="ghost" size="sm" onClick={() => setEditing(true)} aria-label={`경험 수정: ${e.content}`}>수정</Button>
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
               <Button variant="ghost" size="icon" className="size-11" aria-label={`경험 메뉴: ${e.content}`}><DotsThreeIcon /></Button>
@@ -126,7 +127,7 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
                 <DropdownMenu.Item onSelect={() => onDelete(e)} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm text-error outline-none focus:bg-surface-soft">지우기</DropdownMenu.Item>
               </DropdownMenu.Content>
             </DropdownMenu.Portal>
-          </DropdownMenu.Root>
+          </DropdownMenu.Root></>}
         </div>
       )}
       <div className="flex flex-wrap items-center gap-1.5 text-[13px] font-medium text-muted">

@@ -10,6 +10,8 @@ import { groupYear, periodText, type Span } from "@/lib/period";
 type Edge = "start" | "end";
 
 type Props = {
+  /** 문항 목에서 여는 타임라인은 조회만 허용한다. */
+  readOnly?: boolean;
   activities: ActivitySummary[];
   spans: Map<number, Span>;
   years: number[];
@@ -39,7 +41,7 @@ type Drop = {
 
 const rowLayout = "lg:grid-cols-[minmax(0,1fr)_264px] lg:items-center lg:gap-6";
 
-export function Timeline({ activities, spans, years, selectedId, onSelect, dragging, onDropExperience, onPeriodChange }: Props) {
+export function Timeline({ activities, spans, years, selectedId, onSelect, dragging, onDropExperience, onPeriodChange, readOnly = false }: Props) {
   const [overId, setOverId] = useState<number | null>(null);
   const drop: Drop = { dragging, overId: dragging ? overId : null, setOverId, onDrop: onDropExperience };
   // 띠 끝을 끄는 동안의 미리보기 — 놓기 전엔 저장하지 않는다
@@ -86,7 +88,7 @@ export function Timeline({ activities, spans, years, selectedId, onSelect, dragg
                         </>
                       )
                     }
-                    band={<PeriodBand id={item.id} span={shown(item.id, span)} year={year} ongoing={item.period.ongoing} selected={selected} onEdge={edgeHandler(item, span)} />}
+                    band={<PeriodBand id={item.id} span={shown(item.id, span)} year={year} ongoing={item.period.ongoing} selected={selected} onEdge={readOnly ? undefined : edgeHandler(item, span)} />}
                   />
                 );
               })}
@@ -102,7 +104,7 @@ export function Timeline({ activities, spans, years, selectedId, onSelect, dragg
                     continuing
                     sub={previewSub(item.id) ?? `${Math.floor(span.start / 12)}년부터 이어짐`}
                     band={
-                      <PeriodBand id={item.id} span={shown(item.id, span)} year={year} ongoing={item.period.ongoing} selected={selected} faint onEdge={edgeHandler(item, span)} />
+                      <PeriodBand id={item.id} span={shown(item.id, span)} year={year} ongoing={item.period.ongoing} selected={selected} faint onEdge={readOnly ? undefined : edgeHandler(item, span)} />
                     }
                   />
                 );
@@ -268,7 +270,7 @@ function PeriodBand({
   selected: boolean;
   faint?: boolean;
   /** month 가 null 이면 끌기 취소 */
-  onEdge: (edge: Edge, month: number | null, done: boolean) => void;
+  onEdge?: (edge: Edge, month: number | null, done: boolean) => void;
 }) {
   const first = year * 12;
   const on = faint ? ON_FAINT : ON;
@@ -302,14 +304,14 @@ function PeriodBand({
         e.currentTarget.setPointerCapture(e.pointerId);
       }}
       onPointerMove={(e) => {
-        if (e.currentTarget.hasPointerCapture(e.pointerId)) onEdge(edge, monthAt(e), false);
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) onEdge?.(edge, monthAt(e), false);
       }}
       onPointerUp={(e) => {
         if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
         e.currentTarget.releasePointerCapture(e.pointerId);
-        onEdge(edge, monthAt(e), true);
+        onEdge?.(edge, monthAt(e), true);
       }}
-      onPointerCancel={() => onEdge(edge, null, true)}
+      onPointerCancel={() => onEdge?.(edge, null, true)}
     >
       <i className="h-4 w-1 rounded-full bg-primary-active shadow-[0_0_0_2px_var(--canvas)]" />
     </span>
@@ -324,8 +326,8 @@ function PeriodBand({
         const background = !active ? off : fade ? `linear-gradient(to right, ${on}, var(--primary-soft))` : on;
         return <i key={i} className="h-1.5 rounded-[2px]" style={{ background }} aria-hidden="true" />;
       })}
-      {inYear(span.start) && handle("start")}
-      {!ongoing && inYear(span.end) && handle("end")}
+      {onEdge && inYear(span.start) && handle("start")}
+      {onEdge && !ongoing && inYear(span.end) && handle("end")}
     </span>
   );
 }
