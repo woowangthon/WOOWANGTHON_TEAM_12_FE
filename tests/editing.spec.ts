@@ -2,6 +2,12 @@ import { test, expect, type Page } from "@playwright/test";
 import type { ActivityDetail, UpdateActivityRequest, UpdateExperienceRequest } from "../src/lib/api/types";
 
 // Test-only HTTP fixture; this is not a deployed backend or persistence verification.
+/** 기간 한쪽을 연 · 월 고르기로 정한다(FE#25). null 이면 「기간 모름」, 월이 없으면 「월 모름」 */
+async function pick(page: Page, side: "시작" | "종료", value: string | null) {
+  await page.getByLabel(`${side} 연도`).selectOption(value?.slice(0, 4) ?? "");
+  if (value) await page.getByLabel(`${side} 월`).selectOption(value.slice(5, 7));
+}
+
 async function setup(page: Page) {
   const activity: ActivityDetail = {
     id: 7, name: "API test activity", period: { start: "2025-03", end: "2025-06", ongoing: false },
@@ -42,15 +48,12 @@ test("activity cancel, validation, period save, timeline sync and GET after relo
   await page.getByRole("button", { name: "저장", exact: true }).click();
   await expect(page.locator("form").getByRole("alert")).toContainText("활동 이름");
   await page.getByLabel("활동 이름").fill("Updated activity");
-  await page.getByLabel("시작일").fill("2025-02-30");
-  await page.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(page.locator("form").getByRole("alert")).toContainText("날짜");
-  await page.getByLabel("시작일").fill("2026");
+  await pick(page, "시작", "2026");
   await page.getByRole("button", { name: "저장", exact: true }).click();
   await expect(page.locator("form").getByRole("alert")).toContainText("시작일");
   expect(state.patches).toHaveLength(0);
   await page.getByLabel("진행 중", { exact: true }).check();
-  await expect(page.getByLabel("종료일")).toBeDisabled();
+  await expect(page.getByLabel("종료 연도")).toBeDisabled();
   await page.getByRole("button", { name: "저장", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Updated activity" })).toBeVisible();
   expect(state.patches[0].body).toEqual({ name: "Updated activity", period: { start: "2026", end: null, ongoing: true } });
@@ -61,42 +64,58 @@ test("activity cancel, validation, period save, timeline sync and GET after relo
   await expect(page.getByRole("heading", { name: "Updated activity" })).toBeVisible();
 });
 
-test("activity editor applies PM partial-date and year-zero rules before PATCH", async ({ page }) => {
+test("activity period is picked by year · month and applies PM partial-date rules before PATCH", async ({ page }) => {
   const state = await setup(page);
   const valid = [
     { start: "2025-03", end: "2025", ongoing: false },
-    { start: "2025-03-31", end: "2025-03", ongoing: false },
     { start: "2024", end: "2025", ongoing: false },
     { start: "2025-01", end: "2025-12", ongoing: false },
-    { start: "0000-02-29", end: "0000", ongoing: false },
-    { start: "0000", end: "0000-12", ongoing: false },
+    { start: null, end: null, ongoing: false },
     { start: "2026", end: null, ongoing: true },
   ];
   for (const period of valid) {
     await page.getByRole("button", { name: "활동 수정", exact: true }).click();
     await page.getByLabel("진행 중", { exact: true }).uncheck();
-    await page.getByLabel("시작일").fill(period.start);
-    await page.getByLabel("종료일").fill(period.end ?? "");
+    await pick(page, "시작", period.start);
+    await pick(page, "종료", period.end);
     if (period.ongoing) {
       await page.getByLabel("진행 중", { exact: true }).check();
-      await expect(page.getByLabel("종료일")).toBeDisabled();
+      await expect(page.getByLabel("종료 연도")).toBeDisabled();
     }
     const count = state.patches.length;
     await page.getByRole("button", { name: "저장", exact: true }).click();
-    await expect(page.getByLabel("시작일")).toHaveCount(0);
+    await expect(page.getByLabel("시작 연도")).toHaveCount(0);
     expect(state.patches).toHaveLength(count + 1);
     expect(state.patches.at(-1)!.body).toEqual({ name: "API test activity", period });
   }
   await page.getByRole("button", { name: "활동 수정", exact: true }).click();
   await page.getByLabel("진행 중", { exact: true }).uncheck();
-  for (const [start, end] of [["2026", "2025"], ["2025-04", "2025-03"], ["0001", "0000"]]) {
-    await page.getByLabel("시작일").fill(start);
-    await page.getByLabel("종료일").fill(end);
+  for (const [start, end] of [["2026", "2025"], ["2025-04", "2025-03"]]) {
+    await pick(page, "시작", start);
+    await pick(page, "종료", end);
     await page.getByRole("button", { name: "저장", exact: true }).click();
     await expect(page.locator("form").getByRole("alert")).toContainText("시작일은 종료일보다 늦을 수 없어요");
-    await expect(page.getByLabel("시작일")).toHaveValue(start);
+    await expect(page.getByLabel("시작 연도")).toHaveValue(start.slice(0, 4));
     expect(state.patches).toHaveLength(valid.length);
   }
+});
+
+test("day precision survives when year · month are unchanged; clearing the year disables the month", async ({ page }) => {
+  const state = await setup(page);
+  state.activity.period = { start: "2025-03-31", end: "2025-06-15", ongoing: false };
+  await page.reload();
+  await page.getByRole("button", { name: /API test activity/ }).first().click();
+  await page.getByRole("button", { name: "활동 수정", exact: true }).click();
+  await expect(page.getByLabel("시작 연도")).toHaveValue("2025");
+  await expect(page.getByLabel("시작 월")).toHaveValue("03");
+  await page.getByLabel("활동 이름").fill("Renamed");
+  await page.getByLabel("종료 월").selectOption("07");
+  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(page.getByLabel("시작 연도")).toHaveCount(0);
+  expect(state.patches.at(-1)!.body).toEqual({ name: "Renamed", period: { start: "2025-03-31", end: "2025-07", ongoing: false } });
+  await page.getByRole("button", { name: "활동 수정", exact: true }).click();
+  await page.getByLabel("시작 연도").selectOption("");
+  await expect(page.getByLabel("시작 월")).toBeDisabled();
 });
 
 test("experience cancel, no-op, empty validation, changed fields, source status and citations", async ({ page }) => {
