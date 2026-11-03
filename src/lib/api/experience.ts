@@ -5,8 +5,8 @@
 import { MOCK_ACTIVITIES } from "../mock/activities";
 import { mockAddedActivities, mockFetchJob, mockRetryJob, mockSubmitSource } from "../mock/analysis";
 import { ApiError } from "./errors";
-import type { ActivityDetail, ActivitySummary, Job, SourceRequest, Experience, UpdateActivityRequest, UpdateExperienceRequest } from "./types";
-import { MAX_TEXT_LENGTH, type SourceSubmitted } from "./types";
+import type { ActivityDetail, ActivitySummary, Job, SourceRequest, Experience, UpdateActivityRequest, UpdateExperienceRequest, CreateExperienceRequest } from "./types";
+import { COMPETENCIES, MAX_TEXT_LENGTH, type SourceSubmitted } from "./types";
 
 export { ApiError };
 
@@ -34,7 +34,11 @@ export async function fetchActivities(mock: MockMode = null): Promise<ActivitySu
 
 /** GET /api/activities/{activityId} */
 export async function fetchActivity(id: number): Promise<ActivityDetail> {
-  if (!isMockMode()) return request<ActivityDetail>(`/activities/${id}`);
+  if (!isMockMode()) {
+    const activity = await request<ActivityDetail>(`/activities/${id}`);
+    activity.experiences.forEach(checkCompetencies);
+    return activity;
+  }
   const found = allActivities().find((a) => a.id === id);
   if (!found) throw new ApiError("ACTIVITY_NOT_FOUND", `활동 ${id} 이 없습니다`);
   return structuredClone(found);
@@ -83,6 +87,8 @@ async function request<T>(path: string, data?: unknown, method = data === undefi
   } catch {
     throw new ApiError("NETWORK_ERROR", "서버에 연결하지 못했어요. 연결을 확인하고 다시 시도해 주세요.");
   }
+  // DELETE 성공은 본문이 없다. 오류 응답은 아래의 공통 처리로 보낸다.
+  if (response.status === 204 && response.ok) return undefined as T;
   let body;
   try { body = await response.json(); } catch {
     throw new ApiError(response.ok ? "INVALID_RESPONSE" : `HTTP_${response.status}`, "서버 응답을 읽지 못했어요.", response.status);
@@ -95,6 +101,22 @@ export function updateActivity(id: number, data: UpdateActivityRequest): Promise
   return request(`/activities/${id}`, data);
 }
 
-export function updateExperience(id: number, data: UpdateExperienceRequest): Promise<Experience> {
-  return request(`/experiences/${id}`, data);
+function checkCompetencies(experience: Experience): Experience {
+  const values = experience.competencies;
+  if (!Array.isArray(values) || values.length > 3 || new Set(values).size !== values.length || values.some((value) => !Object.hasOwn(COMPETENCIES, value))) {
+    throw new ApiError("INVALID_RESPONSE", "서버의 경험 역량 응답이 최신 API 계약과 달라요. BE 버전을 확인해 주세요.");
+  }
+  return experience;
+}
+
+export async function updateExperience(id: number, data: UpdateExperienceRequest): Promise<Experience> {
+  return checkCompetencies(await request(`/experiences/${id}`, data));
+}
+
+export async function createExperience(activityId: number, data: CreateExperienceRequest): Promise<Experience> {
+  return checkCompetencies(await request(`/activities/${activityId}/experiences`, data, "POST"));
+}
+
+export function deleteExperience(id: number): Promise<void> {
+  return request(`/experiences/${id}`, undefined, "DELETE");
 }

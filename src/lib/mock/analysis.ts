@@ -90,7 +90,7 @@ function finish(job: StoredJob) {
         id: id * 10,
         activityId: id,
         content: "목 결과예요. 실제 AI 분석이 붙으면 이 자리에 자료에서 찾은 경험이 나와요",
-        perspective: "목 결과",
+        competencies: [],
         actor: "UNKNOWN",
         sourceStatus: "NEEDS_REVIEW",
         citations: job.firstLine

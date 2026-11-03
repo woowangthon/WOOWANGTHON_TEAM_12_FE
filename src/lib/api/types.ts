@@ -6,6 +6,15 @@ export type SourceStatus = "SOURCE_CONFIRMED" | "USER_ENTERED" | "NEEDS_REVIEW";
 /** 수행 주체 — 나 / 팀 / 알 수 없음 */
 export type Actor = "ME" | "TEAM" | "UNKNOWN";
 
+/** ETC contracts README — 닫힌 역량 목록. 경험당 0~3개, 순서 유지 */
+export const COMPETENCIES = {
+  IMPLEMENTATION: "기술 구현", PROBLEM_SOLVING: "문제 해결", PLANNING: "기획",
+  ANALYSIS: "분석", OPERATION: "운영", COLLABORATION: "협업", COMMUNICATION: "소통",
+  LEADERSHIP: "리더십", INITIATIVE: "주도성", RESPONSIBILITY: "책임감",
+  PERSEVERANCE: "끈기", LEARNING: "학습", PRESENTATION: "발표",
+} as const;
+export type Competency = keyof typeof COMPETENCIES;
+
 /** `start` · `end` 는 "YYYY" · "YYYY-MM" · "YYYY-MM-DD". 모르면 null */
 export type Period = {
   start: string | null;
@@ -61,8 +70,7 @@ export type Experience = {
   id: number;
   activityId: number;
   content: string;
-  /** AI 가 붙인 자유 문자열(SPEC 미결정 2) */
-  perspective: string | null;
+  competencies: Competency[];
   actor: Actor;
   sourceStatus: SourceStatus;
   citations: Citation[];
@@ -76,5 +84,6 @@ export type ActivityDetail = {
 };
 
 export type UpdateActivityRequest = { name?: string; period?: Period };
-// 생략하면 유지하고, null 을 보내면 관점을 지운다.
-export type UpdateExperienceRequest = { content?: string; perspective?: string | null; actor?: Actor };
+// 생략하면 유지하고, [] 를 보내면 역량을 지운다.
+export type UpdateExperienceRequest = { content?: string; competencies?: Competency[]; actor?: Actor };
+export type CreateExperienceRequest = { content: string; competencies?: Competency[]; actor: Actor };

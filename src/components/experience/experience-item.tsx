@@ -1,9 +1,10 @@
 "use client";
 
 // 경험 하나 — 이 화면의 주인공. 상자 없이 구분선, 근거는 접어 둔다 (SPEC S-08 · DESIGN.md 「경험」)
-import { CaretDownIcon, CheckIcon, PencilSimpleIcon, QuotesIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { CaretDownIcon, CheckIcon, DotsThreeIcon, PencilSimpleIcon, QuotesIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { DropdownMenu } from "radix-ui";
 import { cn } from "@/lib/utils";
-import type { Actor, Experience, SourceStatus } from "@/lib/api/types";
+import { COMPETENCIES, type Actor, type Experience, type SourceStatus } from "@/lib/api/types";
 import { CitationList } from "./citation-list";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -37,23 +38,23 @@ export function SourceStatusMark({ status }: { status: SourceStatus }) {
   );
 }
 
-/** 수행 주체 · AI 가 붙인 관점 · 출처 상태 */
+/** 수행 주체 · 역량 · 출처 상태 */
 export function ExperienceMeta({ experience: e }: { experience: Experience }) {
   const sep = <span className="text-hairline">·</span>;
   return (
     <>
       <span>{ACTOR[e.actor]}</span>
-      {e.perspective && (
+      {e.competencies.length > 0 && (
         <>
           {sep}
           <span>
             {e.sourceStatus !== "USER_ENTERED" && <span
               className="mr-1 inline-block rounded-[4px] border border-hairline px-1 align-[1px] text-[10px] leading-[15px] font-bold tracking-[0.02em]"
-              title="AI 가 붙인 관점"
+              title="AI 가 붙인 역량 — 해석이에요"
             >
               AI
             </span>}
-            {e.perspective}
+            {e.competencies.map((c) => COMPETENCIES[c]).join(" · ")}
           </span>
         </>
       )}
@@ -71,9 +72,10 @@ type Props = {
   /** 모바일 — 하단 시트로 근거를 띄운다 */
   onShowCitations: () => void;
   onSaved: (experience: Experience) => void;
+  onDelete: (experience: Experience) => void;
 };
 
-export function ExperienceItem({ experience, citationsOpen, onToggleCitations, onShowCitations, onSaved }: Props) {
+export function ExperienceItem({ experience, citationsOpen, onToggleCitations, onShowCitations, onSaved, onDelete }: Props) {
   const [editing, setEditing] = useState(false);
   const e = experience;
   const n = e.citations.length;
@@ -82,7 +84,21 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
   return (
     <li className="grid gap-1.5 border-b border-hairline py-4">
       {editing ? <ExperienceEditor experience={e} onCancel={() => setEditing(false)} onSaved={(result) => { onSaved(result); setEditing(false); }} /> : (
-        <div className="flex items-start gap-2"><p className="m-0 flex-1 whitespace-pre-wrap text-base leading-relaxed text-ink">{e.content}</p><Button variant="ghost" size="sm" onClick={() => setEditing(true)} aria-label={`경험 수정: ${e.content}`}>수정</Button></div>
+        <div className="flex items-start gap-2">
+          <p className="m-0 flex-1 whitespace-pre-wrap text-base leading-relaxed text-ink">{e.content}</p>
+          <Button variant="ghost" size="sm" onClick={() => setEditing(true)} aria-label={`경험 수정: ${e.content}`}>수정</Button>
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger asChild>
+              <Button variant="ghost" size="icon" className="size-11" aria-label={`경험 메뉴: ${e.content}`}><DotsThreeIcon /></Button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content align="end" sideOffset={4} className="z-50 min-w-32 rounded-md border border-hairline bg-canvas p-1 shadow-float">
+                <DropdownMenu.Item onSelect={() => setEditing(true)} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">고치기</DropdownMenu.Item>
+                <DropdownMenu.Item onSelect={() => onDelete(e)} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm text-error outline-none focus:bg-surface-soft">지우기</DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
+        </div>
       )}
       <div className="flex flex-wrap items-center gap-1.5 text-[13px] font-medium text-muted">
         <ExperienceMeta experience={e} />
