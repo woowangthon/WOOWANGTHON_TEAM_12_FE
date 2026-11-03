@@ -16,7 +16,11 @@ export type MockMode = "empty" | "error" | null;
 /** 화면 확인용 — 주소에 `?analysis=fail` · `?analysis=empty` 를 붙이면 자료를 넣었을 때 분석 실패 · 활동 0개로 끝난다 */
 export type MockAnalysis = "fail" | "empty" | null;
 
-const allActivities = () => [...MOCK_ACTIVITIES, ...mockAddedActivities()];
+// MOCK(timeline-activities): 목 경험 수정·추가는 현재 페이지 실행 중에만 유지한다.
+const mockExperiences = new Map<number, Experience[]>();
+const allActivities = () => [...MOCK_ACTIVITIES, ...mockAddedActivities()].map((activity) => ({
+  ...activity, experiences: mockExperiences.get(activity.id) ?? activity.experiences,
+}));
 
 /** GET /api/activities — period.start 오름차순, start 가 null 이면 맨 뒤 */
 export async function fetchActivities(mock: MockMode = null): Promise<ActivitySummary[]> {
@@ -24,7 +28,7 @@ export async function fetchActivities(mock: MockMode = null): Promise<ActivitySu
   if (mock === "error") throw new ApiError("MOCK_ERROR", "불러오기 실패 화면 확인용");
   const source = mock === "empty" ? mockAddedActivities() : allActivities();
   return source
-    .map(({ experiences, ...a }) => ({ ...a, experienceCount: experiences.length }))
+    .map(({ experiences, ...a }) => ({ ...a, experienceCount: (mockExperiences.get(a.id) ?? experiences).length }))
     .sort((a, b) => {
       if (a.period.start == null) return b.period.start == null ? 0 : 1;
       if (b.period.start == null) return -1;
@@ -110,10 +114,40 @@ function checkCompetencies(experience: Experience): Experience {
 }
 
 export async function updateExperience(id: number, data: UpdateExperienceRequest): Promise<Experience> {
+  if (isMockMode()) {
+    const activity = allActivities().find((a) => a.experiences.some((e) => e.id === id));
+    const previous = activity?.experiences.find((e) => e.id === id);
+    if (!activity || !previous) throw new ApiError("EXPERIENCE_NOT_FOUND", `경험 ${id} 이 없습니다`);
+    const competenciesChanged = data.competencies !== undefined
+      && JSON.stringify(data.competencies) !== JSON.stringify(previous.competencies);
+    const changed = competenciesChanged
+      || (data.content !== undefined && data.content !== previous.content)
+      || (data.actor !== undefined && data.actor !== previous.actor);
+    const updated: Experience = {
+      ...previous, ...data,
+      competenciesBy: competenciesChanged ? "USER" : previous.competenciesBy,
+      sourceStatus: changed ? "USER_ENTERED" : previous.sourceStatus,
+    };
+    checkCompetencies(updated);
+    mockExperiences.set(activity.id, activity.experiences.map((e) => e.id === id ? updated : e));
+    return structuredClone(updated);
+  }
   return checkCompetencies(await request(`/experiences/${id}`, data));
 }
 
 export async function createExperience(activityId: number, data: CreateExperienceRequest): Promise<Experience> {
+  if (isMockMode()) {
+    const activity = allActivities().find((a) => a.id === activityId);
+    if (!activity) throw new ApiError("ACTIVITY_NOT_FOUND", `활동 ${activityId} 이 없습니다`);
+    const created: Experience = {
+      id: Math.max(0, ...allActivities().flatMap((a) => a.experiences.map((e) => e.id))) + 1,
+      activityId, ...data, competencies: data.competencies ?? [],
+      competenciesBy: "USER", sourceStatus: "USER_ENTERED", citations: [],
+    };
+    checkCompetencies(created);
+    mockExperiences.set(activityId, [...activity.experiences, created]);
+    return structuredClone(created);
+  }
   return checkCompetencies(await request(`/activities/${activityId}/experiences`, data, "POST"));
 }
 

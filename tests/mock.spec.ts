@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test("mock timeline, edits cannot pretend server success, and source analysis remains mock", async ({ page }) => {
+test("mock timeline, competency provenance edits, and source analysis remains mock", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("note")).toContainText("목 모드");
   await page.getByRole("button", { name: /바꿔요/ }).first().click();
@@ -11,10 +11,28 @@ test("mock timeline, edits cannot pretend server success, and source analysis re
   await expect(page.getByLabel("활동 이름")).toHaveValue("Cannot save");
   await page.getByRole("button", { name: "취소", exact: true }).click();
   await page.getByRole("button", { name: /^경험 수정:/ }).first().click();
-  await page.getByLabel("경험 내용").fill("Cannot save experience");
+  await page.getByLabel("경험 내용").fill("Mock edited experience");
   await page.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(page.locator("form").getByRole("alert")).toContainText("서버에 저장할 수 없어요");
-  await page.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(page.getByLabel("경험 내용")).toHaveCount(0);
+  const item = page.getByRole("complementary").locator("li").first();
+  await expect(item.getByText("AI", { exact: true })).toBeVisible();
+  await item.getByRole("button", { name: /^경험 수정:/ }).click();
+  await page.getByLabel("수행 주체").selectOption("TEAM");
+  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(page.getByLabel("수행 주체")).toHaveCount(0);
+  await expect(item.getByText("AI", { exact: true })).toBeVisible();
+  await item.getByRole("button", { name: /^경험 수정:/ }).click();
+  await page.getByLabel("협업", { exact: true }).check();
+  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(page.getByLabel("경험 내용")).toHaveCount(0);
+  await expect(item.getByText("AI", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "경험 직접 추가", exact: true }).click();
+  await page.getByLabel("경험 내용").fill("Manual mock experience");
+  await page.getByLabel("협업", { exact: true }).check();
+  await page.getByRole("button", { name: "저장", exact: true }).click();
+  const last = page.getByRole("complementary").locator("li").last();
+  await expect(last).toContainText("Manual mock experience");
+  await expect(last.getByText("AI", { exact: true })).toHaveCount(0);
   if (page.viewportSize()!.width < 1024) await page.getByRole("button", { name: "타임라인", exact: true }).click();
   await page.getByRole("button", { name: "자료 넣기", exact: true }).filter({ visible: true }).first().click();
   await page.getByRole("dialog").getByRole("textbox").fill("Test source text");

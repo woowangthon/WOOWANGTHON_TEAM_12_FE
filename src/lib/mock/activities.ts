@@ -36,8 +36,9 @@ function exp(
   sourceStatus: SourceStatus,
   content: string,
   citations: Citation[],
+  competenciesBy: "AI" | "USER" = "AI",
 ) {
-  return { id, activityId, content, competencies: [competency], actor, sourceStatus, citations };
+  return { id, activityId, content, competencies: [competency], competenciesBy, actor, sourceStatus, citations };
 }
 
 export const MOCK_ACTIVITIES: ActivityDetail[] = [
@@ -136,7 +137,7 @@ export const MOCK_ACTIVITIES: ActivityDetail[] = [
       ]),
       exp(162, 12, "LEARNING", "ME", "USER_ENTERED", "코드 리뷰를 처음 받아 보며 PR 을 작게 나누는 습관이 생겼다", [
         cite("pasted", "처음으로 코드리뷰 받아봄", 11),
-      ]),
+      ], "USER"),
     ],
   },
   {

@@ -71,6 +71,7 @@ export type Experience = {
   activityId: number;
   content: string;
   competencies: Competency[];
+  competenciesBy: "AI" | "USER";
   actor: Actor;
   sourceStatus: SourceStatus;
   citations: Citation[];

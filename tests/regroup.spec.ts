@@ -4,7 +4,7 @@ import type { ActivityDetail, Experience } from "../src/lib/api/types";
 // HTTP fixtures only — 화면 동작을 본다. 실제 BE · DB 와의 통합 시험이 아니다. (FE#10 · SPEC S-12 · S-13)
 function experience(id: number, activityId: number, content: string, sourceStatus: Experience["sourceStatus"] = "SOURCE_CONFIRMED"): Experience {
   return {
-    id, activityId, content, competencies: ["IMPLEMENTATION"], actor: "ME", sourceStatus,
+    id, activityId, content, competencies: ["IMPLEMENTATION"], competenciesBy: "AI", actor: "ME", sourceStatus,
     citations: [{ id: id + 100, sourceId: 12, sourceName: "retro.md", quote: `Quote ${id}`, matched: true, location: null }],
   };
 }

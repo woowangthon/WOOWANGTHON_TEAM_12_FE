@@ -91,6 +91,7 @@ function finish(job: StoredJob) {
         activityId: id,
         content: "목 결과예요. 실제 AI 분석이 붙으면 이 자리에 자료에서 찾은 경험이 나와요",
         competencies: [],
+        competenciesBy: "AI",
         actor: "UNKNOWN",
         sourceStatus: "NEEDS_REVIEW",
         citations: job.firstLine

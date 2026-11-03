@@ -1,6 +1,45 @@
 import { test, expect, type Page } from "@playwright/test";
 import type { ActivityDetail, UpdateActivityRequest, UpdateExperienceRequest } from "../src/lib/api/types";
 
+for (const scenario of [
+  { by: "AI", status: "USER_ENTERED", values: ["IMPLEMENTATION"], visible: true },
+  { by: "USER", status: "SOURCE_CONFIRMED", values: ["IMPLEMENTATION"], visible: false },
+  { by: "AI", status: "SOURCE_CONFIRMED", values: [], visible: false },
+  { by: undefined, status: "SOURCE_CONFIRMED", values: ["IMPLEMENTATION"], visible: true },
+  { by: undefined, status: "USER_ENTERED", values: ["IMPLEMENTATION"], visible: false },
+] as const) {
+  test(`AI marker: ${scenario.by}, ${scenario.status}, ${scenario.values.length} competencies`, async ({ page }) => {
+    const state = await setup(page);
+    Object.assign(state.activity.experiences[0], {
+      competenciesBy: scenario.by, sourceStatus: scenario.status, competencies: [...scenario.values],
+    });
+    await page.reload();
+    await page.getByRole("button", { name: /API test activity/ }).click();
+    await expect(page.getByText("Original experience", { exact: true })).toBeVisible();
+    await expect(page.getByRole("complementary").getByText("AI", { exact: true })).toHaveCount(scenario.visible ? 1 : 0);
+  });
+}
+
+test("AI marker survives content and actor edits, disappears on competency edit", async ({ page }) => {
+  const state = await setup(page);
+  state.activity.experiences[0].competencies = ["IMPLEMENTATION"];
+  await page.reload();
+  await page.getByRole("button", { name: /API test activity/ }).click();
+  const ai = page.getByRole("complementary").getByText("AI", { exact: true });
+  for (const field of ["content", "actor", "competencies"] as const) {
+    await page.getByRole("button", { name: /^경험 수정:/ }).click();
+    if (field === "content") await page.getByLabel("경험 내용").fill("Content only edit");
+    if (field === "actor") await page.getByLabel("수행 주체").selectOption("TEAM");
+    if (field === "competencies") await page.getByLabel("협업", { exact: true }).check();
+    await page.getByRole("button", { name: "저장", exact: true }).click();
+    await expect(page.getByLabel("경험 내용")).toHaveCount(0);
+    await expect(ai).toHaveCount(field === "competencies" ? 0 : 1);
+  }
+  expect(state.patches.map((p) => p.body)).toEqual([
+    { content: "Content only edit" }, { actor: "TEAM" }, { competencies: ["IMPLEMENTATION", "COLLABORATION"] },
+  ]);
+});
+
 // Test-only HTTP fixture; this is not a deployed backend or persistence verification.
 /** 기간 한쪽을 연 · 월 고르기로 정한다(FE#25). null 이면 「기간 모름」, 월이 없으면 「월 모름」 */
 async function pick(page: Page, side: "시작" | "종료", value: string | null) {
@@ -11,7 +50,7 @@ async function pick(page: Page, side: "시작" | "종료", value: string | null)
 async function setup(page: Page) {
   const activity: ActivityDetail = {
     id: 7, name: "API test activity", period: { start: "2025-03", end: "2025-06", ongoing: false },
-    experiences: [{ id: 101, activityId: 7, content: "Original experience", competencies: [], actor: "ME", sourceStatus: "SOURCE_CONFIRMED", citations: [{ id: 201, sourceId: 12, sourceName: "original.md", quote: "Original quote", matched: true, location: { startLine: 1, endLine: 1 } }] }],
+    experiences: [{ id: 101, activityId: 7, content: "Original experience", competencies: [], competenciesBy: "AI", actor: "ME", sourceStatus: "SOURCE_CONFIRMED", citations: [{ id: 201, sourceId: 12, sourceName: "original.md", quote: "Original quote", matched: true, location: { startLine: 1, endLine: 1 } }] }],
   };
   const state = { activity, patches: [] as { url: string; body: UpdateActivityRequest | UpdateExperienceRequest }[], fail: false, delay: 0 };
   await page.route("**/api/**", async (route) => {
@@ -25,7 +64,11 @@ async function setup(page: Page) {
         Object.assign(activity, req.postDataJSON());
         return route.fulfill({ json: { id: activity.id, name: activity.name, period: activity.period, experienceCount: 1 } });
       }
-      Object.assign(activity.experiences[0], req.postDataJSON(), { sourceStatus: "USER_ENTERED" });
+      const body: UpdateExperienceRequest = req.postDataJSON();
+      if (body.competencies !== undefined && JSON.stringify(body.competencies) !== JSON.stringify(activity.experiences[0].competencies)) {
+        activity.experiences[0].competenciesBy = "USER";
+      }
+      Object.assign(activity.experiences[0], body, { sourceStatus: "USER_ENTERED" });
       return route.fulfill({ json: activity.experiences[0] });
     }
     return route.fulfill({ json: path === "/api/activities" ? { activities: [{ id: activity.id, name: activity.name, period: activity.period, experienceCount: 1 }] } : activity });
