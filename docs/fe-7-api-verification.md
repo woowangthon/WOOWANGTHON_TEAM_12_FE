@@ -1,6 +1,8 @@
 # FE #7 API 대조 및 로컬 검증
 
 > 이 문서는 BE `6359a3d` 기준의 이전 검증 기록이다. BE #5 완료 후 자료 등록·작업 조회·재시도 연동 상태는 [최신 자료 분석 API 기록](source-analysis-api.md)을 따른다. 아래의 「자료 분석은 목」 설명은 당시 상태다.
+>
+> 경험의 관점 `perspective`(문자열 · null)는 이후 역량 배열 `competencies`(닫힌 목록 13개, 0~3개, 없으면 `[]`)로 바뀌었다(ETC#46 · BE#15 · FE#21 · FE#18). 아래의 `perspective` · 「nullable 관점」 설명은 당시 계약 기준이다. 지금 규칙은 [README](../README.md) 「활동·경험 API 및 편집」을 따른다.
 
 2026-11-02에 GitHub의 최신 main을 직접 읽었다. BE·ETC는 읽기 전용으로 확인했다.
 

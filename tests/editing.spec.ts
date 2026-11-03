@@ -143,7 +143,7 @@ test("experience cancel, no-op, empty validation, changed fields, source status 
   if (page.viewportSize()!.width < 1024) await expect(page.getByRole("dialog")).toContainText("Updated");
 });
 
-test("editing content and actor preserves competencies without sending the field reserved for FE #18", async ({ page }) => {
+test("editing content and actor keeps competencies and omits the untouched field", async ({ page }) => {
   const state = await setup(page);
   state.activity.experiences[0].competencies = ["COLLABORATION", "PROBLEM_SOLVING", "IMPLEMENTATION"];
   await page.reload();
@@ -157,6 +157,59 @@ test("editing content and actor preserves competencies without sending the field
   expect(state.activity.experiences[0].competencies).toEqual(["COLLABORATION", "PROBLEM_SOLVING", "IMPLEMENTATION"]);
   await page.getByRole("button", { name: /근거 1/ }).filter({ visible: true }).click();
   await expect(page.getByText("Original quote", { exact: true }).filter({ visible: true })).toBeVisible();
+});
+
+// FE#18 — 기존 경험의 역량을 목록에서 골라 고친다. 최대 3개 · 고른 순서대로 · 바뀌었을 때만 배열 통째로
+test("competencies: edit picks up to 3 in order, order-only change counts, clear sends [], no-op sends nothing", async ({ page }) => {
+  const state = await setup(page);
+  state.activity.experiences[0].competencies = ["COLLABORATION", "PROBLEM_SOLVING", "IMPLEMENTATION"];
+  await page.reload();
+  await page.getByRole("button", { name: /API test activity/ }).click();
+  const meta = page.getByRole("complementary").locator("li").first();
+  await expect(meta).toContainText("협업 · 문제 해결 · 기술 구현");
+  const edit = () => page.getByRole("button", { name: /^경험 수정:/ }).click();
+  const save = () => page.getByRole("button", { name: "저장", exact: true }).click();
+  const pick = (label: string) => page.getByLabel(label, { exact: true });
+
+  // 저장된 역량이 고른 상태로 열리고, 3개가 차면 나머지는 막힌다
+  await edit();
+  for (const label of ["협업", "문제 해결", "기술 구현"]) await expect(pick(label)).toBeChecked();
+  await expect(pick("기획")).toBeDisabled();
+  await expect(page.getByText("3 / 3", { exact: true })).toBeVisible();
+
+  // 하나를 빼고 새로 고르면 뒤에 붙는다 — 그 순서 그대로 보낸다
+  await pick("문제 해결").uncheck();
+  await expect(pick("기획")).toBeEnabled();
+  await pick("기획").check();
+  await save();
+  await expect(page.getByLabel("경험 내용")).toHaveCount(0);
+  expect(state.patches[0].body).toEqual({ competencies: ["COLLABORATION", "IMPLEMENTATION", "PLANNING"] });
+  await expect(meta).toContainText("협업 · 기술 구현 · 기획");
+
+  // 같은 역량이어도 순서만 바뀌면 바뀐 것이다
+  await edit();
+  await pick("협업").uncheck();
+  await pick("협업").check();
+  await save();
+  await expect(page.getByLabel("경험 내용")).toHaveCount(0);
+  expect(state.patches[1].body).toEqual({ competencies: ["IMPLEMENTATION", "PLANNING", "COLLABORATION"] });
+
+  // 다 지우면 [] 를 보내고, 메타 줄에서 역량이 사라진다
+  await edit();
+  for (const label of ["기술 구현", "기획", "협업"]) await pick(label).uncheck();
+  await expect(page.getByText("0 / 3", { exact: true })).toBeVisible();
+  await save();
+  await expect(page.getByLabel("경험 내용")).toHaveCount(0);
+  expect(state.patches[2].body).toEqual({ competencies: [] });
+  await expect(meta).not.toContainText("협업");
+
+  // 골랐다가 다시 빼서 그대로면 PATCH 를 보내지 않는다
+  await edit();
+  await pick("학습").check();
+  await pick("학습").uncheck();
+  await save();
+  await expect(page.getByLabel("경험 내용")).toHaveCount(0);
+  expect(state.patches).toHaveLength(3);
 });
 
 for (const kind of ["activity", "experience"] as const) {
