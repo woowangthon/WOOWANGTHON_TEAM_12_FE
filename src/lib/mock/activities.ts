@@ -1,6 +1,6 @@
 // MOCK(timeline-activities): API 주소가 없는 목 모드에서만 가상 활동 · 경험 · 근거를 돌려준다. 실제 API 실패 대체용이 아니다.
 // 바꿔요 · 알고리즘 스터디는 계약(experience-api.md) 예시와 같은 자료이고, 나머지는 화면 확인용으로 지어낸 것이다.
-// 일부러 섞은 것: 경험이 많은 활동 · 하나뿐인 활동 · 기간이 겹치는 활동 · 해를 넘는 활동 · 진행 중 · 한 달짜리 · 연도만 아는 활동 · 기간 모름 · 확인 필요(근거 없음 · 원본에서 못 찾음 · 아직 대조 안 함) · 내가 입력
+// 일부러 섞은 것: 경험이 많은 활동 · 하나뿐인 활동 · 기간이 겹치는 활동 · 해를 넘는 활동 · 진행 중 · 한 달짜리 · 연도만 아는 활동 · 기간 모름 · 경험 0개(이름 · 기간만) · 확인 필요(근거 없음 · 원본에서 못 찾음 · 아직 대조 안 함) · 내가 입력
 
 import type { ActivityDetail, Actor, Citation, Competency, SourceStatus } from "@/lib/api/types";
 
@@ -177,5 +177,12 @@ export const MOCK_ACTIVITIES: ActivityDetail[] = [
         cite("notes2024", "틈틈이 블로그에 트러블슈팅 글 씀", 20),
       ]),
     ],
+  },
+  {
+    // 이력서 항목처럼 원본에 이름 · 기간만 있는 활동 — AI 는 경험을 지어내지 않고 활동만 돌려준다 (SPEC S-03 · FE#22)
+    id: 17,
+    name: "정보처리기사 필기 준비",
+    period: { start: "2025-02", end: "2025-04", ongoing: false },
+    experiences: [],
   },
 ];

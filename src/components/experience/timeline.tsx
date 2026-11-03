@@ -82,7 +82,7 @@ export function Timeline({ activities, spans, years, selectedId, onSelect, dragg
                       previewSub(item.id) ?? (
                         <>
                           <PeriodLabel period={item.period} />
-                          <span className="ml-2.5">경험 {item.experienceCount}</span>
+                          <span className="ml-2.5">{experienceCountText(item.experienceCount)}</span>
                         </>
                       )
                     }
@@ -123,7 +123,7 @@ export function Timeline({ activities, spans, years, selectedId, onSelect, dragg
                 selected={a.id === selectedId}
                 onSelect={onSelect}
                 drop={drop}
-                sub={`경험 ${a.experienceCount}`}
+                sub={experienceCountText(a.experienceCount)}
               />
             ))}
           </ul>
@@ -131,6 +131,11 @@ export function Timeline({ activities, spans, years, selectedId, onSelect, dragg
       )}
     </div>
   );
+}
+
+/** 경험 0개는 실패가 아니다 — 0 이라는 숫자 대신 「아직 없음」으로. 색은 더하지 않는다(DESIGN.md — 색 꼬리표는 「확인 필요」 하나) (FE#22) */
+function experienceCountText(count: number) {
+  return count === 0 ? "경험 아직 없음" : `경험 ${count}`;
 }
 
 function YearHead({ label, count, showMonths }: { label: string; count: number; showMonths?: boolean }) {
