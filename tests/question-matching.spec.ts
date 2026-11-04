@@ -224,8 +224,8 @@ test("common questions fill blank slots first, stay editable and stop at the sub
   await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
   await page.getByRole("button", { name: "문항 칸 더하기", exact: true }).click();
   await page.getByLabel("문항 2", { exact: true }).fill("직접 쓴 문항");
-  await page.getByRole("button", { name: "자주 나오는 문항에서 고르기", exact: true }).click();
-  const picker = page.getByRole("dialog", { name: "자주 나오는 문항" });
+  await page.getByRole("button", { name: "넣었던 · 자주 나오는 문항에서 고르기", exact: true }).click();
+  const picker = page.getByRole("dialog", { name: "문항 고르기" });
   await expect(picker.getByRole("group", { name: "IT 연합 동아리" })).toBeVisible();
   await expect(picker.getByRole("button", { name: "문항을 골라 주세요" })).toBeDisabled();
   await picker.getByRole("checkbox", { name: /^실천의 관점에서 성공과 실패/ }).check();
@@ -239,8 +239,10 @@ test("common questions fill blank slots first, stay editable and stop at the sub
   await page.getByLabel("문항 3", { exact: true }).fill("다양한 IT 동아리 중에서 OO 를 고른 이유를 써 주세요.");
 
   // 7칸 남음 — 7개를 고르면 나머지는 고를 수 없다
-  await page.getByRole("button", { name: "자주 나오는 문항에서 고르기", exact: true }).click();
+  await page.getByRole("button", { name: "넣었던 · 자주 나오는 문항에서 고르기", exact: true }).click();
   await expect(picker).toContainText("7개까지 고를 수 있어요.");
+  // 「내가 넣었던 문항」(계약 예시 2개)이 다 온 뒤에 센다 — 목록이 늦게 오면 체크박스 순서가 밀린다
+  await expect(picker.getByRole("group", { name: "내가 넣었던 문항" }).getByRole("checkbox")).toHaveCount(2);
   const boxes = picker.getByRole("checkbox");
   await boxes.nth(0).check();
   await expect(picker).toContainText("1개 골랐어요 · 6개 더 고를 수 있어요.");
@@ -250,7 +252,7 @@ test("common questions fill blank slots first, stay editable and stop at the sub
   await picker.getByRole("button", { name: "고른 문항 7개 넣기", exact: true }).click();
   await expect(page.getByLabel("문항 10", { exact: true })).toHaveValue(/\S/);
   await expect(page.getByRole("button", { name: "문항 칸 더하기", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "자주 나오는 문항에서 고르기", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "넣었던 · 자주 나오는 문항에서 고르기", exact: true })).toBeDisabled();
 
   await page.getByRole("button", { name: "문항 10개 넣고 경험 찾기", exact: true }).click();
   await expect.poll(() => posts(api).length).toBe(1);
@@ -259,6 +261,49 @@ test("common questions fill blank slots first, stay editable and stop at the sub
   expect(saved.map(q => q.text).slice(0, 3)).toEqual([
     expect.stringMatching(/^실천의 관점에서/), "직접 쓴 문항", "다양한 IT 동아리 중에서 OO 를 고른 이유를 써 주세요.",
   ]);
+});
+
+// FE#82 — 「내가 넣었던 문항」에서 골라 다시 넣기(S-40). 새 API 없이 GET /api/questions 를 묶어 보인다
+test("past questions show newest first with organization and type, once per text, and fill a slot to edit", async ({ page }) => {
+  const api = await fake(page);
+  // 문항 41 과 글자가 같은 문항을 다른 지원처에 더 최근에 넣었다 — 최근 것 하나만 보인다
+  const [q41] = api.questions.filter(q => q.detail.id === 41);
+  api.questions.push({ ...q41, detail: { ...structuredClone(q41.detail), id: 99, applicationId: 30, organization: "OO 교내 동아리", createdAt: new Date().toISOString() } });
+  await page.goto("/questions");
+  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await page.getByRole("button", { name: "넣었던 · 자주 나오는 문항에서 고르기", exact: true }).click();
+  const past = page.getByRole("dialog", { name: "문항 고르기" }).getByRole("group", { name: "내가 넣었던 문항" });
+  const boxes = past.getByRole("checkbox");
+  await expect(boxes).toHaveCount(2);
+  await expect(past.locator("label").nth(0)).toContainText(q41.detail.text);
+  await expect(past.locator("label").nth(0)).toContainText("OO 교내 동아리 · 문제 해결 · 기술적 어려움 (AI 해석)");
+  await expect(past.locator("label").nth(1)).toContainText("OO 연합 동아리 · 협업 · 소통 · 팀워크 (AI 해석)");
+  expect(api.calls.filter(c => c.call === "GET /api/questions")).toHaveLength(1);
+
+  await boxes.nth(1).check();
+  await page.getByRole("button", { name: "고른 문항 1개 넣기", exact: true }).click();
+  const first = page.getByLabel("문항 1", { exact: true });
+  await expect(first).toHaveValue(/^팀 프로젝트에서 맡은 역할과/);
+  await first.fill("팀 프로젝트에서 맡은 역할을 400자로 적어 주세요.");
+  await expect(first).toHaveValue("팀 프로젝트에서 맡은 역할을 400자로 적어 주세요.");
+  expect(posts(api)).toHaveLength(0);
+});
+
+test("past questions: empty account shows a hint only, and a failed load can be retried", async ({ page }) => {
+  await fake(page, { empty: true });
+  let down = true;
+  await page.route("**/api/questions", route => (down ? route.fulfill({ status: 503, json: { error: { code: "INTERNAL_ERROR", message: "잠시 뒤 다시 시도해 주세요" } } }) : route.fallback()));
+  await page.goto("/questions");
+  await page.getByRole("button", { name: "넣었던 · 자주 나오는 문항에서 고르기", exact: true }).click();
+  const past = page.getByRole("dialog", { name: "문항 고르기" }).getByRole("group", { name: "내가 넣었던 문항" });
+  await expect(past.getByRole("alert")).toContainText("잠시 뒤 다시 시도해 주세요");
+  await expect(past.getByRole("checkbox")).toHaveCount(0);
+  down = false;
+  await past.getByRole("button", { name: "다시 불러오기", exact: true }).click();
+  await expect(past).toContainText("아직 넣은 문항이 없어요");
+  await expect(past.getByRole("checkbox")).toHaveCount(0);
+  // 자주 나오는 문항은 그대로 고를 수 있다
+  await expect(page.getByRole("dialog", { name: "문항 고르기" }).getByRole("group", { name: "IT 연합 동아리" })).toBeVisible();
 });
 
 test("a question can be added to an existing application and blank slots are named", async ({ page }) => {

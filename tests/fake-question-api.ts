@@ -76,6 +76,8 @@ export class FakeQuestionApi {
       if (q.fail) { q.detail.status = "FAILED"; q.detail.error = { code: "AI_TIMEOUT", message: "AI 응답 시간이 지났습니다" }; continue; }
       const noMatch = this.options.noMatch;
       q.detail.status = "COMPLETED";
+      q.detail.questionType = q.template.questionType ?? null;
+      q.detail.questionTypeBy = q.detail.questionType ? "AI" : null;
       q.detail.requirements = q.template.requirements.map(r => noMatch ? { ...r, status: "NOT_FOUND", experienceIds: [] } : structuredClone(r));
       q.detail.recommendations = noMatch ? [] : structuredClone(q.template.recommendations);
       // 보완에 이미 있는 질문은 다시 묻지 않는다(계약 예시의 모양 — AI#21)
@@ -86,7 +88,10 @@ export class FakeQuestionApi {
   }
 
   private summary({ detail }: Stored): QuestionSummary {
-    return { id: detail.id, applicationId: detail.applicationId, organization: detail.organization, text: detail.text, status: detail.status, createdAt: detail.createdAt };
+    return {
+      id: detail.id, applicationId: detail.applicationId, organization: detail.organization, text: detail.text,
+      questionType: detail.questionType ?? null, questionTypeBy: detail.questionTypeBy ?? null, status: detail.status, createdAt: detail.createdAt,
+    };
   }
 
   /** 추천의 경험은 지금 상태로 — 문항 뒤에 생긴 보완도 싣는다 */
