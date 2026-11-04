@@ -2,6 +2,7 @@
 
 // 첫 화면 — 연도별 타임라인 + 활동 세부 (SPEC F-03) · 자료 넣기 + 분석 상태 (F-01)
 // PC 는 타임라인 옆 패널, 모바일은 목록 → 전체 화면 세부
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowsClockwiseIcon, PlusIcon, WarningCircleIcon } from "@phosphor-icons/react";
@@ -19,7 +20,8 @@ import { ActivityDetailView, type DetailState } from "./activity-detail";
 import { MergeActivityDialog, MoveExperienceDialog } from "./regroup-dialogs";
 import { Timeline } from "./timeline";
 import { useExperienceDeletion } from "./use-experience-deletion";
-import { QuestionTimelineScreen } from "@/components/questions/question-timeline-screen";
+import { SupplementSourceContext, supplementSource } from "./supplement-list";
+import { fetchQuestions } from "@/lib/api/questions";
 
 type ListState =
   | { status: "loading" }
@@ -34,12 +36,6 @@ function toMockAnalysis(value: string | null): MockAnalysis {
 }
 
 export function TimelineScreen() {
-  const params = useSearchParams();
-  // 문항 목에서 이동한 경우 실제 API·진행 중인 자료 분석을 호출하지 않는다.
-  return params.get("questionMock") === "1" ? <QuestionTimelineScreen /> : <TimelineWorkspace />;
-}
-
-function TimelineWorkspace() {
   const params = useSearchParams();
   const mock = toMockMode(params.get("mock"));
   const mockAnalysis = toMockAnalysis(params.get("analysis"));
@@ -72,9 +68,18 @@ function TimelineWorkspace() {
     );
   };
 
+  // 보완의 출처 「OO 문항에서 답함」 — 문항에서 답한 보완이 있는 활동을 처음 열 때 문항 목록을 한 번 읽는다.
+  // 못 읽으면 「되묻기에 답함」으로 둔다(표시 문구만 달라진다)
+  const [sourceOf, setSourceOf] = useState<ReturnType<typeof supplementSource>>(() => () => null);
+  const sourceRequested = useRef(false);
+  const needsSource = detail.status === "ready" && detail.activity.experiences.some((e) => e.supplements?.some((s) => s.questionId !== null));
   useEffect(() => {
-    loadList(mock);
-  }, [mock]);
+    if (!needsSource || sourceRequested.current || isMockMode()) return;
+    sourceRequested.current = true;
+    fetchQuestions()
+      .then((questions) => setSourceOf(() => supplementSource(new Map(questions.map((q) => [q.id, q.organization])))))
+      .catch(() => { sourceRequested.current = false; });
+  }, [needsSource]);
 
   const showToast = (text: string, alert = false) => {
     clearTimeout(toastTimer.current);
@@ -90,6 +95,21 @@ function TimelineWorkspace() {
       (e: Error) => request === detailRequest.current && setDetail({ status: "error", message: e.message }),
     );
   };
+
+  // 지원 화면의 「타임라인에서 활동 보기」(?activity=7&fromQuestion=41) — 처음 불러온 뒤 그 활동을 연다
+  const linkedActivity = Number(params.get("activity"));
+  const fromQuestion = Number(params.get("fromQuestion")) || null;
+  useEffect(() => {
+    loadList(mock).then((activities) => {
+      if (activities?.some((a) => a.id === linkedActivity) && selectedRef.current == null) {
+        selectedRef.current = linkedActivity;
+        setSelectedId(linkedActivity);
+        loadDetail(linkedActivity);
+      }
+    });
+    // 처음 한 번만 — 그 뒤엔 사용자가 고른 활동을 따른다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mock]);
 
   const analysis = useAnalysisJob(async (job) => {
     const activities = await loadList(mock);
@@ -260,6 +280,7 @@ function TimelineWorkspace() {
       <p className="m-0 border-b border-hairline px-4 py-2 text-xs text-muted" role="note">
         {isMockMode() ? "목 모드 · 예시 데이터이며 서버에 저장할 수 없어요." : "실제 API 모드 · 활동과 경험 수정은 서버에 저장해요."}
         {isMockMode() ? " 자료 넣기·분석도 목 기능이에요." : " 자료 넣기·분석 상태도 실제 API로 확인해요."}
+        {fromQuestion && <> <Link href={`/questions?question=${fromQuestion}`} className="font-medium text-ink underline underline-offset-4">지원 화면으로 돌아가기</Link></>}
       </p>
       <div className={cn("flex-1 lg:grid lg:min-h-0", selected && "lg:grid-cols-[minmax(0,1fr)_440px]")}>
         <main
@@ -321,6 +342,7 @@ function TimelineWorkspace() {
             className="min-h-dvh min-w-0 bg-canvas lg:min-h-0 lg:overflow-auto lg:border-l lg:border-hairline"
             aria-label="활동 세부"
           >
+            <SupplementSourceContext value={sourceOf}>
             <ActivityDetailView
               key={selected.id}
               summary={selected}
@@ -337,6 +359,7 @@ function TimelineWorkspace() {
               draggingId={dragging?.id ?? null}
               onMergeRequest={ready.activities.length > 1 ? () => setMergeOpen(true) : undefined}
             />
+            </SupplementSourceContext>
           </aside>
         )}
       </div>

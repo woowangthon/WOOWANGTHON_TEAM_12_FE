@@ -61,7 +61,7 @@ export function QuestionResult({ question, elsewhere }: { question: QuestionDeta
         <div className="grid gap-2.5 px-4 pb-4 sm:grid-cols-2 sm:px-4.5 sm:pb-4.5 sm:pl-11.5">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 sm:col-span-2">
             <span className="flex flex-wrap items-center gap-1.5 text-[13px] font-medium text-muted"><ExperienceMeta experience={r.experience} /></span>
-            <span className="text-xs text-muted"><b className="font-semibold">AI 해석 · 예시</b> — 이유 · 강조점 · 빠진 것</span>
+            <span className="text-xs text-muted"><b className="font-semibold">AI 해석</b> — 이유 · 강조점 · 빠진 것</span>
           </div>
           <div className={box}>
             <p className={boxTitle}>강조하면 좋은 점</p>
@@ -76,7 +76,7 @@ export function QuestionResult({ question, elsewhere }: { question: QuestionDeta
             <p className={boxTitle}>빠진 것 — 자료에서 더 확인할 부분</p>
             <ul className="m-0 list-disc space-y-1 pl-4 text-body">{r.gaps.map((gap, j) => <li key={j}>{gap}</li>)}</ul>
           </div>}
-          <Link href={`/?questionMock=1&activity=${r.activity.id}&fromQuestion=${question.id}`}
+          <Link href={`/?activity=${r.activity.id}&fromQuestion=${question.id}`}
             className="inline-flex min-h-11 items-center justify-self-start text-sm font-medium text-ink underline-offset-3 hover:underline sm:col-span-2">타임라인에서 활동 보기 →</Link>
         </div>
       </details>
