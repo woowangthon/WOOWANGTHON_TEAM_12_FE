@@ -33,8 +33,9 @@ function progressText(application: Application) {
   return [`문항 ${application.questions.length}`, n("ANALYZING") && `분석 중 ${n("ANALYZING")}`, n("FAILED") && `실패 ${n("FAILED")}`].filter(Boolean).join(" · ");
 }
 
-const WIDE = "(min-width: 1280px)";
-/** 1280 이상 — 사이드바가 있고 차곡이 패널이 옆에 붙는다. 그보다 좁으면 패널은 버튼으로 여는 시트 */
+// Tailwind xl(--breakpoint-xl)과 같은 단위. 브라우저 기본 글꼴 20px에서는 1600px이다(#61).
+const WIDE = "(min-width: 80rem)";
+/** xl 이상 — 사이드바가 있고 차곡이 패널이 옆에 붙는다. 그보다 좁으면 패널은 버튼으로 여는 시트 */
 function useWide() {
   return useSyncExternalStore(change => {
     const query = matchMedia(WIDE);
@@ -43,7 +44,7 @@ function useWide() {
   }, () => matchMedia(WIDE).matches, () => false);
 }
 
-/** 지원 화면(S-18 · S-21) — 지원 목록(1280 이상은 사이드바), 고른 지원: 여러 문항에 추천된 활동 → 문항 탭 → 참고 경험(#30),
+/** 지원 화면(S-18 · S-21) — 지원 목록(xl 이상은 사이드바), 고른 지원: 여러 문항에 추천된 활동 → 문항 탭 → 참고 경험(#30),
  *  오른쪽 차곡이 패널: 요구사항 · 보완 재사용 · 되묻기(FE#51). 배치는 ETC 시안 6 apply.html. 답변 초안 · 근거 점검 · 패널 버튼은 범위 밖(P1 · ETC#78) */
 export function ApplicationScreen() {
   const matching = useApplications();
@@ -133,7 +134,7 @@ export function ApplicationScreen() {
   </div>;
 }
 
-/** 지원 목록 — 1280 이상은 사이드바(시안 6), 그보다 좁으면 화면 안 왼쪽 · 위 */
+/** 지원 목록 — xl 이상은 사이드바(시안 6), 그보다 좁으면 화면 안 왼쪽 · 위 */
 function ApplicationList({ applications, activeId, onPick, sidebar = false }: {
   applications: Application[]; activeId: number | null; onPick: (application: Application) => void; sidebar?: boolean;
 }) {
