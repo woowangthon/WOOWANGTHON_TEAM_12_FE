@@ -112,3 +112,22 @@ SPEC 항목 → plan-feature 로 이슈 → implement-issue: 읽기 → (모르�
 - 검증 명령: `npm run check` (= `lint` → `typecheck` → `build`). CI 가 PR 마다 같은 것을 돌린다
 - 미리보기: PR 을 열면 Vercel 봇 댓글에 URL 이 뜬다 — UI PR 본문에 그 링크를 붙인다
 - 영역 담당(논의 상대 — 이슈 담당은 시작하는 사람): @Zino03 프론트 주력 · @Rulrudino0911 디자인 주력 · @wjstpdnjs25-oss
+
+### 화면을 만들 때 — 시안 6 임시 기준(FE#43)
+
+DESIGN.md 를 디자인 담당이 다시 쓰는 동안(ETC#19) 이렇게 한다. 다시 쓰이면 이 절을 고친다.
+
+- **배치**는 ETC `docs/design/chagok/`(시안 6)의 그 화면 — 홈 `index.html` · 내 경험 `experience.html` · 지원 `apply.html`. **색 · 모서리**는 `src/app/globals.css` 토큰만 쓴다(화면 코드에 색 값을 직접 쓰지 않는다 — 없으면 토큰을 더한다)
+- 시안은 PC 한 폭 · 예시 데이터뿐이다. 시안에 없는 것 — 좁은 화면 · 빈 상태 · 분석 중 · 오류 — 은 ETC `docs/design/DESIGN.md` 「반응형」 · 「상태」 표와 원칙(출처 상태 · 근거 · 말투 · 하지 말 것)을 따른다
+- 시안에 있어도 **이슈 범위 밖 기능은 만들지 않는다**(빈 자리 · 가짜 버튼도). 시안과 다르게 한 곳은 PR 본문 「시안과 다른 점」에 이유 한 줄
+- **확인 폭 셋**: 1440(PC) · 1024(PC 를 125 ~ 150% 로 확대한 폭 — 사이드바 없이 위 막대, 세부 패널을 열어 본다) · 390(모바일). 사이드바는 1280 이상에서만(FE#45). UI PR 에는 이 폭의 스크린샷 또는 미리보기 링크
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
