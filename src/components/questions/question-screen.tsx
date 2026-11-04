@@ -46,7 +46,7 @@ export function QuestionScreen() {
           <div className="mb-2 flex items-baseline justify-between"><h2 className="m-0 text-[17px] font-semibold">넣었던 문항</h2><span className="text-[13px] text-muted tabular-nums">{matching.questions.length}개</span></div>
           <p className="mt-0 mb-3 text-xs text-muted">문항을 눌러 추천 경험을 비교해 보세요.</p>
           <ul className="m-0 max-h-72 list-none overflow-y-auto p-0 lg:max-h-[calc(100dvh-260px)]">{matching.questions.map(q => <li key={q.id} className="border-b border-hairline">
-            <button type="button" aria-pressed={!composing && selected?.id === q.id} className={cn("grid w-full gap-1.5 rounded-sm px-3 py-3.5 text-left hover:bg-surface-soft", !composing && selected?.id === q.id && "bg-primary-soft")} onClick={async () => {
+            <button type="button" aria-pressed={!composing && selected?.id === q.id} className={cn("grid w-full gap-1.5 rounded-sm px-3 py-3.5 text-left hover:bg-surface-soft", !composing && selected?.id === q.id && "bg-mark-soft")} onClick={async () => {
               setComposing(false); setRetryError(null); await matching.select(q.id); scrollToDetail();
             }}>
               <span className="flex items-baseline justify-between gap-2"><span className="text-sm font-semibold">{q.organization || "지원처 이름 없음"}</span><span className="shrink-0 text-xs font-medium text-muted">{STATUS[q.status]}</span></span>

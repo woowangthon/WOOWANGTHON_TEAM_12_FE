@@ -211,7 +211,7 @@ function Row({
           continuing ? "py-2" : "py-3.5",
           over
             ? "bg-surface-strong outline-2 -outline-offset-2 outline-ink outline-dashed"
-            : selected ? "bg-primary-soft" : "hover:bg-surface-soft",
+            : selected ? "bg-mark-soft" : "hover:bg-surface-soft",
           droppable && !over && "outline-1 -outline-offset-1 outline-hairline outline-dashed",
         )}
       >
@@ -220,7 +220,7 @@ function Row({
             className={cn(
               "leading-snug",
               continuing ? "text-sm font-medium text-muted lg:text-[15px]" : "text-base font-semibold lg:text-[17px]",
-              selected && "text-primary-active",
+              selected && "text-ink",
             )}
           >
             {activity.name}
@@ -241,16 +241,16 @@ function PeriodLabel({ period }: { period: Period }) {
   return (
     <>
       {periodText({ start: period.start, end: null, ongoing: false })} –{" "}
-      <span className="ml-0.5 inline-flex items-center gap-1.5 font-medium text-primary-active">
-        <span className="size-1.5 rounded-full bg-primary" aria-hidden="true" />
+      <span className="ml-0.5 inline-flex items-center gap-1.5 font-semibold text-ink">
+        <span className="size-1.5 rounded-full bg-mark" aria-hidden="true" />
         진행 중
       </span>
     </>
   );
 }
 
-const ON = "color-mix(in srgb, var(--primary) 55%, var(--primary-soft))";
-const ON_FAINT = "color-mix(in srgb, var(--primary) 25%, var(--primary-soft))";
+const ON = "color-mix(in srgb, var(--mark) 90%, var(--mark-soft))";
+const ON_FAINT = "color-mix(in srgb, var(--mark) 35%, var(--mark-soft))";
 
 /** 그해 1–12월 12칸. 활동한 달은 산호, 진행 중이면 마지막 칸을 흐리게 (DESIGN.md 「기간 띠」)
  *  PC 는 줄에 마우스를 올리면 그해 안에 있는 시작 · 종료 끝에 손잡이가 나와 끌 수 있다 (S-17) */
@@ -313,7 +313,7 @@ function PeriodBand({
       }}
       onPointerCancel={() => onEdge?.(edge, null, true)}
     >
-      <i className="h-4 w-1 rounded-full bg-primary-active shadow-[0_0_0_2px_var(--canvas)]" />
+      <i className="h-4 w-1 rounded-full bg-ink shadow-[0_0_0_2px_var(--canvas)]" />
     </span>
   );
 
@@ -323,7 +323,7 @@ function PeriodBand({
         const month = first + i;
         const active = month >= span.start && month <= span.end;
         const fade = active && ongoing && month === span.end;
-        const background = !active ? off : fade ? `linear-gradient(to right, ${on}, var(--primary-soft))` : on;
+        const background = !active ? off : fade ? `linear-gradient(to right, ${on}, var(--mark-soft))` : on;
         return <i key={i} className="h-1.5 rounded-[2px]" style={{ background }} aria-hidden="true" />;
       })}
       {onEdge && inYear(span.start) && handle("start")}

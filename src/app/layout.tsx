@@ -21,7 +21,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
         />
       </head>
-      <body className="flex min-h-full flex-col">{children}</body>
+      <body className="flex min-h-full flex-col bg-page">
+        {/* 작업 면 — PC 에선 왼쪽 사이드바(AppHeader, 폭 62) 자리를 비우고 흰 면을 둥글게 띄운다(시안 6, FE#43) */}
+        <div className="flex min-h-dvh flex-1 flex-col lg:pl-62">
+          <div className="relative flex flex-1 flex-col overflow-clip bg-canvas lg:rounded-l-lg lg:shadow-[0_0_0_1px_var(--hairline-soft)]">
+            {children}
+          </div>
+        </div>
+      </body>
     </html>
   );
 }
