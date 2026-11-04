@@ -6,10 +6,11 @@ import { cn } from "@/lib/utils";
 
 type Page = "timeline" | "questions";
 
-// 시안 6(FE#43, 임시) — PC 는 왼쪽 사이드바(고정, 폭 248px = w-62), 좁은 화면은 위 막대.
-// 사이드바 자리는 layout.tsx 의 작업 면이 비워 둔다(lg:pl-62).
+// 시안 6(FE#43, 임시) — 1280 이상은 왼쪽 사이드바(고정, 폭 248px = w-62), 그보다 좁으면 위 막대.
+// 1024 ~ 1279(PC 를 125 ~ 150% 로 확대한 폭)에 사이드바까지 두면 세부 패널(440)을 연 타임라인이 300px 대로 눌려
+// 글자가 세로로 깨진다(FE#45). 사이드바 자리는 layout.tsx 의 작업 면이 비워 둔다(xl:pl-62).
 export function AppHeader({ hideOnMobile, addSource, activePage = "timeline", timelineHref = "/" }: {
-  /** 좁은 화면에서 세부를 열면 위 막대를 숨긴다 */
+  /** 1024 미만에서 세부를 전체 화면으로 열면 위 막대를 숨긴다 */
   hideOnMobile?: boolean; addSource?: AddSourceProps; activePage?: Page; timelineHref?: string;
 }) {
   const links: { page: Page; href: string; label: string; icon: React.ReactNode }[] = [
@@ -19,7 +20,7 @@ export function AppHeader({ hideOnMobile, addSource, activePage = "timeline", ti
   return (
     <>
       <header
-        className={cn("flex h-14 items-center gap-4 border-b border-hairline bg-canvas px-4.5 lg:hidden", hideOnMobile && "hidden")}
+        className={cn("flex h-14 items-center gap-4 border-b border-hairline bg-canvas px-4.5 lg:px-7 xl:hidden", hideOnMobile && "max-lg:hidden")}
       >
         <Logo className="h-5 w-auto" />
         <nav className="flex shrink-0 items-center gap-4 text-sm font-semibold" aria-label="주 메뉴">
@@ -30,9 +31,10 @@ export function AppHeader({ hideOnMobile, addSource, activePage = "timeline", ti
             </Link>
           ))}
         </nav>
+        {addSource && <AddSourceButton {...addSource} className="ml-auto hidden lg:inline-flex" />}
       </header>
 
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-62 flex-col gap-5.5 overflow-hidden px-3.5 pt-6.5 pb-4.5 lg:flex" aria-label="사이드바">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-62 flex-col gap-5.5 overflow-hidden px-3.5 pt-6.5 pb-4.5 xl:flex" aria-label="사이드바">
         {/* 시안의 배경 번짐(파랑 · 분홍 · 초록) */}
         <Image src="/brand/bg-blur.svg" alt="" aria-hidden="true" className="pointer-events-none absolute -top-75 -left-90 max-w-none" width={1500} height={1630} priority />
         <Link href={timelineHref} className="relative flex h-9 items-center pl-2" aria-label="차곡 — 내 경험">
@@ -65,7 +67,7 @@ const navItem = "flex h-10 items-center gap-2.5 rounded-sm px-3.5 text-sm font-m
 
 /** 「차곡」 글자 로고 — 가칭(DESIGN.md), 디자인 담당 시안의 파일 그대로 */
 function Logo({ className }: { className?: string }) {
-  return <Image src="/brand/logo.svg" alt="차곡" width={93} height={26} className={className} priority />;
+  return <Image src="/brand/logo.svg" alt="차곡" width={93} height={26} className={className} style={{ width: "auto" }} priority />;
 }
 
 export type AddSourceProps = {
