@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CaretRightIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { CaretRightIcon, CheckIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { ExperienceMeta } from "@/components/experience/experience-item";
 import { CitationList } from "@/components/experience/citation-list";
 import { UserEnteredLabel } from "@/components/experience/supplement-list";
@@ -32,6 +32,11 @@ export function RecommendationEvidence({ recommendation }: { recommendation: Rec
   })}</div>;
 }
 
+/** 이 문항에서 그 경험에 대한 되묻기에 답했나 — 추천은 문항을 넣을 때 한 번 돌아 답해도 그대로라서(question-api.md · AI#21),
+ *  카드에 「답함」을 붙여 답이 다음 문항부터 쓰인다고 알린다(FE#65) */
+const answeredFor = (question: QuestionDetail, experienceId: number) =>
+  question.clarifications.some(c => c.experienceId === experienceId && c.supplementId !== null);
+
 const box = "grid content-start gap-1.5 rounded-[14px] bg-canvas/80 px-3.5 py-3 text-sm leading-relaxed";
 const boxTitle = "m-0 text-xs font-semibold text-muted";
 
@@ -43,7 +48,7 @@ export function QuestionResult({ question, elsewhere }: { question: QuestionDeta
     {question.recommendations.length === 0 ? <div className="mt-4 grid gap-2 rounded-sm bg-surface-soft p-5">
       <p className="m-0 font-medium">현재 자료에서 연결된 경험을 찾지 못했어요.</p>
       <p className="m-0 text-sm text-muted">경험이 없다는 뜻은 아니에요. 관련 기록을 더 확인하면 좋겠어요.</p>
-    </div> : <ol className="m-0 mt-4 grid list-none gap-2.5 p-0">{question.recommendations.map((r, i) => <li key={r.experience.id} id={`recommendation-${question.id}-${r.experience.id}`}
+    </div> : <ol className="m-0 mt-4 grid list-none gap-2.5 p-0">{question.recommendations.map((r, i) => { const answered = answeredFor(question, r.experience.id); return <li key={r.experience.id} id={`recommendation-${question.id}-${r.experience.id}`}
       className="scroll-mt-5" aria-label={`추천 경험 ${i + 1}`}>
       {/* 첫 카드만 펼쳐 둔다 — 시안은 다 접지만, 위의 답변 칸(초안, P1)이 아직 없어 이 목록이 화면의 본체라서 */}
       <details open={i === 0} className="group rounded-[18px] bg-mark-soft">
@@ -54,8 +59,13 @@ export function QuestionResult({ question, elsewhere }: { question: QuestionDeta
             <b className="text-[15px] leading-normal font-bold whitespace-pre-wrap">{r.experience.content}</b>
             <small className="text-[13px] leading-normal text-muted">{r.reason}</small>
           </span>
-          {r.gaps.length > 0 && <span className="col-start-2 inline-flex items-center gap-1 justify-self-start rounded-full border border-dashed border-review-line bg-review-soft px-2.5 py-px text-xs font-semibold whitespace-nowrap text-review sm:col-start-auto">
-            <WarningCircleIcon aria-hidden="true" className="size-3.5" />빠진 것
+          {(r.gaps.length > 0 || answered) && <span className="col-start-2 flex flex-wrap gap-1.5 justify-self-start sm:col-start-auto sm:justify-self-end">
+            {r.gaps.length > 0 && <span className="inline-flex items-center gap-1 rounded-full border border-dashed border-review-line bg-review-soft px-2.5 py-px text-xs font-semibold whitespace-nowrap text-review">
+              <WarningCircleIcon aria-hidden="true" className="size-3.5" />빠진 것
+            </span>}
+            {answered && <span className="inline-flex items-center gap-1 rounded-full bg-primary-soft px-2.5 py-px text-xs font-semibold whitespace-nowrap text-primary">
+              <CheckIcon aria-hidden="true" className="size-3.5" />답함
+            </span>}
           </span>}
         </summary>
         <div className="grid gap-2.5 px-4 pb-4 sm:grid-cols-2 sm:px-4.5 sm:pb-4.5 sm:pl-11.5">
@@ -75,11 +85,15 @@ export function QuestionResult({ question, elsewhere }: { question: QuestionDeta
           {r.gaps.length > 0 && <div className={`${box} border border-dashed border-review-line sm:col-span-2`}>
             <p className={boxTitle}>빠진 것 — 자료에서 더 확인할 부분</p>
             <ul className="m-0 list-disc space-y-1 pl-4 text-body">{r.gaps.map((gap, j) => <li key={j}>{gap}</li>)}</ul>
+            {answered && <p className="m-0 flex items-start gap-1.5 text-[13px] text-body">
+              <CheckIcon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-primary" />
+              <span><b className="font-semibold">차곡이 질문에 답했어요</b> — 보완으로 쌓여 다음 문항부터 근거로 써요. 이 추천은 문항을 넣을 때 만든 거라 위 목록은 그대로예요.</span>
+            </p>}
           </div>}
           <Link href={`/?activity=${r.activity.id}&fromQuestion=${question.id}`}
             className="inline-flex min-h-11 items-center justify-self-start text-sm font-medium text-ink underline-offset-3 hover:underline sm:col-span-2">타임라인에서 활동 보기 →</Link>
         </div>
       </details>
-    </li>)}</ol>}
+    </li>; })}</ol>}
   </section>;
 }
