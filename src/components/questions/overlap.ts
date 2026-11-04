@@ -5,10 +5,11 @@ import type { QuestionDetail, Recommendation } from "@/lib/api/question-types";
 export type OverlapUse = { questionId: number; index: number; recommendation: Recommendation };
 export type Overlap = { activity: Recommendation["activity"]; uses: OverlapUse[] };
 
-export function overlapsOf(details: QuestionDetail[]): Overlap[] {
+/** details 는 지원의 문항 순서 그대로 — 아직 못 받은 문항(null)은 건너뛰고 번호는 자리대로 */
+export function overlapsOf(details: (QuestionDetail | null)[]): Overlap[] {
   const byActivity = new Map<number, Overlap>();
   details.forEach((question, index) => {
-    if (question.status !== "COMPLETED") return;
+    if (question?.status !== "COMPLETED") return;
     for (const recommendation of question.recommendations) {
       const group = byActivity.get(recommendation.activity.id) ?? { activity: recommendation.activity, uses: [] };
       group.uses.push({ questionId: question.id, index, recommendation });
