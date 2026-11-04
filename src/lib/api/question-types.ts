@@ -3,6 +3,9 @@ import type { ActivitySummary, Experience, JobStatus, Job } from "./types";
 
 export const MAX_ORGANIZATION_LENGTH = 100;
 export const MAX_QUESTION_LENGTH = 5000;
+/** 지원 넣기 한 번에 1 ~ 10개, 지원 하나에 모두 20개까지(question-api.md) */
+export const MAX_QUESTIONS_PER_SUBMIT = 10;
+export const MAX_QUESTIONS_PER_APPLICATION = 20;
 
 export type Supplement = {
   id: number;
@@ -43,3 +46,10 @@ export type QuestionDetail = QuestionSummary & {
 };
 export type CreateQuestionRequest = { organization?: string | null; text: string };
 export type QuestionSubmitted = { questionId: number; applicationId: number; status: "ANALYZING" };
+
+/** 지원 = 지원처 하나 + 문항 여러 개. `questions` 는 넣은 순서(지원서의 문항 순서) */
+export type Application = { id: number; organization: string | null; questions: QuestionSummary[]; createdAt: string };
+export type CreateApplicationRequest = { organization?: string | null; questions: { text: string }[] };
+export type ApplicationSubmitted = { applicationId: number; questionIds: number[] };
+export type AddQuestionRequest = { text: string };
+export type QuestionAdded = { questionId: number; status: "ANALYZING" };

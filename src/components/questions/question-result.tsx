@@ -4,6 +4,7 @@ import { ExperienceMeta } from "@/components/experience/experience-item";
 import { CitationList } from "@/components/experience/citation-list";
 import { Button } from "@/components/ui/button";
 import type { QuestionDetail, Recommendation, RequirementStatus } from "@/lib/api/question-types";
+import type { OverlapUse } from "./overlap";
 
 const JUDGMENT: Record<RequirementStatus, { label: string; icon: typeof CheckIcon }> = {
   SUPPORTED: { label: "근거 있음", icon: CheckIcon },
@@ -29,7 +30,8 @@ export function RecommendationEvidence({ recommendation }: { recommendation: Rec
   })}</div>;
 }
 
-export function QuestionResult({ question }: { question: QuestionDetail }) {
+/** elsewhere — 같은 지원의 다른 문항에도 추천된 같은 경험(FE#38 · S-21). 막지 않고 강조점만 나란히 */
+export function QuestionResult({ question, elsewhere }: { question: QuestionDetail; elsewhere?: (experienceId: number) => OverlapUse[] }) {
   return <div className="grid gap-8">
     <section aria-labelledby="requirements-title">
       <h3 id="requirements-title" className="m-0 text-[17px] font-semibold">문항에서 살펴보는 것</h3>
@@ -64,6 +66,7 @@ export function QuestionResult({ question }: { question: QuestionDetail }) {
           <div><h5 className="m-0 text-sm font-semibold">왜 이 경험인가요?</h5><p className="mt-1 mb-0 text-sm text-body">{r.reason}</p></div>
           <div><h5 className="m-0 text-sm font-semibold">강조해 볼 점</h5><p className="mt-1 mb-0 text-sm text-body">{r.emphasis}</p></div>
           {r.gaps.length > 0 && <div><h5 className="m-0 text-sm font-semibold">자료에서 더 확인할 부분</h5><ul className="mt-1 mb-0 list-disc space-y-1 pl-4 text-sm text-body">{r.gaps.map((gap, j) => <li key={j}>{gap}</li>)}</ul></div>}
+          {(elsewhere?.(r.experience.id) ?? []).map(u => <p key={u.questionId} className="m-0 text-sm text-body"><span className="font-semibold">문항 {u.index + 1}에도 추천</span> — 거기선 「{u.recommendation.emphasis}」</p>)}
         </div>
         <section aria-label={`추천 경험 ${i + 1}의 근거`} className="grid gap-2">
           <h5 className="m-0 text-sm font-semibold">추천을 뒷받침하는 기록</h5>

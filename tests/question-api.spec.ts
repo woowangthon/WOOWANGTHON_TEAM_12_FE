@@ -121,3 +121,22 @@ test("pre-64 saved questions gain applicationId without resetting results or pen
   clock += QUESTION_ANALYSIS_MS;
   expect((await fetchQuestion(pending.questionId)).applicationId).toBe(23);
 });
+
+test("applications group questions in submitted order and enforce contract limits", async () => {
+  const { submitApplication, addApplicationQuestion, fetchApplications, fetchApplication } = await import("../src/lib/api/questions");
+  const { applicationId, questionIds } = await submitApplication({ organization: " OO 부트캠프 ", questions: [{ text: "가" }, { text: "나" }] });
+  expect(questionIds).toHaveLength(2);
+  const app = await fetchApplication(applicationId);
+  expect(app.organization).toBe("OO 부트캠프");
+  expect(app.questions.map(q => q.text)).toEqual(["가", "나"]);
+  expect((await fetchApplications())[0].id).toBe(applicationId);
+  const { questionId } = await addApplicationQuestion(applicationId, { text: "다" });
+  expect((await fetchApplication(applicationId)).questions.at(-1)?.id).toBe(questionId);
+  await expect(submitApplication({ questions: [] })).rejects.toMatchObject({ code: "INVALID_REQUEST" });
+  await expect(submitApplication({ questions: Array.from({ length: 11 }, () => ({ text: "x" })) })).rejects.toMatchObject({ code: "INVALID_REQUEST" });
+  await expect(submitApplication({ questions: [{ text: "x" }, { text: " " }] })).rejects.toMatchObject({ code: "EMPTY_TEXT" });
+  await expect(submitApplication({ questions: [{ text: "x" }] }, "limit")).rejects.toMatchObject({ code: "DAILY_LIMIT_EXCEEDED" });
+  await expect(addApplicationQuestion(9999, { text: "x" })).rejects.toMatchObject({ code: "APPLICATION_NOT_FOUND" });
+  for (let i = 0; i < 17; i++) await addApplicationQuestion(applicationId, { text: `q${i}` });
+  await expect(addApplicationQuestion(applicationId, { text: "21번째" })).rejects.toMatchObject({ code: "INVALID_REQUEST" });
+});

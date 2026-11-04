@@ -24,15 +24,15 @@ test.beforeEach(async ({ page }) => {
 });
 test.afterEach(async ({ page }) => { expect(calls.get(page)).toEqual([]); expect(pageErrors.get(page)).toEqual([]); });
 
-const result = (page: Page) => page.getByRole("region", { name: "선택한 문항", exact: true });
-const list = (page: Page) => page.getByRole("complementary", { name: "문항 목록" });
+const result = (page: Page) => page.getByRole("tabpanel", { name: "선택한 문항", exact: true });
+const list = (page: Page) => page.getByRole("complementary", { name: "지원 목록" });
 const recommendation = (page: Page, n: number) => result(page).getByRole("listitem", { name: `추천 경험 ${n}`, exact: true });
 const stored = (page: Page) => page.evaluate(key => JSON.parse(localStorage.getItem(key)!), QUESTION_STORAGE_KEY);
 
 async function compose(page: Page, text: string) {
-  await page.getByRole("button", { name: "문항 넣기", exact: true }).click();
-  await page.getByLabel("지원 문항", { exact: true }).fill(text);
-  await page.getByRole("button", { name: "문항 넣고 경험 찾기", exact: true }).click();
+  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await page.getByLabel("문항 1", { exact: true }).fill(text);
+  await page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true }).click();
 }
 
 test("question 41/42 switch preserves contract judgments, actors and supplemental evidence", async ({ page }, info) => {
@@ -64,15 +64,15 @@ test("question 41/42 switch preserves contract judgments, actors and supplementa
 
 test("question input validates whitespace, enforces limits and accepts an optional organization", async ({ page }) => {
   await page.goto("/questions");
-  await page.getByRole("button", { name: "문항 넣기", exact: true }).click();
-  await page.getByLabel("지원 문항", { exact: true }).fill(" \n ");
-  await page.getByRole("button", { name: "문항 넣고 경험 찾기", exact: true }).click();
+  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await page.getByLabel("문항 1", { exact: true }).fill(" \n ");
+  await page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true }).click();
   await expect(page.locator("form").getByRole("alert")).toHaveText("지원 문항을 입력해 주세요.");
   await expect(page.getByLabel("지원처 이름 (선택)")).toHaveAttribute("maxlength", "100");
-  await expect(page.getByLabel("지원 문항", { exact: true })).toHaveAttribute("maxlength", "5000");
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveAttribute("maxlength", "5000");
   await page.getByLabel("지원처 이름 (선택)").fill("o".repeat(100));
-  await page.getByLabel("지원 문항", { exact: true }).fill("x".repeat(5000));
-  await page.getByRole("button", { name: "문항 넣고 경험 찾기", exact: true }).click();
+  await page.getByLabel("문항 1", { exact: true }).fill("x".repeat(5000));
+  await page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true }).click();
   await expect(result(page).getByRole("status")).toContainText("분석 중");
   expect((await stored(page)).questions.at(-1).detail.organization).toBe("o".repeat(100));
   expect((await stored(page)).questions.at(-1).detail.text).toHaveLength(5000);
@@ -80,11 +80,11 @@ test("question input validates whitespace, enforces limits and accepts an option
 
 test("analysis survives reload, completes, keeps newest first and restores selection", async ({ page }) => {
   await page.goto("/questions");
-  await page.getByRole("button", { name: "문항 넣기", exact: true }).click();
+  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
   await page.getByRole("button", { name: "팀 역할·협업 예시", exact: true }).click();
-  await expect(page.getByLabel("지원 문항", { exact: true })).toHaveValue(QUESTION_EXAMPLES[1].text);
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(QUESTION_EXAMPLES[1].text);
   await page.getByLabel("지원처 이름 (선택)").fill("");
-  await page.getByRole("button", { name: "문항 넣고 경험 찾기", exact: true }).click();
+  await page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true }).click();
   await expect(result(page).getByRole("status")).toContainText("분석 중");
   const before = await stored(page);
   expect(before.questions.at(-1).detail.organization).toBeNull();
@@ -167,14 +167,82 @@ test("three recommendations, UNKNOWN actor and missing evidence never invent quo
 
 test("storage write failure retains the draft and creates no phantom question", async ({ page }) => {
   await page.goto("/questions");
-  await page.getByRole("button", { name: "문항 넣기", exact: true }).click();
-  await page.getByLabel("지원 문항", { exact: true }).fill("보관 실패 때 유지할 문항");
+  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await page.getByLabel("문항 1", { exact: true }).fill("보관 실패 때 유지할 문항");
   await page.evaluate(key => {
     const original = Storage.prototype.setItem;
     Storage.prototype.setItem = function(k, value) { if (k === key) throw new Error("Storage full"); original.call(this, k, value); };
   }, QUESTION_STORAGE_KEY);
-  await page.getByRole("button", { name: "문항 넣고 경험 찾기", exact: true }).click();
+  await page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true }).click();
   await expect(page.locator("form").getByRole("alert")).toContainText("보관하지 못했어요");
-  await expect(page.getByLabel("지원 문항", { exact: true })).toHaveValue("보관 실패 때 유지할 문항");
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("보관 실패 때 유지할 문항");
   expect((await stored(page)).questions).toHaveLength(2);
+});
+
+// FE#38 — 지원 = 지원처 하나 + 문항 여러 개(S-18 · S-21)
+test("application with several questions keeps order, analyzes each and shows the same activity side by side", async ({ page }) => {
+  await page.goto("/questions");
+  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await page.getByRole("button", { name: "기술 문제 해결 예시", exact: true }).click();
+  await page.getByRole("button", { name: "팀 역할·협업 예시", exact: true }).click();
+  await page.getByRole("button", { name: "문항 칸 더하기", exact: true }).click();
+  await page.getByLabel("문항 3", { exact: true }).fill("빼 버릴 문항");
+  await page.getByRole("button", { name: "문항 2 위로", exact: true }).click();
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(QUESTION_EXAMPLES[1].text);
+  await page.getByRole("button", { name: "문항 3 빼기", exact: true }).click();
+  await expect(page.getByLabel("문항 3", { exact: true })).toHaveCount(0);
+  await page.getByLabel("지원처 이름 (선택)").fill("OO 백엔드 부트캠프 · 2기");
+  await page.getByRole("button", { name: "문항 2개 넣고 경험 찾기", exact: true }).click();
+
+  const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab");
+  await expect(tabs).toHaveCount(2);
+  await expect(tabs.first()).toHaveAttribute("aria-selected", "true");
+  await expect(result(page).getByRole("status")).toContainText("분석 중");
+  const saved = (await stored(page)).questions.slice(-2);
+  expect(saved.map((q: { detail: { text: string; applicationId: number } }) => q.detail.text)).toEqual([QUESTION_EXAMPLES[1].text, QUESTION_EXAMPLES[0].text]);
+  expect(saved[0].detail.applicationId).toBe(saved[1].detail.applicationId);
+
+  const overlap = page.getByRole("region", { name: "여러 문항에 추천된 활동" });
+  await expect(overlap).toContainText("바꿔요 — 캠퍼스 중고거래 앱", { timeout: 10000 });
+  await expect(overlap).toContainText("서버 엔드포인트와 앱 코드를 모두 맡은 범위");
+  await expect(overlap).toContainText("폴링의 한계를 보고 WebSocket 으로 바꾼 판단");
+  await expect(recommendation(page, 2)).toContainText("문항 2에도 추천");
+  await expect(page.getByText(/겹쳐서 안|중복/)).toHaveCount(0);
+  await tabs.nth(1).click();
+  await expect(result(page).getByRole("heading", { name: QUESTION_EXAMPLES[0].text, exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("tablist", { name: "문항" }).getByRole("tab").nth(1)).toHaveAttribute("aria-selected", "true");
+  await expect(list(page).getByRole("button").first()).toContainText("OO 백엔드 부트캠프 · 2기");
+});
+
+test("a question can be added to an existing application and blank slots are named", async ({ page }) => {
+  await page.goto("/questions");
+  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await page.getByRole("button", { name: "문항 칸 더하기", exact: true }).click();
+  await page.getByLabel("문항 1", { exact: true }).fill("첫 문항");
+  await page.getByRole("button", { name: "문항 2개 넣고 경험 찾기", exact: true }).click();
+  await expect(page.locator("form").getByRole("alert")).toHaveText("비어 있는 문항이 있어요(문항 2). 채우거나 빼 주세요.");
+  await page.getByRole("button", { name: "문항 2 빼기", exact: true }).click();
+  await page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true }).click();
+  await expect(page.getByRole("tablist", { name: "문항" }).getByRole("tab")).toHaveCount(1);
+  await page.getByRole("button", { name: "문항 더하기", exact: true }).click();
+  await page.getByLabel("이 지원에 문항 더하기").fill("본인의 장단점을 적어 주세요.");
+  await page.getByRole("button", { name: "문항 더하고 경험 찾기", exact: true }).click();
+  const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab");
+  await expect(tabs).toHaveCount(2);
+  await expect(tabs.nth(1)).toHaveAttribute("aria-selected", "true");
+  await expect(result(page).getByRole("heading", { name: "본인의 장단점을 적어 주세요.", exact: true })).toBeVisible();
+  const saved = (await stored(page)).questions.slice(-2);
+  expect(saved[0].detail.applicationId).toBe(saved[1].detail.applicationId);
+});
+
+test("daily limit (429) saves nothing and says so", async ({ page }) => {
+  await page.goto("/questions?matching=limit");
+  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await page.getByRole("button", { name: "기술 문제 해결 예시", exact: true }).click();
+  await page.getByRole("button", { name: "팀 역할·협업 예시", exact: true }).click();
+  await page.getByRole("button", { name: "문항 2개 넣고 경험 찾기", exact: true }).click();
+  await expect(page.locator("form").getByRole("alert")).toContainText("오늘 분석 횟수를 다 썼어요");
+  expect((await stored(page)).questions).toHaveLength(2);
+  await expect(page.getByLabel("문항 2", { exact: true })).toHaveValue(QUESTION_EXAMPLES[1].text);
 });
