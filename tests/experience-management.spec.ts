@@ -192,7 +192,7 @@ test("activity with no experiences shows a neutral empty state that leads to dir
   await page.reload();
   await expect(page.getByRole("button", { name: /Management activity/ }).first()).toContainText("경험 아직 없음");
   await openActivity(page);
-  const detail = page.getByRole("complementary");
+  const detail = page.getByRole("complementary", { name: "활동 세부" });
   await expect(detail.getByText("아직 이 활동에 적힌 경험이 없어요", { exact: true })).toBeVisible();
   await expect(detail).not.toContainText("찾지 못했어요");
   await expect(detail.locator("li")).toHaveCount(0);
