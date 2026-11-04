@@ -75,7 +75,7 @@ export function QuestionResult({ question, elsewhere, onAnswer }: { question: Qu
           <h5 className="m-0 text-sm font-semibold">추천을 뒷받침하는 기록</h5>
           <RecommendationEvidence recommendation={r} />
         </section>
-        <Clarifications label={`추천 경험 ${i + 1}에 대한 질문`} experience={r.experience} clarifications={question.clarifications.filter(c => c.experienceId === r.experience.id)} onAnswer={onAnswer} />
+        <Clarifications label={`추천 경험 ${i + 1}에 대한 질문`} activityName={r.activity.name} experience={r.experience} clarifications={question.clarifications.filter(c => c.experienceId === r.experience.id)} onAnswer={onAnswer} />
         <Button asChild variant="link" className="mt-3 text-sm"><Link href={`/?questionMock=1&activity=${r.activity.id}&fromQuestion=${question.id}`}>타임라인에서 활동 보기 →</Link></Button>
       </li>)}</ol>}
     </section>
