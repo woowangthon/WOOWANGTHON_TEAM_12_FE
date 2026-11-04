@@ -368,3 +368,25 @@ test("chagok panel toggles; narrow screens start closed and show how many questi
   await expect(chagokPanel(page)).toContainText("문항을 읽어 봤어요. 이 문항이 보려는 건 2가지예요.");
   await expect(chagokPanel(page)).toContainText("「바꿔요」 경험이 가장 잘 맞아요. 「참고」에 2개 골라 뒀어요.");
 });
+
+// FE#65 — 추천은 문항을 넣을 때 한 번 돈다(답해도 그대로). 답한 경험의 카드엔 「답함」과 다음 문항부터 쓰인다는 안내
+test("answering a clarification marks that recommendation as answered without re-running it", async ({ page }, info) => {
+  const api = await fake(page);
+  await page.goto("/questions");
+  const card = recommendation(page, 1);
+  const note = "차곡이 질문에 답했어요";
+  await expect(card).toContainText("매주 금요일");
+  await expect(card.getByText("답함", { exact: true })).toHaveCount(0);
+  await openChagok(page);
+  const asks = chagokPanel(page).getByRole("list", { name: "차곡이의 질문", exact: true });
+  await asks.getByRole("textbox", { name: /^답: / }).fill("회고 진행표를 만들고 매주 진행을 맡았다");
+  await asks.getByRole("button", { name: "답하기", exact: true }).click();
+  await expect(asks.getByRole("textbox")).toHaveCount(0);
+  await closeChagokSheet(page);
+  await expect(card.getByText("답함", { exact: true })).toBeVisible();
+  await expect(card).toContainText(note);
+  // 「빠진 것」은 그대로 — 추천을 다시 돌리지 않는다
+  await expect(card).toContainText("회고에서 내가 맡은 몫이 자료에 없다");
+  expect(posts(api).map(p => p.call)).toEqual(["POST /api/clarifications/63/answer"]);
+  if (process.env.UPDATE_QUESTION_SCREENSHOTS === "1") await card.screenshot({ path: `docs/fe-65/answered-${info.project.name}.png`, style: "nextjs-portal { display: none !important; }" });
+});
