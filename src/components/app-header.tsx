@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { FileTextIcon, PlusIcon, StackIcon } from "@phosphor-icons/react/ssr";
+import { AccountMenu } from "@/components/auth/account-menu";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -31,11 +32,15 @@ export function AppHeader({ hideOnMobile, addSource, activePage = "timeline", ti
             </Link>
           ))}
         </nav>
-        {addSource && <AddSourceButton {...addSource} className="ml-auto hidden lg:inline-flex" />}
+        <div className="ml-auto flex items-center gap-2">
+          {addSource && <AddSourceButton {...addSource} className="hidden lg:inline-flex" />}
+          <AccountMenu />
+        </div>
       </header>
 
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-62 flex-col gap-5.5 overflow-hidden px-3.5 pt-6.5 pb-4.5 xl:flex" aria-label="사이드바">
-        {/* 시안의 배경 번짐(파랑 · 분홍 · 초록) */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-62 flex-col gap-5.5 overflow-clip px-3.5 pt-6.5 pb-4.5 xl:flex" aria-label="사이드바">
+        {/* 시안의 배경 번짐(파랑 · 분홍 · 초록). 이 그림이 사이드바보다 길어서 overflow-hidden 이면 안쪽이 스크롤될 수 있다 —
+            맨 아래 계정 메뉴를 열 때 초점이 옮겨 가며 사이드바가 밀려 올라가서, 스크롤 자체가 안 되는 overflow-clip 으로 둔다(FE#37) */}
         <Image src="/brand/bg-blur.svg" alt="" aria-hidden="true" className="pointer-events-none absolute -top-75 -left-90 max-w-none" width={1500} height={1630} priority />
         <Link href={timelineHref} className="relative flex h-9 items-center pl-2" aria-label="차곡 — 내 경험">
           <Logo className="h-6.5 w-auto" />
@@ -58,6 +63,10 @@ export function AppHeader({ hideOnMobile, addSource, activePage = "timeline", ti
             );
           })}
         </nav>
+        {/* 계정 — 로그인했을 때만(목 모드엔 없음) (FE#37) */}
+        <div className="relative mt-auto">
+          <AccountMenu variant="sidebar" />
+        </div>
       </aside>
     </>
   );
@@ -66,7 +75,7 @@ export function AppHeader({ hideOnMobile, addSource, activePage = "timeline", ti
 const navItem = "flex h-10 items-center gap-2.5 rounded-sm px-3.5 text-sm font-medium text-ink transition-colors";
 
 /** 「차곡」 글자 로고 — 가칭(DESIGN.md), 디자인 담당 시안의 파일 그대로 */
-function Logo({ className }: { className?: string }) {
+export function Logo({ className }: { className?: string }) {
   return <Image src="/brand/logo.svg" alt="차곡" width={93} height={26} className={className} style={{ width: "auto" }} priority />;
 }
 

@@ -8,6 +8,7 @@ import type { Job } from "@/lib/api/types";
 import { ArrowsClockwiseIcon, CheckIcon, FileTextIcon, MagnifyingGlassIcon, WarningCircleIcon, XIcon } from "@phosphor-icons/react";
 import { CenterState } from "@/components/center-state";
 import { Button } from "@/components/ui/button";
+import { dailyLimitMessage, isDailyLimit } from "@/lib/api/auth";
 import { cn } from "@/lib/utils";
 import type { TrackedJob } from "./use-analysis-job";
 
@@ -73,7 +74,8 @@ function useRetry(onRetry: () => Promise<void>) {
     try {
       await onRetry();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "다시 시도를 보내지 못했어요. 잠시 뒤 다시 눌러 주세요.");
+      // 429 — 오늘 분석 한도를 다 썼다. 자료는 이미 저장돼 있다 (S-15)
+      setError(isDailyLimit(e) ? dailyLimitMessage("retry") : e instanceof Error ? e.message : "다시 시도를 보내지 못했어요. 잠시 뒤 다시 눌러 주세요.");
     } finally {
       pending.current = false;
       setBusy(false);

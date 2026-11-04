@@ -2,11 +2,13 @@
 
 // 자료 넣기 — 붙여넣기 또는 .md · .txt 파일 하나 (SPEC S-01). 분석을 시작하기 전에 외부 AI 로 보내진다는 걸 보인다 (S-16)
 // PC 는 가운데 대화창, 모바일은 아래에 붙는 시트(ui/dialog)
-import { useRef, useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 import { FileTextIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/auth/auth-gate";
+import { dailyLimitMessage } from "@/lib/api/auth";
 import { ApiError, submitSource, type MockAnalysis } from "@/lib/api/experience";
 import { MAX_TEXT_LENGTH, type SourceRequest } from "@/lib/api/types";
 
@@ -17,6 +19,8 @@ const SUBMIT_ERRORS: Record<string, string> = {
   EMPTY_TEXT: "내용이 비어 있어요.",
   UNSUPPORTED_FILE_TYPE: ".md · .txt 파일만 넣을 수 있어요.",
   TEXT_TOO_LONG: `한 번에 ${MAX_TEXT_LENGTH.toLocaleString()}자까지 넣을 수 있어요.`,
+  // 429 — 서버가 원본을 저장하지 않고 분석을 시작하지 않았다 (S-15)
+  DAILY_LIMIT_EXCEEDED: dailyLimitMessage("new"),
 };
 
 const isTextFile = (name: string) => /\.(md|txt)$/i.test(name);
@@ -38,6 +42,12 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted }: Props
   const [file, setFile] = useState<PickedFile | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // 오늘 남은 분석 횟수(S-15) — 로그인했을 때만. 열 때마다 다시 읽는다
+  const { me, refresh } = useAuth();
+  const left = me ? Math.max(0, me.dailyAnalysis.limit - me.dailyAnalysis.used) : null;
+  useEffect(() => {
+    if (open) refresh();
+  }, [open, refresh]);
   const [submitting, setSubmitting] = useState(false);
   const [dragging, setDragging] = useState(false);
   const pending = useRef(false);
@@ -104,6 +114,7 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted }: Props
     try {
       const { jobId } = await submitSource(request, mock);
       onSubmitted({ jobId, name: request.kind === "FILE" ? request.name : "붙여넣은 텍스트" });
+      refresh();
       reset();
       onOpenChange(false);
     } catch (e) {
@@ -222,6 +233,11 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted }: Props
           넣은 자료는 분석을 위해 외부 AI 제공사(<b className="font-semibold">OpenAI</b>)로 보내져요. OpenAI API 는 보낸 내용을
           AI 학습에 쓰지 않아요. 회사 · 고객의 비공개 자료는 빼고 넣어 주세요.
         </p>
+        {left !== null && (
+          <p className="m-0 text-[13px] text-muted tabular-nums">
+            오늘 남은 분석 {left}회{left === 0 && " — 한국 시간 자정에 다시 채워져요"}
+          </p>
+        )}
 
         {submitError && (
           <p className="m-0 text-sm font-medium text-error" role="alert">

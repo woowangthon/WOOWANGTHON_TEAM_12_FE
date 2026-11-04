@@ -1,4 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { test, expect } from "./signed-in";
 import { QUESTION_STORAGE_KEY } from "../src/lib/mock/questions";
 import { QUESTION_EXAMPLES } from "../src/lib/mock/question-examples";
 
@@ -20,7 +21,11 @@ test.beforeEach(async ({ page }) => {
     }, { once: true });
   });
   // Even when the FE API base is configured, the entire question flow must stay offline.
-  await page.route("**/api/**", route => { requests.push(route.request().url()); return route.abort("failed"); });
+  // 로그인 확인(실제 API 모드의 로그인 문)만 signed-in 픽스처로 넘기고, 문항 흐름의 요청은 하나도 없어야 한다
+  await page.route("**/api/**", route => {
+    if (new URL(route.request().url()).pathname.startsWith("/api/auth/")) return route.fallback();
+    requests.push(route.request().url()); return route.abort("failed");
+  });
 });
 test.afterEach(async ({ page }) => { expect(calls.get(page)).toEqual([]); expect(pageErrors.get(page)).toEqual([]); });
 

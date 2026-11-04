@@ -1,4 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { test, expect } from "./signed-in";
 import type { ActivityDetail, Experience } from "../src/lib/api/types";
 
 // HTTP fixtures only — 화면 동작을 본다. 실제 BE · DB 와의 통합 시험이 아니다. (FE#10 · SPEC S-12 · S-13)
@@ -23,6 +24,7 @@ async function setup(page: Page) {
   await page.route("**/api/**", async (route) => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
+    if (path.startsWith("/api/auth/")) return route.fallback(); // 로그인 확인은 signed-in 픽스처가 받는다
     const fail = () => route.fulfill({ status: state.fail, json: { error: { code: "INTERNAL_ERROR", message: "Server rejected" } } });
     let m = path.match(/^\/api\/experiences\/(\d+)\/move$/);
     if (m && req.method() === "POST") {
