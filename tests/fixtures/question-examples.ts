@@ -1,6 +1,6 @@
-// MOCK(question-matching): ETC question-api.md 문항 41·42의 예시 JSON. 실제 분석 결과가 아니다.
+// 시험용 — ETC question-api.md 문항 41·42 의 예시 JSON. 시험의 가짜 BE(fake-question-api.ts)가 돌려준다. 제품 코드는 쓰지 않는다.
 // competenciesBy는 experience-api.md에 따라 AI. 예시의 순서·문구·근거 ID·보완 관계를 보존한다.
-import type { QuestionDetail } from "../api/question-types";
+import type { QuestionDetail } from "../../src/lib/api/question-types";
 
 export const QUESTION_EXAMPLES: QuestionDetail[] = [
   {

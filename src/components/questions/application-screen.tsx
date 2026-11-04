@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { useSearchParams } from "next/navigation";
 import { ArrowsClockwiseIcon, MagnifyingGlassIcon, PlusIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { AppHeader } from "@/components/app-header";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -9,7 +8,6 @@ import { CenterState } from "@/components/center-state";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { MAX_QUESTIONS_PER_APPLICATION, type Application, type QuestionDetail } from "@/lib/api/question-types";
-import type { MockQuestionScenario } from "@/lib/mock/questions";
 import { AddQuestionForm, ApplicationForm } from "./application-form";
 import { overlapsOf, sameExperienceElsewhere, type Overlap } from "./overlap";
 import { QuestionResult } from "./question-result";
@@ -18,7 +16,14 @@ import { useApplications } from "./use-applications";
 
 const STATUS = { ANALYZING: "분석 중", COMPLETED: "완료", FAILED: "실패" } as const;
 const DOT = { ANALYZING: "bg-muted-soft", COMPLETED: "bg-mark", FAILED: "bg-error" } as const;
-const SCENARIOS = ["fail", "empty", "limit"] as const;
+/** 실패 이유(question-api.md — experience-api.md 「GET /api/jobs」와 같은 값)를 사용자 말로. 문항은 서버에 남아 있다 */
+function failureText(error: QuestionDetail["error"]) {
+  const why = error?.code === "AI_TIMEOUT" ? "AI 응답이 너무 오래 걸렸어요."
+    : error?.code === "AI_UNAVAILABLE" ? "AI 서버에 연결하지 못했어요."
+    : error?.code === "AI_FAILED" ? "AI 가 올바른 결과를 돌려주지 않았어요."
+    : error?.message || "서버에서 분석을 마치지 못했어요.";
+  return `${why} 문항은 저장돼 있으니 다시 시도해 주세요.`;
+}
 const dateText = (iso: string) => new Date(iso).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" });
 
 /** 「지원 3 · 분석 중 1」처럼 — 문항 상태를 한 줄로 */
@@ -40,10 +45,6 @@ function useWide() {
 /** 지원 화면(S-18 · S-21) — 지원 목록(1280 이상은 사이드바), 고른 지원: 여러 문항에 추천된 활동 → 문항 탭 → 참고 경험(#30),
  *  오른쪽 차곡이 패널: 요구사항 · 보완 재사용 · 되묻기(FE#51). 배치는 ETC 시안 6 apply.html. 답변 초안 · 근거 점검 · 패널 버튼은 범위 밖(P1 · ETC#78) */
 export function ApplicationScreen() {
-  const params = useSearchParams();
-  // 자료 분석의 ?analysis=fail·empty와 같은 명시적 목 확인 경로. 입력 내용으로 실패를 추측하지 않는다.
-  const requested = params.get("matching");
-  const scenario: MockQuestionScenario = SCENARIOS.find(s => s === requested) ?? "ok";
   const matching = useApplications();
   const [composing, setComposing] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -71,15 +72,9 @@ export function ApplicationScreen() {
   const activeId = composing ? null : open?.application.id ?? null;
 
   return <div className="min-h-dvh bg-canvas xl:flex xl:items-start">
-    <AppHeader activePage="questions" timelineHref="/?questionMock=1"
+    <AppHeader activePage="questions"
       sidebarExtra={ready ? <ApplicationList applications={matching.applications} activeId={activeId} onPick={pick} sidebar /> : undefined} />
     <div className="min-w-0 flex-1">
-    <p role="note" className="m-0 border-b border-hairline px-4.5 py-2 text-xs text-muted lg:px-7">
-      목 모드 · 정해진 예시 결과이며 실제 AI 분석·서버 저장은 하지 않아요. 지원 기록은 이 브라우저에만 보관해요.
-      {scenario === "fail" && " 지금 넣는 문항은 실패·다시 시도 흐름을 보여줘요."}
-      {scenario === "empty" && " 지금 넣는 문항은 추천 0개 예시를 보여줘요."}
-      {scenario === "limit" && " 지금 넣으면 하루 분석 한도(429) 안내를 보여줘요."}
-    </p>
     <main className="mx-auto max-w-[1280px] px-4.5 py-6 lg:px-8 lg:py-8">
       <div className="mb-7 flex items-start justify-between gap-3">
         <div><h1 className="m-0 text-[26px] leading-snug font-bold tracking-[-0.4px]">지원</h1><p className="mt-2 mb-0 text-sm text-muted">지원서의 문항마다 꺼내 볼 경험을 찾아요. 같은 경험도 문항마다 다른 점을 보여 줄 수 있어요.</p></div>
@@ -88,14 +83,14 @@ export function ApplicationScreen() {
       {matching.loading ? <p role="status" className="py-12 text-center text-sm text-muted">지원 기록을 불러오고 있어요…</p> : matching.error ? <div role="alert" className="grid justify-items-start gap-3 py-8">
         <p className="m-0 text-error">{matching.error}</p><Button variant="secondary" onClick={() => { void matching.refresh(); }}>다시 불러오기</Button>
       </div> : empty ? <section id="selected-application" className="max-w-2xl" aria-label="새 지원 입력">
-        <ApplicationForm onSubmit={req => matching.submit(req, scenario)} />
+        <ApplicationForm onSubmit={req => matching.submit(req)} />
       </section> : <div className="grid items-start gap-7 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-10 xl:grid-cols-1">
         {!wide && <aside id="application-list" className="min-w-0 scroll-mt-4 lg:sticky lg:top-6" aria-label="지원 목록">
           <ApplicationList applications={matching.applications} activeId={activeId} onPick={pick} />
         </aside>}
         <section id="selected-application" className="min-w-0 scroll-mt-5" aria-label={composing ? "새 지원 입력" : "선택한 지원"}>
           {composing ? <ApplicationForm onCancel={() => setComposing(false)} onSubmit={async req => {
-            const saved = await matching.submit(req, scenario);
+            const saved = await matching.submit(req);
             if (saved) { setComposing(false); scrollToDetail(); }
           }} /> : open ? <>
             <a href="#application-list" className="mb-3 inline-flex min-h-11 items-center text-sm text-muted underline underline-offset-4 lg:hidden">지원 목록으로</a>
@@ -114,7 +109,7 @@ export function ApplicationScreen() {
               onPick={id => { setAdding(false); void matching.selectQuestion(id); }} onAdd={() => setAdding(true)} />
             <div className="pt-6">
               {adding ? <AddQuestionForm onCancel={() => setAdding(false)} onSubmit={async text => {
-                const saved = await matching.addQuestion(open.application.id, text, scenario);
+                const saved = await matching.addQuestion(open.application.id, text);
                 if (saved) setAdding(false);
               }} /> : <SelectedQuestion key={matching.questionId} question={selected} index={selectedIndex}
                 overlaps={overlaps} onRetry={id => matching.retry(id)} />}
@@ -186,7 +181,7 @@ function OverlapPanel({ overlaps, onPick }: { overlaps: Overlap[]; onPick: (ques
   return <section aria-labelledby="overlap-title" className="mb-6 grid gap-3 rounded-md bg-surface-soft p-4.5">
     <div>
       <h3 id="overlap-title" className="m-0 text-[15px] font-semibold">여러 문항에 추천된 활동</h3>
-      <p className="mt-1 mb-0 text-[13px] text-muted">같은 활동이라도 문항마다 강조하는 점이 달라요. 겹쳐 보이면 문항마다 다른 경험을 골라도 돼요. 강조점은 AI 해석 · 예시예요.</p>
+      <p className="mt-1 mb-0 text-[13px] text-muted">같은 활동이라도 문항마다 강조하는 점이 달라요. 겹쳐 보이면 문항마다 다른 경험을 골라도 돼요. 강조점은 AI 해석이에요.</p>
     </div>
     <ul className="m-0 grid list-none gap-3 p-0">{overlaps.map(g => <li key={g.activity.id} className="grid gap-1.5">
       <span className="text-sm font-semibold">{g.activity.name}</span>
@@ -215,8 +210,8 @@ function SelectedQuestion({ question, index, overlaps, onRetry }: {
       <p className="mt-0 mb-2 text-[13px] font-medium text-muted">문항 {index + 1} · {STATUS[question.status]}</p>
       <h3 className="m-0 max-h-52 overflow-y-auto whitespace-pre-wrap text-[20px] leading-relaxed font-[650] tracking-[-0.3px]">{question.text}</h3>
     </header>
-    {question.status === "ANALYZING" ? <div role="status" aria-live="polite"><CenterState icon={<MagnifyingGlassIcon />} title="문항에 맞는 경험을 찾고 있어요" body="목 분석 중이에요. 새로고침해도 이어져요." /></div>
-      : question.status === "FAILED" ? <CenterState icon={<WarningCircleIcon className="text-error" />} title="문항을 분석하지 못했어요" body={question.error?.message ?? "목 분석 실패예요. 문항은 브라우저에 보관돼 있어요."}>
+    {question.status === "ANALYZING" ? <div role="status" aria-live="polite"><CenterState icon={<MagnifyingGlassIcon />} title="문항에 맞는 경험을 찾고 있어요" body="보통 30초 안에 끝나요. 새로고침하거나 다른 화면에 다녀와도 이어져요." /></div>
+      : question.status === "FAILED" ? <CenterState icon={<WarningCircleIcon className="text-error" />} title="문항을 분석하지 못했어요" body={failureText(question.error)}>
         <Button disabled={retrying} onClick={async () => {
           if (retryPending.current) return;
           retryPending.current = true; setRetrying(true); setRetryError(null);
