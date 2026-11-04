@@ -49,12 +49,14 @@ function DesktopSidebar(props: HeaderProps) {
   return <>
     <aside className={cn("fixed inset-y-0 left-0 z-30 hidden flex-col gap-5.5 overflow-clip pt-6.5 pb-4.5 lg:flex", collapsed ? "w-18 items-center px-3.5" : "w-62 px-3.5")} aria-label="사이드바">
       <SidebarBackground />
-      <div className={cn("relative flex items-center", collapsed ? "flex-col gap-2" : "h-9 justify-between pl-2")}>
+      {/* 시안 6: 레일은 같은 로고 자리에서 펼침 아이콘으로 바뀐다. 높이를 고정해 메뉴가 밀리지 않게 한다. */}
+      <div data-slot="sidebar-brand" className={cn("group/brand relative flex h-11 shrink-0 items-center", collapsed ? "w-11 justify-center" : "justify-between pl-2")}>
         <Brand collapsed={collapsed} />
         <RailTip label={toggleLabel} enabled={collapsed}>
           <button ref={trigger} type="button" aria-label={toggleLabel} aria-expanded={wide ? !collapsed : overlayOpen} aria-controls={wide ? "sidebar-navigation" : "sidebar-overlay"}
-            onClick={() => wide ? toggle() : setOverlayOpen(true)} className="flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-canvas/60">
-            <SidebarSimpleIcon className="size-5" aria-hidden="true" />
+            onClick={() => wide ? toggle() : setOverlayOpen(true)}
+            className={cn("flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-canvas/60", collapsed && "absolute inset-0")}>
+            <SidebarSimpleIcon className={cn("size-5", collapsed && "opacity-0 group-hover/brand:opacity-100 group-focus-within/brand:opacity-100")} aria-hidden="true" />
           </button>
         </RailTip>
       </div>
@@ -111,7 +113,8 @@ function RailTip({ label, enabled, children }: { label: string; enabled: boolean
 }
 
 function Brand({ collapsed, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {
-  return <Link href="/" onClick={onNavigate} className={cn("relative flex h-11 items-center", collapsed && "w-11 justify-center")} aria-label="차곡 — 내 경험">
+  return <Link href="/" onClick={onNavigate} aria-hidden={collapsed || undefined} tabIndex={collapsed ? -1 : undefined}
+    className={cn("relative flex h-11 items-center", collapsed && "pointer-events-none w-11 justify-center group-hover/brand:invisible group-focus-within/brand:invisible")} aria-label="차곡 — 내 경험">
     {collapsed ? <span className="block w-7 overflow-hidden"><Logo className="h-6.5 max-w-none" /></span> : <Logo className="h-6.5 w-auto" />}
   </Link>;
 }
