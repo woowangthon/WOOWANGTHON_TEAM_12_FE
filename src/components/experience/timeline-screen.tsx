@@ -10,7 +10,7 @@ import { AddSourceButton, AppHeader, type AddSourceProps } from "@/components/ap
 import { CenterState } from "@/components/center-state";
 import { AddSourceDialog } from "@/components/source/add-source-dialog";
 import { AnalysisBanner, AnalysisCenter, analysisView } from "@/components/source/analysis-status";
-import { useAnalysisJob } from "@/components/source/use-analysis-job";
+import { hasPendingAnalysis, useAnalysisJob } from "@/components/source/use-analysis-job";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { fetchActivities, fetchActivity, isMockMode, mergeActivities, moveExperience, updateActivity, type MockAnalysis, type MockMode } from "@/lib/api/experience";
@@ -110,6 +110,22 @@ export function TimelineScreen() {
     // 처음 한 번만 — 그 뒤엔 사용자가 고른 활동을 따른다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mock]);
+
+  // 다른 화면(지원)의 「자료 넣기」(?add=1, FE#64) — 자료 넣기 창을 연다. 새로고침에 다시 열리지 않게 주소에서 지운다.
+  // 분석이 아직 돌고 있으면 이 화면의 「자료 넣기」처럼 막고 이유만 알린다
+  useEffect(() => {
+    if (params.get("add") !== "1") return;
+    const timer = setTimeout(() => {
+      if (hasPendingAnalysis()) showToast("지금 넣은 자료의 분석이 끝나면 더 넣을 수 있어요.");
+      else setAddOpen(true);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("add");
+      window.history.replaceState(null, "", url);
+    }, 0);
+    return () => clearTimeout(timer);
+    // 처음 한 번만
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const analysis = useAnalysisJob(async (job) => {
     const activities = await loadList(mock);

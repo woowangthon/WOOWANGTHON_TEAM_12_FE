@@ -26,6 +26,8 @@ const posts = (api: FakeQuestionApi) => api.calls.filter(c => c.call.startsWith(
 const result = (page: Page) => page.getByRole("tabpanel", { name: "선택한 문항", exact: true });
 // 지원 목록 — 1280 이상은 사이드바 안(FE#51), 그보다 좁으면 화면 안
 const list = (page: Page) => page.getByRole("complementary", { name: /^(지원 목록|사이드바)$/ });
+// 지원 목록의 첫 지원 — 사이드바엔 「자료 넣기」 같은 메뉴 버튼도 있어 지원 버튼(aria-pressed)만 센다
+const firstApplication = (page: Page) => list(page).locator("button[aria-pressed]").first();
 const recommendation = (page: Page, n: number) => result(page).getByRole("listitem", { name: `추천 경험 ${n}`, exact: true });
 // 차곡이 패널(FE#51) — 1280 이상은 옆에 붙어 기본으로 열리고, 좁으면 버튼으로 여는 시트
 const chagokPanel = (page: Page) => page.locator("#chagok-panel");
@@ -119,8 +121,8 @@ test("analysis is polled until done, survives reload and keeps the new applicati
   await page.reload();
   await expect(result(page).getByRole("heading", { name: QUESTION_EXAMPLES[1].text, exact: true })).toBeVisible();
   await expect(recommendation(page, 1)).toContainText("매주 금요일", { timeout: 10000 });
-  await expect(list(page).getByRole("button").first()).toHaveAttribute("aria-pressed", "true");
-  await expect(list(page).getByRole("button").first()).toContainText("지원처 이름 없음");
+  await expect(firstApplication(page)).toHaveAttribute("aria-pressed", "true");
+  await expect(firstApplication(page)).toContainText("지원처 이름 없음");
 });
 
 test("failed analysis shows the reason and retries the same saved question", async ({ page }) => {
@@ -212,7 +214,7 @@ test("application with several questions keeps order, analyzes each and shows th
   await expect(result(page).getByRole("heading", { name: QUESTION_EXAMPLES[0].text, exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByRole("tablist", { name: "문항" }).getByRole("tab").nth(1)).toHaveAttribute("aria-selected", "true");
-  await expect(list(page).getByRole("button").first()).toContainText("OO 백엔드 부트캠프 · 2기");
+  await expect(firstApplication(page)).toContainText("OO 백엔드 부트캠프 · 2기");
 });
 
 // FE#39 — 「자주 나오는 문항」에서 골라 넣기(S-26)
@@ -389,4 +391,23 @@ test("answering a clarification marks that recommendation as answered without re
   await expect(card).toContainText("회고에서 내가 맡은 몫이 자료에 없다");
   expect(posts(api).map(p => p.call)).toEqual(["POST /api/clarifications/63/answer"]);
   if (process.env.UPDATE_QUESTION_SCREENSHOTS === "1") await card.screenshot({ path: `docs/fe-65/answered-${info.project.name}.png`, style: "nextjs-portal { display: none !important; }" });
+});
+
+// FE#64 — 지원 화면에도 「자료 넣기」(시안 6 사이드바). 누르면 내 경험 화면에서 자료 넣기 창이 열리고, 새로고침엔 다시 열리지 않는다
+test("add source from the application screen opens the dialog on the timeline once", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "1024 미만은 위 막대에 자료 넣기가 없다 — 내 경험 화면의 떠 있는 버튼으로 넣는다");
+  await fake(page);
+  for (const width of [1440, 1100]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/questions");
+    await expect(result(page)).toBeVisible();
+    if (process.env.UPDATE_QUESTION_SCREENSHOTS === "1") await page.screenshot({ path: `docs/fe-64/apply-${width}.png`, style: "nextjs-portal { display: none !important; }" });
+    await page.getByRole("button", { name: "자료 넣기", exact: true }).filter({ visible: true }).click();
+    const dialog = page.getByRole("dialog", { name: "자료 넣기" });
+    await expect(dialog).toBeVisible();
+    await expect(page).toHaveURL(/\/$/);
+    await page.reload();
+    await expect(page.getByRole("note")).toContainText("실제 API 모드");
+    await expect(dialog).toHaveCount(0);
+  }
 });
