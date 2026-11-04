@@ -6,9 +6,12 @@ import { Button } from "@/components/ui/button";
 import { CommonQuestionPicker } from "./common-question-picker";
 import { ApiError } from "@/lib/api/errors";
 import { MAX_ORGANIZATION_LENGTH, MAX_QUESTION_LENGTH, MAX_QUESTIONS_PER_SUBMIT, type CreateApplicationRequest } from "@/lib/api/question-types";
-import { QUESTION_EXAMPLES } from "@/lib/mock/question-examples";
 
-const EXAMPLE_LABELS = ["기술 문제 해결 예시", "팀 역할·협업 예시"];
+/** 입력을 돕는 예시 문항 — 칸만 채운다. 결과는 늘 실제 분석이다(question-api.md 문항 41 · 42 의 글) */
+const EXAMPLES = [
+  { label: "기술 문제 해결 예시", organization: "OO 백엔드 부트캠프", text: "기술적인 문제를 해결한 경험을 구체적으로 적어 주세요." },
+  { label: "팀 역할·협업 예시", organization: "OO 연합 동아리", text: "팀 프로젝트에서 맡은 역할과, 팀과 함께 일한 방식을 적어 주세요." },
+];
 const field = "w-full rounded-sm border border-hairline bg-canvas p-3 text-base leading-relaxed font-normal";
 
 /** 계약 오류를 사용자 말로 — 429 는 문항 수가 남은 횟수보다 많을 때도 같다 */
@@ -49,7 +52,7 @@ export function ApplicationForm({ onSubmit, onCancel }: { onSubmit: (req: Create
       }
       pending.current = true; setSaving(true); setError(null);
       try { await onSubmit({ organization: organization.trim() || null, questions: texts.map(text => ({ text })) }); }
-      catch (e) { setError(submitErrorMessage(e, "지원을 보관하지 못했어요.")); }
+      catch (e) { setError(submitErrorMessage(e, "지원을 넣지 못했어요.")); }
       finally { pending.current = false; setSaving(false); }
     }}>
       <div className="grid gap-1.5">
@@ -59,13 +62,13 @@ export function ApplicationForm({ onSubmit, onCancel }: { onSubmit: (req: Create
       <div className="grid gap-2">
         <span className="text-[13px] font-medium text-muted">예시 문항으로 시작하기</span>
         <div className="flex flex-wrap gap-2">
-          {QUESTION_EXAMPLES.map((sample, i) => (
-            <Button key={sample.id} type="button" variant="secondary" size="sm" className="min-h-11" disabled={saving} onClick={() => {
-              setOrganization(prev => prev || (sample.organization ?? ""));
+          {EXAMPLES.map(sample => (
+            <Button key={sample.label} type="button" variant="secondary" size="sm" className="min-h-11" disabled={saving} onClick={() => {
+              setOrganization(prev => prev || sample.organization);
               // 비어 있는 첫 칸에, 없으면 새 칸에
               setTexts(prev => { const at = prev.findIndex(t => !t.trim()); if (at >= 0) return prev.map((t, j) => (j === at ? sample.text : t)); return prev.length < MAX_QUESTIONS_PER_SUBMIT ? [...prev, sample.text] : prev; });
               setError(null);
-            }}>{EXAMPLE_LABELS[i]}</Button>
+            }}>{sample.label}</Button>
           ))}
         </div>
       </div>
@@ -97,10 +100,10 @@ export function ApplicationForm({ onSubmit, onCancel }: { onSubmit: (req: Create
         </div>
       </fieldset>
       <CommonQuestionPicker open={picking} onOpenChange={setPicking} room={room} onPick={insert} />
-      <p className="m-0 text-[13px] text-muted">넣은 뒤엔 문항을 고치지 않아요 — 잘못 넣었으면 그 지원에 새로 더해 주세요. 지금은 실제 분석 없이 정해진 기술·협업 예시 결과를 보여줘요.</p>
+      <p className="m-0 text-[13px] text-muted">넣은 뒤엔 문항을 고치지 않아요 — 잘못 넣었으면 그 지원에 새로 더해 주세요.</p>
       {error && <p role="alert" className="m-0 text-sm text-error">{error}</p>}
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" disabled={saving}>{saving ? "지원을 보관하고 있어요…" : texts.length > 1 ? `문항 ${texts.length}개 넣고 경험 찾기` : "지원 넣고 경험 찾기"}</Button>
+        <Button type="submit" disabled={saving}>{saving ? "지원을 넣고 있어요…" : texts.length > 1 ? `문항 ${texts.length}개 넣고 경험 찾기` : "지원 넣고 경험 찾기"}</Button>
         {onCancel && <Button type="button" variant="ghost" disabled={saving} onClick={onCancel}>취소</Button>}
       </div>
     </form>
@@ -120,7 +123,7 @@ export function AddQuestionForm({ onSubmit, onCancel }: { onSubmit: (text: strin
       if (!text.trim()) { setError("더할 문항을 입력해 주세요."); return; }
       pending.current = true; setSaving(true); setError(null);
       try { await onSubmit(text); }
-      catch (e) { setError(submitErrorMessage(e, "문항을 보관하지 못했어요.")); }
+      catch (e) { setError(submitErrorMessage(e, "문항을 넣지 못했어요.")); }
       finally { pending.current = false; setSaving(false); }
     }}>
       <label htmlFor="add-question" className="text-[17px] font-semibold">이 지원에 문항 더하기</label>
@@ -128,7 +131,7 @@ export function AddQuestionForm({ onSubmit, onCancel }: { onSubmit: (text: strin
       <span className="text-right text-xs text-muted tabular-nums">{text.length.toLocaleString("ko-KR")} / 5,000</span>
       {error && <p role="alert" className="m-0 text-sm text-error">{error}</p>}
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" disabled={saving}>{saving ? "문항을 보관하고 있어요…" : "문항 더하고 경험 찾기"}</Button>
+        <Button type="submit" disabled={saving}>{saving ? "문항을 넣고 있어요…" : "문항 더하고 경험 찾기"}</Button>
         <Button type="button" variant="ghost" disabled={saving} onClick={onCancel}>취소</Button>
       </div>
     </form>

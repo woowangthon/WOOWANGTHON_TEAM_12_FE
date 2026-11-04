@@ -1,13 +1,11 @@
+// 지원 · 문항 · 추천 · 되묻기 화면 — 실제 API 모드에서 가짜 BE(fake-question-api.ts)를 상대로 (FE#30 · #38 · #31 · #51 → FE#32)
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
-import { QUESTION_STORAGE_KEY } from "../src/lib/mock/questions";
-import { QUESTION_EXAMPLES } from "../src/lib/mock/question-examples";
+import { FakeQuestionApi, type FakeOptions } from "./fake-question-api";
+import { QUESTION_EXAMPLES } from "./fixtures/question-examples";
 
-const calls = new WeakMap<Page, string[]>();
 const pageErrors = new WeakMap<Page, string[]>();
 test.beforeEach(async ({ page }) => {
-  const requests: string[] = [];
-  calls.set(page, requests);
   const errors: string[] = [];
   pageErrors.set(page, errors);
   page.on("pageerror", error => errors.push(error.message));
@@ -20,20 +18,15 @@ test.beforeEach(async ({ page }) => {
       document.head.appendChild(style);
     }, { once: true });
   });
-  // Even when the FE API base is configured, the entire question flow must stay offline.
-  // 로그인 확인(실제 API 모드의 로그인 문)만 signed-in 픽스처로 넘기고, 문항 흐름의 요청은 하나도 없어야 한다
-  await page.route("**/api/**", route => {
-    if (new URL(route.request().url()).pathname.startsWith("/api/auth/")) return route.fallback();
-    requests.push(route.request().url()); return route.abort("failed");
-  });
 });
-test.afterEach(async ({ page }) => { expect(calls.get(page)).toEqual([]); expect(pageErrors.get(page)).toEqual([]); });
+test.afterEach(async ({ page }) => { expect(pageErrors.get(page)).toEqual([]); });
 
+const fake = (page: Page, options?: FakeOptions) => new FakeQuestionApi(options).install(page);
+const posts = (api: FakeQuestionApi) => api.calls.filter(c => c.call.startsWith("POST "));
 const result = (page: Page) => page.getByRole("tabpanel", { name: "선택한 문항", exact: true });
 // 지원 목록 — 1280 이상은 사이드바 안(FE#51), 그보다 좁으면 화면 안
 const list = (page: Page) => page.getByRole("complementary", { name: /^(지원 목록|사이드바)$/ });
 const recommendation = (page: Page, n: number) => result(page).getByRole("listitem", { name: `추천 경험 ${n}`, exact: true });
-const stored = (page: Page) => page.evaluate(key => JSON.parse(localStorage.getItem(key)!), QUESTION_STORAGE_KEY);
 // 차곡이 패널(FE#51) — 1280 이상은 옆에 붙어 기본으로 열리고, 좁으면 버튼으로 여는 시트
 const chagokPanel = (page: Page) => page.locator("#chagok-panel");
 const chagokToggle = (page: Page) => page.getByRole("button", { name: /^차곡이( ?질문 \d+)?$/ });
@@ -52,18 +45,20 @@ async function expand(page: Page, n: number) {
   const card = recommendation(page, n);
   if (!(await card.locator("details").evaluate(e => (e as HTMLDetailsElement).open))) await card.locator("summary").click();
 }
-
 async function compose(page: Page, text: string) {
   await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
   await page.getByLabel("문항 1", { exact: true }).fill(text);
   await page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true }).click();
 }
 
-test("question 41/42 switch preserves contract judgments, actors and supplemental evidence", async ({ page }, info) => {
+test("question 41/42 switch shows contract judgments, actors and supplemental evidence; selection lives in the URL", async ({ page }, info) => {
+  const api = await fake(page);
   await page.goto("/questions");
   await expect(recommendation(page, 1)).toContainText("매주 금요일 스프린트 회고를 했다");
+  await expect(page).toHaveURL(/question=42/);
   await expect(recommendation(page, 1).getByText("팀", { exact: true })).toBeVisible();
-  await expect(result(page).getByText("AI 해석 · 예시", { exact: true })).toHaveCount(2);
+  await expect(result(page).getByText("AI 해석", { exact: true })).toHaveCount(2);
+  await expect(page.getByText(/목 모드|예시 결과/)).toHaveCount(0);
   let chagok = await openChagok(page);
   await expect(chagok.getByText("근거 있음", { exact: true })).toHaveCount(1);
   await expect(chagok.getByText("일부 확인됨", { exact: true })).toBeVisible();
@@ -87,68 +82,63 @@ test("question 41/42 switch preserves contract judgments, actors and supplementa
   chagok = await openChagok(page);
   await expect(chagok.getByText("자료에서 확인 안 됨", { exact: true })).toHaveCount(2);
   await expect(chagok.getByText("근거 있음", { exact: true })).toHaveCount(1);
+  await expect(page).toHaveURL(/question=41/);
   await page.reload();
   await expect(result(page).getByRole("heading", { name: QUESTION_EXAMPLES[0].text, exact: true })).toBeVisible();
-  expect((await stored(page)).selectedId).toBe(41);
-  await list(page).getByRole("button", { name: /OO 연합 동아리/ }).click();
-  await expect(recommendation(page, 1)).toContainText("매주 금요일");
+  // 읽기만 했다 — 서버에 아무것도 보내지 않는다
+  expect(posts(api)).toEqual([]);
 });
 
-test("question input validates whitespace, enforces limits and accepts an optional organization", async ({ page }) => {
+test("question input validates whitespace before calling the server and sends limits as typed", async ({ page }) => {
+  const api = await fake(page);
   await page.goto("/questions");
   await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
   await page.getByLabel("문항 1", { exact: true }).fill(" \n ");
   await page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true }).click();
   await expect(page.locator("form").getByRole("alert")).toHaveText("지원 문항을 입력해 주세요.");
+  expect(posts(api)).toEqual([]);
   await expect(page.getByLabel("지원처 이름 (선택)")).toHaveAttribute("maxlength", "100");
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveAttribute("maxlength", "5000");
   await page.getByLabel("지원처 이름 (선택)").fill("o".repeat(100));
   await page.getByLabel("문항 1", { exact: true }).fill("x".repeat(5000));
   await page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true }).click();
-  await expect(result(page).getByRole("status")).toContainText("분석 중");
-  expect((await stored(page)).questions.at(-1).detail.organization).toBe("o".repeat(100));
-  expect((await stored(page)).questions.at(-1).detail.text).toHaveLength(5000);
+  await expect(result(page).getByRole("status")).toContainText("찾고 있어요");
+  expect(posts(api)).toEqual([{ call: "POST /api/applications", body: { organization: "o".repeat(100), questions: [{ text: "x".repeat(5000) }] } }]);
 });
 
-test("analysis survives reload, completes, keeps newest first and restores selection", async ({ page }) => {
+test("analysis is polled until done, survives reload and keeps the new application first", async ({ page }) => {
+  await fake(page);
   await page.goto("/questions");
   await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
   await page.getByRole("button", { name: "팀 역할·협업 예시", exact: true }).click();
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(QUESTION_EXAMPLES[1].text);
   await page.getByLabel("지원처 이름 (선택)").fill("");
   await page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true }).click();
-  await expect(result(page).getByRole("status")).toContainText("분석 중");
-  const before = await stored(page);
-  expect(before.questions.at(-1).detail.organization).toBeNull();
+  await expect(result(page).getByRole("status")).toContainText("찾고 있어요");
+  await expect(page).toHaveURL(/question=43/);
   await page.reload();
   await expect(result(page).getByRole("heading", { name: QUESTION_EXAMPLES[1].text, exact: true })).toBeVisible();
-  expect((await stored(page)).selectedId).toBe(before.selectedId);
-  expect((await stored(page)).questions.at(-1).startedAt).toBe(before.questions.at(-1).startedAt);
   await expect(recommendation(page, 1)).toContainText("매주 금요일", { timeout: 10000 });
   await expect(list(page).getByRole("button").first()).toHaveAttribute("aria-pressed", "true");
-  await page.reload();
-  await expect(recommendation(page, 1)).toContainText("매주 금요일");
-  expect((await stored(page)).selectedId).toBe(before.selectedId);
+  await expect(list(page).getByRole("button").first()).toContainText("지원처 이름 없음");
 });
 
-test("failed analysis persists and retries the same saved question", async ({ page }) => {
-  await page.goto("/questions?matching=fail");
-  await compose(page, "실패 흐름 예시");
-  await expect(result(page).getByRole("status")).toContainText("분석 중");
+test("failed analysis shows the reason and retries the same saved question", async ({ page }) => {
+  const api = await fake(page, { fail: true });
+  await page.goto("/questions");
+  await compose(page, "실패 흐름 문항");
+  await expect(result(page).getByRole("status")).toContainText("찾고 있어요");
   await expect(result(page).getByRole("heading", { name: "문항을 분석하지 못했어요" })).toBeVisible({ timeout: 10000 });
-  const before = await stored(page);
-  await page.reload();
-  await expect(result(page).getByRole("heading", { name: "문항을 분석하지 못했어요" })).toBeVisible();
+  await expect(result(page)).toContainText("AI 응답이 너무 오래 걸렸어요. 문항은 저장돼 있으니 다시 시도해 주세요.");
   await result(page).getByRole("button", { name: "다시 시도", exact: true }).click();
-  await expect(result(page).getByRole("status")).toContainText("분석 중");
-  expect((await stored(page)).selectedId).toBe(before.selectedId);
-  expect((await stored(page)).questions).toHaveLength(before.questions.length);
+  await expect(result(page).getByRole("status")).toContainText("찾고 있어요");
   await expect(recommendation(page, 1)).toContainText("WebSocket", { timeout: 10000 });
-  expect((await stored(page)).questions).toHaveLength(before.questions.length);
+  expect(posts(api).map(c => c.call)).toEqual(["POST /api/applications", "POST /api/questions/43/retry"]);
 });
 
 test("zero recommendations show record-focused guidance", async ({ page }) => {
-  await page.goto("/questions?matching=empty");
+  await fake(page, { noMatch: true });
+  await page.goto("/questions");
   await compose(page, "현재 자료에서 연결할 기록이 없는 문항");
   await expect(result(page).getByText("현재 자료에서 연결된 경험을 찾지 못했어요.", { exact: true })).toBeVisible({ timeout: 10000 });
   await expect(result(page).getByRole("listitem", { name: /^추천 경험/ })).toHaveCount(0);
@@ -158,38 +148,27 @@ test("zero recommendations show record-focused guidance", async ({ page }) => {
   await expect(page.getByText(/역량 부족|합격 가능성/)).toHaveCount(0);
 });
 
-test("recommendation opens the same timeline activity without any API or editing controls", async ({ page }) => {
+test("loading failure shows the server message and loads again", async ({ page }) => {
+  const api = await fake(page);
+  api.listDown = true;
   await page.goto("/questions");
-  await list(page).getByRole("button", { name: /OO 백엔드 부트캠프/ }).click();
-  await recommendation(page, 1).getByRole("link", { name: /타임라인에서 활동 보기/ }).click();
-  await expect(page).toHaveURL(/questionMock=1&activity=7/);
-  const activity = page.getByRole("complementary", { name: "활동 세부" });
-  await expect(activity.getByRole("heading", { name: "바꿔요 — 캠퍼스 중고거래 앱" })).toBeVisible();
-  await expect(activity.locator("li").first()).toContainText("WebSocket");
-  await expect(activity.locator("li").first()).toContainText("문제 해결 · 기술 구현");
-  await expect(page.getByRole("button", { name: "활동 수정", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "경험 직접 추가", exact: true })).toHaveCount(0);
-  await expect(page.locator('[data-testid^="drag-"], [data-testid^="band-start-"], [data-testid^="band-end-"]')).toHaveCount(0);
-  await page.getByRole("link", { name: "문항 결과로 돌아가기" }).click();
-  await expect(recommendation(page, 1)).toContainText("WebSocket");
-  expect((await stored(page)).selectedId).toBe(41);
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("잠시 뒤 다시 시도해 주세요");
+  api.listDown = false;
+  await page.getByRole("button", { name: "다시 불러오기", exact: true }).click();
+  await expect(recommendation(page, 1)).toContainText("매주 금요일");
 });
 
 test("three recommendations, UNKNOWN actor and missing evidence never invent quotations", async ({ page }) => {
-  await page.goto("/questions");
-  await expect(recommendation(page, 1)).toBeVisible();
-  await page.evaluate(key => {
-    const store = JSON.parse(localStorage.getItem(key)!);
-    const question = store.questions.find((q: { detail: { id: number } }) => q.detail.id === 42).detail;
+  const api = await fake(page);
+  api.edit(42, question => {
     question.recommendations[0].evidence = [];
     const third = structuredClone(question.recommendations[1]);
     third.experience.id = 104; third.experience.actor = "UNKNOWN"; third.experience.competenciesBy = "USER";
     third.experience.content = "백엔드 API 설계를 맡았다"; third.experience.citations = []; third.experience.supplements = [];
     third.evidence = [{ type: "CITATION", id: 999 }, { type: "SUPPLEMENT", id: 999 }];
     question.recommendations.push(third);
-    localStorage.setItem(key, JSON.stringify(store));
-  }, QUESTION_STORAGE_KEY);
-  await page.reload();
+  });
+  await page.goto("/questions");
   await expect(result(page).getByRole("listitem", { name: /^추천 경험/ })).toHaveCount(3);
   await expect(recommendation(page, 1)).toContainText("이 추천에 연결된 원문 근거나 보완이 없어요.");
   await closeChagokSheet(page);
@@ -201,22 +180,9 @@ test("three recommendations, UNKNOWN actor and missing evidence never invent quo
   await expect(recommendation(page, 3).locator("blockquote")).toHaveCount(0);
 });
 
-test("storage write failure retains the draft and creates no phantom question", async ({ page }) => {
-  await page.goto("/questions");
-  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
-  await page.getByLabel("문항 1", { exact: true }).fill("보관 실패 때 유지할 문항");
-  await page.evaluate(key => {
-    const original = Storage.prototype.setItem;
-    Storage.prototype.setItem = function(k, value) { if (k === key) throw new Error("Storage full"); original.call(this, k, value); };
-  }, QUESTION_STORAGE_KEY);
-  await page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true }).click();
-  await expect(page.locator("form").getByRole("alert")).toContainText("보관하지 못했어요");
-  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("보관 실패 때 유지할 문항");
-  expect((await stored(page)).questions).toHaveLength(2);
-});
-
 // FE#38 — 지원 = 지원처 하나 + 문항 여러 개(S-18 · S-21)
 test("application with several questions keeps order, analyzes each and shows the same activity side by side", async ({ page }) => {
+  const api = await fake(page);
   await page.goto("/questions");
   await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
   await page.getByRole("button", { name: "기술 문제 해결 예시", exact: true }).click();
@@ -233,10 +199,8 @@ test("application with several questions keeps order, analyzes each and shows th
   const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab");
   await expect(tabs).toHaveCount(2);
   await expect(tabs.first()).toHaveAttribute("aria-selected", "true");
-  await expect(result(page).getByRole("status")).toContainText("분석 중");
-  const saved = (await stored(page)).questions.slice(-2);
-  expect(saved.map((q: { detail: { text: string; applicationId: number } }) => q.detail.text)).toEqual([QUESTION_EXAMPLES[1].text, QUESTION_EXAMPLES[0].text]);
-  expect(saved[0].detail.applicationId).toBe(saved[1].detail.applicationId);
+  await expect(result(page).getByRole("status")).toContainText("찾고 있어요");
+  expect(posts(api)).toEqual([{ call: "POST /api/applications", body: { organization: "OO 백엔드 부트캠프 · 2기", questions: [{ text: QUESTION_EXAMPLES[1].text }, { text: QUESTION_EXAMPLES[0].text }] } }]);
 
   const overlap = page.getByRole("region", { name: "여러 문항에 추천된 활동" });
   await expect(overlap).toContainText("바꿔요 — 캠퍼스 중고거래 앱", { timeout: 10000 });
@@ -293,6 +257,7 @@ test("common questions fill blank slots first, stay editable and stop at the sub
 });
 
 test("a question can be added to an existing application and blank slots are named", async ({ page }) => {
+  const api = await fake(page);
   await page.goto("/questions");
   await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
   await page.getByRole("button", { name: "문항 칸 더하기", exact: true }).click();
@@ -309,39 +274,37 @@ test("a question can be added to an existing application and blank slots are nam
   await expect(tabs).toHaveCount(2);
   await expect(tabs.nth(1)).toHaveAttribute("aria-selected", "true");
   await expect(result(page).getByRole("heading", { name: "본인의 장단점을 적어 주세요.", exact: true })).toBeVisible();
-  const saved = (await stored(page)).questions.slice(-2);
-  expect(saved[0].detail.applicationId).toBe(saved[1].detail.applicationId);
+  expect(posts(api).at(-1)).toEqual({ call: "POST /api/applications/23/questions", body: { text: "본인의 장단점을 적어 주세요." } });
 });
 
-test("daily limit (429) saves nothing and says so", async ({ page }) => {
-  await page.goto("/questions?matching=limit");
+test("daily limit (429) keeps the draft and says nothing was saved", async ({ page }) => {
+  await fake(page, { limit: true });
+  await page.goto("/questions");
   await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
   await page.getByRole("button", { name: "기술 문제 해결 예시", exact: true }).click();
   await page.getByRole("button", { name: "팀 역할·협업 예시", exact: true }).click();
   await page.getByRole("button", { name: "문항 2개 넣고 경험 찾기", exact: true }).click();
   await expect(page.locator("form").getByRole("alert")).toContainText("오늘 분석 횟수를 다 썼어요");
-  expect((await stored(page)).questions).toHaveLength(2);
   await expect(page.getByLabel("문항 2", { exact: true })).toHaveValue(QUESTION_EXAMPLES[1].text);
+  await expect(list(page).getByRole("button", { name: /지원처 이름 없음|OO/ })).toHaveCount(2);
 });
 
 // FE#31 — 되묻기에 답하기 · 건너뛰기 · 활동 세부의 「내가 입력」 보완(S-22 · S-23 · S-25)
-const shot = (name: string, project: string) => process.env.UPDATE_QUESTION_SCREENSHOTS === "1" ? { path: `docs/fe-51/${name}-${project}.png`, style: "nextjs-portal { display: none !important; }" } : null;
+const shot = (name: string, project: string) => process.env.UPDATE_QUESTION_SCREENSHOTS === "1" ? { path: `docs/fe-32/${name}-${project}.png`, style: "nextjs-portal { display: none !important; }" } : null;
 
-test("answering a clarification shows it on the experience as user-entered; skipping sends nothing", async ({ page }, info) => {
+test("answering a clarification posts it and shows it on the experience as user-entered; skipping sends nothing", async ({ page }, info) => {
+  const api = await fake(page);
   await page.goto("/questions");
-  // 문항 42 — 건너뛰기는 보관함을 바꾸지 않는다
+  // 문항 42 — 건너뛰기는 서버에 아무것도 보내지 않는다
   await openChagok(page);
   const asks = () => chagokPanel(page).getByRole("list", { name: "차곡이의 질문", exact: true });
   await expect(asks()).toContainText("매주 회고에서 직접 맡은 일이 있었다면 무엇이었나요?");
   await expect(asks().getByText("바꿔요", { exact: true })).toBeVisible();
   await expect(asks().getByRole("textbox", { name: /^답: / })).toBeVisible();
-  const asking = shot("asking", info.project.name);
-  if (asking) { await page.waitForTimeout(500); await page.screenshot(asking); }
-  const before = await stored(page);
   await asks().getByRole("button", { name: "건너뛰기", exact: true }).click();
   await expect(asks()).toContainText("건너뛴 질문");
   await expect(asks().getByRole("textbox")).toHaveCount(0);
-  expect(await stored(page)).toEqual(before);
+  expect(posts(api)).toEqual([]);
   await asks().getByRole("button", { name: "다시 보기", exact: true }).click();
   await expect(asks().getByRole("textbox", { name: /^답: / })).toBeVisible();
   await closeChagokSheet(page);
@@ -356,38 +319,19 @@ test("answering a clarification shows it on the experience as user-entered; skip
   await asks().getByRole("button", { name: "답하기", exact: true }).click();
   await expect(asks().getByRole("alert")).toContainText("답을 적어 주세요");
   await asks().getByRole("textbox", { name: /^답: / }).fill("두 기기로 동시에 보내 보며 지연이 사라졌는지 확인했다");
-  const answering = shot("answering", info.project.name);
-  if (answering) await page.screenshot(answering);
   await asks().getByRole("button", { name: "답하기", exact: true }).click();
   await expect(asks().getByText(stacked, { exact: true })).toHaveCount(2);
   await expect(asks()).toContainText("두 기기로 동시에 보내 보며 지연이 사라졌는지 확인했다");
   await expect(asks().getByRole("textbox")).toHaveCount(0);
-  const saved = await stored(page);
-  expect(saved.supplements["101"].map((s: { answer: string }) => s.answer).at(-1)).toBe("두 기기로 동시에 보내 보며 지연이 사라졌는지 확인했다");
-  const q41 = saved.questions.find((q: { detail: { id: number } }) => q.detail.id === 41).detail;
-  expect(q41.recommendations[0].experience.sourceStatus).toBe("SOURCE_CONFIRMED");
-  expect(q41.recommendations[0].experience.content).toBe(QUESTION_EXAMPLES[0].recommendations[0].experience.content);
-  const answered = shot("answered", info.project.name);
-  if (answered) {
-    await page.waitForTimeout(500); // 시트가 열리는 움직임이 끝난 뒤
-    await page.screenshot(answered);
-    if (info.project.name === "desktop") { // 1024 — PC 를 125 ~ 150% 로 확대한 폭(AGENTS.md). 패널은 시트로
-      await page.setViewportSize({ width: 1024, height: 900 });
-      await page.screenshot(shot("closed", "1024")!);
-      await openChagok(page);
-      await page.waitForTimeout(500);
-      await page.screenshot(shot("answered", "1024")!);
-      await closeChagokSheet(page);
-      await page.setViewportSize({ width: 1440, height: 1000 });
-    }
-  }
+  expect(posts(api)).toEqual([{ call: "POST /api/clarifications/62/answer", body: { answer: "두 기기로 동시에 보내 보며 지연이 사라졌는지 확인했다" } }]);
   await page.reload();
   await openChagok(page);
   await expect(asks().getByText(stacked, { exact: true })).toHaveCount(2);
   await closeChagokSheet(page);
 
-  // 활동 세부 — 원문 확인 표시는 그대로, 보완은 「내가 입력한 보완」으로 따로
+  // 활동 세부(실제 타임라인) — 원문 확인 표시는 그대로, 보완은 「내가 입력한 보완」으로 따로 · 어느 지원에서 답했는지
   await recommendation(page, 1).getByRole("link", { name: /타임라인에서 활동 보기/ }).click();
+  await expect(page).toHaveURL(/\/\?activity=7&fromQuestion=41/);
   const activity = page.getByRole("complementary", { name: "활동 세부" });
   const first = activity.locator("li").first();
   await expect(first).toContainText("WebSocket");
@@ -395,14 +339,18 @@ test("answering a clarification shows it on the experience as user-entered; skip
   const supplements = first.getByRole("list", { name: "내가 입력한 보완", exact: true });
   await expect(supplements.getByRole("listitem")).toHaveCount(2);
   await expect(supplements.getByText("내가 입력 · OO 백엔드 부트캠프 문항에서 답함", { exact: true })).toHaveCount(2);
-  await expect(supplements).toContainText("서버에 STOMP 엔드포인트를 만들고");
   await expect(supplements).toContainText("두 기기로 동시에 보내 보며 지연이 사라졌는지 확인했다");
   const detail = shot("activity", info.project.name);
   if (detail) await page.screenshot({ ...detail, fullPage: true });
+  if (info.project.name === "desktop") {
+    await page.getByRole("link", { name: "지원 화면으로 돌아가기" }).click();
+    await expect(result(page).getByRole("heading", { name: QUESTION_EXAMPLES[0].text, exact: true })).toBeVisible();
+  }
 });
 
 // FE#51 — 차곡이 패널은 켰다 끈다. 넓으면 옆에 붙어 열려 있고, 좁으면 닫힌 채 「질문 N」을 알린다
 test("chagok panel toggles; narrow screens start closed and show how many questions wait", async ({ page }, info) => {
+  await fake(page);
   await page.goto("/questions");
   await expect(recommendation(page, 1)).toBeVisible();
   const wide = info.project.name === "desktop";
