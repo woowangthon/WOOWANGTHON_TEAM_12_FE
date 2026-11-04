@@ -64,20 +64,48 @@ test("HTTP, network and invalid JSON errors remain distinguishable; never fallba
   }
 });
 
-test("mock reads stay available, mock writes fail without HTTP or mutation", async () => {
+test("mock reads stay available; unsupported writes fail without HTTP or mutation", async () => {
   delete process.env.NEXT_PUBLIC_API_BASE_URL;
   expect(isMockMode()).toBe(true);
   globalThis.fetch = async () => { throw new Error("unexpected HTTP"); };
   const before = await fetchActivity(7);
   expect((await fetchActivities()).length).toBeGreaterThan(0);
   await expect(updateActivity(7, { name: "fake" })).rejects.toBeInstanceOf(ApiError);
-  await expect(updateExperience(101, { content: "fake" })).rejects.toMatchObject({ code: "API_NOT_CONFIGURED" });
-  await expect(createExperience(7, { content: "fake", actor: "ME", competencies: [] })).rejects.toMatchObject({ code: "API_NOT_CONFIGURED" });
   await expect(deleteExperience(101)).rejects.toMatchObject({ code: "API_NOT_CONFIGURED" });
   expect(await fetchActivity(7)).toEqual(before);
   expect(await fetchActivities("empty")).toEqual([]);
   await expect(fetchActivities("error")).rejects.toMatchObject({ code: "MOCK_ERROR" });
 });
+
+test("mock PATCH preserves competency provenance until actual change; direct POST is USER", async () => {
+  delete process.env.NEXT_PUBLIC_API_BASE_URL;
+  globalThis.fetch = async () => { throw new Error("unexpected HTTP"); };
+  const original = (await fetchActivity(8)).experiences[0];
+  expect(original.competenciesBy).toBe("AI");
+  expect(await updateExperience(original.id, { competencies: [...original.competencies] })).toEqual(original);
+  expect(await updateExperience(original.id, { content: "Content only" })).toMatchObject({ competenciesBy: "AI", sourceStatus: "USER_ENTERED", citations: original.citations });
+  expect(await updateExperience(original.id, { actor: "TEAM" })).toMatchObject({ competenciesBy: "AI" });
+  expect(await updateExperience(original.id, { competencies: [] })).toMatchObject({ competenciesBy: "USER", competencies: [] });
+  const created = await createExperience(8, { content: "Manual", actor: "ME", competencies: ["COLLABORATION"] });
+  expect(created).toMatchObject({ competenciesBy: "USER", sourceStatus: "USER_ENTERED", citations: [] });
+  expect((await fetchActivity(8)).experiences.at(-1)).toEqual(created);
+  const { MOCK_ACTIVITIES } = await import("../src/lib/mock/activities");
+  const seed = MOCK_ACTIVITIES.find((a) => a.id === 9)!.experiences[0];
+  const saved = [...seed.competencies];
+  seed.competencies = ["IMPLEMENTATION", "COLLABORATION"];
+  try {
+    expect(await updateExperience(seed.id, { competencies: ["COLLABORATION", "IMPLEMENTATION"] })).toMatchObject({ competenciesBy: "USER" });
+  } finally { seed.competencies = saved; }
+});
+
+for (const competenciesBy of ["AI", "USER", undefined]) {
+  test(`real PATCH preserves server competenciesBy=${competenciesBy}`, async () => {
+    process.env.NEXT_PUBLIC_API_BASE_URL = "https://backend.example/api";
+    const response = { id: 101, competencies: ["IMPLEMENTATION"], competenciesBy, sourceStatus: "USER_ENTERED", citations: [] };
+    globalThis.fetch = async () => Response.json(response);
+    expect(await updateExperience(101, { competencies: ["COLLABORATION"] })).toEqual(JSON.parse(JSON.stringify(response)));
+  });
+}
 
 test("partial dates, leap years, real dates, empty name and reversed periods", () => {
   for (const value of [null, "2025", "2025-06", "2024-02-29", "0099-12-31", "0000", "0000-02", "0000-02-29"]) expect(validDate(value)).toBe(true);

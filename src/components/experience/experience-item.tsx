@@ -40,6 +40,10 @@ export function SourceStatusMark({ status }: { status: SourceStatus }) {
 
 /** 수행 주체 · 역량 · 출처 상태 */
 export function ExperienceMeta({ experience: e }: { experience: Experience }) {
+  // BE 전환 기간에만 필드 누락 시 기존 규칙을 사용한다.
+  const isAiCompetency = e.competenciesBy === undefined
+    ? e.sourceStatus !== "USER_ENTERED"
+    : e.competenciesBy === "AI";
   const sep = <span className="text-hairline">·</span>;
   return (
     <>
@@ -48,7 +52,7 @@ export function ExperienceMeta({ experience: e }: { experience: Experience }) {
         <>
           {sep}
           <span>
-            {e.sourceStatus !== "USER_ENTERED" && <span
+            {isAiCompetency && <span
               className="mr-1 inline-block rounded-[4px] border border-hairline px-1 align-[1px] text-[10px] leading-[15px] font-bold tracking-[0.02em]"
               title="AI 가 붙인 역량 — 해석이에요"
             >

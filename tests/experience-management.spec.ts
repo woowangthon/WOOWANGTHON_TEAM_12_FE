@@ -6,7 +6,7 @@ async function setup(page: Page) {
   const activity: ActivityDetail = {
     id: 7, name: "Management activity", period: { start: "2025", end: "2025", ongoing: false },
     experiences: Array.from({ length: 4 }, (_, i) => ({
-      id: 101 + i, activityId: 7, content: `Original ${i + 1}`, competencies: ["IMPLEMENTATION"], actor: "ME", sourceStatus: "SOURCE_CONFIRMED",
+      id: 101 + i, activityId: 7, content: `Original ${i + 1}`, competencies: ["IMPLEMENTATION"], competenciesBy: "AI", actor: "ME", sourceStatus: "SOURCE_CONFIRMED",
       citations: [{ id: 201 + i, sourceId: 12, sourceName: "original.md", quote: `Quote ${i + 1}`, matched: true, location: null }],
     })),
   };
@@ -22,7 +22,7 @@ async function setup(page: Page) {
       state.posts.push(req.postDataJSON());
       if (state.delay) await new Promise((resolve) => setTimeout(resolve, state.delay));
       if (state.postError) return route.fulfill({ status: state.postError, json: { error: { code: state.postError === 404 ? "ACTIVITY_NOT_FOUND" : "INVALID_REQUEST", message: "Create rejected" } } });
-      const experience: Experience = { id: 107, activityId: 7, ...req.postDataJSON(), content: "Saved by server", sourceStatus: "USER_ENTERED", citations: [] };
+      const experience: Experience = { id: 107, activityId: 7, ...req.postDataJSON(), content: "Saved by server", competenciesBy: "USER", sourceStatus: "USER_ENTERED", citations: [] };
       activity.experiences.push(experience);
       return route.fulfill({ status: 201, json: experience });
     }
