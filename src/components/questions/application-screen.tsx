@@ -7,8 +7,9 @@ import { AppHeader } from "@/components/app-header";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { CenterState } from "@/components/center-state";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { MAX_QUESTIONS_PER_APPLICATION, type Application, type QuestionDetail } from "@/lib/api/question-types";
+import { MAX_QUESTIONS_PER_APPLICATION, type Application, type QuestionDetail, type QuestionSummary } from "@/lib/api/question-types";
 import { AddQuestionForm, ApplicationForm } from "./application-form";
 import { overlapsOf, sameExperienceElsewhere, type Overlap } from "./overlap";
 import { QuestionResult } from "./question-result";
@@ -59,8 +60,9 @@ export function ApplicationScreen() {
   const wide = useWide();
   const [panelChoice, setPanelChoice] = useState<boolean | null>(null);
   const panelOpen = panelChoice ?? wide;
-  const selected = open?.details.find(d => d.id === matching.questionId) ?? null;
-  const selectedIndex = open?.details.findIndex(d => d.id === matching.questionId) ?? -1;
+  const selectedIndex = open?.application.questions.findIndex(q => q.id === matching.questionId) ?? -1;
+  const summary = open?.application.questions[selectedIndex] ?? null;
+  const selected = open?.details[selectedIndex] ?? null;
   const unanswered = selected?.clarifications.filter(c => c.supplementId === null).length ?? 0;
   const originOf: SupplementOrigin = supplement => {
     const owner = matching.applications.find(a => a.questions.some(q => q.id === supplement.questionId));
@@ -71,7 +73,7 @@ export function ApplicationScreen() {
   const panel = <ChagokPanel question={composing || adding ? null : selected} index={selectedIndex} originOf={originOf}
     onAnswer={(clarificationId, answer) => selected ? matching.answer(selected.id, clarificationId, answer) : Promise.resolve()}
     onClose={() => setPanelChoice(false)} />;
-  const pick = async (a: Application) => { setComposing(false); setAdding(false); await matching.selectApplication(a); scrollToDetail(); };
+  const pick = (a: Application) => { setComposing(false); setAdding(false); matching.selectApplication(a); scrollToDetail(); };
   const activeId = composing ? null : open?.application.id ?? null;
 
   return <div className="min-h-dvh bg-canvas xl:flex xl:items-start">
@@ -84,7 +86,7 @@ export function ApplicationScreen() {
         <div><h1 className="m-0 text-[26px] leading-snug font-bold tracking-[-0.4px]">지원</h1><p className="mt-2 mb-0 text-sm text-muted">지원서의 문항마다 꺼내 볼 경험을 찾아요. 같은 경험도 문항마다 다른 점을 보여 줄 수 있어요.</p></div>
         {!empty && <Button disabled={composing || matching.loading || !!matching.error} onClick={() => { setComposing(true); setAdding(false); scrollToDetail(); }}><PlusIcon aria-hidden="true" />지원 넣기</Button>}
       </div>
-      {matching.loading ? <p role="status" className="py-12 text-center text-sm text-muted">지원 기록을 불러오고 있어요…</p> : matching.error ? <div role="alert" className="grid justify-items-start gap-3 py-8">
+      {matching.loading ? <LoadingApplications /> : matching.error ? <div role="alert" className="grid justify-items-start gap-3 py-8">
         <p className="m-0 text-error">{matching.error}</p><Button variant="secondary" onClick={() => { void matching.refresh(); }}>다시 불러오기</Button>
       </div> : empty ? <section id="selected-application" className="max-w-2xl" aria-label="새 지원 입력">
         <ApplicationForm onSubmit={req => matching.submit(req)} />
@@ -107,15 +109,16 @@ export function ApplicationScreen() {
                 <Mascot size={20} />차곡이{unanswered > 0 && !panelOpen && <span className="rounded-full bg-primary px-1.5 text-xs leading-5 text-on-primary tabular-nums">질문 {unanswered}</span>}
               </Button>
             </header>
-            {overlaps.length > 0 && <OverlapPanel overlaps={overlaps} onPick={id => { setAdding(false); void matching.selectQuestion(id); }} />}
-            <QuestionTabs details={open.details} selectedId={adding ? null : matching.questionId} adding={adding}
+            {overlaps.length > 0 && <OverlapPanel overlaps={overlaps} onPick={id => { setAdding(false); matching.selectQuestion(id); }} />}
+            <QuestionTabs questions={open.application.questions} selectedId={adding ? null : matching.questionId} adding={adding}
               canAdd={open.application.questions.length < MAX_QUESTIONS_PER_APPLICATION}
-              onPick={id => { setAdding(false); void matching.selectQuestion(id); }} onAdd={() => setAdding(true)} />
+              onPick={id => { setAdding(false); matching.selectQuestion(id); }} onAdd={() => setAdding(true)} />
             <div className="pt-6">
               {adding ? <AddQuestionForm onCancel={() => setAdding(false)} onSubmit={async text => {
                 const saved = await matching.addQuestion(open.application.id, text);
                 if (saved) setAdding(false);
-              }} /> : <SelectedQuestion key={matching.questionId} question={selected} index={selectedIndex}
+              }} /> : <SelectedQuestion key={matching.questionId} summary={summary} question={selected} index={selectedIndex}
+                loadError={matching.detailError} onReload={matching.reloadQuestion}
                 overlaps={overlaps} onRetry={id => matching.retry(id)} />}
             </div>
           </> : null}
@@ -132,6 +135,22 @@ export function ApplicationScreen() {
         </SheetContent>
       </Sheet>)}
   </div>;
+}
+
+/** 지원 화면 첫 진입 — 고른 지원 머리 · 문항 탭 · 추천 카드 자리를 잡아 둔다(FE#60) */
+function LoadingApplications() {
+  return <div role="status" aria-label="지원 기록을 불러오고 있어요" className="grid gap-5">
+    <div className="grid gap-2"><Skeleton className="h-7 w-48" /><Skeleton className="h-4 w-64" /></div>
+    <div className="flex gap-3 border-b border-hairline pb-3">{[0, 1, 2].map(i => <Skeleton key={i} className="h-6 w-16" />)}</div>
+    <AnswerSkeleton />
+  </div>;
+}
+
+/** 추천 경험 카드 자리 — 분석 중 · 문항을 받는 동안 */
+function AnswerSkeleton() {
+  return <div className="grid gap-3">{[0, 1].map(i => <div key={i} className="grid gap-2.5 rounded-md border border-hairline p-4.5">
+    <Skeleton className="h-5 w-40" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-3/4" />
+  </div>)}</div>;
 }
 
 /** 지원 목록 — xl 이상은 사이드바(시안 6), 그보다 좁으면 화면 안 왼쪽 · 위 */
@@ -159,12 +178,12 @@ function ApplicationList({ applications, activeId, onPick, sidebar = false }: {
 }
 
 /** 문항 탭 — 넣은 순서대로. 좁은 화면에선 가로로 넘긴다 */
-function QuestionTabs({ details, selectedId, adding, canAdd, onPick, onAdd }: {
-  details: QuestionDetail[]; selectedId: number | null; adding: boolean; canAdd: boolean; onPick: (id: number) => void; onAdd: () => void;
+function QuestionTabs({ questions, selectedId, adding, canAdd, onPick, onAdd }: {
+  questions: QuestionSummary[]; selectedId: number | null; adding: boolean; canAdd: boolean; onPick: (id: number) => void; onAdd: () => void;
 }) {
   return <div className="-mx-4.5 overflow-x-auto border-b border-hairline px-4.5 lg:mx-0 lg:px-0">
     <div role="tablist" aria-label="문항" className="flex w-max items-end gap-1">
-      {details.map((q, i) => {
+      {questions.map((q, i) => {
         const active = q.id === selectedId;
         return <button key={q.id} type="button" role="tab" aria-selected={active} aria-controls="question-panel" title={q.text}
           className={cn("inline-flex min-h-11 items-center gap-1.5 border-b-2 px-3 text-[15px] whitespace-nowrap", active ? "border-ink font-bold" : "border-transparent text-muted hover:text-ink")}
@@ -202,19 +221,28 @@ function OverlapPanel({ overlaps, onPick }: { overlaps: Overlap[]; onPick: (ques
   </section>;
 }
 
-function SelectedQuestion({ question, index, overlaps, onRetry }: {
-  question: QuestionDetail | null; index: number; overlaps: Overlap[]; onRetry: (id: number) => Promise<unknown>;
+/** 고른 문항 — 받아 둔 내용이 있으면 바로, 처음 보는 문항이면 받는 동안 자리만(FE#60). 문항 글 · 상태는 지원 목록에 이미 있다 */
+function SelectedQuestion({ summary, question, index, loadError, onReload, overlaps, onRetry }: {
+  summary: QuestionSummary | null; question: QuestionDetail | null; index: number; loadError: string | null; onReload: (id: number) => void;
+  overlaps: Overlap[]; onRetry: (id: number) => Promise<unknown>;
 }) {
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
   const retryPending = useRef(false);
-  if (!question) return null;
+  if (!summary) return null;
+  const status = question?.status ?? summary.status;
   return <section id="question-panel" role="tabpanel" aria-label="선택한 문항" className="min-w-0">
     <header className="mb-6 border-b border-hairline pb-5">
-      <p className="mt-0 mb-2 text-[13px] font-medium text-muted">문항 {index + 1} · {STATUS[question.status]}</p>
-      <h3 className="m-0 max-h-52 overflow-y-auto whitespace-pre-wrap text-[20px] leading-relaxed font-[650] tracking-[-0.3px]">{question.text}</h3>
+      <p className="mt-0 mb-2 text-[13px] font-medium text-muted">문항 {index + 1} · {STATUS[status]}</p>
+      <h3 className="m-0 max-h-52 overflow-y-auto whitespace-pre-wrap text-[20px] leading-relaxed font-[650] tracking-[-0.3px]">{summary.text}</h3>
     </header>
-    {question.status === "ANALYZING" ? <div role="status" aria-live="polite"><CenterState icon={<MagnifyingGlassIcon />} title="문항에 맞는 경험을 찾고 있어요" body="보통 30초 안에 끝나요. 새로고침하거나 다른 화면에 다녀와도 이어져요." /></div>
+    {!question ? loadError ? <div role="alert" className="grid justify-items-start gap-3 py-8">
+      <p className="m-0 text-error">{loadError}</p><Button variant="secondary" onClick={() => onReload(summary.id)}>다시 불러오기</Button>
+    </div> : <div role="status" aria-label="문항을 불러오고 있어요"><AnswerSkeleton /></div>
+    : question.status === "ANALYZING" ? <div role="status" aria-live="polite" className="grid gap-2">
+      <CenterState icon={<MagnifyingGlassIcon />} title="문항에 맞는 경험을 찾고 있어요" body="보통 30초 안에 끝나요. 새로고침하거나 다른 화면에 다녀와도 이어져요." />
+      <AnswerSkeleton />
+    </div>
       : question.status === "FAILED" ? <CenterState icon={<WarningCircleIcon className="text-error" />} title="문항을 분석하지 못했어요" body={failureText(question.error)}>
         <Button disabled={retrying} onClick={async () => {
           if (retryPending.current) return;

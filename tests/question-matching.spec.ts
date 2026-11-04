@@ -411,3 +411,54 @@ test("add source from the application screen opens the dialog on the timeline on
     await expect(dialog).toHaveCount(0);
   }
 });
+
+// FE#60 — 탭 · 지원 고르기는 받아 둔 문항으로 바로. 지원 목록은 처음 · 넣을 때만, 처음 보는 문항만 그것만 받는다
+const gets = (api: FakeQuestionApi) => api.calls.filter(c => c.call.startsWith("GET /api/applications") || c.call.startsWith("GET /api/questions")).map(c => c.call);
+test("switching tabs and applications uses questions already loaded; only unseen ones are fetched", async ({ page }) => {
+  const api = await fake(page);
+  await page.goto("/questions?question=42");
+  await expect(recommendation(page, 1)).toContainText("매주 금요일");
+  // 주소의 문항은 지원 목록과 함께 받는다(개발 모드는 첫 효과를 두 번 돌려 종류만 본다)
+  expect([...new Set(gets(api))].sort()).toEqual(["GET /api/applications", "GET /api/questions/42"]);
+
+  api.calls = [];
+  await list(page).getByRole("button", { name: /OO 백엔드 부트캠프/ }).click();
+  await expect(recommendation(page, 1)).toContainText("WebSocket");
+  expect(gets(api)).toEqual(["GET /api/questions/41"]);
+
+  api.calls = [];
+  await firstApplication(page).click();
+  await expect(recommendation(page, 1)).toContainText("매주 금요일");
+  await firstApplication(page).click();
+  const tab = page.getByRole("tablist", { name: "문항" }).getByRole("tab").first();
+  await tab.click();
+  await tab.click();
+  await expect(page).toHaveURL(/question=42/);
+  expect(gets(api)).toEqual([]);
+});
+
+test("while one question is analyzing only that question is polled and the chosen tab stays", async ({ page }) => {
+  const api = await fake(page);
+  await page.goto("/questions");
+  await expect(recommendation(page, 1)).toContainText("매주 금요일");
+  api.calls = [];
+  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await page.getByRole("button", { name: "기술 문제 해결 예시", exact: true }).click();
+  await page.getByRole("button", { name: "팀 역할·협업 예시", exact: true }).click();
+  await page.getByRole("button", { name: "문항 2개 넣고 경험 찾기", exact: true }).click();
+  const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab");
+  await expect(result(page).getByRole("status")).toContainText("찾고 있어요");
+  await tabs.nth(1).click();
+  await expect(tabs.nth(1)).toHaveAttribute("aria-selected", "true");
+  await expect(recommendation(page, 1)).toBeVisible({ timeout: 10000 });
+  // 분석이 끝나도 고른 탭(문항 2) 그대로, 폴링은 분석 중인 문항만 읽었다
+  await expect(tabs.nth(1)).toHaveAttribute("aria-selected", "true");
+  await expect(page).toHaveURL(/question=44/);
+  // 넣은 뒤 지원 목록 한 번 · 새 문항 둘, 그다음은 분석 중인 문항(43 · 44)만 — 끝난 문항(41 · 42)은 읽지 않는다
+  expect(gets(api).filter(c => c === "GET /api/applications")).toHaveLength(1);
+  expect(gets(api).filter(c => !/^GET \/api\/(applications|questions\/4[34])$/.test(c))).toEqual([]);
+  api.calls = [];
+  await tabs.first().click();
+  await expect(recommendation(page, 1)).toBeVisible();
+  expect(gets(api)).toEqual([]);
+});

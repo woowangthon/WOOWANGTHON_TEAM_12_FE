@@ -2,12 +2,23 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { addApplicationQuestion, answerClarification, fetchApplications, fetchQuestion, retryQuestion, submitApplication } from "@/lib/api/questions";
-import type { Application, CreateApplicationRequest, QuestionDetail } from "@/lib/api/question-types";
+import type { Application, CreateApplicationRequest, QuestionDetail, QuestionSummary } from "@/lib/api/question-types";
 
-/** 고른 지원 하나 — 문항마다 추천 결과(넣은 순서). 같은 경험이 여러 문항에 추천됐는지는 details 로 계산한다(S-21) */
-export type OpenApplication = { application: Application; details: QuestionDetail[] };
-type State = { loading: boolean; applications: Application[]; open: OpenApplication | null; questionId: number | null; error: string | null };
+/** 고른 지원 하나 — 문항마다 추천 결과(넣은 순서, `application.questions` 와 같은 자리). 아직 못 받은 문항은 null(FE#60).
+ *  같은 경험이 여러 문항에 추천됐는지는 details 로 계산한다(S-21) */
+export type OpenApplication = { application: Application; details: (QuestionDetail | null)[] };
+type State = {
+  loading: boolean;
+  applications: Application[];
+  /** 받아 둔 문항 — 문항 ID 로. 탭을 바꿔도 다시 받지 않는다(끝난 추천은 계약상 추천했을 때 그대로) */
+  details: Record<number, QuestionDetail>;
+  /** 문항 하나를 못 받았을 때의 오류 — 그 문항 자리에 보이고, 지우면 다시 받는다 */
+  detailErrors: Record<number, string>;
+  questionId: number | null;
+  error: string | null;
+};
 const POLL_MS = 2000;
+const message = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
 
 /** 고른 문항은 주소 `?question=` 에 둔다 — 새로고침 · 타임라인에서 돌아오기 뒤에도 같은 문항 */
 function questionInUrl(): number | null {
@@ -21,42 +32,112 @@ function keepInUrl(id: number) {
   window.history.replaceState(window.history.state, "", url);
 }
 
-/** 지원 목록 + 고른 지원의 문항들. 문항 하나가 추천 작업 하나라 분석 중인 문항이 있으면 2초마다 다시 읽는다 */
+const summaryOf = ({ id, applicationId, organization, text, status, createdAt }: QuestionDetail): QuestionSummary =>
+  ({ id, applicationId, organization, text, status, createdAt });
+/** 새로 받은 문항의 상태를 지원 목록에도 — 목록을 다시 받지 않고 「분석 중 N」 · 점 색을 맞춘다. 더한 문항은 끝에 붙인다 */
+function patch(applications: Application[], fresh: QuestionDetail[]): Application[] {
+  if (!fresh.length) return applications;
+  return applications.map(a => {
+    const mine = fresh.filter(d => d.applicationId === a.id);
+    if (!mine.length) return a;
+    const questions = a.questions.map(q => { const d = mine.find(x => x.id === q.id); return d ? summaryOf(d) : q; });
+    for (const d of mine) if (!questions.some(q => q.id === d.id)) questions.push(summaryOf(d));
+    return { ...a, questions };
+  });
+}
+const ownerOf = (applications: Application[], questionId: number | null) =>
+  applications.find(a => a.questions.some(q => q.id === questionId)) ?? null;
+
+/** 지원 목록 + 받아 둔 문항들(FE#60).
+ *  - 지원 목록(`GET /api/applications`)은 처음 들어올 때 · 지원을 넣었을 때만 받는다
+ *  - 탭 · 지원 고르기는 받아 둔 문항으로 바로 바꾼다. 처음 보는 문항만 그것만 받는다
+ *  - 분석 중인 문항은 2초마다 그 문항만 다시 읽는다 — 고른 탭과 상관없이
+ *  - 되묻기 답 · 문항 더하기 · 넣기 · 다시 시도 뒤에 다시 받는다. 그보다 먼저 출발한 폴링 응답은 번호표(generation)로 버린다 */
 export function useApplications() {
-  const [state, setState] = useState<State>({ loading: true, applications: [], open: null, questionId: null, error: null });
-  const selectedId = useRef<number | null>(null);
+  const [state, setState] = useState<State>({ loading: true, applications: [], details: {}, detailErrors: {}, questionId: null, error: null });
   const generation = useRef(0);
   const pending = useRef(false);
+  const fetching = useRef(new Set<number>());
 
-  const refresh = useCallback(async (questionId?: number) => {
+  /** 받은 문항을 넣는다. 그새 넣기 · 답하기가 있었으면(번호표가 지났으면) 버린다.
+   *  keep 이 있으면 그 밖의 받아 둔 문항은 지운다 — 보완이 생겨 다른 지원의 추천 경험도 바뀌었을 수 있어 다음에 열 때 다시 받는다 */
+  const commit = useCallback((version: number, fresh: QuestionDetail[], next: { applications?: Application[]; questionId?: number; keep?: Set<number> } = {}) => {
+    if (version !== generation.current) return;
+    if (next.questionId !== undefined) keepInUrl(next.questionId);
+    setState(prev => {
+      const details: Record<number, QuestionDetail> = {};
+      for (const [id, d] of Object.entries(prev.details)) if (!next.keep || next.keep.has(+id)) details[+id] = d;
+      const detailErrors = { ...prev.detailErrors };
+      for (const d of fresh) { details[d.id] = d; delete detailErrors[d.id]; }
+      return { ...prev, details, detailErrors, applications: patch(next.applications ?? prev.applications, fresh), questionId: next.questionId ?? prev.questionId };
+    });
+  }, []);
+
+  /** 처음 들어올 때 · 「다시 불러오기」 — 지원 목록과 주소의 문항을 동시에 받는다. 같은 지원의 나머지 문항은 아래 효과가 이어 받는다 */
+  const load = useCallback(async () => {
     const version = ++generation.current;
     try {
-      const applications = await fetchApplications();
-      const wanted = questionId ?? selectedId.current ?? questionInUrl();
-      const application = applications.find(a => a.questions.some(q => q.id === wanted)) ?? applications[0] ?? null;
-      const nextId = application ? (application.questions.find(q => q.id === wanted) ?? application.questions[0]).id : null;
-      const details = application ? await Promise.all(application.questions.map(q => fetchQuestion(q.id))) : [];
+      const wanted = questionInUrl();
+      const [applications, first] = await Promise.all([fetchApplications(), wanted ? fetchQuestion(wanted).catch(() => null) : null]);
       if (version !== generation.current) return;
-      selectedId.current = nextId;
-      if (nextId !== null) keepInUrl(nextId);
-      setState({ loading: false, applications, open: application && { application, details }, questionId: nextId, error: null });
+      const application = ownerOf(applications, wanted) ?? applications[0] ?? null;
+      const questionId = application ? (application.questions.find(q => q.id === wanted) ?? application.questions[0]).id : null;
+      if (questionId !== null) keepInUrl(questionId);
+      const details = first && first.id === questionId ? { [first.id]: first } : {};
+      setState({ loading: false, applications: patch(applications, Object.values(details)), details, detailErrors: {}, questionId, error: null });
     } catch (e) {
-      if (version === generation.current) setState(prev => ({ ...prev, loading: false, error: e instanceof Error ? e.message : "지원을 불러오지 못했어요." }));
+      if (version === generation.current) setState(prev => ({ ...prev, loading: false, error: message(e, "지원을 불러오지 못했어요.") }));
     }
   }, []);
 
+  /** 화면을 떠나면 오가던 응답을 버린다 */
   const invalidate = useCallback(() => { ++generation.current; }, []);
   useEffect(() => {
-    void refresh();
+    void load();
     return invalidate;
-  }, [refresh, invalidate]);
+  }, [load, invalidate]);
 
-  const analyzing = state.applications.some(a => a.questions.some(q => q.status === "ANALYZING"));
+  /** 고른 지원에서 아직 못 받은 문항만 동시에 받는다. 받는 사이 넣기 · 답하기가 먼저 새것을 넣었으면 덮지 않는다 */
+  const fetchMissing = useCallback(async (ids: number[]) => {
+    const wanted = ids.filter(id => !fetching.current.has(id));
+    if (!wanted.length) return;
+    wanted.forEach(id => fetching.current.add(id));
+    const results = await Promise.allSettled(wanted.map(fetchQuestion));
+    wanted.forEach(id => fetching.current.delete(id));
+    setState(prev => {
+      const details = { ...prev.details };
+      const detailErrors = { ...prev.detailErrors };
+      const got: QuestionDetail[] = [];
+      results.forEach((r, i) => {
+        if (r.status === "rejected") detailErrors[wanted[i]] = message(r.reason, "문항을 불러오지 못했어요.");
+        else if (!details[r.value.id]) { details[r.value.id] = r.value; got.push(r.value); }
+      });
+      return { ...prev, details, detailErrors, applications: patch(prev.applications, got) };
+    });
+  }, []);
+
+  const open = ownerOf(state.applications, state.questionId);
+  const missing = open?.questions.filter(q => !state.details[q.id] && !state.detailErrors[q.id]).map(q => q.id).join(",") ?? "";
+  useEffect(() => {
+    if (missing) void fetchMissing(missing.split(",").map(Number));
+  }, [missing, fetchMissing]);
+
+  /** 분석 중인 문항만 2초마다 — 고른 탭은 바꾸지 않는다 */
+  const analyzing = state.applications.flatMap(a => a.questions).filter(q => q.status === "ANALYZING").map(q => q.id).join(",");
   useEffect(() => {
     if (!analyzing || state.error) return;
-    const timer = setInterval(() => { void refresh(); }, POLL_MS);
+    const ids = analyzing.split(",").map(Number);
+    let busy = false;
+    const timer = setInterval(async () => {
+      if (busy) return;
+      busy = true;
+      const version = generation.current;
+      try { commit(version, await Promise.all(ids.map(fetchQuestion))); }
+      catch (e) { if (version === generation.current) setState(prev => ({ ...prev, error: message(e, "문항 상태를 불러오지 못했어요.") })); }
+      finally { busy = false; }
+    }, POLL_MS);
     return () => clearInterval(timer);
-  }, [analyzing, state.error, refresh]);
+  }, [analyzing, state.error, commit]);
 
   /** 넣기 · 더하기 · 다시 시도는 하나씩만 */
   const once = async <T,>(run: () => Promise<T>) => {
@@ -65,32 +146,57 @@ export function useApplications() {
     try { return await run(); } finally { pending.current = false; }
   };
 
-  const selectQuestion = (id: number) => { selectedId.current = id; return refresh(id); };
+  /** 저장한 뒤 다시 받기 — 번호표를 새로 뽑아 그보다 먼저 출발한 폴링 응답을 버린다.
+   *  저장은 됐으니 다시 받기 실패는 입력 칸이 아니라 화면 오류(「다시 불러오기」)로 보인다 — 같은 것을 또 넣지 않게 */
+  const reloadAfter = async (run: (version: number) => Promise<void>) => {
+    const version = ++generation.current;
+    try { await run(version); }
+    catch (e) { if (version === generation.current) setState(prev => ({ ...prev, error: message(e, "지원을 불러오지 못했어요.") })); }
+  };
+
+  /** 탭 고르기 — 요청 없이 바로. 같은 탭이면 아무 일도 없다 */
+  const selectQuestion = (id: number) => {
+    if (id === state.questionId) return;
+    keepInUrl(id);
+    setState(prev => ({ ...prev, questionId: id }));
+  };
   return {
-    ...state,
-    refresh,
+    loading: state.loading,
+    error: state.error,
+    applications: state.applications,
+    questionId: state.questionId,
+    open: open && { application: open, details: open.questions.map(q => state.details[q.id] ?? null) },
+    /** 고른 문항을 못 받았을 때의 오류 */
+    detailError: state.questionId !== null ? state.detailErrors[state.questionId] ?? null : null,
+    /** 처음부터 다시 — 지원 목록부터 */
+    refresh: () => { setState(prev => ({ ...prev, loading: true, error: null })); return load(); },
+    /** 못 받은 문항 하나 다시 받기 — 오류를 지우면 위 효과가 다시 받는다 */
+    reloadQuestion: (id: number) => setState(prev => { const detailErrors = { ...prev.detailErrors }; delete detailErrors[id]; return { ...prev, detailErrors }; }),
     selectQuestion,
     selectApplication: (application: Application) => selectQuestion(application.questions[0].id),
     submit: (req: CreateApplicationRequest) => once(async () => {
       const { questionIds } = await submitApplication(req);
-      selectedId.current = questionIds[0];
-      await refresh(questionIds[0]);
+      await reloadAfter(async version => {
+        const [applications, fresh] = await Promise.all([fetchApplications(), Promise.all(questionIds.map(fetchQuestion))]);
+        commit(version, fresh, { applications, questionId: questionIds[0] });
+      });
       return true;
     }),
     addQuestion: (applicationId: number, text: string) => once(async () => {
       const { questionId } = await addApplicationQuestion(applicationId, { text });
-      selectedId.current = questionId;
-      await refresh(questionId);
+      await reloadAfter(async version => commit(version, [await fetchQuestion(questionId)], { questionId }));
       return true;
     }),
-    /** 되묻기에 답하기 — 저장한 뒤 그 문항을 다시 읽어 보완을 보인다. 실패는 부르는 쪽(입력 칸)에 그대로 던진다 */
+    /** 되묻기에 답하기 — 저장한 뒤 이 지원의 문항을 다시 읽어 보완을 보인다(같은 경험이 다른 문항에도 추천됐을 수 있다).
+     *  저장 실패는 부르는 쪽(입력 칸)에 그대로 던진다 */
     answer: async (questionId: number, clarificationId: number, answer: string) => {
       await answerClarification(clarificationId, { answer });
-      await refresh(questionId);
+      const ids = (ownerOf(state.applications, questionId)?.questions ?? [{ id: questionId }]).map(q => q.id);
+      await reloadAfter(async version => commit(version, await Promise.all(ids.map(fetchQuestion)), { keep: new Set(ids) }));
     },
     retry: (questionId: number) => once(async () => {
-      await retryQuestion(questionId);
-      await refresh(questionId);
+      const detail = await retryQuestion(questionId);
+      commit(++generation.current, [detail]);
       return true;
     }),
   };
