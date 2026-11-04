@@ -34,3 +34,9 @@ npm-debug.log*
 /.cache/
 /test-results/
 /playwright-report/
+
+# MCP tests generate captures; keep only the three review images.
+/artifacts/*.png
+!/artifacts/mcp-mcp-desktop-mock-created.png
+!/artifacts/mcp-mcp-mobile-mock-created.png
+!/artifacts/mcp-1024-connected.png

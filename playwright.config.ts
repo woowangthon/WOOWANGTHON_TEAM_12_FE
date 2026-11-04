@@ -14,6 +14,8 @@ export default defineConfig({
   },
   projects: [
     { name: "api", testMatch: ["api.spec.ts", "question-api.spec.ts", "auth-api.spec.ts"] },
+    { name: "mcp-desktop", testMatch: mock ? "mcp-mock.spec.ts" : "mcp.spec.ts", use: { viewport: { width: 1440, height: 1000 }, trace: "off" } },
+    { name: "mcp-mobile", testMatch: mock ? "mcp-mock.spec.ts" : "mcp.spec.ts", use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, trace: "off" } },
     { name: "desktop", testMatch: mock ? ["mock.spec.ts"] : ["editing.spec.ts", "analysis.spec.ts", "experience-management.spec.ts", "regroup.spec.ts", "period-drag.spec.ts", "question-matching.spec.ts", "auth.spec.ts"], use: { viewport: { width: 1440, height: 1000 } } },
     { name: "mobile", testMatch: mock ? ["mock.spec.ts"] : ["editing.spec.ts", "analysis.spec.ts", "experience-management.spec.ts", "regroup.spec.ts", "period-drag.spec.ts", "question-matching.spec.ts", "auth.spec.ts"], use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
   ],
