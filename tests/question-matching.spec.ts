@@ -217,6 +217,7 @@ test("application with several questions keeps order, analyzes each and shows th
 
 // FE#39 — 「자주 나오는 문항」에서 골라 넣기(S-26)
 test("common questions fill blank slots first, stay editable and stop at the submit limit", async ({ page }) => {
+  const api = await fake(page);
   await page.goto("/questions");
   await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
   await page.getByRole("button", { name: "문항 칸 더하기", exact: true }).click();
@@ -250,8 +251,10 @@ test("common questions fill blank slots first, stay editable and stop at the sub
   await expect(page.getByRole("button", { name: "자주 나오는 문항에서 고르기", exact: true })).toBeDisabled();
 
   await page.getByRole("button", { name: "문항 10개 넣고 경험 찾기", exact: true }).click();
-  const saved = (await stored(page)).questions.slice(-10);
-  expect(saved.map((q: { detail: { text: string } }) => q.detail.text).slice(0, 3)).toEqual([
+  await expect.poll(() => posts(api).length).toBe(1);
+  const saved = (posts(api)[0].body as { questions: { text: string }[] }).questions;
+  expect(saved).toHaveLength(10);
+  expect(saved.map(q => q.text).slice(0, 3)).toEqual([
     expect.stringMatching(/^실천의 관점에서/), "직접 쓴 문항", "다양한 IT 동아리 중에서 OO 를 고른 이유를 써 주세요.",
   ]);
 });
