@@ -56,7 +56,7 @@ test("종료 끝을 끌면 바뀔 기간이 보이고, 놓으면 저장돼 새�
   await page.mouse.up();
   await expect(page.getByRole("status")).toContainText("「Swap app」 기간을 2025.03 – 2025.09(으)로 바꿨어요");
   expect(state.patches).toEqual([{ id: 7, body: { period: { start: "2025-03", end: "2025-09", ongoing: false } } }]);
-  await expect(page.getByRole("complementary")).toHaveCount(0); // 끈 건 세부 열기가 아니다
+  await expect(page.getByRole("complementary", { name: "활동 세부" })).toHaveCount(0); // 끈 건 세부 열기가 아니다
   await page.reload();
   await expect(page.getByRole("button", { name: /Swap app/ })).toContainText("2025.03 – 2025.09");
 });
