@@ -36,7 +36,7 @@ async function setup(page: Page, init: { signedIn?: boolean; meError?: number; m
       state.signedIn = false;
       return route.fulfill({ status: 204 });
     }
-    if ((!state.signedIn && state.meError !== 404) || state.expire) return route.fulfill(unauthenticated);
+    if (!state.signedIn || state.expire) return route.fulfill(unauthenticated);
     if (path === "/api/activities") return route.fulfill({ json: { activities: [ACTIVITY] } });
     if (path === "/api/sources") {
       if (state.sourceLimit) return route.fulfill({ status: 429, json: { error: { code: "DAILY_LIMIT_EXCEEDED", message: "limit" } } });
@@ -166,11 +166,17 @@ test("auth check failure is an error with retry — not a login screen and not m
   await timelineReady(page);
 });
 
-test("server without login (old BE, /api/auth/me 404) keeps working without the account menu — transition until BE#33", async ({ page }) => {
-  await setup(page, { meError: 404 });
-  await timelineReady(page);
+// FE#91 — 「404 전환 기간」(옛 BE 면 로그인 없이 통과)은 BE#33 뒤 지웠다. 404 도 로그인 없이 통과시키지 않는다
+test("auth check 404 does not pass without login — it is an error with retry", async ({ page }) => {
+  const state = await setup(page, { signedIn: true, meError: 404 });
+  await expect(page.getByRole("heading", { name: "로그인 상태를 확인하지 못했어요" })).toBeVisible();
+  await expect(page.getByText("Auth check failed")).toBeVisible();
   await expect(page.getByRole("heading", { name: "로그인", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /계정 메뉴/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "자료 넣기", exact: true })).toHaveCount(0);
+  state.meError = 0;
+  await page.getByRole("button", { name: "다시 시도" }).click();
+  await timelineReady(page);
+  await expect(page.getByRole("button", { name: /계정 메뉴/ }).first()).toBeAttached();
 });
 
 test("connection failure (Cloudflare Access not signed in) links to the API address before retrying", async ({ page }) => {
