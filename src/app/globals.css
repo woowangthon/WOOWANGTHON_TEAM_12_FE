@@ -131,6 +131,15 @@
   }
 }
 
+/* FE#53: 사이드바가 겹쳐 열려도 작업 면은 레일 폭만 비워 둔다. */
+.app-shell { --sidebar-width: 4.5rem; }
+@media (min-width: 64rem) {
+  .app-shell { padding-left: var(--sidebar-width); }
+}
+@media (min-width: 80rem) {
+  .app-shell[data-sidebar-collapsed="false"] { --sidebar-width: 15.5rem; }
+}
+
 /* 분석 중 막대 — 정해진 진행률이 아니라 「돌고 있다」는 표시 */
 @keyframes analysis-slide {
   from {

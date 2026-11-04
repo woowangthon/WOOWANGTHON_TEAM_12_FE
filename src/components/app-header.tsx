@@ -1,104 +1,135 @@
+"use client";
+
+import { useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { FileTextIcon, PlusIcon, StackIcon, PlugsConnectedIcon } from "@phosphor-icons/react/ssr";
+import { FileTextIcon, PlusIcon, StackIcon, PlugsConnectedIcon, SidebarSimpleIcon } from "@phosphor-icons/react";
+import { Tooltip } from "radix-ui";
 import { AccountMenu } from "@/components/auth/account-menu";
+import { useSidebar } from "@/components/sidebar-layout";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type Page = "timeline" | "questions" | "connections";
-
-// 시안 6(FE#43, 임시) — 1280 이상은 왼쪽 사이드바(고정, 폭 248px = w-62), 그보다 좁으면 위 막대.
-// 1024 ~ 1279(PC 를 125 ~ 150% 로 확대한 폭)에 사이드바까지 두면 세부 패널(440)을 연 타임라인이 300px 대로 눌려
-// 글자가 세로로 깨진다(FE#45). 사이드바 자리는 layout.tsx 의 작업 면이 비워 둔다(xl:pl-62).
-export function AppHeader({ hideOnMobile, addSource, activePage = "timeline", sidebarExtra }: {
+type HeaderProps = {
   /** 1024 미만에서 세부를 전체 화면으로 열면 위 막대를 숨긴다 */
   hideOnMobile?: boolean; addSource?: AddSourceProps; activePage?: Page;
-  /** 사이드바(1280 이상) 메뉴 아래 — 지원 화면의 지원 목록(시안 6 사이드바의 지원서 목록) */
+  /** 펼친 사이드바 메뉴 아래 — 지원 화면의 지원 목록 */
   sidebarExtra?: React.ReactNode;
-}) {
-  const links: { page: Page; href: string; label: string; icon: React.ReactNode }[] = [
-    { page: "timeline", href: "/", label: "내 경험", icon: <StackIcon /> },
-    { page: "questions", href: "/questions", label: "지원", icon: <FileTextIcon /> },
-    { page: "connections", href: "/connections", label: "연결", icon: <PlugsConnectedIcon /> },
-  ];
-  return (
-    <>
-      <header
-        className={cn("flex h-14 items-center gap-4 border-b border-hairline bg-canvas px-4.5 lg:px-7 xl:hidden", hideOnMobile && "max-lg:hidden")}
-      >
-        <Logo className="h-5 w-auto" />
-        <nav className="flex shrink-0 items-center gap-4 text-sm font-semibold" aria-label="주 메뉴">
-          {links.map((l) => (
-            <Link key={l.page} href={l.href} aria-current={activePage === l.page ? "page" : undefined}
-              className={cn("inline-flex h-14 items-center border-b-2", activePage === l.page ? "border-ink" : "border-transparent text-muted")}>
-              {l.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="ml-auto flex items-center gap-2">
-          {addSource && <AddSourceButton {...addSource} className="hidden lg:inline-flex" />}
-          <AccountMenu />
-        </div>
-      </header>
+};
+const links = [
+  { page: "timeline", href: "/", label: "내 경험", icon: <StackIcon /> },
+  { page: "questions", href: "/questions", label: "지원", icon: <FileTextIcon /> },
+  { page: "connections", href: "/connections", label: "연결", icon: <PlugsConnectedIcon /> },
+];
 
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-62 flex-col gap-5.5 overflow-clip px-3.5 pt-6.5 pb-4.5 xl:flex" aria-label="사이드바">
-        {/* 시안의 배경 번짐(파랑 · 분홍 · 초록). 이 그림이 사이드바보다 길어서 overflow-hidden 이면 안쪽이 스크롤될 수 있다 —
-            맨 아래 계정 메뉴를 열 때 초점이 옮겨 가며 사이드바가 밀려 올라가서, 스크롤 자체가 안 되는 overflow-clip 으로 둔다(FE#37) */}
-        <Image src="/brand/bg-blur.svg" alt="" aria-hidden="true" className="pointer-events-none absolute -top-75 -left-90 max-w-none" width={1500} height={1630} priority />
-        <Link href="/" className="relative flex h-9 items-center pl-2" aria-label="차곡 — 내 경험">
-          <Logo className="h-6.5 w-auto" />
-        </Link>
-        <nav className="relative flex flex-col gap-0.5" aria-label="주 메뉴">
-          {addSource && (
-            <button type="button" onClick={addSource.onClick} disabled={addSource.busy}
-              title={addSource.busy ? "지금 넣은 자료의 분석이 끝나면 더 넣을 수 있어요" : undefined}
-              className={cn(navItem, "hover:bg-canvas/60 disabled:cursor-default disabled:opacity-50")}>
-              <PlusIcon className="size-4.5" />자료 넣기
-            </button>
-          )}
-          {links.map((l) => {
-            const active = activePage === l.page;
-            return (
-              <Link key={l.page} href={l.href} aria-current={active ? "page" : undefined}
-                className={cn(navItem, active ? "rounded-full bg-canvas font-bold" : "hover:bg-canvas/60")}>
-                <span className="text-[19px]">{l.icon}</span>{l.label}
-              </Link>
-            );
-          })}
-        </nav>
-        {sidebarExtra && <div className="relative flex min-h-0 flex-1 flex-col">{sidebarExtra}</div>}
-        {/* 계정 — 로그인했을 때만(목 모드엔 없음) (FE#37) */}
-        <div className="relative mt-auto">
-          <AccountMenu variant="sidebar" />
-        </div>
-      </aside>
-    </>
-  );
+export function AppHeader({ hideOnMobile, ...props }: HeaderProps) {
+  const { wide, desktop } = useSidebar();
+  return <Tooltip.Provider delayDuration={200}>
+    <header className={cn("flex h-14 items-center gap-4 border-b border-hairline bg-canvas px-4.5 lg:hidden", hideOnMobile && "max-lg:hidden")}>
+      <Logo className="h-5 w-auto" />
+      <nav className="flex shrink-0 items-center gap-4 text-sm font-semibold" aria-label="주 메뉴">
+        {links.map(l => <Link key={l.page} href={l.href} aria-current={(props.activePage ?? "timeline") === l.page ? "page" : undefined}
+          className={cn("inline-flex h-14 items-center border-b-2", (props.activePage ?? "timeline") === l.page ? "border-ink" : "border-transparent text-muted")}>
+          {l.label}
+        </Link>)}
+      </nav>
+      <div className="ml-auto flex items-center gap-2"><AccountMenu /></div>
+    </header>
+    <DesktopSidebar key={wide ? "wide" : desktop ? "rail" : "mobile"} {...props} />
+  </Tooltip.Provider>;
 }
 
-const navItem = "flex h-10 items-center gap-2.5 rounded-sm px-3.5 text-sm font-medium text-ink transition-colors";
+function DesktopSidebar(props: HeaderProps) {
+  const { collapsed, wide, desktop, toggle } = useSidebar();
+  const [overlayOpen, setOverlayOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const toggleLabel = collapsed ? "사이드바 펼치기" : "사이드바 접기";
+  return <>
+    <aside className={cn("fixed inset-y-0 left-0 z-30 hidden flex-col gap-5.5 overflow-clip pt-6.5 pb-4.5 lg:flex", collapsed ? "w-18 items-center px-3.5" : "w-62 px-3.5")} aria-label="사이드바">
+      <SidebarBackground />
+      <div className={cn("relative flex items-center", collapsed ? "flex-col gap-2" : "h-9 justify-between pl-2")}>
+        <Brand collapsed={collapsed} />
+        <RailTip label={toggleLabel} enabled={collapsed}>
+          <button ref={trigger} type="button" aria-label={toggleLabel} aria-expanded={wide ? !collapsed : overlayOpen} aria-controls={wide ? "sidebar-navigation" : "sidebar-overlay"}
+            onClick={() => wide ? toggle() : setOverlayOpen(true)} className="flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-canvas/60">
+            <SidebarSimpleIcon className="size-5" aria-hidden="true" />
+          </button>
+        </RailTip>
+      </div>
+      <SidebarNavigation {...props} collapsed={collapsed} id="sidebar-navigation" />
+      {!collapsed && props.sidebarExtra && <div className="relative flex min-h-0 flex-1 flex-col">{props.sidebarExtra}</div>}
+      <div className="relative mt-auto"><AccountMenu variant={collapsed ? "rail" : "sidebar"} /></div>
+    </aside>
+    <Sheet open={overlayOpen && desktop && !wide} onOpenChange={setOverlayOpen}>
+      <SheetContent side="left" id="sidebar-overlay" aria-describedby={undefined} showCloseButton={false}
+        onCloseAutoFocus={event => { event.preventDefault(); trigger.current?.focus(); }}
+        className="w-62! gap-5.5 overflow-clip bg-page px-3.5 pt-6.5 pb-4.5">
+        <SheetTitle className="sr-only">사이드바</SheetTitle>
+        <SidebarBackground />
+        <div className="relative flex h-9 items-center justify-between pl-2">
+          <Brand onNavigate={() => setOverlayOpen(false)} />
+          <button type="button" aria-label="사이드바 접기" onClick={() => setOverlayOpen(false)} className="flex size-11 items-center justify-center rounded-full hover:bg-canvas/60">
+            <SidebarSimpleIcon className="size-5" aria-hidden="true" />
+          </button>
+        </div>
+        <SidebarNavigation {...props} onNavigate={() => setOverlayOpen(false)} />
+        {props.sidebarExtra && <div className="relative flex min-h-0 flex-1 flex-col" onClick={event => { if ((event.target as HTMLElement).closest("button")) setOverlayOpen(false); }}>{props.sidebarExtra}</div>}
+        <div className="relative mt-auto"><AccountMenu variant="sidebar" /></div>
+      </SheetContent>
+    </Sheet>
+  </>;
+}
+
+function SidebarNavigation({ collapsed = false, activePage = "timeline", addSource, onNavigate, id }: HeaderProps & { collapsed?: boolean; onNavigate?: () => void; id?: string }) {
+  const navItem = cn("flex h-11 shrink-0 items-center rounded-full text-sm font-medium text-ink transition-colors", collapsed ? "w-11 justify-center" : "gap-2.5 px-3.5");
+  return <nav id={id} className={cn("relative flex shrink-0 flex-col", collapsed ? "gap-1.5" : "gap-0.5")} aria-label="주 메뉴">
+    {addSource && <RailTip label="자료 넣기" enabled={collapsed}>
+      <button type="button" aria-label="자료 넣기" onClick={() => { onNavigate?.(); addSource.onClick(); }} disabled={addSource.busy}
+        title={addSource.busy ? "지금 넣은 자료의 분석이 끝나면 더 넣을 수 있어요" : undefined}
+        className={cn(navItem, "hover:bg-canvas/60 disabled:cursor-default disabled:opacity-50")}>
+        <PlusIcon className="size-4.5 shrink-0" aria-hidden="true" />{!collapsed && "자료 넣기"}
+      </button>
+    </RailTip>}
+    {links.map(l => <RailTip key={l.page} label={l.label} enabled={collapsed}>
+      <Link href={l.href} onClick={onNavigate} aria-label={l.label} aria-current={activePage === l.page ? "page" : undefined}
+        className={cn(navItem, activePage === l.page ? "bg-canvas font-bold" : "hover:bg-canvas/60")}>
+        <span className="text-[19px]" aria-hidden="true">{l.icon}</span>{!collapsed && l.label}
+      </Link>
+    </RailTip>)}
+  </nav>;
+}
+
+function RailTip({ label, enabled, children }: { label: string; enabled: boolean; children: React.ReactElement }) {
+  return <Tooltip.Root>
+    <Tooltip.Trigger asChild>{children}</Tooltip.Trigger>
+    {enabled && <Tooltip.Portal><Tooltip.Content side="right" sideOffset={12} className="z-80 rounded-sm bg-ink px-3 py-2 text-xs text-on-primary shadow-float">
+      {label}<Tooltip.Arrow className="fill-ink" />
+    </Tooltip.Content></Tooltip.Portal>}
+  </Tooltip.Root>;
+}
+
+function Brand({ collapsed, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {
+  return <Link href="/" onClick={onNavigate} className={cn("relative flex h-11 items-center", collapsed && "w-11 justify-center")} aria-label="차곡 — 내 경험">
+    {collapsed ? <span className="block w-7 overflow-hidden"><Logo className="h-6.5 max-w-none" /></span> : <Logo className="h-6.5 w-auto" />}
+  </Link>;
+}
+
+function SidebarBackground() {
+  // 번짐 그림은 overflow-clip 안에 둔다. 계정 메뉴 초점 때문에 사이드바가 밀리지 않도록(FE#37).
+  return <Image src="/brand/bg-blur.svg" alt="" aria-hidden="true" className="pointer-events-none absolute -top-75 -left-90 max-w-none" width={1500} height={1630} priority />;
+}
 
 /** 「차곡」 글자 로고 — 가칭(DESIGN.md), 디자인 담당 시안의 파일 그대로 */
 export function Logo({ className }: { className?: string }) {
   return <Image src="/brand/logo.svg" alt="차곡" width={93} height={26} className={className} style={{ width: "auto" }} priority />;
 }
 
-export type AddSourceProps = {
-  onClick: () => void;
-  /** 분석이 돌고 있으면 끝날 때까지 하나만 */
-  busy?: boolean;
-};
+export type AddSourceProps = { onClick: () => void; busy?: boolean };
 
 export function AddSourceButton({ onClick, busy, className }: AddSourceProps & { className?: string }) {
-  return (
-    <Button
-      onClick={onClick}
-      disabled={busy}
-      title={busy ? "지금 넣은 자료의 분석이 끝나면 더 넣을 수 있어요" : undefined}
-      className={className}
-    >
-      <PlusIcon />
-      자료 넣기
-    </Button>
-  );
+  return <Button onClick={onClick} disabled={busy} title={busy ? "지금 넣은 자료의 분석이 끝나면 더 넣을 수 있어요" : undefined} className={className}>
+    <PlusIcon />자료 넣기
+  </Button>;
 }

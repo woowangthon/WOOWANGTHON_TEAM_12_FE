@@ -84,7 +84,7 @@ export function Timeline({ activities, spans, years, selectedId, onSelect, dragg
                       previewSub(item.id) ?? (
                         <>
                           <PeriodLabel period={item.period} />
-                          <span className="ml-2.5">{experienceCountText(item.experienceCount)}</span>
+                          <span className="ml-2.5 inline-block whitespace-nowrap">{experienceCountText(item.experienceCount)}</span>
                         </>
                       )
                     }

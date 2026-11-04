@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowsClockwiseIcon, MagnifyingGlassIcon, PlusIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { AppHeader } from "@/components/app-header";
+import { useSidebar } from "@/components/sidebar-layout";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { CenterState } from "@/components/center-state";
 import { Button } from "@/components/ui/button";
@@ -34,17 +35,6 @@ function progressText(application: Application) {
   return [`문항 ${application.questions.length}`, n("ANALYZING") && `분석 중 ${n("ANALYZING")}`, n("FAILED") && `실패 ${n("FAILED")}`].filter(Boolean).join(" · ");
 }
 
-// Tailwind xl(--breakpoint-xl)과 같은 단위. 브라우저 기본 글꼴 20px에서는 1600px이다(#61).
-const WIDE = "(min-width: 80rem)";
-/** xl 이상 — 사이드바가 있고 차곡이 패널이 옆에 붙는다. 그보다 좁으면 패널은 버튼으로 여는 시트 */
-function useWide() {
-  return useSyncExternalStore(change => {
-    const query = matchMedia(WIDE);
-    query.addEventListener("change", change);
-    return () => query.removeEventListener("change", change);
-  }, () => matchMedia(WIDE).matches, () => false);
-}
-
 /** 지원 화면(S-18 · S-21) — 지원 목록(xl 이상은 사이드바), 고른 지원: 여러 문항에 추천된 활동 → 문항 탭 → 참고 경험(#30),
  *  오른쪽 차곡이 패널: 요구사항 · 보완 재사용 · 되묻기(FE#51). 배치는 ETC 시안 6 apply.html. 답변 초안 · 근거 점검 · 패널 버튼은 범위 밖(P1 · ETC#78) */
 export function ApplicationScreen() {
@@ -57,7 +47,7 @@ export function ApplicationScreen() {
   const scrollToDetail = () => requestAnimationFrame(() => document.getElementById("selected-application")?.scrollIntoView({ block: "start" }));
   const empty = !matching.loading && !matching.error && matching.applications.length === 0;
   const ready = !empty && !matching.loading && !matching.error;
-  const wide = useWide();
+  const { wide, collapsed } = useSidebar();
   const [panelChoice, setPanelChoice] = useState<boolean | null>(null);
   const panelOpen = panelChoice ?? wide;
   const selectedIndex = open?.application.questions.findIndex(q => q.id === matching.questionId) ?? -1;
@@ -99,7 +89,7 @@ export function ApplicationScreen() {
       </div> : empty ? <section id="selected-application" className="max-w-2xl" aria-label="새 지원 입력">
         <ApplicationForm onSubmit={req => matching.submit(req)} />
       </section> : <div className="grid items-start gap-7 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-10 xl:grid-cols-1">
-        {!wide && <aside id="application-list" className="min-w-0 scroll-mt-4 lg:sticky lg:top-6" aria-label="지원 목록">
+        {collapsed && <aside id="application-list" className="min-w-0 scroll-mt-4 lg:sticky lg:top-6 xl:static" aria-label="지원 목록">
           <ApplicationList applications={matching.applications} activeId={activeId} onPick={pick} />
         </aside>}
         <section id="selected-application" className="min-w-0 scroll-mt-5" aria-label={composing ? "새 지원 입력" : "선택한 지원"}>
@@ -161,7 +151,7 @@ function AnswerSkeleton() {
   </div>)}</div>;
 }
 
-/** 지원 목록 — xl 이상은 사이드바(시안 6), 그보다 좁으면 화면 안 왼쪽 · 위 */
+/** 지원 목록 — 펼친 사이드바 안, 접었거나 좁으면 화면 안 왼쪽 · 위 */
 function ApplicationList({ applications, activeId, onPick, sidebar = false }: {
   applications: Application[]; activeId: number | null; onPick: (application: Application) => void; sidebar?: boolean;
 }) {
@@ -170,7 +160,7 @@ function ApplicationList({ applications, activeId, onPick, sidebar = false }: {
       <h2 className={cn("m-0 font-semibold", sidebar ? "text-xs text-muted" : "text-[17px]")}>{sidebar ? "지원서" : "넣었던 지원"}</h2>
       <span className="text-[13px] text-muted tabular-nums">{applications.length}곳</span>
     </div>
-    <ul className={cn("m-0 grid list-none content-start gap-1 overflow-y-auto p-0", sidebar ? "min-h-0" : "max-h-72 lg:max-h-[calc(100dvh-240px)]")}>{applications.map(a => {
+    <ul className={cn("m-0 grid list-none content-start gap-1 overflow-y-auto p-0", sidebar ? "min-h-0" : "max-h-72 lg:max-h-[calc(100dvh-240px)] xl:max-h-72")}>{applications.map(a => {
       const active = activeId === a.id;
       return <li key={a.id}>
         <button type="button" aria-pressed={active} onClick={() => onPick(a)}
