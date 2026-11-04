@@ -1,11 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
-import { FileTextIcon, PlusIcon, StackIcon } from "@phosphor-icons/react/ssr";
+import { FileTextIcon, PlusIcon, StackIcon, PlugsConnectedIcon } from "@phosphor-icons/react/ssr";
 import { AccountMenu } from "@/components/auth/account-menu";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-type Page = "timeline" | "questions";
+type Page = "timeline" | "questions" | "connections";
 
 // 시안 6(FE#43, 임시) — 1280 이상은 왼쪽 사이드바(고정, 폭 248px = w-62), 그보다 좁으면 위 막대.
 // 1024 ~ 1279(PC 를 125 ~ 150% 로 확대한 폭)에 사이드바까지 두면 세부 패널(440)을 연 타임라인이 300px 대로 눌려
@@ -19,6 +19,7 @@ export function AppHeader({ hideOnMobile, addSource, activePage = "timeline", si
   const links: { page: Page; href: string; label: string; icon: React.ReactNode }[] = [
     { page: "timeline", href: "/", label: "내 경험", icon: <StackIcon /> },
     { page: "questions", href: "/questions", label: "지원", icon: <FileTextIcon /> },
+    { page: "connections", href: "/connections", label: "연결", icon: <PlugsConnectedIcon /> },
   ];
   return (
     <>

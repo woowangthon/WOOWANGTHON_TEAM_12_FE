@@ -28,6 +28,8 @@ type ListState =
   | { status: "error"; message: string }
   | { status: "ready"; activities: ActivitySummary[]; now: number };
 
+type PeriodSave = { confirmed: Period; latest: Period; pending: Period | null; running: boolean };
+
 function toMockMode(value: string | null): MockMode {
   return value === "empty" || value === "error" ? value : null;
 }
@@ -52,13 +54,27 @@ export function TimelineScreen() {
   const selectedRef = useRef<number | null>(null);
   const listScrollY = useRef(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const periodSaves = useRef(new Map<number, PeriodSave>());
+  const active = useRef(false);
+
+  useEffect(() => {
+    active.current = true;
+    const deactivate = () => {
+      active.current = false;
+      ++listRequest.current;
+      ++detailRequest.current;
+      clearTimeout(toastTimer.current);
+      setToast(null);
+    };
+    return () => deactivate();
+  }, []);
 
   const loadList = (mode: MockMode) => {
     const request = ++listRequest.current;
     return fetchActivities(mode).then(
       (activities) => {
         if (request !== listRequest.current) return null;
-        setList({ status: "ready", activities, now: monthNumber(new Date()) });
+        setList({ status: "ready", activities: activities.map((a) => ({ ...a, period: periodSaves.current.get(a.id)?.latest ?? a.period })), now: monthNumber(new Date()) });
         return activities;
       },
       (e: Error) => {
@@ -91,7 +107,7 @@ export function TimelineScreen() {
     const request = ++detailRequest.current;
     setDetail({ status: "loading" });
     fetchActivity(id).then(
-      (activity) => request === detailRequest.current && setDetail({ status: "ready", activity }),
+      (activity) => request === detailRequest.current && setDetail({ status: "ready", activity: { ...activity, period: periodSaves.current.get(id)?.latest ?? activity.period } }),
       (e: Error) => request === detailRequest.current && setDetail({ status: "error", message: e.message }),
     );
   };
@@ -163,12 +179,16 @@ export function TimelineScreen() {
   };
 
   const activitySaved = (activity: ActivitySummary) => {
+    const queued = periodSaves.current.get(activity.id);
+    if (queued && !queued.running) {
+      queued.confirmed = queued.latest = activity.period;
+    }
     ++listRequest.current;
     setList((prev) => prev.status === "ready" ? { ...prev, activities: prev.activities.map((a) => a.id === activity.id ? activity : a) } : prev);
     setDetail((prev) => prev.status === "ready" && prev.activity.id === activity.id ? { ...prev, activity: { ...prev.activity, name: activity.name, period: activity.period } } : prev);
   };
 
-  /** 타임라인 띠 끝을 끌어 기간 바꾸기(S-17) — 바로 반영하고, 실패하면 원래 기간으로 돌린 뒤 알린다 */
+  /** 띠는 즉시 반영한다. 같은 활동은 한 요청씩 보내고, 대기 중 변경은 마지막 것만 저장한다(#62). */
   const periodDragged = (activity: ActivitySummary, period: Period) => {
     const apply = (p: Period) => {
       ++listRequest.current;
@@ -176,16 +196,38 @@ export function TimelineScreen() {
       setDetail((prev) => prev.status === "ready" && prev.activity.id === activity.id ? { ...prev, activity: { ...prev.activity, period: p } } : prev);
     };
     apply(period);
-    updateActivity(activity.id, { period }).then(
-      (saved) => {
-        activitySaved(saved);
-        showToast(`「${saved.name}」 기간을 ${periodText(saved.period)}(으)로 바꿨어요.`);
-      },
-      (e: Error) => {
-        apply(activity.period);
-        showToast(`기간을 바꾸지 못해서 원래대로 돌려 놨어요. ${e.message}`, true);
-      },
-    );
+    let queue = periodSaves.current.get(activity.id);
+    if (!queue) {
+      queue = { confirmed: activity.period, latest: period, pending: null, running: false };
+      periodSaves.current.set(activity.id, queue);
+    }
+    queue.latest = queue.pending = period;
+    if (queue.running) return;
+    queue.running = true;
+    const current = queue;
+    void (async () => {
+      // 언마운트 뒤에도 이미 받은 마지막 의도까지 저장하되, 화면·알림에는 접근하지 않는다.
+      while (current.pending && periodSaves.current.get(activity.id) === current) {
+        const next = current.pending;
+        current.pending = null;
+        try {
+          const saved = await updateActivity(activity.id, { period: next });
+          if (periodSaves.current.get(activity.id) !== current) return;
+          current.confirmed = saved.period;
+          // 응답 전체로 화면을 덮지 않는다. 이름·경험 수와 최신 드래그를 보존한다.
+          if (!current.pending && active.current) showToast(`「${activity.name}」 기간을 ${periodText(saved.period)}(으)로 바꿨어요.`);
+        } catch (e) {
+          if (periodSaves.current.get(activity.id) !== current) return;
+          current.pending = null;
+          current.latest = current.confirmed;
+          if (active.current) {
+            apply(current.confirmed);
+            showToast(`기간을 바꾸지 못해서 마지막으로 저장된 기간으로 돌려 놨어요. ${e instanceof Error ? e.message : "다시 시도해 주세요."}`, true);
+          }
+        }
+      }
+      current.running = false;
+    })();
   };
 
   const experienceSaved = (experience: Experience) => {
@@ -240,6 +282,8 @@ export function TimelineScreen() {
   /** 활동 합치기(S-13) — 확인 창에서 응답을 기다린다. 실패하면 던져서 창에 이유를 남기고 화면은 그대로 둔다 */
   const merge = async (keepId: number, fromId: number) => {
     const kept = await mergeActivities(keepId, fromId);
+    periodSaves.current.delete(keepId);
+    periodSaves.current.delete(fromId);
     ++listRequest.current;
     ++detailRequest.current;
     setList((prev) => prev.status === "ready" ? { ...prev, activities: prev.activities.filter((a) => a.id !== fromId)

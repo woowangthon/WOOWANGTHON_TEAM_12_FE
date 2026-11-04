@@ -9,7 +9,12 @@ async function setup(page: Page) {
     { id: 8, name: "Algo study", period: { start: "2024-09", end: null, ongoing: true }, experiences: [] },
     { id: 9, name: "Hackathon", period: { start: "2023-05", end: null, ongoing: false }, experiences: [] },
   ];
-  const state = { activities, patches: [] as { id: number; body: { period: Period } }[], fail: 0 };
+  const state = {
+    activities, patches: [] as { id: number; body: { period: Period } }[], fail: 0, hold: false,
+    replies: [] as { id: number; release: (status?: number) => void }[],
+    active: new Map<number, number>(), maximum: new Map<number, number>(),
+  };
+  await page.route("https://cdn.jsdelivr.net/**", route => route.abort());
   await page.route("**/api/**", async (route) => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
@@ -17,15 +22,23 @@ async function setup(page: Page) {
     const m = path.match(/^\/api\/activities\/(\d+)$/);
     const a = m && state.activities.find((x) => x.id === Number(m[1]));
     if (req.method() === "PATCH" && a) {
-      state.patches.push({ id: a.id, body: req.postDataJSON() });
-      if (state.fail) return route.fulfill({ status: state.fail, json: { error: { code: "INVALID_PERIOD", message: "Server rejected" } } });
-      Object.assign(a, req.postDataJSON());
+      const body = req.postDataJSON();
+      state.patches.push({ id: a.id, body });
+      const active = (state.active.get(a.id) ?? 0) + 1;
+      state.active.set(a.id, active);
+      state.maximum.set(a.id, Math.max(active, state.maximum.get(a.id) ?? 0));
+      const status = state.hold ? await new Promise<number>(resolve => {
+        state.replies.push({ id: a.id, release: (status = 0) => resolve(status) });
+      }) : state.fail;
+      state.active.set(a.id, (state.active.get(a.id) ?? 1) - 1);
+      if (status) return route.fulfill({ status, json: { error: { code: "INVALID_PERIOD", message: "Server rejected" } } });
+      Object.assign(a, body);
       return route.fulfill({ json: { id: a.id, name: a.name, period: a.period, experienceCount: 0 } });
     }
     if (path === "/api/activities") return route.fulfill({ json: { activities: state.activities.map(({ experiences, ...x }) => ({ ...x, experienceCount: experiences.length })) } });
     return a ? route.fulfill({ json: a }) : route.fulfill({ status: 404, json: { error: { code: "ACTIVITY_NOT_FOUND", message: "없음" } } });
   });
-  await page.goto("/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("button", { name: /Swap app/ })).toBeVisible();
   return state;
 }
@@ -82,7 +95,7 @@ test("저장이 실패하면 원래 띠 · 기간으로 돌리고 알린다", as
   const state = await setup(page);
   state.fail = 400;
   await drag(page, "band-end-7-2025", 12);
-  await expect(page.getByRole("alert").filter({ hasText: "기간을" })).toContainText("기간을 바꾸지 못해서 원래대로 돌려 놨어요. Server rejected");
+  await expect(page.getByRole("alert").filter({ hasText: "기간을" })).toContainText("기간을 바꾸지 못해서 마지막으로 저장된 기간으로 돌려 놨어요. Server rejected");
   await expect(page.getByRole("button", { name: /Swap app/ })).toContainText("2025.03 – 2025.06");
 });
 
@@ -92,4 +105,118 @@ test("제자리에 놓으면 요청이 없고, 띠를 누르면 지금처럼 세
   expect(state.patches).toHaveLength(0);
   await page.getByRole("button", { name: /Swap app/ }).click();
   await expect(page.getByRole("complementary").getByRole("heading", { name: "Swap app" })).toBeVisible();
+});
+
+test("느린 응답 동안 5회 끌어도 최신 값만 순서대로 저장하고 완료 알림은 한 번이다", async ({ page }) => {
+  const state = await setup(page);
+  state.hold = true;
+  const row = page.getByRole("button", { name: /Swap app/ });
+  await drag(page, "band-end-7-2025", 7);
+  await expect.poll(() => state.replies.length).toBe(1);
+  for (const month of [8, 9, 10, 11]) await drag(page, "band-end-7-2025", month);
+  await expect(row).toContainText("2025.03 – 2025.11");
+  expect(state.patches).toHaveLength(1);
+  await expect(page.getByRole("status").filter({ hasText: "바꿨어요" })).toHaveCount(0);
+  state.replies[0].release();
+  await expect.poll(() => state.replies.length).toBe(2);
+  await expect(row).toContainText("2025.03 – 2025.11");
+  await expect(page.getByRole("status").filter({ hasText: "바꿨어요" })).toHaveCount(0);
+  expect(state.patches.map(p => p.body.period.end)).toEqual(["2025-07", "2025-11"]);
+  expect(state.maximum.get(7)).toBe(1);
+  state.replies[1].release();
+  await expect(page.getByRole("status").filter({ hasText: "바꿨어요" })).toHaveCount(1);
+  await expect(page.getByRole("status").filter({ hasText: "바꿨어요" })).toContainText("2025.11");
+  await page.reload();
+  await expect(row).toContainText("2025.03 – 2025.11");
+});
+
+test("후속 저장 실패는 마지막 성공 기간으로 복구하고, 실패 뒤 새 드래그는 저장된다", async ({ page }) => {
+  const state = await setup(page);
+  state.hold = true;
+  const row = page.getByRole("button", { name: /Swap app/ });
+  await drag(page, "band-end-7-2025", 7);
+  await expect.poll(() => state.replies.length).toBe(1);
+  await drag(page, "band-end-7-2025", 8);
+  state.replies[0].release();
+  await expect.poll(() => state.replies.length).toBe(2);
+  await drag(page, "band-end-7-2025", 9);
+  await drag(page, "band-end-7-2025", 10);
+  state.replies[1].release(400);
+  await expect(page.getByRole("alert").filter({ hasText: "기간을" })).toContainText("마지막으로 저장된 기간");
+  await expect(row).toContainText("2025.03 – 2025.07");
+  expect(state.patches).toHaveLength(2);
+  state.hold = false;
+  await drag(page, "band-end-7-2025", 12);
+  await expect(page.getByRole("status").filter({ hasText: "바꿨어요" })).toContainText("2025.12");
+  expect(state.maximum.get(7)).toBe(1);
+  await page.reload();
+  await expect(row).toContainText("2025.03 – 2025.12");
+});
+
+test("첫 저장 실패는 대기 변경도 버리고 최초 저장 기간으로 복구한다", async ({ page }) => {
+  const state = await setup(page);
+  state.hold = true;
+  await drag(page, "band-end-7-2025", 7);
+  await expect.poll(() => state.replies.length).toBe(1);
+  await drag(page, "band-end-7-2025", 8);
+  await drag(page, "band-end-7-2025", 9);
+  state.replies[0].release(400);
+  await expect(page.getByRole("button", { name: /Swap app/ })).toContainText("2025.03 – 2025.06");
+  await expect(page.getByRole("alert").filter({ hasText: "기간을" })).toBeVisible();
+  expect(state.patches).toHaveLength(1);
+});
+
+test("다른 활동은 독립 저장하며 활동 전환 뒤 응답도 선택한 세부를 덮지 않는다", async ({ page }) => {
+  const state = await setup(page);
+  state.hold = true;
+  await drag(page, "band-end-7-2025", 9);
+  await drag(page, "band-start-8-2024", 3);
+  await expect.poll(() => state.replies.length).toBe(2);
+  await page.getByRole("button", { name: /Hackathon/ }).click();
+  const detail = page.getByRole("complementary", { name: "활동 세부" });
+  await expect(detail.getByRole("heading", { name: "Hackathon" })).toBeVisible();
+  state.replies.find(r => r.id === 8)!.release();
+  await expect(page.getByRole("status").filter({ hasText: "바꿨어요" })).toContainText("Algo study");
+  expect(state.activities.find(a => a.id === 7)!.period.end).toBe("2025-06");
+  state.replies.find(r => r.id === 7)!.release();
+  await expect(page.getByRole("status").filter({ hasText: "바꿨어요" })).toContainText("Swap app");
+  await expect(detail.getByRole("heading", { name: "Hackathon" })).toBeVisible();
+  await expect(detail).toContainText("2023.05");
+  expect([...state.maximum.values()]).toEqual([1, 1]);
+});
+
+test("화면을 떠나도 대기 중 마지막 값은 저장하고 새 화면에 예전 알림을 표시하지 않는다", async ({ page }) => {
+  const state = await setup(page);
+  state.hold = true;
+  await drag(page, "band-end-7-2025", 7);
+  await expect.poll(() => state.replies.length).toBe(1);
+  await drag(page, "band-end-7-2025", 10);
+  await page.getByRole("link", { name: "지원", exact: true }).filter({ visible: true }).click();
+  await expect(page).toHaveURL(/\/questions/);
+  state.replies[0].release();
+  await expect.poll(() => state.replies.length).toBe(2);
+  state.replies[1].release();
+  await expect.poll(() => state.activities[0].period.end).toBe("2025-10");
+  await expect(page.getByRole("status").filter({ hasText: "바꿨어요" })).toHaveCount(0);
+  await page.getByRole("link", { name: "내 경험", exact: true }).filter({ visible: true }).click();
+  await expect(page.getByRole("button", { name: /Swap app/ })).toContainText("2025.03 – 2025.10");
+  await expect(page.getByRole("status").filter({ hasText: "바꿨어요" })).toHaveCount(0);
+});
+
+test("저장 중 활동 세부를 조회해도 최신 드래그 기간을 유지한다", async ({ page }) => {
+  const state = await setup(page);
+  state.hold = true;
+  await drag(page, "band-end-7-2025", 8);
+  await expect.poll(() => state.replies.length).toBe(1);
+  await drag(page, "band-end-7-2025", 10);
+  await page.getByRole("button", { name: /Swap app/ }).click();
+  const detail = page.getByRole("complementary", { name: "활동 세부" });
+  await expect(detail.getByRole("heading", { name: "Swap app" })).toBeVisible();
+  await expect(detail).toContainText("2025.03 – 2025.10");
+  state.replies[0].release();
+  await expect.poll(() => state.replies.length).toBe(2);
+  await expect(detail).toContainText("2025.03 – 2025.10");
+  state.replies[1].release();
+  await expect(page.getByRole("status").filter({ hasText: "바꿨어요" })).toBeVisible();
+  await expect(detail).toContainText("2025.03 – 2025.10");
 });
