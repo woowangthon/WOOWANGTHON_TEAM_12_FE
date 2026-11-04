@@ -1,4 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { test, expect } from "./signed-in";
 import type { Job, SourceRequest, ActivityDetail } from "../src/lib/api/types";
 
 // Contract fixtures only. These tests do not run BE, DB or an AI model.
@@ -13,6 +14,7 @@ async function setup(page: Page) {
   await page.route("**/api/**", async (route) => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
+    if (path.startsWith("/api/auth/")) return route.fallback(); // 로그인 확인은 signed-in 픽스처가 받는다
     if (path === "/api/sources") {
       expect(req.method()).toBe("POST");
       state.sources.push(req.postDataJSON());

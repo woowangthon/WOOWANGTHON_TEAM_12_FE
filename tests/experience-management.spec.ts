@@ -1,4 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { test, expect } from "./signed-in";
 import type { ActivityDetail, CreateExperienceRequest, Experience } from "../src/lib/api/types";
 
 // HTTP fixtures only. These verify UI behavior, not a running BE or DB.
@@ -17,6 +18,7 @@ async function setup(page: Page) {
   await page.route("**/api/**", async (route) => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
+    if (path.startsWith("/api/auth/")) return route.fallback(); // 로그인 확인은 signed-in 픽스처가 받는다
     if (req.method() === "POST") {
       expect(path).toBe("/api/activities/7/experiences");
       state.posts.push(req.postDataJSON());
