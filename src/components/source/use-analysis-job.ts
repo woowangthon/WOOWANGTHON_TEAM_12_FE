@@ -31,6 +31,9 @@ function loadPending(): Pending | null {
   }
 }
 
+/** 넣은 자료의 분석을 아직 따라가는 중인가 — 다른 화면에서 「자료 넣기」로 넘어올 때(FE#64) */
+export const hasPendingAnalysis = () => loadPending() !== null;
+
 function savePending(pending: Pending | null) {
   try {
     if (pending) localStorage.setItem(storageKey(), JSON.stringify(pending));
