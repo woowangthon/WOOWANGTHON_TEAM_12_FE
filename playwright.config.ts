@@ -13,9 +13,9 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   projects: [
-    { name: "api", testMatch: "api.spec.ts" },
-    { name: "desktop", testMatch: mock ? "mock.spec.ts" : ["editing.spec.ts", "analysis.spec.ts", "experience-management.spec.ts", "regroup.spec.ts", "period-drag.spec.ts"], use: { viewport: { width: 1440, height: 1000 } } },
-    { name: "mobile", testMatch: mock ? "mock.spec.ts" : ["editing.spec.ts", "analysis.spec.ts", "experience-management.spec.ts", "regroup.spec.ts", "period-drag.spec.ts"], use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
+    { name: "api", testMatch: ["api.spec.ts", "question-api.spec.ts"] },
+    { name: "desktop", testMatch: mock ? ["mock.spec.ts", "question-matching.spec.ts"] : ["editing.spec.ts", "analysis.spec.ts", "experience-management.spec.ts", "regroup.spec.ts", "period-drag.spec.ts", "question-matching.spec.ts"], use: { viewport: { width: 1440, height: 1000 } } },
+    { name: "mobile", testMatch: mock ? ["mock.spec.ts", "question-matching.spec.ts"] : ["editing.spec.ts", "analysis.spec.ts", "experience-management.spec.ts", "regroup.spec.ts", "period-drag.spec.ts", "question-matching.spec.ts"], use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
   ],
   webServer: {
     command: "node node_modules/next/dist/bin/next dev --port 3100",
