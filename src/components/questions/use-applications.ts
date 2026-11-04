@@ -14,10 +14,13 @@ type State = {
   details: Record<number, QuestionDetail>;
   /** 문항 하나를 못 받았을 때의 오류 — 그 문항 자리에 보이고, 지우면 다시 받는다 */
   detailErrors: Record<number, string>;
+  /** 상태 확인의 연속 실패 횟수 — 이미 받은 문항 · 추천은 그대로 둔다 */
+  pollFailures: Record<number, number>;
   questionId: number | null;
   error: string | null;
 };
 const POLL_MS = 2000;
+const MAX_POLL_FAILURES = 3;
 const message = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
 
 /** 고른 문항은 주소 `?question=` 에 둔다 — 새로고침 · 타임라인에서 돌아오기 뒤에도 같은 문항 */
@@ -54,7 +57,7 @@ const ownerOf = (applications: Application[], questionId: number | null) =>
  *  - 분석 중인 문항은 2초마다 그 문항만 다시 읽는다 — 고른 탭과 상관없이
  *  - 되묻기 답 · 문항 더하기 · 넣기 · 다시 시도 뒤에 다시 받는다. 그보다 먼저 출발한 폴링 응답은 번호표(generation)로 버린다 */
 export function useApplications() {
-  const [state, setState] = useState<State>({ loading: true, applications: [], details: {}, detailErrors: {}, questionId: null, error: null });
+  const [state, setState] = useState<State>({ loading: true, applications: [], details: {}, detailErrors: {}, pollFailures: {}, questionId: null, error: null });
   const generation = useRef(0);
   const pending = useRef(false);
   const fetching = useRef(new Set<number>());
@@ -68,8 +71,9 @@ export function useApplications() {
       const details: Record<number, QuestionDetail> = {};
       for (const [id, d] of Object.entries(prev.details)) if (!next.keep || next.keep.has(+id)) details[+id] = d;
       const detailErrors = { ...prev.detailErrors };
-      for (const d of fresh) { details[d.id] = d; delete detailErrors[d.id]; }
-      return { ...prev, details, detailErrors, applications: patch(next.applications ?? prev.applications, fresh), questionId: next.questionId ?? prev.questionId };
+      const pollFailures = { ...prev.pollFailures };
+      for (const d of fresh) { details[d.id] = d; delete detailErrors[d.id]; delete pollFailures[d.id]; }
+      return { ...prev, details, detailErrors, pollFailures, applications: patch(next.applications ?? prev.applications, fresh), questionId: next.questionId ?? prev.questionId };
     });
   }, []);
 
@@ -84,7 +88,7 @@ export function useApplications() {
       const questionId = application ? (application.questions.find(q => q.id === wanted) ?? application.questions[0]).id : null;
       if (questionId !== null) keepInUrl(questionId);
       const details = first && first.id === questionId ? { [first.id]: first } : {};
-      setState({ loading: false, applications: patch(applications, Object.values(details)), details, detailErrors: {}, questionId, error: null });
+      setState({ loading: false, applications: patch(applications, Object.values(details)), details, detailErrors: {}, pollFailures: {}, questionId, error: null });
     } catch (e) {
       if (version === generation.current) setState(prev => ({ ...prev, loading: false, error: message(e, "지원을 불러오지 못했어요.") }));
     }
@@ -122,21 +126,32 @@ export function useApplications() {
     if (missing) void fetchMissing(missing.split(",").map(Number));
   }, [missing, fetchMissing]);
 
-  /** 분석 중인 문항만 2초마다 — 고른 탭은 바꾸지 않는다 */
-  const analyzing = state.applications.flatMap(a => a.questions).filter(q => q.status === "ANALYZING").map(q => q.id).join(",");
+  /** 분석 중인 문항만 2초마다 — 한 문항의 실패가 다른 문항의 성공을 버리지 않는다.
+   *  연속 3회 실패한 문항만 멈춘다. 탭 전환으로 횟수를 초기화하지 않는다 */
+  const analyzing = state.applications.flatMap(a => a.questions)
+    .filter(q => q.status === "ANALYZING" && (state.pollFailures[q.id] ?? 0) < MAX_POLL_FAILURES).map(q => q.id).join(",");
   useEffect(() => {
     if (!analyzing || state.error) return;
     const ids = analyzing.split(",").map(Number);
     let busy = false;
+    let disposed = false;
     const timer = setInterval(async () => {
       if (busy) return;
       busy = true;
       const version = generation.current;
-      try { commit(version, await Promise.all(ids.map(fetchQuestion))); }
-      catch (e) { if (version === generation.current) setState(prev => ({ ...prev, error: message(e, "문항 상태를 불러오지 못했어요.") })); }
-      finally { busy = false; }
+      const results = await Promise.allSettled(ids.map(fetchQuestion));
+      busy = false;
+      if (disposed || version !== generation.current) return;
+      commit(version, results.flatMap(r => r.status === "fulfilled" ? [r.value] : []));
+      setState(prev => {
+        const pollFailures = { ...prev.pollFailures };
+        results.forEach((r, i) => {
+          if (r.status === "rejected") pollFailures[ids[i]] = (pollFailures[ids[i]] ?? 0) + 1;
+        });
+        return { ...prev, pollFailures };
+      });
     }, POLL_MS);
-    return () => clearInterval(timer);
+    return () => { disposed = true; clearInterval(timer); };
   }, [analyzing, state.error, commit]);
 
   /** 넣기 · 더하기 · 다시 시도는 하나씩만 */
@@ -164,6 +179,11 @@ export function useApplications() {
     loading: state.loading,
     error: state.error,
     applications: state.applications,
+    pollWarnings: state.applications.flatMap(a => a.questions.flatMap((q, index) => state.pollFailures[q.id]
+      ? [{ id: q.id, label: `${a.organization || "지원처 이름 없음"} · 문항 ${index + 1}`, stopped: state.pollFailures[q.id] >= MAX_POLL_FAILURES }]
+      : [])),
+    /** 상태 확인만 다시 시작한다 — 서버의 분석을 다시 돌리거나 추천을 지우지 않는다 */
+    resumePolling: (id: number) => setState(prev => { const pollFailures = { ...prev.pollFailures }; delete pollFailures[id]; return { ...prev, pollFailures }; }),
     questionId: state.questionId,
     open: open && { application: open, details: open.questions.map(q => state.details[q.id] ?? null) },
     /** 고른 문항을 못 받았을 때의 오류 */

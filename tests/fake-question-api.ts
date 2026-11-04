@@ -11,6 +11,8 @@ type Stored = { detail: QuestionDetail; template: QuestionDetail; startedAt: num
 export type FakeOptions = {
   /** 처음부터 빈 계정(지원 0개) */
   empty?: boolean;
+  /** 계약 예시 문항 둘을 같은 지원에 둔다 — 탭을 오가며 상태를 확인 */
+  sameApplication?: boolean;
   /** 넣는 문항마다 분석이 실패한다(AI_TIMEOUT). 다시 시도하면 끝난다 */
   fail?: boolean;
   /** 넣는 문항마다 추천 0개 · 요구사항은 모두 「자료에서 확인 안 됨」 */
@@ -30,6 +32,8 @@ export class FakeQuestionApi {
   calls: { call: string; body: unknown }[] = [];
   /** 켜 두면 GET /api/applications 가 503 — 불러오기 실패 화면 */
   listDown = false;
+  /** 문항 ID → 앞으로 실패시킬 GET 횟수 — 폴링의 일시 · 연속 연결 실패 */
+  questionFailures = new Map<number, number>();
   private nextQuestion = 43;
   private nextApplication = 23;
   private nextClarification = 64;
@@ -40,6 +44,10 @@ export class FakeQuestionApi {
     if (options.empty) return;
     for (const sample of QUESTION_EXAMPLES) {
       const detail = structuredClone(sample);
+      if (options.sameApplication) {
+        detail.applicationId = 22;
+        detail.organization = QUESTION_EXAMPLES[1].organization;
+      }
       detail.createdAt = new Date(Date.now() - (sample.id === 41 ? 1200000 : 600000)).toISOString();
       this.questions.push({ detail, template: sample, startedAt: 0, fail: false });
       this.applications.set(detail.applicationId, detail.organization);
@@ -148,6 +156,11 @@ export class FakeQuestionApi {
       return json(route, { questions: this.questions.map(q => this.summary(q)).sort((x, y) => y.createdAt.localeCompare(x.createdAt)) });
     }
     if ((m = path.match(/^\/api\/questions\/(\d+)$/)) && method === "GET") {
+      const remaining = this.questionFailures.get(+m[1]) ?? 0;
+      if (remaining > 0) {
+        this.questionFailures.set(+m[1], remaining - 1);
+        return error(route, 503, "INTERNAL_ERROR", "잠시 뒤 다시 시도해 주세요");
+      }
       const q = this.find(+m[1]);
       return q ? json(route, this.now(q.detail)) : error(route, 404, "QUESTION_NOT_FOUND");
     }
