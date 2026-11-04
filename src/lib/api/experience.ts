@@ -6,7 +6,7 @@ import { MOCK_ACTIVITIES } from "../mock/activities";
 import { mockAddedActivities, mockFetchJob, mockRetryJob, mockSubmitSource } from "../mock/analysis";
 import { ApiError } from "./errors";
 import { isMockMode, request } from "./http";
-import type { ActivityDetail, ActivitySummary, Job, SourceRequest, Experience, UpdateActivityRequest, UpdateExperienceRequest, CreateExperienceRequest } from "./types";
+import type { ActivityDetail, ActivitySummary, Job, SourceRequest, Experience, Supplement, UpdateActivityRequest, UpdateExperienceRequest, CreateExperienceRequest } from "./types";
 import { COMPETENCIES, MAX_TEXT_LENGTH, type SourceSubmitted } from "./types";
 
 export { ApiError, isMockMode };
@@ -137,4 +137,14 @@ export async function mergeActivities(keepId: number, fromId: number): Promise<A
   const activity = await request<ActivityDetail>(`/activities/${keepId}/merge`, { fromActivityId: fromId }, "POST");
   activity.experiences.forEach(checkCompetencies);
   return activity;
+}
+
+/** PATCH /api/supplements/{id} — 답만 고친다. 경험의 출처 상태는 그대로 (S-24) */
+export function updateSupplement(id: number, answer: string): Promise<Supplement> {
+  return request(`/supplements/${id}`, { answer });
+}
+
+/** DELETE /api/supplements/{id} — 그 보완을 만든 되묻기는 다시 답할 수 있게 된다 (S-24) */
+export function deleteSupplement(id: number): Promise<void> {
+  return request(`/supplements/${id}`, undefined, "DELETE");
 }
