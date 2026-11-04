@@ -1,8 +1,9 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ArrowDownIcon, ArrowUpIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
+import { ArrowDownIcon, ArrowUpIcon, ListChecksIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { CommonQuestionPicker } from "./common-question-picker";
 import { ApiError } from "@/lib/api/errors";
 import { MAX_ORGANIZATION_LENGTH, MAX_QUESTION_LENGTH, MAX_QUESTIONS_PER_SUBMIT, type CreateApplicationRequest } from "@/lib/api/question-types";
 import { QUESTION_EXAMPLES } from "@/lib/mock/question-examples";
@@ -25,6 +26,17 @@ export function ApplicationForm({ onSubmit, onCancel }: { onSubmit: (req: Create
   const pending = useRef(false);
   const set = (i: number, value: string) => setTexts(prev => prev.map((t, j) => (j === i ? value : t)));
   const move = (i: number, to: number) => setTexts(prev => { const next = [...prev]; [next[i], next[to]] = [next[to], next[i]]; return next; });
+  const [picking, setPicking] = useState(false);
+  // 고른 문항은 빈 칸부터 채우고, 남으면 새 칸에
+  const room = texts.filter(t => !t.trim()).length + MAX_QUESTIONS_PER_SUBMIT - texts.length;
+  const insert = (picked: string[]) => {
+    setTexts(prev => {
+      const rest = [...picked];
+      const filled = prev.map(t => (!t.trim() && rest.length ? rest.shift()! : t));
+      return [...filled, ...rest].slice(0, MAX_QUESTIONS_PER_SUBMIT);
+    });
+    setError(null);
+  };
 
   return (
     <form className="grid gap-5" aria-busy={saving} onSubmit={async event => {
@@ -79,8 +91,12 @@ export function ApplicationForm({ onSubmit, onCancel }: { onSubmit: (req: Create
             </li>
           ))}
         </ol>
-        {texts.length < MAX_QUESTIONS_PER_SUBMIT && <Button type="button" variant="secondary" className="justify-self-start" onClick={() => setTexts(prev => [...prev, ""])}><PlusIcon />문항 칸 더하기</Button>}
+        <div className="flex flex-wrap gap-2">
+          {texts.length < MAX_QUESTIONS_PER_SUBMIT && <Button type="button" variant="secondary" onClick={() => setTexts(prev => [...prev, ""])}><PlusIcon />문항 칸 더하기</Button>}
+          <Button type="button" variant="secondary" disabled={room === 0} title={room === 0 ? `문항은 한 번에 ${MAX_QUESTIONS_PER_SUBMIT}개까지 넣을 수 있어요` : undefined} onClick={() => setPicking(true)}><ListChecksIcon />자주 나오는 문항에서 고르기</Button>
+        </div>
       </fieldset>
+      <CommonQuestionPicker open={picking} onOpenChange={setPicking} room={room} onPick={insert} />
       <p className="m-0 text-[13px] text-muted">넣은 뒤엔 문항을 고치지 않아요 — 잘못 넣었으면 그 지원에 새로 더해 주세요. 지금은 실제 분석 없이 정해진 기술·협업 예시 결과를 보여줘요.</p>
       {error && <p role="alert" className="m-0 text-sm text-error">{error}</p>}
       <div className="flex flex-wrap gap-2">

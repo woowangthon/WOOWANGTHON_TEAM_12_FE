@@ -251,6 +251,47 @@ test("application with several questions keeps order, analyzes each and shows th
   await expect(list(page).getByRole("button").first()).toContainText("OO 백엔드 부트캠프 · 2기");
 });
 
+// FE#39 — 「자주 나오는 문항」에서 골라 넣기(S-26)
+test("common questions fill blank slots first, stay editable and stop at the submit limit", async ({ page }) => {
+  await page.goto("/questions");
+  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await page.getByRole("button", { name: "문항 칸 더하기", exact: true }).click();
+  await page.getByLabel("문항 2", { exact: true }).fill("직접 쓴 문항");
+  await page.getByRole("button", { name: "자주 나오는 문항에서 고르기", exact: true }).click();
+  const picker = page.getByRole("dialog", { name: "자주 나오는 문항" });
+  await expect(picker.getByRole("group", { name: "IT 연합 동아리" })).toBeVisible();
+  await expect(picker.getByRole("button", { name: "문항을 골라 주세요" })).toBeDisabled();
+  await picker.getByRole("checkbox", { name: /^실천의 관점에서 성공과 실패/ }).check();
+  await picker.getByRole("checkbox", { name: /^다양한 IT 동아리 중에서/ }).check();
+  await picker.getByRole("button", { name: "고른 문항 2개 넣기", exact: true }).click();
+  await expect(picker).toHaveCount(0);
+  // 빈 문항 1 을 먼저 채우고, 남은 하나는 새 칸(문항 3)에
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(/^실천의 관점에서 성공과 실패.*\(600자\)$/);
+  await expect(page.getByLabel("문항 2", { exact: true })).toHaveValue("직접 쓴 문항");
+  await expect(page.getByLabel("문항 3", { exact: true })).toHaveValue(/^다양한 IT 동아리 중에서 우리 동아리를/);
+  await page.getByLabel("문항 3", { exact: true }).fill("다양한 IT 동아리 중에서 OO 를 고른 이유를 써 주세요.");
+
+  // 7칸 남음 — 7개를 고르면 나머지는 고를 수 없다
+  await page.getByRole("button", { name: "자주 나오는 문항에서 고르기", exact: true }).click();
+  await expect(picker).toContainText("7개까지 고를 수 있어요.");
+  const boxes = picker.getByRole("checkbox");
+  await boxes.nth(0).check();
+  await expect(picker).toContainText("1개 골랐어요 · 6개 더 고를 수 있어요.");
+  for (let i = 1; i < 7; i++) await boxes.nth(i).check();
+  await expect(picker).toContainText("7개를 다 골랐어요");
+  await expect(boxes.nth(7)).toBeDisabled();
+  await picker.getByRole("button", { name: "고른 문항 7개 넣기", exact: true }).click();
+  await expect(page.getByLabel("문항 10", { exact: true })).toHaveValue(/\S/);
+  await expect(page.getByRole("button", { name: "문항 칸 더하기", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "자주 나오는 문항에서 고르기", exact: true })).toBeDisabled();
+
+  await page.getByRole("button", { name: "문항 10개 넣고 경험 찾기", exact: true }).click();
+  const saved = (await stored(page)).questions.slice(-10);
+  expect(saved.map((q: { detail: { text: string } }) => q.detail.text).slice(0, 3)).toEqual([
+    expect.stringMatching(/^실천의 관점에서/), "직접 쓴 문항", "다양한 IT 동아리 중에서 OO 를 고른 이유를 써 주세요.",
+  ]);
+});
+
 test("a question can be added to an existing application and blank slots are named", async ({ page }) => {
   await page.goto("/questions");
   await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
