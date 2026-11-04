@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useRouter } from "next/navigation";
 import { ArrowsClockwiseIcon, MagnifyingGlassIcon, PlusIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { AppHeader } from "@/components/app-header";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -46,6 +47,7 @@ function useWide() {
  *  오른쪽 차곡이 패널: 요구사항 · 보완 재사용 · 되묻기(FE#51). 배치는 ETC 시안 6 apply.html. 답변 초안 · 근거 점검 · 패널 버튼은 범위 밖(P1 · ETC#78) */
 export function ApplicationScreen() {
   const matching = useApplications();
+  const router = useRouter();
   const [composing, setComposing] = useState(false);
   const [adding, setAdding] = useState(false);
   const open = matching.open;
@@ -72,7 +74,8 @@ export function ApplicationScreen() {
   const activeId = composing ? null : open?.application.id ?? null;
 
   return <div className="min-h-dvh bg-canvas xl:flex xl:items-start">
-    <AppHeader activePage="questions"
+    {/* 「자료 넣기」 — 시안 6 사이드바는 세 화면이 같다(FE#64). 자료 넣기 창 · 분석 상태는 내 경험 화면에 있어 그리로 가서 연다 */}
+    <AppHeader activePage="questions" addSource={{ onClick: () => router.push("/?add=1") }}
       sidebarExtra={ready ? <ApplicationList applications={matching.applications} activeId={activeId} onPick={pick} sidebar /> : undefined} />
     <div className="min-w-0 flex-1">
     <main className="mx-auto max-w-[1280px] px-4.5 py-6 lg:px-8 lg:py-8">
