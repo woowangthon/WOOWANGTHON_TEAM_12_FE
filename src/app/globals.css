@@ -3,31 +3,35 @@
 @import "shadcn/tailwind.css";
 
 /*
-  토큰의 원본은 ETC docs/design/DESIGN.md frontmatter 다. 이름도 그대로 둔다(--primary · --evidence …).
-  흰 바탕에 산호 한 색. 색이 있는 꼬리표는 「확인 필요」 하나. 어두운 화면은 스프린트 1 에서 만들지 않는다.
+  임시 — 시안 6(ETC docs/design/chagok/, 디자인 담당 styles.css)의 색이다(FE#43). DESIGN.md 를 디자인 담당이
+  다시 쓰면(ETC#19) 이 값들만 바꾼다. 화면 코드에는 색 값을 직접 쓰지 않는다.
+  검정 중심(주 버튼 · 활성 = 검정), 강조는 로고의 파랑. 색이 있는 꼬리표는 「확인 필요」 하나. 어두운 화면은 아직 없다.
 */
 :root {
+  --page: #fcfcfc; /* 사이드바 쪽 바탕 — 가운데 흰 작업 면과 갈린다 */
   --canvas: #ffffff;
-  --surface-soft: #f8f6f5;
-  --surface-strong: #f1eeec;
-  --ink: #23201f;
-  --body: #3e3937;
-  --muted: #6e6562;
-  --muted-soft: #9b928e;
-  --hairline: #e6e1de;
-  --hairline-soft: #f0ecea;
-  --primary: #e24947;
-  --primary-active: #c73a38;
-  --primary-soft: #fdedec;
+  --surface-soft: #f5f5f5;
+  --surface-strong: #ededed;
+  --ink: #000000;
+  --body: #2b2b2b;
+  --muted: #7d7d7d;
+  --muted-soft: #a6a6a6;
+  --hairline: #ededed;
+  --hairline-soft: #f4f4f4;
+  --primary: #000000;
+  --primary-active: #333333;
+  --primary-soft: #f5f5f5;
   --on-primary: #ffffff;
-  --evidence: #0b5a68;
-  --evidence-soft: #e8f2f3;
-  --review: #9a5410;
-  --review-soft: #fdf1e3;
-  --review-line: #e9a35a;
+  --mark: #41a1f5; /* 로고의 파랑 — 기간 띠 · 진행 중 · 고른 줄 */
+  --mark-soft: #e3f3fe;
+  --evidence: #1f6fb2;
+  --evidence-soft: #e3f3fe;
+  --review: #a15c00;
+  --review-soft: #fff4e0;
+  --review-line: #f0b25a;
   --error: #b4321f;
-  --scrim: rgb(26 21 20 / 0.45);
-  --float: 0 0 0 1px rgb(0 0 0 / 0.02), 0 2px 6px rgb(0 0 0 / 0.04), 0 4px 10px rgb(0 0 0 / 0.08);
+  --scrim: rgb(0 0 0 / 0.4);
+  --float: 0 12px 40px rgb(0 0 0 / 0.16);
 
   /* shadcn 부품이 쓰는 이름 → 위 토큰 */
   --background: var(--canvas);
@@ -55,6 +59,7 @@
     "Malgun Gothic", sans-serif;
   --font-heading: var(--font-sans);
 
+  --color-page: var(--page);
   --color-canvas: var(--canvas);
   --color-surface-soft: var(--surface-soft);
   --color-surface-strong: var(--surface-strong);
@@ -68,6 +73,8 @@
   --color-primary-active: var(--primary-active);
   --color-primary-soft: var(--primary-soft);
   --color-on-primary: var(--on-primary);
+  --color-mark: var(--mark);
+  --color-mark-soft: var(--mark-soft);
   --color-evidence: var(--evidence);
   --color-evidence-soft: var(--evidence-soft);
   --color-review: var(--review);
@@ -94,10 +101,10 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  /* DESIGN.md rounded — 버튼 · 입력 8, 떠 있는 상자 14, 하단 시트 위쪽 20 */
-  --radius-sm: 8px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
+  /* 시안 6 — 줄 · 입력 10, 상자 18, 작업 면 · 시트 28. 버튼 · 칩은 알약(rounded-full) */
+  --radius-sm: 10px;
+  --radius-md: 18px;
+  --radius-lg: 28px;
 }
 
 @layer base {

@@ -32,7 +32,7 @@ export function QuestionTimelineScreen() {
   };
 
   return <div className="flex min-h-dvh flex-1 flex-col bg-canvas lg:h-dvh">
-    <AppHeader className={cn(selected && "hidden lg:flex")} timelineHref="/?questionMock=1" />
+    <AppHeader hideOnMobile={!!selected} timelineHref="/?questionMock=1" />
     <div role="note" className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline px-4.5 py-2 text-xs text-muted lg:px-7">
       <span>문항 목 예시의 타임라인 · 읽기 전용이며 실제 기록을 불러오거나 바꾸지 않아요.</span>
       <Link href="/questions" className="inline-flex min-h-11 items-center font-medium text-ink underline underline-offset-4">문항 결과로 돌아가기</Link>
