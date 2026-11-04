@@ -60,9 +60,43 @@ export type QuestionDetail = QuestionSummary & {
 export type CreateQuestionRequest = { organization?: string | null; text: string };
 export type QuestionSubmitted = { questionId: number; applicationId: number; status: "ANALYZING" };
 
+/** 지원처 종류 · 직무(S-42) — contracts README 「값 목록」. 지원에 하나씩, 선택 */
+export type OrganizationType = "CLUB" | "EXTRACURRICULAR" | "EXTERNAL" | "BOOTCAMP" | "INTERN" | "JOB" | "OTHER";
+export const ORGANIZATION_TYPE_LABEL: Record<OrganizationType, string> = {
+  CLUB: "동아리 · 학회",
+  EXTRACURRICULAR: "교내 비교과 프로그램",
+  EXTERNAL: "대외활동 · 서포터즈 · 공모전",
+  BOOTCAMP: "부트캠프 · 교육 과정",
+  INTERN: "인턴",
+  JOB: "채용(신입 · 경력)",
+  OTHER: "기타",
+};
+export type JobRole = "BACKEND" | "FRONTEND" | "MOBILE" | "AI_DATA" | "INFRA" | "DESIGN" | "PLANNING" | "MARKETING" | "BUSINESS" | "OTHER";
+export const JOB_ROLE_LABEL: Record<JobRole, string> = {
+  BACKEND: "백엔드 · 서버",
+  FRONTEND: "프론트엔드 · 웹",
+  MOBILE: "모바일 앱",
+  AI_DATA: "AI · 데이터",
+  INFRA: "인프라 · 클라우드 · DevOps · 보안",
+  DESIGN: "디자인",
+  PLANNING: "기획 · PM",
+  MARKETING: "마케팅 · 홍보 · 콘텐츠",
+  BUSINESS: "경영 · 사무 · 영업",
+  OTHER: "기타",
+};
+
 /** 지원 = 지원처 하나 + 문항 여러 개. `questions` 는 넣은 순서(지원서의 문항 순서) */
-export type Application = { id: number; organization: string | null; questions: QuestionSummary[]; createdAt: string };
-export type CreateApplicationRequest = { organization?: string | null; questions: { text: string }[] };
+export type Application = {
+  id: number; organization: string | null;
+  organizationType?: OrganizationType | null; jobRole?: JobRole | null;
+  questions: QuestionSummary[]; createdAt: string;
+};
+export type CreateApplicationRequest = {
+  organization?: string | null; organizationType?: OrganizationType | null; jobRole?: JobRole | null;
+  questions: { text: string }[];
+};
+/** PATCH /api/applications/{id} — 보낸 필드만 바꾸고, null 이면 비운다 */
+export type UpdateApplicationRequest = { organizationType?: OrganizationType | null; jobRole?: JobRole | null };
 export type ApplicationSubmitted = { applicationId: number; questionIds: number[] };
 export type AddQuestionRequest = { text: string };
 export type QuestionAdded = { questionId: number; status: "ANALYZING" };

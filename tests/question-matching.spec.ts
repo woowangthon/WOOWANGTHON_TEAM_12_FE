@@ -59,7 +59,9 @@ test("question 41/42 switch shows contract judgments, actors and supplemental ev
   await expect(recommendation(page, 1)).toContainText("매주 금요일 스프린트 회고를 했다");
   await expect(page).toHaveURL(/question=42/);
   await expect(recommendation(page, 1).getByText("팀", { exact: true })).toBeVisible();
-  await expect(result(page).getByText("AI 해석", { exact: true })).toHaveCount(2);
+  // 참고 경험 쪽 2개 + 문항 유형 칸의 「AI 해석」 1개(FE#81 — 계약 예시의 유형은 AI 가 붙였다)
+  await expect(result(page).getByText("AI 해석", { exact: true })).toHaveCount(3);
+  await expect(result(page).getByLabel("문항 유형", { exact: true })).toHaveAccessibleDescription("AI 해석");
   await expect(page.getByText(/목 모드|예시 결과/)).toHaveCount(0);
   let chagok = await openChagok(page);
   await expect(chagok.getByText("근거 있음", { exact: true })).toHaveCount(1);
@@ -304,6 +306,72 @@ test("past questions: empty account shows a hint only, and a failed load can be 
   await expect(past.getByRole("checkbox")).toHaveCount(0);
   // 자주 나오는 문항은 그대로 고를 수 있다
   await expect(page.getByRole("dialog", { name: "문항 고르기" }).getByRole("group", { name: "IT 연합 동아리" })).toBeVisible();
+});
+
+// FE#81 — 지원처 종류 · 직무(S-42) · 문항 유형(S-41)
+const patches = (api: FakeQuestionApi) => api.calls.filter(c => c.call.startsWith("PATCH ")).map(c => [c.call, c.body]);
+test("application form sends only the chosen kind and role; the header changes and clears them and they survive reload", async ({ page }) => {
+  const api = await fake(page);
+  await page.goto("/questions");
+  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await page.getByLabel("지원처 종류 (선택)").selectOption("BOOTCAMP");
+  await page.getByLabel("문항 1", { exact: true }).fill("지원 동기를 적어 주세요.");
+  await page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true }).click();
+  await expect.poll(() => posts(api).length).toBe(1);
+  expect(posts(api)[0].body).toEqual({ organization: null, organizationType: "BOOTCAMP", questions: [{ text: "지원 동기를 적어 주세요." }] });
+
+  const kind = page.getByLabel("지원처 종류", { exact: true });
+  const role = page.getByLabel("직무", { exact: true });
+  await expect(kind).toHaveValue("BOOTCAMP");
+  await expect(role).toHaveValue("");
+  await role.selectOption("BACKEND");
+  await expect(role).toBeEnabled();
+  await kind.selectOption("");
+  await expect(kind).toBeEnabled();
+  const id = 23; // 가짜 BE 가 새 지원에 주는 ID
+  expect(patches(api)).toEqual([[`PATCH /api/applications/${id}`, { jobRole: "BACKEND" }], [`PATCH /api/applications/${id}`, { organizationType: null }]]);
+  await page.reload();
+  await expect(page.getByLabel("직무", { exact: true })).toHaveValue("BACKEND");
+  await expect(page.getByLabel("지원처 종류", { exact: true })).toHaveValue("");
+});
+
+test("a failed type save goes back to the saved value, says why and retries the same choice", async ({ page }) => {
+  const api = await fake(page);
+  await page.goto("/questions?question=41");
+  const role = page.getByLabel("직무", { exact: true });
+  await expect(role).toHaveValue("");
+  api.patchDown = true;
+  await role.selectOption("FRONTEND");
+  await expect(page.getByRole("alert").filter({ hasText: "직무을(를) 저장하지 못했어요" })).toContainText("잠시 뒤 다시 시도해 주세요");
+  await expect(role).toHaveValue("");
+  api.patchDown = false;
+  await page.getByRole("button", { name: "다시 시도", exact: true }).click();
+  await expect(role).toHaveValue("FRONTEND");
+  await expect(page.getByRole("alert").filter({ hasText: "저장하지 못했어요" })).toHaveCount(0);
+  expect(patches(api)).toEqual([["PATCH /api/applications/21", { jobRole: "FRONTEND" }], ["PATCH /api/applications/21", { jobRole: "FRONTEND" }]]);
+});
+
+test("question type shows the AI reading, can be corrected, and a choice made while analyzing is kept", async ({ page }) => {
+  const api = await fake(page);
+  await page.goto("/questions?question=41");
+  const type = result(page).getByLabel("문항 유형", { exact: true });
+  await expect(type).toHaveValue("PROBLEM_SOLVING");
+  // 「AI 해석」 · 「내가 고름」은 칸의 설명으로 붙는다 — 추천 카드의 「AI 해석」과 섞이지 않게 칸으로 확인
+  await expect(type).toHaveAccessibleDescription("AI 해석");
+  await type.selectOption("CONFLICT");
+  await expect(type).toHaveAccessibleDescription("내가 고름");
+  await page.reload();
+  await expect(result(page).getByLabel("문항 유형", { exact: true })).toHaveValue("CONFLICT");
+
+  // 분석 중인 새 문항 — 유형이 아직 없어도 고르고, 분석이 끝나도 AI 가 덮어쓰지 않는다
+  await compose(page, "갈등을 해결한 경험을 적어 주세요.");
+  await expect(result(page).getByRole("status").filter({ hasText: "찾고 있어요" })).toBeVisible();
+  await expect(result(page).getByLabel("문항 유형", { exact: true })).toHaveValue("");
+  await result(page).getByLabel("문항 유형", { exact: true }).selectOption("MOTIVATION");
+  await expect(result(page).getByLabel("문항 유형", { exact: true })).toHaveAccessibleDescription("내가 고름");
+  await expect(recommendation(page, 1)).toBeVisible({ timeout: 10000 });
+  await expect(result(page).getByLabel("문항 유형", { exact: true })).toHaveValue("MOTIVATION");
+  expect(patches(api).map(([call]) => call)).toEqual(["PATCH /api/questions/41", "PATCH /api/questions/43"]);
 });
 
 test("a question can be added to an existing application and blank slots are named", async ({ page }) => {
