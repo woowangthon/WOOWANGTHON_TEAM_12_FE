@@ -1,6 +1,6 @@
 import { Suspense } from "react";
-import { QuestionScreen } from "@/components/questions/question-screen";
+import { ApplicationScreen } from "@/components/questions/application-screen";
 
 export default function QuestionsPage() {
-  return <Suspense><QuestionScreen /></Suspense>;
+  return <Suspense><ApplicationScreen /></Suspense>;
 }
