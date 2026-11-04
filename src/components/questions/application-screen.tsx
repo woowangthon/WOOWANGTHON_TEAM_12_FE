@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowsClockwiseIcon, MagnifyingGlassIcon, PlusIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { AppHeader } from "@/components/app-header";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { CenterState } from "@/components/center-state";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -12,6 +13,7 @@ import type { MockQuestionScenario } from "@/lib/mock/questions";
 import { AddQuestionForm, ApplicationForm } from "./application-form";
 import { overlapsOf, sameExperienceElsewhere, type Overlap } from "./overlap";
 import { QuestionResult } from "./question-result";
+import { ChagokPanel, Mascot, type SupplementOrigin } from "./chagok-panel";
 import { useApplications } from "./use-applications";
 
 const STATUS = { ANALYZING: "분석 중", COMPLETED: "완료", FAILED: "실패" } as const;
@@ -25,8 +27,18 @@ function progressText(application: Application) {
   return [`문항 ${application.questions.length}`, n("ANALYZING") && `분석 중 ${n("ANALYZING")}`, n("FAILED") && `실패 ${n("FAILED")}`].filter(Boolean).join(" · ");
 }
 
-/** 지원 화면(S-18 · S-21) — 왼쪽 지원 목록, 오른쪽 고른 지원: 여러 문항에 추천된 활동 → 문항 탭 → 그 문항의 추천(#30).
- *  배치는 ETC 시안 6 apply.html. 시안의 답변 초안 · 근거 점검 · 차곡이 패널은 범위 밖(P1 · ETC#78) */
+const WIDE = "(min-width: 1280px)";
+/** 1280 이상 — 사이드바가 있고 차곡이 패널이 옆에 붙는다. 그보다 좁으면 패널은 버튼으로 여는 시트 */
+function useWide() {
+  return useSyncExternalStore(change => {
+    const query = matchMedia(WIDE);
+    query.addEventListener("change", change);
+    return () => query.removeEventListener("change", change);
+  }, () => matchMedia(WIDE).matches, () => false);
+}
+
+/** 지원 화면(S-18 · S-21) — 지원 목록(1280 이상은 사이드바), 고른 지원: 여러 문항에 추천된 활동 → 문항 탭 → 참고 경험(#30),
+ *  오른쪽 차곡이 패널: 요구사항 · 보완 재사용 · 되묻기(FE#51). 배치는 ETC 시안 6 apply.html. 답변 초안 · 근거 점검 · 패널 버튼은 범위 밖(P1 · ETC#78) */
 export function ApplicationScreen() {
   const params = useSearchParams();
   // 자료 분석의 ?analysis=fail·empty와 같은 명시적 목 확인 경로. 입력 내용으로 실패를 추측하지 않는다.
@@ -39,9 +51,29 @@ export function ApplicationScreen() {
   const overlaps = useMemo(() => (open ? overlapsOf(open.details) : []), [open]);
   const scrollToDetail = () => requestAnimationFrame(() => document.getElementById("selected-application")?.scrollIntoView({ block: "start" }));
   const empty = !matching.loading && !matching.error && matching.applications.length === 0;
+  const ready = !empty && !matching.loading && !matching.error;
+  const wide = useWide();
+  const [panelChoice, setPanelChoice] = useState<boolean | null>(null);
+  const panelOpen = panelChoice ?? wide;
+  const selected = open?.details.find(d => d.id === matching.questionId) ?? null;
+  const selectedIndex = open?.details.findIndex(d => d.id === matching.questionId) ?? -1;
+  const unanswered = selected?.clarifications.filter(c => c.supplementId === null).length ?? 0;
+  const originOf: SupplementOrigin = supplement => {
+    const owner = matching.applications.find(a => a.questions.some(q => q.id === supplement.questionId));
+    if (!owner) return "지난 문항";
+    if (owner.id === open?.application.id) return `이 지원의 문항 ${owner.questions.findIndex(q => q.id === supplement.questionId) + 1}`;
+    return `${owner.organization || "다른 지원"} 문항`;
+  };
+  const panel = <ChagokPanel question={composing || adding ? null : selected} index={selectedIndex} originOf={originOf}
+    onAnswer={(clarificationId, answer) => selected ? matching.answer(selected.id, clarificationId, answer) : Promise.resolve()}
+    onClose={() => setPanelChoice(false)} />;
+  const pick = async (a: Application) => { setComposing(false); setAdding(false); await matching.selectApplication(a); scrollToDetail(); };
+  const activeId = composing ? null : open?.application.id ?? null;
 
-  return <div className="min-h-dvh bg-canvas">
-    <AppHeader activePage="questions" timelineHref="/?questionMock=1" />
+  return <div className="min-h-dvh bg-canvas xl:flex xl:items-start">
+    <AppHeader activePage="questions" timelineHref="/?questionMock=1"
+      sidebarExtra={ready ? <ApplicationList applications={matching.applications} activeId={activeId} onPick={pick} sidebar /> : undefined} />
+    <div className="min-w-0 flex-1">
     <p role="note" className="m-0 border-b border-hairline px-4.5 py-2 text-xs text-muted lg:px-7">
       목 모드 · 정해진 예시 결과이며 실제 AI 분석·서버 저장은 하지 않아요. 지원 기록은 이 브라우저에만 보관해요.
       {scenario === "fail" && " 지금 넣는 문항은 실패·다시 시도 흐름을 보여줘요."}
@@ -57,31 +89,24 @@ export function ApplicationScreen() {
         <p className="m-0 text-error">{matching.error}</p><Button variant="secondary" onClick={() => { void matching.refresh(); }}>다시 불러오기</Button>
       </div> : empty ? <section id="selected-application" className="max-w-2xl" aria-label="새 지원 입력">
         <ApplicationForm onSubmit={req => matching.submit(req, scenario)} />
-      </section> : <div className="grid items-start gap-7 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-10">
-        <aside id="application-list" className="min-w-0 scroll-mt-4 lg:sticky lg:top-6" aria-label="지원 목록">
-          <div className="mb-3 flex items-baseline justify-between"><h2 className="m-0 text-[17px] font-semibold">넣었던 지원</h2><span className="text-[13px] text-muted tabular-nums">{matching.applications.length}곳</span></div>
-          <ul className="m-0 grid max-h-72 list-none gap-1 overflow-y-auto p-0 lg:max-h-[calc(100dvh-240px)]">{matching.applications.map(a => {
-            const active = !composing && open?.application.id === a.id;
-            return <li key={a.id}>
-              <button type="button" aria-pressed={active} className={cn("grid w-full gap-1 rounded-sm px-3.5 py-3 text-left transition-colors", active ? "bg-mark-soft" : "hover:bg-surface-soft")} onClick={async () => {
-                setComposing(false); setAdding(false); await matching.selectApplication(a); scrollToDetail();
-              }}>
-                <span className="text-sm font-semibold">{a.organization || "지원처 이름 없음"}</span>
-                <span className="line-clamp-1 text-[13px] text-body">{a.questions[0].text}</span>
-                <span className="text-xs text-muted tabular-nums">{progressText(a)} · {dateText(a.createdAt)}</span>
-              </button>
-            </li>;
-          })}</ul>
-        </aside>
+      </section> : <div className="grid items-start gap-7 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-10 xl:grid-cols-1">
+        {!wide && <aside id="application-list" className="min-w-0 scroll-mt-4 lg:sticky lg:top-6" aria-label="지원 목록">
+          <ApplicationList applications={matching.applications} activeId={activeId} onPick={pick} />
+        </aside>}
         <section id="selected-application" className="min-w-0 scroll-mt-5" aria-label={composing ? "새 지원 입력" : "선택한 지원"}>
           {composing ? <ApplicationForm onCancel={() => setComposing(false)} onSubmit={async req => {
             const saved = await matching.submit(req, scenario);
             if (saved) { setComposing(false); scrollToDetail(); }
           }} /> : open ? <>
             <a href="#application-list" className="mb-3 inline-flex min-h-11 items-center text-sm text-muted underline underline-offset-4 lg:hidden">지원 목록으로</a>
-            <header className="mb-5">
-              <h2 className="m-0 text-[24px] leading-snug font-bold tracking-[-0.4px]">{open.application.organization || "지원처 이름 없음"}</h2>
-              <p className="mt-1 mb-0 text-[13px] text-muted tabular-nums">{progressText(open.application)} · {dateText(open.application.createdAt)}에 넣음</p>
+            <header className="mb-5 flex items-start gap-3">
+              <div className="min-w-0 flex-1">
+                <h2 className="m-0 text-[24px] leading-snug font-bold tracking-[-0.4px]">{open.application.organization || "지원처 이름 없음"}</h2>
+                <p className="mt-1 mb-0 text-[13px] text-muted tabular-nums">{progressText(open.application)} · {dateText(open.application.createdAt)}에 넣음</p>
+              </div>
+              <Button variant="secondary" aria-expanded={panelOpen} aria-controls="chagok-panel" onClick={() => setPanelChoice(!panelOpen)}>
+                <Mascot size={20} />차곡이{unanswered > 0 && !panelOpen && <span className="rounded-full bg-primary px-1.5 text-xs leading-5 text-on-primary tabular-nums">질문 {unanswered}</span>}
+              </Button>
             </header>
             {overlaps.length > 0 && <OverlapPanel overlaps={overlaps} onPick={id => { setAdding(false); void matching.selectQuestion(id); }} />}
             <QuestionTabs details={open.details} selectedId={adding ? null : matching.questionId} adding={adding}
@@ -91,14 +116,47 @@ export function ApplicationScreen() {
               {adding ? <AddQuestionForm onCancel={() => setAdding(false)} onSubmit={async text => {
                 const saved = await matching.addQuestion(open.application.id, text, scenario);
                 if (saved) setAdding(false);
-              }} /> : <SelectedQuestion key={matching.questionId} question={open.details.find(d => d.id === matching.questionId) ?? null} index={open.details.findIndex(d => d.id === matching.questionId)}
-                overlaps={overlaps} onRetry={id => matching.retry(id)} onAnswer={(questionId, clarificationId, answer) => matching.answer(questionId, clarificationId, answer)} />}
+              }} /> : <SelectedQuestion key={matching.questionId} question={selected} index={selectedIndex}
+                overlaps={overlaps} onRetry={id => matching.retry(id)} />}
             </div>
           </> : null}
         </section>
       </div>}
     </main>
+    </div>
+    {ready && (wide
+      ? panelOpen && <aside id="chagok-panel" aria-label="차곡이" className="sticky top-0 h-dvh w-[400px] shrink-0 border-l border-hairline">{panel}</aside>
+      : <Sheet open={panelOpen} onOpenChange={o => setPanelChoice(o)}>
+        <SheetContent side="right" showCloseButton={false} id="chagok-panel" aria-describedby={undefined} className="w-full! gap-0 p-0 sm:max-w-[420px]!">
+          <SheetTitle className="sr-only">차곡이</SheetTitle>
+          {panel}
+        </SheetContent>
+      </Sheet>)}
   </div>;
+}
+
+/** 지원 목록 — 1280 이상은 사이드바(시안 6), 그보다 좁으면 화면 안 왼쪽 · 위 */
+function ApplicationList({ applications, activeId, onPick, sidebar = false }: {
+  applications: Application[]; activeId: number | null; onPick: (application: Application) => void; sidebar?: boolean;
+}) {
+  return <>
+    <div className={cn("mb-3 flex items-baseline justify-between", sidebar && "mb-1.5 px-3.5")}>
+      <h2 className={cn("m-0 font-semibold", sidebar ? "text-xs text-muted" : "text-[17px]")}>{sidebar ? "지원서" : "넣었던 지원"}</h2>
+      <span className="text-[13px] text-muted tabular-nums">{applications.length}곳</span>
+    </div>
+    <ul className={cn("m-0 grid list-none content-start gap-1 overflow-y-auto p-0", sidebar ? "min-h-0" : "max-h-72 lg:max-h-[calc(100dvh-240px)]")}>{applications.map(a => {
+      const active = activeId === a.id;
+      return <li key={a.id}>
+        <button type="button" aria-pressed={active} onClick={() => onPick(a)}
+          className={cn("grid w-full gap-1 rounded-sm px-3.5 text-left transition-colors", sidebar ? "py-2" : "py-3",
+            active ? (sidebar ? "bg-canvas" : "bg-mark-soft") : (sidebar ? "hover:bg-canvas/60" : "hover:bg-surface-soft"))}>
+          <span className="text-sm font-semibold">{a.organization || "지원처 이름 없음"}</span>
+          <span className="line-clamp-1 text-[13px] text-body">{a.questions[0].text}</span>
+          <span className="text-xs text-muted tabular-nums">{progressText(a)} · {dateText(a.createdAt)}</span>
+        </button>
+      </li>;
+    })}</ul>
+  </>;
 }
 
 /** 문항 탭 — 넣은 순서대로. 좁은 화면에선 가로로 넘긴다 */
@@ -145,9 +203,8 @@ function OverlapPanel({ overlaps, onPick }: { overlaps: Overlap[]; onPick: (ques
   </section>;
 }
 
-function SelectedQuestion({ question, index, overlaps, onRetry, onAnswer }: {
+function SelectedQuestion({ question, index, overlaps, onRetry }: {
   question: QuestionDetail | null; index: number; overlaps: Overlap[]; onRetry: (id: number) => Promise<unknown>;
-  onAnswer: (questionId: number, clarificationId: number, answer: string) => Promise<void>;
 }) {
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
@@ -168,7 +225,6 @@ function SelectedQuestion({ question, index, overlaps, onRetry, onAnswer }: {
           finally { retryPending.current = false; setRetrying(false); }
         }}><ArrowsClockwiseIcon aria-hidden="true" />{retrying ? "다시 시작하고 있어요…" : "다시 시도"}</Button>
         {retryError && <p role="alert" className="m-0 text-sm text-error">{retryError}</p>}
-      </CenterState> : <QuestionResult key={question.id} question={question} elsewhere={id => sameExperienceElsewhere(overlaps, question.id, id)}
-        onAnswer={(clarificationId, answer) => onAnswer(question.id, clarificationId, answer)} />}
+      </CenterState> : <QuestionResult key={question.id} question={question} elsewhere={id => sameExperienceElsewhere(overlaps, question.id, id)} />}
   </section>;
 }
