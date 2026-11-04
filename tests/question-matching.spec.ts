@@ -414,6 +414,7 @@ test("add source from the application screen opens the dialog on the timeline on
 
 // FE#60 — 탭 · 지원 고르기는 받아 둔 문항으로 바로. 지원 목록은 처음 · 넣을 때만, 처음 보는 문항만 그것만 받는다
 const gets = (api: FakeQuestionApi) => api.calls.filter(c => c.call.startsWith("GET /api/applications") || c.call.startsWith("GET /api/questions")).map(c => c.call);
+const pollWarning = (page: Page) => page.getByRole("main").getByRole("alert");
 test("switching tabs and applications uses questions already loaded; only unseen ones are fetched", async ({ page }) => {
   const api = await fake(page);
   await page.goto("/questions?question=42");
@@ -461,4 +462,103 @@ test("while one question is analyzing only that question is polled and the chose
   await tabs.first().click();
   await expect(recommendation(page, 1)).toBeVisible();
   expect(gets(api)).toEqual([]);
+});
+
+// FE#72 — 분석 중인 문항 1 옆에서 완료된 문항 2의 추천을 읽고 있다.
+async function pollingFailureSetup(page: Page) {
+  const api = await fake(page, { sameApplication: true });
+  const question = api.questions.find(q => q.detail.id === 41)!;
+  question.startedAt = Infinity; // 시험에서 직접 완료시킬 때까지 분석 중
+  api.edit(41, d => {
+    d.status = "ANALYZING"; d.requirements = []; d.recommendations = []; d.clarifications = [];
+  });
+  await page.clock.install({ time: new Date("2026-11-05T00:00:00Z") });
+  await page.clock.pauseAt(new Date("2026-11-05T00:00:01Z"));
+  await page.goto("/questions?question=42");
+  await expect(recommendation(page, 1)).toContainText("매주 금요일");
+  await expect.poll(() => gets(api).includes("GET /api/questions/41")).toBe(true);
+  api.calls = [];
+  return api;
+}
+
+test("one failed poll preserves the selected tab and recommendations, then recovers on success", async ({ page }) => {
+  const api = await pollingFailureSetup(page);
+  const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab");
+  api.questionFailures.set(41, 1);
+  await page.clock.runFor(2000);
+  await expect(pollWarning(page)).toContainText("다시 시도하고 있어요");
+  await expect(tabs.nth(1)).toHaveAttribute("aria-selected", "true");
+  await expect(recommendation(page, 1)).toContainText("매주 금요일");
+  await expect(page).toHaveURL(/question=42/);
+  await expect(page.getByRole("button", { name: "다시 불러오기", exact: true })).toHaveCount(0);
+
+  api.edit(41, d => Object.assign(d, { ...structuredClone(QUESTION_EXAMPLES[0]), applicationId: 22 }));
+  await page.clock.runFor(2000);
+  await expect(pollWarning(page)).toHaveCount(0);
+  await expect(tabs.nth(1)).toHaveAttribute("aria-selected", "true");
+  await tabs.first().click();
+  await expect(recommendation(page, 1)).toContainText("WebSocket");
+  expect(gets(api)).toEqual(["GET /api/questions/41", "GET /api/questions/41"]);
+});
+
+test("three consecutive failed polls stop only that question and reload resumes without losing the tab", async ({ page }, info) => {
+  const api = await pollingFailureSetup(page);
+  const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab");
+  api.questionFailures.set(41, 3);
+  for (let i = 0; i < 3; i++) {
+    await page.clock.runFor(2000);
+    await expect.poll(() => gets(api).length).toBe(i + 1);
+    await expect(pollWarning(page)).toContainText(i < 2 ? "다시 시도하고 있어요" : "자동 확인을 멈췄어요");
+  }
+  await expect(recommendation(page, 1)).toContainText("매주 금요일");
+  await expect(tabs.nth(1)).toHaveAttribute("aria-selected", "true");
+  // 탭을 오가도 실패 횟수 · 멈춤 상태가 유지되고 추가 요청은 없다.
+  await tabs.first().click();
+  await tabs.nth(1).click();
+  await page.clock.runFor(10000);
+  expect(gets(api)).toHaveLength(3);
+  if (process.env.UPDATE_QUESTION_SCREENSHOTS === "1") {
+    for (const width of info.project.name === "desktop" ? [1440, 1024] : [390]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.screenshot({ path: `docs/fe-72/poll-stopped-${width}.png`, fullPage: true, style: "nextjs-portal { display: none !important; }" });
+    }
+  }
+  api.edit(41, d => Object.assign(d, { ...structuredClone(QUESTION_EXAMPLES[0]), applicationId: 22 }));
+  await page.getByRole("button", { name: "다시 불러오기", exact: true }).click();
+  await page.clock.runFor(2000);
+  await expect(pollWarning(page)).toHaveCount(0);
+  await expect(tabs.nth(1)).toHaveAttribute("aria-selected", "true");
+  await tabs.first().click();
+  await expect(recommendation(page, 1)).toContainText("WebSocket");
+  expect(gets(api)).toHaveLength(4);
+  expect(posts(api)).toEqual([]); // 분석을 다시 돌리지 않고 상태만 읽는다
+});
+
+test("a successful analyzing poll resets consecutive failures and another question can complete independently", async ({ page }) => {
+  const api = await pollingFailureSetup(page);
+  const peer = structuredClone(api.questions.find(q => q.detail.id === 41)!);
+  peer.detail.id = 43;
+  peer.detail.text = "다른 분석 중인 문항";
+  api.questions.push(peer);
+  await page.reload();
+  await expect(recommendation(page, 1)).toBeVisible();
+  await expect.poll(() => gets(api).includes("GET /api/questions/43")).toBe(true);
+  api.calls = [];
+  api.questionFailures.set(41, 2);
+  api.edit(43, d => Object.assign(d, { ...structuredClone(QUESTION_EXAMPLES[0]), id: 43, applicationId: 22 }));
+  for (let i = 0; i < 2; i++) {
+    await page.clock.runFor(2000);
+    await expect.poll(() => api.questionFailures.get(41)).toBe(1 - i);
+    await expect(pollWarning(page)).toContainText("다시 시도하고 있어요");
+  }
+  const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab");
+  await tabs.nth(2).click();
+  await expect(recommendation(page, 1)).toContainText("WebSocket");
+  await page.clock.runFor(2000); // 성공했지만 아직 ANALYZING
+  await expect(pollWarning(page)).toHaveCount(0);
+  api.questionFailures.set(41, 1);
+  await page.clock.runFor(2000);
+  await expect(pollWarning(page)).toContainText("다시 시도하고 있어요");
+  await expect(page.getByRole("button", { name: "다시 불러오기", exact: true })).toHaveCount(0);
+  expect(gets(api).filter(c => c === "GET /api/questions/43")).toHaveLength(1);
 });

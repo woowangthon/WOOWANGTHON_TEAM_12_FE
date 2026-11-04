@@ -86,6 +86,14 @@ export function ApplicationScreen() {
         <div><h1 className="m-0 text-[26px] leading-snug font-bold tracking-[-0.4px]">지원</h1><p className="mt-2 mb-0 text-sm text-muted">지원서의 문항마다 꺼내 볼 경험을 찾아요. 같은 경험도 문항마다 다른 점을 보여 줄 수 있어요.</p></div>
         {!empty && <Button disabled={composing || matching.loading || !!matching.error} onClick={() => { setComposing(true); setAdding(false); scrollToDetail(); }}><PlusIcon aria-hidden="true" />지원 넣기</Button>}
       </div>
+      {ready && matching.pollWarnings.map(warning => <div key={warning.id} role="alert" aria-label={warning.label}
+        className="mb-4 flex flex-wrap items-center justify-between gap-3 border-y border-hairline py-3 text-sm">
+        <div className="min-w-0 flex-1">
+          <p className="m-0 break-words font-medium">{warning.label}</p>
+          <p className="mt-1 mb-0 text-error">{warning.stopped ? "상태를 불러오지 못해 자동 확인을 멈췄어요." : "상태를 불러오지 못했어요. 다시 시도하고 있어요."}</p>
+        </div>
+        {warning.stopped && <Button variant="secondary" onClick={() => matching.resumePolling(warning.id)}>다시 불러오기</Button>}
+      </div>)}
       {matching.loading ? <LoadingApplications /> : matching.error ? <div role="alert" className="grid justify-items-start gap-3 py-8">
         <p className="m-0 text-error">{matching.error}</p><Button variant="secondary" onClick={() => { void matching.refresh(); }}>다시 불러오기</Button>
       </div> : empty ? <section id="selected-application" className="max-w-2xl" aria-label="새 지원 입력">
