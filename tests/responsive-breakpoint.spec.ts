@@ -24,19 +24,24 @@ test("responsive breakpoint: JS and CSS agree at the browser default font size",
     }
     const sidebar = page.locator('aside[aria-label="사이드바"]');
     const topMenu = page.getByRole("banner");
-    if (wide) {
+    const desktop = width >= fontSize * 64;
+    if (desktop) {
       await expect(sidebar).toBeVisible();
       await expect(topMenu).toBeHidden();
-      await expect(page.locator("#application-list")).toHaveCount(0);
-      await expect(sidebar.getByRole("button", { name: /OO 연합 동아리/ })).toBeVisible();
+      await expect(sidebar).toHaveCSS("width", `${fontSize * (wide ? 15.5 : 4.5)}px`);
     } else {
       await expect(sidebar).toBeHidden();
       await expect(topMenu).toBeVisible();
+    }
+    if (wide) {
+      await expect(page.locator("#application-list")).toHaveCount(0);
+      await expect(sidebar.getByRole("button", { name: /OO 연합 동아리/ })).toBeVisible();
+    } else {
       await expect(page.locator("#application-list")).toBeVisible();
     }
-    // layout.tsx가 비워 둔 사이드바 자리도 CSS xl 전환과 같아야 한다.
-    const padding = await page.locator('body > div[class~="xl:pl-62"]').evaluate(el => parseFloat(getComputedStyle(el).paddingLeft));
-    expect(padding).toBe(wide ? fontSize * 15.5 : 0);
+    // 작업 면이 비워 둔 자리도 CSS lg / xl 전환과 같아야 한다(FE#53).
+    const padding = await page.locator(".app-shell").evaluate(el => parseFloat(getComputedStyle(el).paddingLeft));
+    expect(padding).toBe(wide ? fontSize * 15.5 : desktop ? fontSize * 4.5 : 0);
     const content = page.locator("#selected-application");
     await expect(content).toBeVisible();
     const bounds = (await content.boundingBox())!;

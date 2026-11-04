@@ -6,7 +6,7 @@ import { DropdownMenu } from "radix-ui";
 import { cn } from "@/lib/utils";
 import { useAuth } from "./auth-gate";
 
-export function AccountMenu({ variant = "bar" }: { variant?: "bar" | "sidebar" }) {
+export function AccountMenu({ variant = "bar" }: { variant?: "bar" | "sidebar" | "rail" }) {
   const { me, refresh, signOut } = useAuth();
   if (!me) return null;
   const { used, limit } = me.dailyAnalysis;
@@ -16,16 +16,17 @@ export function AccountMenu({ variant = "bar" }: { variant?: "bar" | "sidebar" }
         aria-label={`계정 메뉴: ${me.loginId}`}
         className={cn(
           "inline-flex min-h-10 max-w-full items-center gap-2 rounded-full text-sm font-medium text-ink transition-colors outline-none hover:bg-surface-strong focus-visible:outline-2 focus-visible:outline-ink",
-          variant === "sidebar" ? "w-full px-3.5" : "px-2.5",
+          variant === "bar" ? "px-2.5" : "h-11 w-full gap-2.5 overflow-hidden px-3 whitespace-nowrap",
         )}
       >
         <UserCircleIcon className="size-5 shrink-0" aria-hidden="true" />
-        <span className={cn("truncate", variant === "bar" && "max-lg:sr-only")}>{me.loginId}</span>
+        <span aria-hidden={variant === "rail" || undefined}
+          className={cn(variant === "bar" ? "truncate max-lg:sr-only" : "sidebar-label shrink-0")}>{me.loginId}</span>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content
-          align={variant === "sidebar" ? "start" : "end"}
-          side={variant === "sidebar" ? "top" : "bottom"}
+          align={variant !== "bar" ? "start" : "end"}
+          side={variant !== "bar" ? "top" : "bottom"}
           sideOffset={6}
           className="z-50 min-w-52 rounded-md border border-hairline bg-canvas p-1 shadow-float"
         >

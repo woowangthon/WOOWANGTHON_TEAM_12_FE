@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { AuthGate } from "@/components/auth/auth-gate";
+import { SidebarLayout } from "@/components/sidebar-layout";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -23,13 +24,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         />
       </head>
       <body className="flex min-h-full flex-col bg-page">
-        {/* 작업 면 — 1280 이상에선 왼쪽 사이드바(AppHeader, 폭 62) 자리를 비우고 흰 면을 둥글게 띄운다(시안 6, FE#43) */}
-        <div className="flex min-h-dvh flex-1 flex-col xl:pl-62">
-          <div className="relative flex flex-1 flex-col overflow-clip bg-canvas xl:rounded-l-lg xl:shadow-[0_0_0_1px_var(--hairline-soft)]">
+        {/* 작업 면 — 레일 72px / 펼친 사이드바 248px 만큼만 비운다(FE#53). */}
+        <SidebarLayout>
+          <div className="relative flex flex-1 flex-col overflow-clip bg-canvas lg:rounded-l-lg lg:shadow-[0_0_0_1px_var(--hairline-soft)]">
             {/* 실제 API 모드면 로그인부터(FE#37). 목 모드는 그대로 */}
             <AuthGate>{children}</AuthGate>
           </div>
-        </div>
+        </SidebarLayout>
       </body>
     </html>
   );
