@@ -53,6 +53,40 @@
   color-scheme: light;
 }
 
+/*
+  실험(톤 시험, ETC#19) — 「책방카페를 살짝」. 크림 · 노란 바탕과 테라코타는 쓰지 않는다(흔한 AI 생성 디자인 인상).
+  작업 면은 흰색 그대로, 바깥 틀은 돌 회색, 글자는 먹색, 제목만 부리(마루부리). ?tone=ink | shelf | default 로 바꾼다.
+  ink   — 먹: 버튼 · 강조도 먹색
+  shelf — 서가: 주 버튼만 짙은 서가 초록
+*/
+:root[data-tone="ink"],
+:root[data-tone="shelf"] {
+  --page: #eceeeb; /* 돌 회색 — 노랗지 않게 아주 살짝 초록 쪽 */
+  --canvas: #ffffff;
+  --surface-soft: #f3f4f2;
+  --surface-strong: #e7e9e6;
+  --ink: #1c2120;
+  --body: #343a38;
+  --muted: #6c7370;
+  --muted-soft: #a1a7a4;
+  --hairline: #e3e6e3;
+  --hairline-soft: #eff1ef;
+  --primary: #1c2120;
+  --primary-active: #39403e;
+  --primary-soft: #f3f4f2;
+  --mark: #4596dc; /* 로고 파랑을 조금 눌러 책등처럼 */
+  --mark-soft: #e8f1f9;
+  --evidence: #2a689e;
+  --evidence-soft: #e8f1f9;
+  --scrim: rgb(28 33 32 / 0.4);
+  --float: 0 12px 40px rgb(28 33 32 / 0.14);
+}
+:root[data-tone="shelf"] {
+  --primary: #24473a;
+  --primary-active: #1a372c;
+  --primary-soft: #e9efec;
+}
+
 @theme inline {
   --font-sans:
     "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo",
@@ -124,6 +158,17 @@
   button:not(:disabled),
   [role="button"]:not(:disabled) {
     cursor: pointer;
+  }
+  /* 실험 — 제목만 부리. 본문 · 숫자 · 버튼은 Pretendard 그대로 */
+  :root[data-tone] :is(h1, h2) {
+    font-family: "MaruBuriBold", var(--font-sans);
+    letter-spacing: -0.2px;
+  }
+  :root[data-tone] :is(h3, .font-heading) {
+    font-family: "MaruBuriSemiBold", var(--font-sans);
+  }
+  :root[data-tone] [data-brand-blur] {
+    display: none; /* 사이드바의 파랑 · 분홍 · 초록 번짐 — SaaS 인상이 가장 센 자리 */
   }
   :focus-visible {
     outline: 2px solid var(--ink);

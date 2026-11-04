@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { ToneSwitch, TONE_SCRIPT } from "@/components/tone-switch";
 
 export const metadata: Metadata = {
   title: "내가 우왕이 될 상인가",
@@ -13,8 +14,12 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="ko" className="h-full antialiased">
+    <html lang="ko" className="h-full antialiased" suppressHydrationWarning>
       <head>
+        {/* 실험(톤 시험) — 그리기 전에 data-tone 을 붙여 깜빡이지 않게 */}
+        <script dangerouslySetInnerHTML={{ __html: TONE_SCRIPT }} />
+        {/* 실험 — 제목용 부리 글꼴(마루부리, 네이버 · SIL OFL) */}
+        <link rel="stylesheet" href="https://hangeul.pstatic.net/hangeul_static/css/maru-buri.css" />
         {/* 글꼴은 Pretendard 하나(ETC docs/design/DESIGN.md) */}
         <link
           rel="stylesheet"
@@ -28,6 +33,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             {children}
           </div>
         </div>
+        <ToneSwitch />
       </body>
     </html>
   );

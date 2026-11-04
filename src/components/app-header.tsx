@@ -38,7 +38,7 @@ export function AppHeader({ hideOnMobile, addSource, activePage = "timeline", ti
 
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-62 flex-col gap-5.5 overflow-hidden px-3.5 pt-6.5 pb-4.5 xl:flex" aria-label="사이드바">
         {/* 시안의 배경 번짐(파랑 · 분홍 · 초록) */}
-        <Image src="/brand/bg-blur.svg" alt="" aria-hidden="true" className="pointer-events-none absolute -top-75 -left-90 max-w-none" width={1500} height={1630} priority />
+        <Image src="/brand/bg-blur.svg" alt="" aria-hidden="true" data-brand-blur className="pointer-events-none absolute -top-75 -left-90 max-w-none" width={1500} height={1630} priority />
         <Link href={timelineHref} className="relative flex h-9 items-center pl-2" aria-label="차곡 — 내 경험">
           <Logo className="h-6.5 w-auto" />
         </Link>

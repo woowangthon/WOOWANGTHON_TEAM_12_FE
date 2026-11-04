@@ -46,7 +46,7 @@ export function QuestionResult({ question, elsewhere }: { question: QuestionDeta
     </div> : <ol className="m-0 mt-4 grid list-none gap-2.5 p-0">{question.recommendations.map((r, i) => <li key={r.experience.id} id={`recommendation-${question.id}-${r.experience.id}`}
       className="scroll-mt-5" aria-label={`추천 경험 ${i + 1}`}>
       {/* 첫 카드만 펼쳐 둔다 — 시안은 다 접지만, 위의 답변 칸(초안, P1)이 아직 없어 이 목록이 화면의 본체라서 */}
-      <details open={i === 0} className="group rounded-[18px] bg-mark-soft">
+      <details open={i === 0} className="group rounded-[18px] bg-surface-soft">
         <summary className="grid cursor-pointer list-none grid-cols-[auto_minmax(0,1fr)] items-start gap-3 px-4 py-3.5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-4.5 [&::-webkit-details-marker]:hidden">
           <CaretRightIcon aria-hidden="true" className="mt-1 size-4 text-muted transition-transform group-open:rotate-90" />
           <span className="grid gap-1">
