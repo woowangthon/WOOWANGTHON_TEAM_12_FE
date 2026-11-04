@@ -14,6 +14,51 @@ test.beforeEach(async ({ page }) => {
   await new FakeQuestionApi().install(page);
 });
 
+test("icons stay in place throughout collapse and expansion while width and labels transition", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop");
+  await page.goto("/questions");
+  await expect(sidebar(page)).toHaveCSS("width", "248px");
+  const measure = async (label: string) => page.evaluate(async label => {
+    const drawer = document.querySelector<HTMLElement>('aside[aria-label="사이드바"]')!;
+    const read = () => ({
+      width: drawer.getBoundingClientRect().width,
+      padding: parseFloat(getComputedStyle(document.querySelector(".app-shell")!).paddingLeft),
+      icons: Array.from(drawer.querySelectorAll('nav svg, [aria-label^="계정 메뉴"] svg')).map(el => {
+        const r = el.getBoundingClientRect(); return { x: r.x, y: r.y };
+      }),
+      labels: Array.from(drawer.querySelectorAll("nav .sidebar-label")).map(el => ({ text: el.textContent, opacity: Number(getComputedStyle(el).opacity) })),
+    });
+    const before = read();
+    drawer.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!.click();
+    const frames = [];
+    const start = performance.now();
+    do {
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+      frames.push(read());
+    } while (performance.now() - start < 450);
+    return { before, frames };
+  }, label);
+  for (const label of ["사이드바 접기", "사이드바 펼치기"]) {
+    const { before, frames } = await measure(label);
+    expect(before.icons).toHaveLength(5);
+    expect(frames.some(f => f.width > 72.5 && f.width < 247.5)).toBe(true);
+    expect(frames.some(f => f.labels.some(l => l.opacity > 0 && l.opacity < 1))).toBe(true);
+    for (const frame of frames) {
+      expect(frame.padding).toBeCloseTo(frame.width, 0);
+      expect(frame.labels.map(l => l.text)).toEqual(before.labels.map(l => l.text));
+      frame.icons.forEach((icon, i) => {
+        expect(icon.x).toBeCloseTo(before.icons[i].x, 2);
+        expect(icon.y).toBeCloseTo(before.icons[i].y, 2);
+      });
+    }
+    expect(frames.at(-1)!.width).toBe(label === "사이드바 접기" ? 72 : 248);
+  }
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await sidebar(page).getByRole("button", { name: "사이드바 접기", exact: true }).click();
+  await expect(sidebar(page)).toHaveCSS("width", "72px");
+  await expect(sidebar(page)).toHaveCSS("transition-duration", "0s");
+});
+
 test("desktop collapse survives reload and navigation; the application list remains reachable", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop");
   await page.goto("/questions");

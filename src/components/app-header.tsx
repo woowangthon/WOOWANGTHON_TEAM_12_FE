@@ -47,7 +47,7 @@ function DesktopSidebar(props: HeaderProps) {
   const trigger = useRef<HTMLButtonElement>(null);
   const toggleLabel = collapsed ? "사이드바 펼치기" : "사이드바 접기";
   return <>
-    <aside className={cn("fixed inset-y-0 left-0 z-30 hidden flex-col gap-5.5 overflow-clip pt-6.5 pb-4.5 lg:flex", collapsed ? "w-18 items-center px-3.5" : "w-62 px-3.5")} aria-label="사이드바">
+    <aside data-collapsed={collapsed} className="sidebar-drawer fixed inset-y-0 left-0 z-30 hidden flex-col gap-5.5 overflow-clip px-3.5 pt-6.5 pb-4.5 lg:flex" aria-label="사이드바">
       <SidebarBackground />
       {/* 시안 6: 레일은 같은 로고 자리에서 펼침 아이콘으로 바뀐다. 높이를 고정해 메뉴가 밀리지 않게 한다. */}
       <div data-slot="sidebar-brand" className={cn("group/brand relative flex h-11 shrink-0 items-center", collapsed ? "w-11 justify-center" : "justify-between pl-2")}>
@@ -61,16 +61,19 @@ function DesktopSidebar(props: HeaderProps) {
         </RailTip>
       </div>
       <SidebarNavigation {...props} collapsed={collapsed} id="sidebar-navigation" />
-      {!collapsed && props.sidebarExtra && <div className="relative flex min-h-0 flex-1 flex-col">{props.sidebarExtra}</div>}
+      {props.sidebarExtra && <div inert={collapsed} aria-hidden={collapsed || undefined}
+        className={cn("relative flex min-h-0 w-55 flex-1 flex-col transition-opacity duration-150", collapsed && "pointer-events-none opacity-0")}>
+        {props.sidebarExtra}
+      </div>}
       <div className="relative mt-auto"><AccountMenu variant={collapsed ? "rail" : "sidebar"} /></div>
     </aside>
     <Sheet open={overlayOpen && desktop && !wide} onOpenChange={setOverlayOpen}>
       <SheetContent side="left" id="sidebar-overlay" aria-describedby={undefined} showCloseButton={false}
         onCloseAutoFocus={event => { event.preventDefault(); trigger.current?.focus(); }}
-        className="w-62! gap-5.5 overflow-clip bg-page px-3.5 pt-6.5 pb-4.5">
+        className="sidebar-overlay w-62! gap-5.5 overflow-clip bg-page px-3.5 pt-6.5 pb-4.5">
         <SheetTitle className="sr-only">사이드바</SheetTitle>
         <SidebarBackground />
-        <div className="relative flex h-9 items-center justify-between pl-2">
+        <div className="relative flex h-11 shrink-0 items-center justify-between pl-2">
           <Brand onNavigate={() => setOverlayOpen(false)} />
           <button type="button" aria-label="사이드바 접기" onClick={() => setOverlayOpen(false)} className="flex size-11 items-center justify-center rounded-full hover:bg-canvas/60">
             <SidebarSimpleIcon className="size-5" aria-hidden="true" />
@@ -85,19 +88,22 @@ function DesktopSidebar(props: HeaderProps) {
 }
 
 function SidebarNavigation({ collapsed = false, activePage = "timeline", addSource, onNavigate, id }: HeaderProps & { collapsed?: boolean; onNavigate?: () => void; id?: string }) {
-  const navItem = cn("flex h-11 shrink-0 items-center rounded-full text-sm font-medium text-ink transition-colors", collapsed ? "w-11 justify-center" : "gap-2.5 px-3.5");
-  return <nav id={id} className={cn("relative flex shrink-0 flex-col", collapsed ? "gap-1.5" : "gap-0.5")} aria-label="주 메뉴">
+  // 왼쪽 여백·아이콘 칸·줄 간격은 접어도 유지한다. 글자는 남겨 서랍의 폭으로 잘라 낸다(시안 6).
+  const navItem = "flex h-11 w-full shrink-0 items-center gap-2.5 overflow-hidden rounded-full px-3 text-sm font-medium whitespace-nowrap text-ink transition-colors";
+  return <nav id={id} className="relative flex shrink-0 flex-col gap-0.5" aria-label="주 메뉴">
     {addSource && <RailTip label="자료 넣기" enabled={collapsed}>
       <button type="button" aria-label="자료 넣기" onClick={() => { onNavigate?.(); addSource.onClick(); }} disabled={addSource.busy}
         title={addSource.busy ? "지금 넣은 자료의 분석이 끝나면 더 넣을 수 있어요" : undefined}
         className={cn(navItem, "hover:bg-canvas/60 disabled:cursor-default disabled:opacity-50")}>
-        <PlusIcon className="size-4.5 shrink-0" aria-hidden="true" />{!collapsed && "자료 넣기"}
+        <span className="flex size-5 shrink-0 items-center justify-center" aria-hidden="true"><PlusIcon className="size-4.5" /></span>
+        <span className="sidebar-label shrink-0" aria-hidden={collapsed || undefined}>자료 넣기</span>
       </button>
     </RailTip>}
     {links.map(l => <RailTip key={l.page} label={l.label} enabled={collapsed}>
       <Link href={l.href} onClick={onNavigate} aria-label={l.label} aria-current={activePage === l.page ? "page" : undefined}
         className={cn(navItem, activePage === l.page ? "bg-canvas font-bold" : "hover:bg-canvas/60")}>
-        <span className="text-[19px]" aria-hidden="true">{l.icon}</span>{!collapsed && l.label}
+        <span className="flex size-5 shrink-0 items-center justify-center text-[19px]" aria-hidden="true">{l.icon}</span>
+        <span className="sidebar-label shrink-0" aria-hidden={collapsed || undefined}>{l.label}</span>
       </Link>
     </RailTip>)}
   </nav>;

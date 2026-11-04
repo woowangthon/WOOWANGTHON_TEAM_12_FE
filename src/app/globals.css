@@ -132,11 +132,29 @@
 }
 
 /* FE#53: 사이드바가 겹쳐 열려도 작업 면은 레일 폭만 비워 둔다. */
+.app-shell, .sidebar-overlay {
+  --sidebar-slide: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
 .app-shell { --sidebar-width: 4.5rem; }
+.sidebar-drawer {
+  width: var(--sidebar-width);
+}
+.sidebar-label { transition: opacity 0.15s; }
+.sidebar-drawer[data-collapsed="true"] .sidebar-label { opacity: 0; }
+/* 좁은 PC의 서랍도 안쪽 항목을 밀지 않고 오른쪽 가장자리만 드러낸다. */
+.sidebar-overlay[data-state="open"] { animation: sidebar-reveal var(--sidebar-slide); }
+.sidebar-overlay[data-state="closed"] { animation: sidebar-reveal var(--sidebar-slide) reverse; }
+@keyframes sidebar-reveal {
+  from { clip-path: inset(0 calc(100% - 4.5rem) 0 0); }
+  to { clip-path: inset(0); }
+}
 @media (min-width: 64rem) {
   .app-shell { padding-left: var(--sidebar-width); }
 }
 @media (min-width: 80rem) {
+  /* 첫 표시에는 바로 배치하고 사용자가 접고 펼 때만 작업 면과 서랍을 함께 전환한다. */
+  .app-shell[data-sidebar-animating="true"] { transition: padding-left var(--sidebar-slide); }
+  .app-shell[data-sidebar-animating="true"] .sidebar-drawer { transition: width var(--sidebar-slide); }
   .app-shell[data-sidebar-collapsed="false"] { --sidebar-width: 15.5rem; }
 }
 
