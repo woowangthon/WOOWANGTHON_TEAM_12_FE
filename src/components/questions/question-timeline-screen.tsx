@@ -6,7 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AppHeader } from "@/components/app-header";
 import { ActivityDetailView } from "@/components/experience/activity-detail";
 import { Timeline } from "@/components/experience/timeline";
-import { questionMockActivities } from "@/lib/mock/questions";
+import { mockFetchQuestions, questionMockActivities } from "@/lib/mock/questions";
+import { SupplementSourceContext, supplementSource } from "@/components/experience/supplement-list";
 import type { ActivityDetail } from "@/lib/api/types";
 import { monthNumber, spanOf, yearsOf, type Span } from "@/lib/period";
 import { cn } from "@/lib/utils";
@@ -18,12 +19,12 @@ export function QuestionTimelineScreen() {
   const params = useSearchParams();
   const router = useRouter();
   // 보완(FE#31)은 브라우저 보관함에 있어 마운트한 뒤에 읽는다(서버 렌더엔 localStorage 가 없다)
-  const [loaded, setLoaded] = useState<{ activities: ActivityDetail[] } | { error: string } | null>(null);
+  const [loaded, setLoaded] = useState<{ activities: ActivityDetail[]; sourceOf: ReturnType<typeof supplementSource> } | { error: string } | null>(null);
   useEffect(() => {
     let alive = true;
     queueMicrotask(() => {
       if (!alive) return;
-      try { setLoaded({ activities: questionMockActivities() }); }
+      try { setLoaded({ activities: questionMockActivities(), sourceOf: supplementSource(new Map(mockFetchQuestions().map(q => [q.id, q.organization]))) }); }
       catch (e) { setLoaded({ error: e instanceof Error ? e.message : "보관한 예시를 읽지 못했어요." }); }
     });
     return () => { alive = false; };
@@ -57,9 +58,11 @@ export function QuestionTimelineScreen() {
           onSelect={navigate} dragging={null} onDropExperience={ignore} onPeriodChange={ignore} readOnly />}
       </main>
       {selected && <aside aria-label="활동 세부" className="min-h-dvh min-w-0 bg-canvas lg:min-h-0 lg:overflow-auto lg:border-l lg:border-hairline">
-        <ActivityDetailView key={selected.id} summary={{ ...selected, experienceCount: selected.experiences.length }} state={{ status: "ready", activity: selected }} now={now}
-          readOnly onClose={() => navigate()} onRetry={ignore} onActivitySaved={ignore} onExperienceSaved={ignore}
-          onExperienceAdded={ignore} onExperienceDelete={ignore} onExperienceMove={ignore} onDragChange={ignore} draggingId={null} />
+        <SupplementSourceContext value={loaded && "sourceOf" in loaded ? loaded.sourceOf : () => null}>
+          <ActivityDetailView key={selected.id} summary={{ ...selected, experienceCount: selected.experiences.length }} state={{ status: "ready", activity: selected }} now={now}
+            readOnly onClose={() => navigate()} onRetry={ignore} onActivitySaved={ignore} onExperienceSaved={ignore}
+            onExperienceAdded={ignore} onExperienceDelete={ignore} onExperienceMove={ignore} onDragChange={ignore} draggingId={null} />
+        </SupplementSourceContext>
       </aside>}
     </div>
   </div>;
