@@ -140,3 +140,55 @@ test("applications group questions in submitted order and enforce contract limit
   for (let i = 0; i < 17; i++) await addApplicationQuestion(applicationId, { text: `q${i}` });
   await expect(addApplicationQuestion(applicationId, { text: "21번째" })).rejects.toMatchObject({ code: "INVALID_REQUEST" });
 });
+
+// FE#31 — 되묻기 답 → 그 경험의 보완(S-23) · 다른 문항에서 다시 묻지 않기(S-25 모양)
+test("answering a clarification stores a supplement on that experience only and never rewrites the experience", async () => {
+  const { answerClarification } = await import("../src/lib/api/questions");
+  const before = await fetchQuestion(41);
+  await expect(answerClarification(62, { answer: "  " })).rejects.toMatchObject({ code: "EMPTY_ANSWER" });
+  await expect(answerClarification(62, { answer: "x".repeat(2001) })).rejects.toMatchObject({ code: "INVALID_REQUEST" });
+  await expect(answerClarification(9999, { answer: "x" })).rejects.toMatchObject({ code: "CLARIFICATION_NOT_FOUND" });
+  await expect(answerClarification(61, { answer: "x" })).rejects.toMatchObject({ code: "CLARIFICATION_ALREADY_ANSWERED" });
+  const answered = await answerClarification(62, { answer: "두 기기로 동시에 보내 보며 지연을 확인했다" });
+  expect(answered).toMatchObject({ experienceId: 101, supplement: { id: 302, question: before.clarifications[1].question, answer: "두 기기로 동시에 보내 보며 지연을 확인했다", questionId: 41 } });
+  await expect(answerClarification(62, { answer: "again" })).rejects.toMatchObject({ code: "CLARIFICATION_ALREADY_ANSWERED" });
+  const after = await fetchQuestion(41);
+  expect(after.clarifications.find(c => c.id === 62)?.supplementId).toBe(302);
+  const { supplements, ...experience } = after.recommendations[0].experience;
+  const { supplements: oldSupplements, ...oldExperience } = before.recommendations[0].experience;
+  expect(experience).toEqual(oldExperience);
+  expect(supplements.map(s => s.id)).toEqual([...oldSupplements.map(s => s.id), 302]);
+  expect(after.recommendations[0].evidence).toEqual(before.recommendations[0].evidence);
+  // 다른 문항(42)의 같은 경험에도 지금 보완이 실리고, 활동 세부에도 보인다
+  expect((await fetchQuestion(42)).recommendations[1].experience.supplements.map(s => s.id)).toEqual([301, 302]);
+  const activity = questionMockActivities().find(a => a.id === 7)!;
+  expect(activity.experiences.find(e => e.id === 101)?.supplements?.map(s => s.id)).toEqual([301, 302]);
+  expect(activity.experiences.find(e => e.id === 102)?.supplements).toEqual([]);
+});
+
+test("a later question gets fresh clarification IDs and does not re-ask facts already in supplements", async () => {
+  const { answerClarification } = await import("../src/lib/api/questions");
+  const { questionId } = await submitQuestion({ text: "기술 문제 해결 다른 지원" });
+  clock += QUESTION_ANALYSIS_MS;
+  const q = await fetchQuestion(questionId);
+  // 61 은 보완 301 로 이미 답해서 빠지고, 62 는 새 ID · 아직 답 안 함
+  expect(q.clarifications).toEqual([{ id: 64, experienceId: 101, question: QUESTION_EXAMPLES[0].clarifications[1].question, supplementId: null }]);
+  await answerClarification(64, { answer: "확인 방법" });
+  expect((await fetchQuestion(41)).clarifications.find(c => c.id === 62)?.supplementId).toBeNull();
+  const { questionId: third } = await submitQuestion({ text: "또 다른 기술 문항" });
+  clock += QUESTION_ANALYSIS_MS;
+  expect((await fetchQuestion(third)).clarifications).toEqual([]);
+});
+
+test("pre-FE#31 saved records gain example supplements and unique clarification IDs", async () => {
+  const { questionId } = await submitQuestion({ text: "옛 기록" });
+  clock += QUESTION_ANALYSIS_MS;
+  await fetchQuestion(questionId);
+  const legacy = JSON.parse(localStorage.getItem(QUESTION_STORAGE_KEY)!);
+  delete legacy.supplements;
+  legacy.questions.at(-1).detail.clarifications = structuredClone(QUESTION_EXAMPLES[0].clarifications);
+  localStorage.setItem(QUESTION_STORAGE_KEY, JSON.stringify(legacy));
+  const ids = (await Promise.all([41, 42, questionId].map(id => fetchQuestion(id)))).flatMap(q => q.clarifications.map(c => c.id));
+  expect(new Set(ids).size).toBe(ids.length);
+  expect((await fetchQuestion(41)).recommendations[0].experience.supplements.map(s => s.id)).toEqual([301]);
+});

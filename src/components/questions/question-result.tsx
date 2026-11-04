@@ -2,9 +2,11 @@ import Link from "next/link";
 import { CheckIcon, MinusCircleIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { ExperienceMeta } from "@/components/experience/experience-item";
 import { CitationList } from "@/components/experience/citation-list";
+import { UserEnteredLabel } from "@/components/experience/supplement-list";
 import { Button } from "@/components/ui/button";
 import type { QuestionDetail, Recommendation, RequirementStatus } from "@/lib/api/question-types";
 import type { OverlapUse } from "./overlap";
+import { Clarifications, type AnswerHandler } from "./clarifications";
 
 const JUDGMENT: Record<RequirementStatus, { label: string; icon: typeof CheckIcon }> = {
   SUPPORTED: { label: "근거 있음", icon: CheckIcon },
@@ -18,20 +20,21 @@ export function RecommendationEvidence({ recommendation }: { recommendation: Rec
     const experience = recommendation.experience;
     if (ref.type === "CITATION") {
       const citation = experience.citations.find(c => c.id === ref.id);
-      return citation ? <div key={`${ref.type}-${ref.id}-${i}`}><p className="mb-2 text-[13px] font-medium text-evidence">원문 발췌</p><CitationList citations={[citation]} /></div>
+      return citation ? <div key={`${ref.type}-${ref.id}-${i}`}><p className="mt-0 mb-2 text-[13px] font-medium text-evidence">원문 발췌</p><CitationList citations={[citation]} /></div>
         : <p key={i} className="m-0 text-sm text-muted">연결된 원문 근거를 찾지 못했어요.</p>;
     }
     const supplement = experience.supplements.find(s => s.id === ref.id);
     return supplement ? <figure key={`${ref.type}-${ref.id}-${i}`} className="m-0 grid gap-2 rounded-sm border border-hairline p-3.5">
-      <figcaption className="text-[13px] font-medium text-muted">내가 입력한 보완</figcaption>
+      <figcaption><UserEnteredLabel>내가 입력한 보완</UserEnteredLabel></figcaption>
       <p className="m-0 text-[13px] text-muted">{supplement.question}</p>
       <blockquote className="m-0 whitespace-pre-wrap border-l-2 border-hairline pl-3 text-sm text-body">{supplement.answer}</blockquote>
     </figure> : <p key={i} className="m-0 text-sm text-muted">연결된 보완을 찾지 못했어요.</p>;
   })}</div>;
 }
 
-/** elsewhere — 같은 지원의 다른 문항에도 추천된 같은 경험(FE#38 · S-21). 막지 않고 강조점만 나란히 */
-export function QuestionResult({ question, elsewhere }: { question: QuestionDetail; elsewhere?: (experienceId: number) => OverlapUse[] }) {
+/** elsewhere — 같은 지원의 다른 문항에도 추천된 같은 경험(FE#38 · S-21). 막지 않고 강조점만 나란히
+ *  onAnswer — 되묻기 답(S-23). 되묻기는 그 경험의 추천 아래에 붙인다 — 어느 경험에 대한 질문인지 보이게 */
+export function QuestionResult({ question, elsewhere, onAnswer }: { question: QuestionDetail; elsewhere?: (experienceId: number) => OverlapUse[]; onAnswer?: AnswerHandler }) {
   return <div className="grid gap-8">
     <section aria-labelledby="requirements-title">
       <h3 id="requirements-title" className="m-0 text-[17px] font-semibold">문항에서 살펴보는 것</h3>
@@ -72,6 +75,7 @@ export function QuestionResult({ question, elsewhere }: { question: QuestionDeta
           <h5 className="m-0 text-sm font-semibold">추천을 뒷받침하는 기록</h5>
           <RecommendationEvidence recommendation={r} />
         </section>
+        <Clarifications label={`추천 경험 ${i + 1}에 대한 질문`} experience={r.experience} clarifications={question.clarifications.filter(c => c.experienceId === r.experience.id)} onAnswer={onAnswer} />
         <Button asChild variant="link" className="mt-3 text-sm"><Link href={`/?questionMock=1&activity=${r.activity.id}&fromQuestion=${question.id}`}>타임라인에서 활동 보기 →</Link></Button>
       </li>)}</ol>}
     </section>

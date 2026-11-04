@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppHeader } from "@/components/app-header";
 import { ActivityDetailView } from "@/components/experience/activity-detail";
 import { Timeline } from "@/components/experience/timeline";
 import { questionMockActivities } from "@/lib/mock/questions";
+import type { ActivityDetail } from "@/lib/api/types";
 import { monthNumber, spanOf, yearsOf, type Span } from "@/lib/period";
 import { cn } from "@/lib/utils";
 
@@ -16,7 +17,18 @@ const ignore = () => {};
 export function QuestionTimelineScreen() {
   const params = useSearchParams();
   const router = useRouter();
-  const activities = useMemo(() => questionMockActivities(), []);
+  // 보완(FE#31)은 브라우저 보관함에 있어 마운트한 뒤에 읽는다(서버 렌더엔 localStorage 가 없다)
+  const [loaded, setLoaded] = useState<{ activities: ActivityDetail[] } | { error: string } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    queueMicrotask(() => {
+      if (!alive) return;
+      try { setLoaded({ activities: questionMockActivities() }); }
+      catch (e) { setLoaded({ error: e instanceof Error ? e.message : "보관한 예시를 읽지 못했어요." }); }
+    });
+    return () => { alive = false; };
+  }, []);
+  const activities = loaded && "activities" in loaded ? loaded.activities : [];
   const selected = activities.find(a => a.id === Number(params.get("activity")));
   const now = monthNumber(new Date());
   const summaries = activities.map(({ experiences, ...a }) => ({ ...a, experienceCount: experiences.length }));
@@ -40,8 +52,9 @@ export function QuestionTimelineScreen() {
     <div className={cn("flex-1 lg:grid lg:min-h-0", selected && "lg:grid-cols-[minmax(0,1fr)_440px]")}>
       <main className={cn("min-w-0 px-4.5 py-6 lg:overflow-auto lg:px-8 lg:py-8", selected && "hidden lg:block")}>
         <h1 className="m-0 text-[26px] font-bold tracking-[-0.4px]">내 경험</h1>
-        <Timeline activities={summaries} spans={spans} years={yearsOf([...spans.values()])} selectedId={selected?.id ?? null}
-          onSelect={navigate} dragging={null} onDropExperience={ignore} onPeriodChange={ignore} readOnly />
+        {loaded && "error" in loaded && <p role="alert" className="mt-4 text-sm text-error">{loaded.error}</p>}
+        {loaded && "activities" in loaded && <Timeline activities={summaries} spans={spans} years={yearsOf([...spans.values()])} selectedId={selected?.id ?? null}
+          onSelect={navigate} dragging={null} onDropExperience={ignore} onPeriodChange={ignore} readOnly />}
       </main>
       {selected && <aside aria-label="활동 세부" className="min-h-dvh min-w-0 bg-canvas lg:min-h-0 lg:overflow-auto lg:border-l lg:border-hairline">
         <ActivityDetailView key={selected.id} summary={{ ...selected, experienceCount: selected.experiences.length }} state={{ status: "ready", activity: selected }} now={now}

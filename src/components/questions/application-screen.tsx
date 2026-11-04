@@ -92,7 +92,7 @@ export function ApplicationScreen() {
                 const saved = await matching.addQuestion(open.application.id, text, scenario);
                 if (saved) setAdding(false);
               }} /> : <SelectedQuestion key={matching.questionId} question={open.details.find(d => d.id === matching.questionId) ?? null} index={open.details.findIndex(d => d.id === matching.questionId)}
-                overlaps={overlaps} onRetry={id => matching.retry(id)} />}
+                overlaps={overlaps} onRetry={id => matching.retry(id)} onAnswer={(questionId, clarificationId, answer) => matching.answer(questionId, clarificationId, answer)} />}
             </div>
           </> : null}
         </section>
@@ -145,8 +145,9 @@ function OverlapPanel({ overlaps, onPick }: { overlaps: Overlap[]; onPick: (ques
   </section>;
 }
 
-function SelectedQuestion({ question, index, overlaps, onRetry }: {
+function SelectedQuestion({ question, index, overlaps, onRetry, onAnswer }: {
   question: QuestionDetail | null; index: number; overlaps: Overlap[]; onRetry: (id: number) => Promise<unknown>;
+  onAnswer: (questionId: number, clarificationId: number, answer: string) => Promise<void>;
 }) {
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
@@ -167,6 +168,7 @@ function SelectedQuestion({ question, index, overlaps, onRetry }: {
           finally { retryPending.current = false; setRetrying(false); }
         }}><ArrowsClockwiseIcon aria-hidden="true" />{retrying ? "다시 시작하고 있어요…" : "다시 시도"}</Button>
         {retryError && <p role="alert" className="m-0 text-sm text-error">{retryError}</p>}
-      </CenterState> : <QuestionResult key={question.id} question={question} elsewhere={id => sameExperienceElsewhere(overlaps, question.id, id)} />}
+      </CenterState> : <QuestionResult key={question.id} question={question} elsewhere={id => sameExperienceElsewhere(overlaps, question.id, id)}
+        onAnswer={(clarificationId, answer) => onAnswer(question.id, clarificationId, answer)} />}
   </section>;
 }

@@ -75,6 +75,18 @@ export type Experience = {
   actor: Actor;
   sourceStatus: SourceStatus;
   citations: Citation[];
+  /** 되묻기에 답해 이 경험에 쌓인 보완(스프린트 2). 늘 「내가 입력」 — 본문 · 근거 · 출처 상태와 따로 보인다 */
+  supplements?: Supplement[];
+};
+
+/** 보완 — 되묻기 질문과 사용자의 답 한 쌍(experience-api.md 「Supplement」) */
+export type Supplement = {
+  id: number;
+  question: string;
+  answer: string;
+  questionId: number | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type ActivityDetail = {

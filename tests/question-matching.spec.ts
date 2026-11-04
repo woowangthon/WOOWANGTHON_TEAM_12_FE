@@ -246,3 +246,67 @@ test("daily limit (429) saves nothing and says so", async ({ page }) => {
   expect((await stored(page)).questions).toHaveLength(2);
   await expect(page.getByLabel("문항 2", { exact: true })).toHaveValue(QUESTION_EXAMPLES[1].text);
 });
+
+// FE#31 — 되묻기에 답하기 · 건너뛰기 · 활동 세부의 「내가 입력」 보완(S-22 · S-23 · S-25)
+const shot = (name: string, project: string) => process.env.UPDATE_QUESTION_SCREENSHOTS === "1" ? { path: `docs/fe-31/${name}-${project}.png`, style: "nextjs-portal { display: none !important; }" } : null;
+
+test("answering a clarification shows it on the experience as user-entered; skipping sends nothing", async ({ page }, info) => {
+  await page.goto("/questions");
+  // 문항 42 — 넘어가기는 보관함을 바꾸지 않는다
+  const asked42 = recommendation(page, 1).getByRole("region", { name: "추천 경험 1에 대한 질문", exact: true });
+  await expect(asked42).toContainText("매주 회고에서 직접 맡은 일이 있었다면 무엇이었나요?");
+  const asking = shot("asking", info.project.name);
+  if (asking) await recommendation(page, 1).screenshot(asking);
+  const before = await stored(page);
+  await asked42.getByRole("button", { name: "넘어가기", exact: true }).click();
+  await expect(asked42).toContainText("넘어간 질문");
+  expect(await stored(page)).toEqual(before);
+  await asked42.getByRole("button", { name: "다시 보기", exact: true }).click();
+  await expect(asked42.getByRole("button", { name: "답하기", exact: true })).toBeVisible();
+  await expect(recommendation(page, 2).getByRole("region", { name: /에 대한 질문$/ })).toHaveCount(0);
+
+  // 문항 41 — 61 은 이미 답함(보완 301), 62 에 답한다
+  await list(page).getByRole("button", { name: /OO 백엔드 부트캠프/ }).click();
+  const asked = recommendation(page, 1).getByRole("region", { name: "추천 경험 1에 대한 질문", exact: true });
+  await expect(asked.getByText("내가 입력 · 이 경험에 쌓였어요", { exact: true })).toHaveCount(1);
+  await expect(asked).toContainText("서버에 STOMP 엔드포인트를 만들고");
+  await asked.getByRole("button", { name: "답하기", exact: true }).click();
+  await asked.getByRole("button", { name: "보완으로 저장", exact: true }).click();
+  await expect(asked.getByRole("alert")).toContainText("답을 적어 주세요");
+  await asked.getByRole("textbox", { name: /^답: / }).fill("두 기기로 동시에 보내 보며 지연이 사라졌는지 확인했다");
+  const answering = shot("answering", info.project.name);
+  if (answering) await recommendation(page, 1).screenshot(answering);
+  await asked.getByRole("button", { name: "보완으로 저장", exact: true }).click();
+  await expect(asked.getByText("내가 입력 · 이 경험에 쌓였어요", { exact: true })).toHaveCount(2);
+  await expect(asked).toContainText("두 기기로 동시에 보내 보며 지연이 사라졌는지 확인했다");
+  await expect(asked.getByRole("textbox")).toHaveCount(0);
+  const saved = await stored(page);
+  expect(saved.supplements["101"].map((s: { answer: string }) => s.answer).at(-1)).toBe("두 기기로 동시에 보내 보며 지연이 사라졌는지 확인했다");
+  const q41 = saved.questions.find((q: { detail: { id: number } }) => q.detail.id === 41).detail;
+  expect(q41.recommendations[0].experience.sourceStatus).toBe("SOURCE_CONFIRMED");
+  expect(q41.recommendations[0].experience.content).toBe(QUESTION_EXAMPLES[0].recommendations[0].experience.content);
+  const answered = shot("answered", info.project.name);
+  if (answered) {
+    await recommendation(page, 1).screenshot(answered);
+    if (info.project.name === "desktop") { // 1024 — PC 를 125 ~ 150% 로 확대한 폭(AGENTS.md)
+      await page.setViewportSize({ width: 1024, height: 900 });
+      await recommendation(page, 1).screenshot(shot("answered", "1024")!);
+      await page.setViewportSize({ width: 1440, height: 1000 });
+    }
+  }
+  await page.reload();
+  await expect(recommendation(page, 1).getByText("내가 입력 · 이 경험에 쌓였어요", { exact: true })).toHaveCount(2);
+
+  // 활동 세부 — 원문 확인 표시는 그대로, 보완은 「내가 입력한 보완」으로 따로
+  await recommendation(page, 1).getByRole("link", { name: /타임라인에서 활동 보기/ }).click();
+  const activity = page.getByRole("complementary", { name: "활동 세부" });
+  const first = activity.locator("li").first();
+  await expect(first).toContainText("WebSocket");
+  await expect(first.getByText("원문 확인", { exact: true })).toBeVisible();
+  const supplements = first.getByRole("region", { name: "내가 입력한 보완", exact: true });
+  await expect(supplements).toContainText("내가 입력한 보완 2");
+  await expect(supplements).toContainText("서버에 STOMP 엔드포인트를 만들고");
+  await expect(supplements).toContainText("두 기기로 동시에 보내 보며 지연이 사라졌는지 확인했다");
+  const detail = shot("activity", info.project.name);
+  if (detail) await page.screenshot({ ...detail, fullPage: true });
+});
