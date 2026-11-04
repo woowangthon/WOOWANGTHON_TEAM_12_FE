@@ -9,6 +9,7 @@ import { CitationList } from "./citation-list";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ExperienceEditor } from "./experience-editor";
+import { SupplementList } from "./supplement-list";
 
 const ACTOR: Record<Actor, string> = { ME: "나", TEAM: "팀", UNKNOWN: "알 수 없음" };
 
@@ -161,6 +162,7 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
           <CitationList citations={e.citations} />
         </div>
       )}
+      {!editing && <SupplementList supplements={e.supplements ?? []} />}
     </li>
   );
 }

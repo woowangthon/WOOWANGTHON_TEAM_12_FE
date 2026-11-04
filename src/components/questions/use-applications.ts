@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { addApplicationQuestion, fetchApplications, fetchQuestion, retryQuestion, submitApplication } from "@/lib/api/questions";
+import { addApplicationQuestion, answerClarification, fetchApplications, fetchQuestion, retryQuestion, submitApplication } from "@/lib/api/questions";
 import type { Application, CreateApplicationRequest, QuestionDetail } from "@/lib/api/question-types";
 import { selectedMockQuestion, selectMockQuestion, type MockQuestionScenario } from "@/lib/mock/questions";
 
@@ -72,6 +72,11 @@ export function useApplications() {
       await refresh(questionId);
       return true;
     }),
+    /** 되묻기에 답하기 — 저장한 뒤 그 문항을 다시 읽어 보완을 보인다. 실패는 부르는 쪽(입력 칸)에 그대로 던진다 */
+    answer: async (questionId: number, clarificationId: number, answer: string) => {
+      await answerClarification(clarificationId, { answer });
+      await refresh(questionId);
+    },
     retry: (questionId: number) => once(async () => {
       await retryQuestion(questionId);
       await refresh(questionId);

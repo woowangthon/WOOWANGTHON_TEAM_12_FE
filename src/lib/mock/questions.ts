@@ -1,9 +1,10 @@
 // MOCK(question-matching): 문항·선택·분석 시작 시각을 localStorage에 저장한다. 서버·AI를 호출하지 않는다.
 // 임의 문항은 기술 예시, 문항 42와 같은 텍스트는 협업 예시로 끝난다. 실제 내용 분석이 아니다.
 // 지원(FE#38)은 따로 저장하지 않고 문항의 applicationId 로 묶어 계약의 Application 모양으로 돌려준다.
+// 되묻기 답(FE#31)은 경험 ID 별 보완으로 보관하고, 문항 · 활동 세부를 돌려줄 때 경험에 지금 보완을 싣는다.
 import { ApiError } from "../api/errors";
-import { MAX_ORGANIZATION_LENGTH, MAX_QUESTION_LENGTH, MAX_QUESTIONS_PER_APPLICATION, MAX_QUESTIONS_PER_SUBMIT, type AddQuestionRequest, type Application, type ApplicationSubmitted, type CreateApplicationRequest, type CreateQuestionRequest, type QuestionAdded, type QuestionDetail, type QuestionSubmitted, type QuestionSummary } from "../api/question-types";
-import type { ActivityDetail } from "../api/types";
+import { MAX_ANSWER_LENGTH, MAX_ORGANIZATION_LENGTH, MAX_QUESTION_LENGTH, MAX_QUESTIONS_PER_APPLICATION, MAX_QUESTIONS_PER_SUBMIT, type AddQuestionRequest, type Application, type ApplicationSubmitted, type ClarificationAnswered, type CreateApplicationRequest, type CreateQuestionRequest, type QuestionAdded, type QuestionDetail, type QuestionSubmitted, type QuestionSummary } from "../api/question-types";
+import type { ActivityDetail, Supplement } from "../api/types";
 import { QUESTION_EXAMPLES } from "./question-examples";
 import { MOCK_ACTIVITIES } from "./activities";
 
@@ -12,7 +13,18 @@ export const QUESTION_ANALYSIS_MS = 3000;
 /** limit — 넣을 때 429 DAILY_LIMIT_EXCEEDED(아무것도 저장하지 않는다) */
 export type MockQuestionScenario = "ok" | "fail" | "empty" | "limit";
 type StoredQuestion = { detail: QuestionDetail; templateId: number; scenario: MockQuestionScenario; startedAt: number };
-type Store = { questions: StoredQuestion[]; selectedId: number | null };
+/** supplements — 경험 ID → 그 경험에 쌓인 보완(만든 순서). 계약에서 보완은 문항이 아니라 경험에 딸린다 */
+type Store = { questions: StoredQuestion[]; selectedId: number | null; supplements: Record<string, Supplement[]> };
+
+/** 계약 예시의 보완(301)을 처음 상태로 — 문항 41 에서 답했고 문항 42 에서 근거로 쓰인다(S-25) */
+function exampleSupplements(): Record<string, Supplement[]> {
+  const out: Record<string, Supplement[]> = {};
+  for (const sample of QUESTION_EXAMPLES) for (const { experience } of sample.recommendations) {
+    const list = out[experience.id] ??= [];
+    for (const supplement of experience.supplements) if (!list.some(s => s.id === supplement.id)) list.push(structuredClone(supplement));
+  }
+  return out;
+}
 
 function write(store: Store) {
   try { localStorage.setItem(QUESTION_STORAGE_KEY, JSON.stringify(store)); }
@@ -31,7 +43,7 @@ function read(): Store {
       detail.updatedAt = detail.createdAt;
       return { detail, templateId: sample.id, scenario: "ok" as const, startedAt: 0 };
     });
-    const store = { questions, selectedId: 42 };
+    const store = { questions, selectedId: 42, supplements: exampleSupplements() };
     write(store);
     return store;
   }
@@ -52,6 +64,17 @@ function read(): Store {
       q.detail.applicationId = QUESTION_EXAMPLES.find(sample => sample.id === q.detail.id)?.applicationId ?? nextApplicationId++;
       upgraded = true;
     }
+    // FE#31 이전 기록 — 보완 칸을 예시로 채우고, 템플릿에서 그대로 복사돼 겹친 되묻기 ID 를 새로 붙인다(답하기가 ID 로 찾으므로)
+    if (store.supplements === undefined) {
+      store.supplements = exampleSupplements();
+      const seen = new Set<number>();
+      let nextId = Math.max(0, ...store.questions.flatMap(q => q.detail.clarifications.map(c => c.id))) + 1;
+      for (const q of store.questions) for (const c of q.detail.clarifications) {
+        if (seen.has(c.id)) c.id = nextId++;
+        seen.add(c.id);
+      }
+      upgraded = true;
+    } else if (typeof store.supplements !== "object" || store.supplements === null || !Object.values(store.supplements).every(Array.isArray)) throw new Error("Invalid store");
     if (upgraded) write(store);
     return store;
   } catch (e) {
@@ -76,7 +99,11 @@ function settle(store: Store) {
     q.detail.error = null;
     q.detail.requirements = structuredClone(example.requirements);
     q.detail.recommendations = q.scenario === "empty" ? [] : structuredClone(example.recommendations);
-    q.detail.clarifications = q.scenario === "empty" ? [] : structuredClone(example.clarifications);
+    // 새로 끝난 문항의 되묻기는 새 ID · 아직 답 안 함. 그 경험의 보완에 이미 있는 질문은 다시 묻지 않는다(S-25 모양만 재현)
+    let nextClarificationId = Math.max(0, ...store.questions.flatMap(other => other.detail.clarifications.map(c => c.id))) + 1;
+    q.detail.clarifications = q.scenario === "empty" ? [] : example.clarifications
+      .filter(c => !(store.supplements[c.experienceId] ?? []).some(s => s.question === c.question))
+      .map(c => ({ ...c, id: nextClarificationId++, supplementId: null }));
     if (q.scenario === "empty") q.detail.requirements = q.detail.requirements.map(r => ({ ...r, status: "NOT_FOUND", experienceIds: [] }));
   }
   if (changed) write(store);
@@ -153,10 +180,37 @@ export function mockAddQuestion(applicationId: number, req: AddQuestionRequest, 
   return { questionId, status: "ANALYZING" };
 }
 
+/** 추천의 `experience` 는 지금 상태로(question-api.md) — 문항 뒤에 생긴 보완도 보인다. `evidence` 는 추천했을 때 그대로 */
+function withSupplements(store: Store, detail: QuestionDetail): QuestionDetail {
+  const out = structuredClone(detail);
+  for (const r of out.recommendations) r.experience.supplements = structuredClone(store.supplements[r.experience.id] ?? []);
+  return out;
+}
+
 export function mockFetchQuestion(id: number): QuestionDetail {
-  const q = settle(read()).questions.find(q => q.detail.id === id);
+  const store = settle(read());
+  const q = store.questions.find(q => q.detail.id === id);
   if (!q) throw new ApiError("QUESTION_NOT_FOUND", "문항을 찾지 못했어요.");
-  return structuredClone(q.detail);
+  return withSupplements(store, q.detail);
+}
+
+/** 되묻기에 답하기 — 답을 그 경험의 보완으로 쌓는다. 경험 본문 · 근거 · 출처 상태는 건드리지 않는다(S-23) */
+export function mockAnswerClarification(clarificationId: number, answer: string): ClarificationAnswered {
+  if (typeof answer !== "string") throw new ApiError("INVALID_REQUEST", "답을 입력해 주세요.");
+  if (!answer.trim()) throw new ApiError("EMPTY_ANSWER", "답을 입력해 주세요.");
+  if (answer.length > MAX_ANSWER_LENGTH) throw new ApiError("INVALID_REQUEST", "답은 2,000자까지 입력할 수 있어요.");
+  const store = read();
+  const owner = store.questions.find(q => q.detail.clarifications.some(c => c.id === clarificationId));
+  const clarification = owner?.detail.clarifications.find(c => c.id === clarificationId);
+  if (!owner || !clarification) throw new ApiError("CLARIFICATION_NOT_FOUND", "질문을 찾지 못했어요.", 404);
+  if (clarification.supplementId !== null) throw new ApiError("CLARIFICATION_ALREADY_ANSWERED", "이미 답한 질문이에요.", 409);
+  const now = new Date().toISOString();
+  const id = Math.max(300, ...Object.values(store.supplements).flat().map(s => s.id)) + 1;
+  const supplement: Supplement = { id, question: clarification.question, answer, questionId: owner.detail.id, createdAt: now, updatedAt: now };
+  (store.supplements[clarification.experienceId] ??= []).push(supplement);
+  clarification.supplementId = id;
+  write(store);
+  return { experienceId: clarification.experienceId, supplement: structuredClone(supplement) };
 }
 
 export function mockSubmitQuestion(req: CreateQuestionRequest, scenario: MockQuestionScenario): QuestionSubmitted {
@@ -186,11 +240,13 @@ export function selectMockQuestion(id: number) {
 
 /** 추천의 활동 세부도 목 데이터만 쓴다. 기존 타임라인의 실제 API 분기는 바꾸지 않는다. */
 export function questionMockActivities(): ActivityDetail[] {
+  const { supplements } = read();
   const activities = structuredClone(MOCK_ACTIVITIES);
   for (const sample of QUESTION_EXAMPLES) for (const recommendation of sample.recommendations) {
     const activity = activities.find(a => a.id === recommendation.activity.id);
     if (!activity) continue;
     activity.experiences = activity.experiences.map(e => e.id === recommendation.experience.id ? structuredClone(recommendation.experience) : e);
   }
+  for (const activity of activities) activity.experiences = activity.experiences.map(e => ({ ...e, supplements: structuredClone(supplements[e.id] ?? []) }));
   return activities;
 }
