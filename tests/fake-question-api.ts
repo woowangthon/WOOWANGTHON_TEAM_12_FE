@@ -1,7 +1,7 @@
 // 시험용 가짜 BE — question-api.md 대로 지원 · 문항 · 되묻기 · 보완과, 추천 활동을 여는 타임라인(활동 7)만 흉내 낸다.
 // 화면이 계약대로 부르고 그 응답을 그대로 그리는지 보려는 것이다. 추천 내용은 계약 예시(문항 41 · 42)를 그대로 쓴다 — AI 판단을 흉내 내지 않는다.
 import type { Page, Route } from "@playwright/test";
-import type { Application, Clarification, QuestionDetail, QuestionSummary } from "../src/lib/api/question-types";
+import type { Application, Clarification, JobRole, OrganizationType, QuestionDetail, QuestionSummary } from "../src/lib/api/question-types";
 import type { ActivityDetail, Supplement } from "../src/lib/api/types";
 import { QUESTION_EXAMPLES } from "./fixtures/question-examples";
 
@@ -32,6 +32,10 @@ export class FakeQuestionApi {
   calls: { call: string; body: unknown }[] = [];
   /** 켜 두면 GET /api/applications 가 503 — 불러오기 실패 화면 */
   listDown = false;
+  /** 켜 두면 PATCH(지원처 종류 · 직무 · 문항 유형)가 503 — 저장 실패 */
+  patchDown = false;
+  /** 지원 ID → 지원처 종류 · 직무(S-42) */
+  types = new Map<number, { organizationType: OrganizationType | null; jobRole: JobRole | null }>();
   /** 문항 ID → 앞으로 실패시킬 GET 횟수 — 폴링의 일시 · 연속 연결 실패 */
   questionFailures = new Map<number, number>();
   private nextQuestion = 43;
@@ -76,8 +80,11 @@ export class FakeQuestionApi {
       if (q.fail) { q.detail.status = "FAILED"; q.detail.error = { code: "AI_TIMEOUT", message: "AI 응답 시간이 지났습니다" }; continue; }
       const noMatch = this.options.noMatch;
       q.detail.status = "COMPLETED";
-      q.detail.questionType = q.template.questionType ?? null;
-      q.detail.questionTypeBy = q.detail.questionType ? "AI" : null;
+      // 사용자가 고른 유형은 매칭이 덮어쓰지 않는다(question-api.md)
+      if (q.detail.questionTypeBy !== "USER") {
+        q.detail.questionType = q.template.questionType ?? null;
+        q.detail.questionTypeBy = q.detail.questionType ? "AI" : null;
+      }
       q.detail.requirements = q.template.requirements.map(r => noMatch ? { ...r, status: "NOT_FOUND", experienceIds: [] } : structuredClone(r));
       q.detail.recommendations = noMatch ? [] : structuredClone(q.template.recommendations);
       // 보완에 이미 있는 질문은 다시 묻지 않는다(계약 예시의 모양 — AI#21)
@@ -104,7 +111,8 @@ export class FakeQuestionApi {
   private application(id: number): Application | null {
     if (!this.applications.has(id)) return null;
     const questions = this.questions.filter(q => q.detail.applicationId === id).map(q => this.summary(q));
-    return { id, organization: this.applications.get(id) ?? null, questions, createdAt: questions[0].createdAt };
+    const { organizationType = null, jobRole = null } = this.types.get(id) ?? {};
+    return { id, organization: this.applications.get(id) ?? null, organizationType, jobRole, questions, createdAt: questions[0].createdAt };
   }
 
   private push(applicationId: number, text: string) {
@@ -141,10 +149,28 @@ export class FakeQuestionApi {
       const ids = [...this.applications.keys()].sort((x, y) => y - x);
       return json(route, { applications: ids.map(id => this.application(id)!).sort((x, y) => y.createdAt.localeCompare(x.createdAt)) });
     }
+    if ((m = path.match(/^\/api\/applications\/(\d+)$/)) && method === "PATCH") {
+      if (this.patchDown) return error(route, 503, "INTERNAL_ERROR", "잠시 뒤 다시 시도해 주세요");
+      if (!this.applications.has(+m[1])) return error(route, 404, "APPLICATION_NOT_FOUND");
+      if (!("organizationType" in body) && !("jobRole" in body)) return error(route, 400, "INVALID_REQUEST");
+      const now = this.types.get(+m[1]) ?? { organizationType: null, jobRole: null };
+      this.types.set(+m[1], { ...now, ...body });
+      return json(route, this.application(+m[1]));
+    }
+    if ((m = path.match(/^\/api\/questions\/(\d+)$/)) && method === "PATCH") {
+      if (this.patchDown) return error(route, 503, "INTERNAL_ERROR", "잠시 뒤 다시 시도해 주세요");
+      const q = this.questions.find(x => x.detail.id === +m![1]);
+      if (!q) return error(route, 404, "QUESTION_NOT_FOUND");
+      if (!body?.questionType) return error(route, 400, "INVALID_REQUEST");
+      q.detail.questionType = body.questionType;
+      q.detail.questionTypeBy = "USER";
+      return json(route, this.now(q.detail));
+    }
     if (method === "POST" && path === "/api/applications") {
       if (this.options.limit) return error(route, 429, "DAILY_LIMIT_EXCEEDED", "오늘 분석 횟수를 다 썼습니다");
       const applicationId = this.nextApplication++;
       this.applications.set(applicationId, body.organization ?? null);
+      this.types.set(applicationId, { organizationType: body.organizationType ?? null, jobRole: body.jobRole ?? null });
       const questionIds = body.questions.map((q: { text: string }) => this.push(applicationId, q.text));
       return json(route, { applicationId, questionIds }, 202);
     }

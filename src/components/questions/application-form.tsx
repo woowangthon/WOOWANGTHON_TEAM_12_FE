@@ -5,7 +5,11 @@ import { ArrowDownIcon, ArrowUpIcon, ListChecksIcon, PlusIcon, XIcon } from "@ph
 import { Button } from "@/components/ui/button";
 import { CommonQuestionPicker } from "./common-question-picker";
 import { ApiError } from "@/lib/api/errors";
-import { MAX_ORGANIZATION_LENGTH, MAX_QUESTION_LENGTH, MAX_QUESTIONS_PER_SUBMIT, type CreateApplicationRequest } from "@/lib/api/question-types";
+import {
+  JOB_ROLE_LABEL, MAX_ORGANIZATION_LENGTH, MAX_QUESTION_LENGTH, MAX_QUESTIONS_PER_SUBMIT, ORGANIZATION_TYPE_LABEL,
+  type CreateApplicationRequest, type JobRole, type OrganizationType,
+} from "@/lib/api/question-types";
+import { selectField } from "./type-fields";
 
 /** 입력을 돕는 예시 문항 — 칸만 채운다. 결과는 늘 실제 분석이다(question-api.md 문항 41 · 42 의 글) */
 const EXAMPLES = [
@@ -23,6 +27,9 @@ export function submitErrorMessage(e: unknown, fallback: string) {
 /** 지원 넣기 — 지원처 이름(선택) + 문항 칸 여러 개. 넣기 전엔 자유롭게 더하고 빼고 순서를 바꾼다(S-18) */
 export function ApplicationForm({ onSubmit, onCancel }: { onSubmit: (req: CreateApplicationRequest) => Promise<unknown>; onCancel?: () => void }) {
   const [organization, setOrganization] = useState("");
+  // 지원처 종류 · 직무(S-42) — 둘 다 선택. 넣은 뒤에도 지원 화면에서 바꾼다
+  const [organizationType, setOrganizationType] = useState<OrganizationType | "">("");
+  const [jobRole, setJobRole] = useState<JobRole | "">("");
   const [texts, setTexts] = useState([""]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -51,7 +58,9 @@ export function ApplicationForm({ onSubmit, onCancel }: { onSubmit: (req: Create
         setError("지원처는 100자, 문항은 5,000자까지 입력할 수 있어요."); return;
       }
       pending.current = true; setSaving(true); setError(null);
-      try { await onSubmit({ organization: organization.trim() || null, questions: texts.map(text => ({ text })) }); }
+      // 고른 칸만 싣는다 — 비운 칸은 보내지 않는다(없거나 null 이면 비움, question-api.md)
+      const types = { ...(organizationType && { organizationType }), ...(jobRole && { jobRole }) };
+      try { await onSubmit({ organization: organization.trim() || null, ...types, questions: texts.map(text => ({ text })) }); }
       catch (e) { setError(submitErrorMessage(e, "지원을 넣지 못했어요.")); }
       finally { pending.current = false; setSaving(false); }
     }}>
@@ -78,6 +87,22 @@ export function ApplicationForm({ onSubmit, onCancel }: { onSubmit: (req: Create
           <input aria-label="지원처 이름 (선택)" autoComplete="organization" maxLength={MAX_ORGANIZATION_LENGTH} value={organization} onChange={e => setOrganization(e.target.value)} className={`${field} min-h-11 py-0`} placeholder="동아리 · 부트캠프 · 대외활동 · 회사 이름" />
           <span className="text-right text-xs font-normal text-muted tabular-nums">{organization.length} / 100</span>
         </label>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="grid gap-1.5 text-sm font-medium">
+            지원처 종류 (선택)
+            <select value={organizationType} onChange={e => setOrganizationType(e.target.value as OrganizationType | "")} className={selectField}>
+              <option value="">고르지 않음</option>
+              {(Object.keys(ORGANIZATION_TYPE_LABEL) as OrganizationType[]).map(v => <option key={v} value={v}>{ORGANIZATION_TYPE_LABEL[v]}</option>)}
+            </select>
+          </label>
+          <label className="grid gap-1.5 text-sm font-medium">
+            직무 (선택)
+            <select value={jobRole} onChange={e => setJobRole(e.target.value as JobRole | "")} className={selectField}>
+              <option value="">고르지 않음</option>
+              {(Object.keys(JOB_ROLE_LABEL) as JobRole[]).map(v => <option key={v} value={v}>{JOB_ROLE_LABEL[v]}</option>)}
+            </select>
+          </label>
+        </div>
         <ol className="m-0 grid list-none gap-4 p-0" aria-label="문항">
           {texts.map((text, i) => (
             <li key={i} className="grid gap-1.5">

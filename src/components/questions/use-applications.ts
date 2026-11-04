@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { addApplicationQuestion, answerClarification, fetchApplications, fetchQuestion, retryQuestion, submitApplication } from "@/lib/api/questions";
-import type { Application, CreateApplicationRequest, QuestionDetail, QuestionSummary } from "@/lib/api/question-types";
+import { addApplicationQuestion, answerClarification, fetchApplications, fetchQuestion, retryQuestion, submitApplication, updateApplication, updateQuestionType } from "@/lib/api/questions";
+import type { Application, CreateApplicationRequest, QuestionDetail, QuestionSummary, QuestionType, UpdateApplicationRequest } from "@/lib/api/question-types";
 
 /** 고른 지원 하나 — 문항마다 추천 결과(넣은 순서, `application.questions` 와 같은 자리). 아직 못 받은 문항은 null(FE#60).
  *  같은 경험이 여러 문항에 추천됐는지는 details 로 계산한다(S-21) */
@@ -35,8 +35,8 @@ function keepInUrl(id: number) {
   window.history.replaceState(window.history.state, "", url);
 }
 
-const summaryOf = ({ id, applicationId, organization, text, status, createdAt }: QuestionDetail): QuestionSummary =>
-  ({ id, applicationId, organization, text, status, createdAt });
+const summaryOf = ({ id, applicationId, organization, text, questionType, questionTypeBy, status, createdAt }: QuestionDetail): QuestionSummary =>
+  ({ id, applicationId, organization, text, questionType, questionTypeBy, status, createdAt });
 /** 새로 받은 문항의 상태를 지원 목록에도 — 목록을 다시 받지 않고 「분석 중 N」 · 점 색을 맞춘다. 더한 문항은 끝에 붙인다 */
 function patch(applications: Application[], fresh: QuestionDetail[]): Application[] {
   if (!fresh.length) return applications;
@@ -213,6 +213,23 @@ export function useApplications() {
       await answerClarification(clarificationId, { answer });
       const ids = (ownerOf(state.applications, questionId)?.questions ?? [{ id: questionId }]).map(q => q.id);
       await reloadAfter(async version => commit(version, await Promise.all(ids.map(fetchQuestion)), { keep: new Set(ids) }));
+    },
+    /** 지원처 종류 · 직무 바꾸기 · 비우기(S-42) — 추천은 다시 돌지 않아 지원 칸만 바꾼다. 실패는 부르는 쪽(칸)에 던진다 */
+    updateApplication: async (applicationId: number, req: UpdateApplicationRequest) => {
+      const saved = await updateApplication(applicationId, req);
+      setState(prev => ({ ...prev, applications: prev.applications.map(a => a.id === applicationId
+        ? { ...a, organizationType: saved.organizationType ?? null, jobRole: saved.jobRole ?? null } : a) }));
+    },
+    /** 문항 유형 고치기(S-41) — 분석 중 · 실패여도 된다. 먼저 출발한 폴링 응답(옛 유형)은 번호표로 버린다. 실패는 부르는 쪽에 던진다 */
+    updateQuestionType: async (questionId: number, questionType: QuestionType) => {
+      ++generation.current;
+      const saved = await updateQuestionType(questionId, questionType);
+      setState(prev => {
+        const kept = prev.details[questionId];
+        // 응답은 문항 전체지만 유형만 바뀐 것 — 받아 둔 추천이 있으면 그대로 두고 유형만 옮긴다
+        const detail = kept ? { ...kept, questionType: saved.questionType, questionTypeBy: saved.questionTypeBy } : saved;
+        return { ...prev, details: { ...prev.details, [questionId]: detail }, applications: patch(prev.applications, [detail]) };
+      });
     },
     retry: (questionId: number) => once(async () => {
       const detail = await retryQuestion(questionId);

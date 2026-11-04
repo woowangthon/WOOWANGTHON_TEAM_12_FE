@@ -1,6 +1,6 @@
 // 지원 · 문항 · 되묻기 API — question-api.md 의 주소 · 메서드 · 본문 그대로 부르고, 실패를 그대로 던진다(FE#32)
 import { test, expect } from "@playwright/test";
-import { addApplicationQuestion, answerClarification, fetchApplication, fetchApplications, fetchQuestion, fetchQuestions, retryQuestion, submitApplication, submitQuestion } from "../src/lib/api/questions";
+import { addApplicationQuestion, answerClarification, fetchApplication, fetchApplications, fetchQuestion, fetchQuestions, retryQuestion, submitApplication, submitQuestion, updateApplication, updateQuestionType } from "../src/lib/api/questions";
 import { QUESTION_EXAMPLES } from "./fixtures/question-examples";
 
 const originalFetch = globalThis.fetch;
@@ -100,4 +100,23 @@ test("without an API address the question API fails instead of using a mock", as
   await expect(fetchApplications()).rejects.toMatchObject({ code: "API_NOT_CONFIGURED" });
   await expect(submitApplication({ questions: [{ text: "a" }] })).rejects.toMatchObject({ code: "API_NOT_CONFIGURED" });
   expect(calls).toEqual([]);
+});
+
+// FE#81 — 지원처 종류 · 직무 · 문항 유형 고치기(S-41 · S-42). 보낸 필드만 바꾸고 null 은 비운다
+test("type patches use the contract paths and bodies and throw server errors", async () => {
+  const [a] = QUESTION_EXAMPLES;
+  serve(({ url, body }) => url.endsWith("/applications/21")
+    ? Response.json({ id: 21, organization: a.organization, organizationType: null, jobRole: "BACKEND", questions: [], createdAt: a.createdAt, ...(body as object) })
+    : url.endsWith("/questions/41") ? Response.json({ ...a, questionType: "CONFLICT", questionTypeBy: "USER" })
+    : Response.json({ error: { code: "QUESTION_NOT_FOUND", message: "없는 문항" } }, { status: 404 }));
+  expect((await updateApplication(21, { organizationType: "BOOTCAMP" })).organizationType).toBe("BOOTCAMP");
+  expect((await updateApplication(21, { jobRole: null })).jobRole).toBeNull();
+  expect(await updateQuestionType(41, "CONFLICT")).toMatchObject({ questionType: "CONFLICT", questionTypeBy: "USER" });
+  await expect(updateQuestionType(9, "OTHER")).rejects.toMatchObject({ code: "QUESTION_NOT_FOUND", status: 404 });
+  expect(calls.map(c => [c.method, c.url.replace("https://backend.example/api", ""), c.body])).toEqual([
+    ["PATCH", "/applications/21", { organizationType: "BOOTCAMP" }],
+    ["PATCH", "/applications/21", { jobRole: null }],
+    ["PATCH", "/questions/41", { questionType: "CONFLICT" }],
+    ["PATCH", "/questions/9", { questionType: "OTHER" }],
+  ]);
 });
