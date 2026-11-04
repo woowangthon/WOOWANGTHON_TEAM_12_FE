@@ -8,6 +8,8 @@ export const QUESTION_EXAMPLES: QuestionDetail[] = [
     "applicationId": 21,
     "organization": "OO 백엔드 부트캠프",
     "text": "기술적인 문제를 해결한 경험을 구체적으로 적어 주세요.",
+    "questionType": "PROBLEM_SOLVING",
+    "questionTypeBy": "AI",
     "status": "COMPLETED",
     "error": null,
     "requirements": [
@@ -111,6 +113,8 @@ export const QUESTION_EXAMPLES: QuestionDetail[] = [
     "applicationId": 22,
     "organization": "OO 연합 동아리",
     "text": "팀 프로젝트에서 맡은 역할과, 팀과 함께 일한 방식을 적어 주세요.",
+    "questionType": "COLLABORATION",
+    "questionTypeBy": "AI",
     "status": "COMPLETED",
     "error": null,
     "requirements": [

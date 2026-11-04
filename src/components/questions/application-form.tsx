@@ -96,7 +96,7 @@ export function ApplicationForm({ onSubmit, onCancel }: { onSubmit: (req: Create
         </ol>
         <div className="flex flex-wrap gap-2">
           {texts.length < MAX_QUESTIONS_PER_SUBMIT && <Button type="button" variant="secondary" onClick={() => setTexts(prev => [...prev, ""])}><PlusIcon />문항 칸 더하기</Button>}
-          <Button type="button" variant="secondary" disabled={room === 0} title={room === 0 ? `문항은 한 번에 ${MAX_QUESTIONS_PER_SUBMIT}개까지 넣을 수 있어요` : undefined} onClick={() => setPicking(true)}><ListChecksIcon />자주 나오는 문항에서 고르기</Button>
+          <Button type="button" variant="secondary" disabled={room === 0} title={room === 0 ? `문항은 한 번에 ${MAX_QUESTIONS_PER_SUBMIT}개까지 넣을 수 있어요` : undefined} onClick={() => setPicking(true)}><ListChecksIcon />넣었던 · 자주 나오는 문항에서 고르기</Button>
         </div>
       </fieldset>
       <CommonQuestionPicker open={picking} onOpenChange={setPicking} room={room} onPick={insert} />

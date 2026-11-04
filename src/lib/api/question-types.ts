@@ -24,11 +24,29 @@ export type Recommendation = {
   gaps: string[];
 };
 export type Clarification = { id: number; experienceId: number; question: string; supplementId: number | null };
+/** 문항 유형(S-41) — contracts README 「값 목록」. 문항 하나에 하나 */
+export type QuestionType = "MOTIVATION" | "SELF_INTRO" | "STRENGTH_WEAKNESS" | "ACHIEVEMENT" | "PROBLEM_SOLVING" | "COLLABORATION" | "CONFLICT" | "FAILURE" | "GROWTH" | "IDEA" | "OTHER";
+export const QUESTION_TYPE_LABEL: Record<QuestionType, string> = {
+  MOTIVATION: "지원 동기 · 포부 · 목표",
+  SELF_INTRO: "자기소개 · 성격 · 가치관",
+  STRENGTH_WEAKNESS: "장단점",
+  ACHIEVEMENT: "성취 · 몰입 · 열정",
+  PROBLEM_SOLVING: "문제 해결 · 기술적 어려움",
+  COLLABORATION: "협업 · 소통 · 팀워크",
+  CONFLICT: "갈등 · 의견 조율",
+  FAILURE: "실패 · 극복 · 아쉬움",
+  GROWTH: "성장 과정 · 배운 점 · 피드백",
+  IDEA: "아이디어 · 기획 제안",
+  OTHER: "기타",
+};
 export type QuestionSummary = {
   id: number;
   applicationId: number;
   organization: string | null;
   text: string;
+  /** 매칭이 끝나면 AI 가 붙이고(`AI`), 사용자가 고치면 `USER`. 분석 중 · 실패면 null */
+  questionType?: QuestionType | null;
+  questionTypeBy?: "AI" | "USER" | null;
   status: JobStatus;
   createdAt: string;
 };
