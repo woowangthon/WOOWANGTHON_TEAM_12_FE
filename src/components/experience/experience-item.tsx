@@ -162,7 +162,9 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
           <CitationList citations={e.citations} />
         </div>
       )}
-      {!editing && <SupplementList supplements={e.supplements ?? []} />}
+      {!editing && (readOnly ? <SupplementList supplements={e.supplements ?? []} /> : <SupplementList supplements={e.supplements ?? []}
+        onSaved={(s) => onSaved({ ...e, supplements: (e.supplements ?? []).map((x) => x.id === s.id ? s : x) })}
+        onDeleted={(id) => onSaved({ ...e, supplements: (e.supplements ?? []).filter((x) => x.id !== id) })} />)}
     </li>
   );
 }
