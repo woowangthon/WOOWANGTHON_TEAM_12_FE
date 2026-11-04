@@ -9,9 +9,11 @@ type Page = "timeline" | "questions";
 // 시안 6(FE#43, 임시) — 1280 이상은 왼쪽 사이드바(고정, 폭 248px = w-62), 그보다 좁으면 위 막대.
 // 1024 ~ 1279(PC 를 125 ~ 150% 로 확대한 폭)에 사이드바까지 두면 세부 패널(440)을 연 타임라인이 300px 대로 눌려
 // 글자가 세로로 깨진다(FE#45). 사이드바 자리는 layout.tsx 의 작업 면이 비워 둔다(xl:pl-62).
-export function AppHeader({ hideOnMobile, addSource, activePage = "timeline", timelineHref = "/" }: {
+export function AppHeader({ hideOnMobile, addSource, activePage = "timeline", timelineHref = "/", sidebarExtra }: {
   /** 1024 미만에서 세부를 전체 화면으로 열면 위 막대를 숨긴다 */
   hideOnMobile?: boolean; addSource?: AddSourceProps; activePage?: Page; timelineHref?: string;
+  /** 사이드바(1280 이상) 메뉴 아래 — 지원 화면의 지원 목록(시안 6 사이드바의 지원서 목록) */
+  sidebarExtra?: React.ReactNode;
 }) {
   const links: { page: Page; href: string; label: string; icon: React.ReactNode }[] = [
     { page: "timeline", href: timelineHref, label: "내 경험", icon: <StackIcon /> },
@@ -58,6 +60,7 @@ export function AppHeader({ hideOnMobile, addSource, activePage = "timeline", ti
             );
           })}
         </nav>
+        {sidebarExtra && <div className="relative flex min-h-0 flex-1 flex-col">{sidebarExtra}</div>}
       </aside>
     </>
   );

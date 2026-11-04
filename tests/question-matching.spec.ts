@@ -25,9 +25,28 @@ test.beforeEach(async ({ page }) => {
 test.afterEach(async ({ page }) => { expect(calls.get(page)).toEqual([]); expect(pageErrors.get(page)).toEqual([]); });
 
 const result = (page: Page) => page.getByRole("tabpanel", { name: "선택한 문항", exact: true });
-const list = (page: Page) => page.getByRole("complementary", { name: "지원 목록" });
+// 지원 목록 — 1280 이상은 사이드바 안(FE#51), 그보다 좁으면 화면 안
+const list = (page: Page) => page.getByRole("complementary", { name: /^(지원 목록|사이드바)$/ });
 const recommendation = (page: Page, n: number) => result(page).getByRole("listitem", { name: `추천 경험 ${n}`, exact: true });
 const stored = (page: Page) => page.evaluate(key => JSON.parse(localStorage.getItem(key)!), QUESTION_STORAGE_KEY);
+// 차곡이 패널(FE#51) — 1280 이상은 옆에 붙어 기본으로 열리고, 좁으면 버튼으로 여는 시트
+const chagokPanel = (page: Page) => page.locator("#chagok-panel");
+const chagokToggle = (page: Page) => page.getByRole("button", { name: /^차곡이( ?질문 \d+)?$/ });
+async function openChagok(page: Page) {
+  if (await chagokToggle(page).getAttribute("aria-expanded") !== "true") await chagokToggle(page).click();
+  await expect(chagokPanel(page)).toBeVisible();
+  return chagokPanel(page);
+}
+/** 시트(좁은 폭)는 모달이라 닫아야 뒤 화면을 누를 수 있다. 옆에 붙은 패널은 그대로 둔다 */
+async function closeChagokSheet(page: Page) {
+  if (await page.getByRole("dialog", { name: "차곡이" }).count()) await page.getByRole("button", { name: "차곡이 닫기" }).click();
+  await expect(page.getByRole("dialog", { name: "차곡이" })).toHaveCount(0);
+}
+/** 참고 경험 카드는 첫 장만 펼쳐 둔다 */
+async function expand(page: Page, n: number) {
+  const card = recommendation(page, n);
+  if (!(await card.locator("details").evaluate(e => (e as HTMLDetailsElement).open))) await card.locator("summary").click();
+}
 
 async function compose(page: Page, text: string) {
   await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
@@ -39,24 +58,30 @@ test("question 41/42 switch preserves contract judgments, actors and supplementa
   await page.goto("/questions");
   await expect(recommendation(page, 1)).toContainText("매주 금요일 스프린트 회고를 했다");
   await expect(recommendation(page, 1).getByText("팀", { exact: true })).toBeVisible();
-  await expect(result(page).getByText("근거 있음", { exact: true })).toHaveCount(1);
-  await expect(result(page).getByText("일부 확인됨", { exact: true })).toBeVisible();
   await expect(result(page).getByText("AI 해석 · 예시", { exact: true })).toHaveCount(2);
+  let chagok = await openChagok(page);
+  await expect(chagok.getByText("근거 있음", { exact: true })).toHaveCount(1);
+  await expect(chagok.getByText("일부 확인됨", { exact: true })).toBeVisible();
+  // S-25 — 앞 지원에서 답한 보완을 근거로 다시 썼다고 차곡이가 말한다
+  await expect(chagok).toContainText("OO 백엔드 부트캠프 문항에서 알려 준 답을 「바꿔요」 경험의 근거로 같이 썼어요.");
+  await expect(chagok).toContainText("그 부분은 다시 묻지 않을게요.");
+  await closeChagokSheet(page);
+  await expand(page, 2);
   const evidence = result(page).getByRole("region", { name: "추천 경험 2의 근거", exact: true });
   await expect(evidence.getByText("원문 발췌", { exact: true })).toBeVisible();
   await expect(evidence.getByText("내가 입력한 보완", { exact: true })).toBeVisible();
   await expect(evidence).toContainText("서버에 STOMP 엔드포인트를 만들고, 앱의 3초 폴링 코드를 구독 방식으로 바꿨다");
-  // 결과 화면의 입력칸은 되묻기 답 칸(문항 42 의 63)뿐이다 — 추천 · 근거는 읽기 전용
-  await expect(page.getByRole("textbox")).toHaveCount(1);
-  await expect(page.getByRole("textbox", { name: /^답: / })).toHaveCount(1);
+  // 참고 경험 · 근거는 읽기 전용 — 입력칸은 차곡이의 되묻기 답 칸뿐
+  await expect(result(page).getByRole("textbox")).toHaveCount(0);
   if (process.env.UPDATE_QUESTION_SCREENSHOTS === "1") {
     await page.screenshot({ path: `docs/fe-30/questions-${info.project.name}.png`, fullPage: true, style: "nextjs-portal { display: none !important; }" });
   }
   await list(page).getByRole("button", { name: /OO 백엔드 부트캠프/ }).click();
   await expect(recommendation(page, 1)).toContainText("WebSocket");
   await expect(recommendation(page, 1).getByText("나", { exact: true })).toBeVisible();
-  await expect(result(page).getByText("자료에서 확인 안 됨", { exact: true })).toHaveCount(2);
-  await expect(result(page).getByText("근거 있음", { exact: true })).toHaveCount(1);
+  chagok = await openChagok(page);
+  await expect(chagok.getByText("자료에서 확인 안 됨", { exact: true })).toHaveCount(2);
+  await expect(chagok.getByText("근거 있음", { exact: true })).toHaveCount(1);
   await page.reload();
   await expect(result(page).getByRole("heading", { name: QUESTION_EXAMPLES[0].text, exact: true })).toBeVisible();
   expect((await stored(page)).selectedId).toBe(41);
@@ -122,8 +147,10 @@ test("zero recommendations show record-focused guidance", async ({ page }) => {
   await compose(page, "현재 자료에서 연결할 기록이 없는 문항");
   await expect(result(page).getByText("현재 자료에서 연결된 경험을 찾지 못했어요.", { exact: true })).toBeVisible({ timeout: 10000 });
   await expect(result(page).getByRole("listitem", { name: /^추천 경험/ })).toHaveCount(0);
-  await expect(result(page).getByText("자료에서 확인 안 됨", { exact: true })).toHaveCount(3);
-  await expect(result(page).getByText(/역량 부족|합격 가능성/)).toHaveCount(0);
+  const chagok = await openChagok(page);
+  await expect(chagok.getByText("자료에서 확인 안 됨", { exact: true })).toHaveCount(3);
+  await expect(chagok).toContainText("지금 자료에서 이 문항에 연결할 경험을 찾지 못했어요. 경험이 없다는 뜻은 아니에요.");
+  await expect(page.getByText(/역량 부족|합격 가능성/)).toHaveCount(0);
 });
 
 test("recommendation opens the same timeline activity without any API or editing controls", async ({ page }) => {
@@ -160,6 +187,8 @@ test("three recommendations, UNKNOWN actor and missing evidence never invent quo
   await page.reload();
   await expect(result(page).getByRole("listitem", { name: /^추천 경험/ })).toHaveCount(3);
   await expect(recommendation(page, 1)).toContainText("이 추천에 연결된 원문 근거나 보완이 없어요.");
+  await closeChagokSheet(page);
+  await expand(page, 3);
   await expect(recommendation(page, 3).getByText("알 수 없음", { exact: true })).toBeVisible();
   await expect(recommendation(page, 3).getByText("AI", { exact: true })).toHaveCount(0);
   await expect(recommendation(page, 3)).toContainText("연결된 원문 근거를 찾지 못했어요.");
@@ -250,41 +279,43 @@ test("daily limit (429) saves nothing and says so", async ({ page }) => {
 });
 
 // FE#31 — 되묻기에 답하기 · 건너뛰기 · 활동 세부의 「내가 입력」 보완(S-22 · S-23 · S-25)
-const shot = (name: string, project: string) => process.env.UPDATE_QUESTION_SCREENSHOTS === "1" ? { path: `docs/fe-31/${name}-${project}.png`, style: "nextjs-portal { display: none !important; }" } : null;
+const shot = (name: string, project: string) => process.env.UPDATE_QUESTION_SCREENSHOTS === "1" ? { path: `docs/fe-51/${name}-${project}.png`, style: "nextjs-portal { display: none !important; }" } : null;
 
 test("answering a clarification shows it on the experience as user-entered; skipping sends nothing", async ({ page }, info) => {
   await page.goto("/questions");
-  // 문항 42 — 넘어가기는 보관함을 바꾸지 않는다
-  const asked42 = recommendation(page, 1).getByRole("region", { name: "추천 경험 1에 대한 질문", exact: true });
-  await expect(asked42).toContainText("매주 회고에서 직접 맡은 일이 있었다면 무엇이었나요?");
-  await expect(asked42.getByText("바꿔요", { exact: true })).toBeVisible();
-  await expect(asked42.getByRole("textbox", { name: /^답: / })).toBeVisible();
+  // 문항 42 — 건너뛰기는 보관함을 바꾸지 않는다
+  await openChagok(page);
+  const asks = () => chagokPanel(page).getByRole("list", { name: "차곡이의 질문", exact: true });
+  await expect(asks()).toContainText("매주 회고에서 직접 맡은 일이 있었다면 무엇이었나요?");
+  await expect(asks().getByText("바꿔요", { exact: true })).toBeVisible();
+  await expect(asks().getByRole("textbox", { name: /^답: / })).toBeVisible();
   const asking = shot("asking", info.project.name);
-  if (asking) await recommendation(page, 1).screenshot(asking);
+  if (asking) { await page.waitForTimeout(500); await page.screenshot(asking); }
   const before = await stored(page);
-  await asked42.getByRole("button", { name: "건너뛰기", exact: true }).click();
-  await expect(asked42).toContainText("건너뛴 질문");
-  await expect(asked42.getByRole("textbox")).toHaveCount(0);
+  await asks().getByRole("button", { name: "건너뛰기", exact: true }).click();
+  await expect(asks()).toContainText("건너뛴 질문");
+  await expect(asks().getByRole("textbox")).toHaveCount(0);
   expect(await stored(page)).toEqual(before);
-  await asked42.getByRole("button", { name: "다시 보기", exact: true }).click();
-  await expect(asked42.getByRole("textbox", { name: /^답: / })).toBeVisible();
-  await expect(recommendation(page, 2).getByRole("region", { name: /에 대한 질문$/ })).toHaveCount(0);
+  await asks().getByRole("button", { name: "다시 보기", exact: true }).click();
+  await expect(asks().getByRole("textbox", { name: /^답: / })).toBeVisible();
+  await closeChagokSheet(page);
 
   // 문항 41 — 61 은 이미 답함(보완 301), 62 에 답한다
   await list(page).getByRole("button", { name: /OO 백엔드 부트캠프/ }).click();
-  const asked = recommendation(page, 1).getByRole("region", { name: "추천 경험 1에 대한 질문", exact: true });
+  await expect(result(page).getByRole("heading", { name: QUESTION_EXAMPLES[0].text, exact: true })).toBeVisible();
+  await openChagok(page);
   const stacked = "「바꿔요」 경험에 보완으로 쌓았어요. 다른 지원서에서도 이 답을 근거로 같이 써요.";
-  await expect(asked.getByText(stacked, { exact: true })).toHaveCount(1);
-  await expect(asked).toContainText("서버에 STOMP 엔드포인트를 만들고");
-  await asked.getByRole("button", { name: "답하기", exact: true }).click();
-  await expect(asked.getByRole("alert")).toContainText("답을 적어 주세요");
-  await asked.getByRole("textbox", { name: /^답: / }).fill("두 기기로 동시에 보내 보며 지연이 사라졌는지 확인했다");
+  await expect(asks().getByText(stacked, { exact: true })).toHaveCount(1);
+  await expect(asks()).toContainText("서버에 STOMP 엔드포인트를 만들고");
+  await asks().getByRole("button", { name: "답하기", exact: true }).click();
+  await expect(asks().getByRole("alert")).toContainText("답을 적어 주세요");
+  await asks().getByRole("textbox", { name: /^답: / }).fill("두 기기로 동시에 보내 보며 지연이 사라졌는지 확인했다");
   const answering = shot("answering", info.project.name);
-  if (answering) await recommendation(page, 1).screenshot(answering);
-  await asked.getByRole("button", { name: "답하기", exact: true }).click();
-  await expect(asked.getByText(stacked, { exact: true })).toHaveCount(2);
-  await expect(asked).toContainText("두 기기로 동시에 보내 보며 지연이 사라졌는지 확인했다");
-  await expect(asked.getByRole("textbox")).toHaveCount(0);
+  if (answering) await page.screenshot(answering);
+  await asks().getByRole("button", { name: "답하기", exact: true }).click();
+  await expect(asks().getByText(stacked, { exact: true })).toHaveCount(2);
+  await expect(asks()).toContainText("두 기기로 동시에 보내 보며 지연이 사라졌는지 확인했다");
+  await expect(asks().getByRole("textbox")).toHaveCount(0);
   const saved = await stored(page);
   expect(saved.supplements["101"].map((s: { answer: string }) => s.answer).at(-1)).toBe("두 기기로 동시에 보내 보며 지연이 사라졌는지 확인했다");
   const q41 = saved.questions.find((q: { detail: { id: number } }) => q.detail.id === 41).detail;
@@ -292,15 +323,22 @@ test("answering a clarification shows it on the experience as user-entered; skip
   expect(q41.recommendations[0].experience.content).toBe(QUESTION_EXAMPLES[0].recommendations[0].experience.content);
   const answered = shot("answered", info.project.name);
   if (answered) {
-    await recommendation(page, 1).screenshot(answered);
-    if (info.project.name === "desktop") { // 1024 — PC 를 125 ~ 150% 로 확대한 폭(AGENTS.md)
+    await page.waitForTimeout(500); // 시트가 열리는 움직임이 끝난 뒤
+    await page.screenshot(answered);
+    if (info.project.name === "desktop") { // 1024 — PC 를 125 ~ 150% 로 확대한 폭(AGENTS.md). 패널은 시트로
       await page.setViewportSize({ width: 1024, height: 900 });
-      await recommendation(page, 1).screenshot(shot("answered", "1024")!);
+      await page.screenshot(shot("closed", "1024")!);
+      await openChagok(page);
+      await page.waitForTimeout(500);
+      await page.screenshot(shot("answered", "1024")!);
+      await closeChagokSheet(page);
       await page.setViewportSize({ width: 1440, height: 1000 });
     }
   }
   await page.reload();
-  await expect(recommendation(page, 1).getByText(stacked, { exact: true })).toHaveCount(2);
+  await openChagok(page);
+  await expect(asks().getByText(stacked, { exact: true })).toHaveCount(2);
+  await closeChagokSheet(page);
 
   // 활동 세부 — 원문 확인 표시는 그대로, 보완은 「내가 입력한 보완」으로 따로
   await recommendation(page, 1).getByRole("link", { name: /타임라인에서 활동 보기/ }).click();
@@ -315,4 +353,21 @@ test("answering a clarification shows it on the experience as user-entered; skip
   await expect(supplements).toContainText("두 기기로 동시에 보내 보며 지연이 사라졌는지 확인했다");
   const detail = shot("activity", info.project.name);
   if (detail) await page.screenshot({ ...detail, fullPage: true });
+});
+
+// FE#51 — 차곡이 패널은 켰다 끈다. 넓으면 옆에 붙어 열려 있고, 좁으면 닫힌 채 「질문 N」을 알린다
+test("chagok panel toggles; narrow screens start closed and show how many questions wait", async ({ page }, info) => {
+  await page.goto("/questions");
+  await expect(recommendation(page, 1)).toBeVisible();
+  const wide = info.project.name === "desktop";
+  await expect(chagokPanel(page)).toHaveCount(wide ? 1 : 0);
+  if (wide) {
+    await page.getByRole("button", { name: "차곡이 닫기" }).click();
+    await expect(chagokPanel(page)).toHaveCount(0);
+  }
+  await expect(chagokToggle(page)).toHaveAttribute("aria-expanded", "false");
+  await expect(chagokToggle(page)).toContainText("질문 1");
+  await chagokToggle(page).click();
+  await expect(chagokPanel(page)).toContainText("문항을 읽어 봤어요. 이 문항이 보려는 건 2가지예요.");
+  await expect(chagokPanel(page)).toContainText("「바꿔요」 경험이 가장 잘 맞아요. 「참고」에 2개 골라 뒀어요.");
 });
