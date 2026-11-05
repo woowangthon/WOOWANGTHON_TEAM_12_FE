@@ -8,6 +8,7 @@ import { CheckIcon, MinusCircleIcon, WarningCircleIcon, XIcon } from "@phosphor-
 import { Button } from "@/components/ui/button";
 import type { QuestionDetail, RequirementStatus, Supplement } from "@/lib/api/question-types";
 import { bubble, ClarificationItem, type AnswerHandler } from "./clarifications";
+import { DraftFollowUp, type DraftPanelActions } from "./draft-omissions";
 import { shortName } from "./question-result";
 
 const JUDGMENT: Record<RequirementStatus, { label: string; icon: typeof CheckIcon; tone: string }> = {
@@ -23,8 +24,8 @@ export function Mascot({ size = 28 }: { size?: number }) {
 /** 보완이 어디서 나왔나 — 「OO 부트캠프 문항」 · 「이 지원의 문항 2」 */
 export type SupplementOrigin = (supplement: Supplement) => string;
 
-export function ChagokPanel({ question, index, originOf, onAnswer, onClose }: {
-  question: QuestionDetail | null; index: number; originOf: SupplementOrigin; onAnswer: AnswerHandler; onClose: () => void;
+export function ChagokPanel({ question, index, originOf, onAnswer, onClose, draftActions }: {
+  question: QuestionDetail | null; index: number; originOf: SupplementOrigin; onAnswer: AnswerHandler; onClose: () => void; draftActions: DraftPanelActions;
 }) {
   return <div className="flex h-full min-h-0 flex-col bg-surface-soft">
     <header className="flex items-center gap-2 border-b border-hairline bg-canvas px-4 py-3">
@@ -34,12 +35,12 @@ export function ChagokPanel({ question, index, originOf, onAnswer, onClose }: {
       <Button variant="ghost" size="icon" className={question ? "" : "ml-auto"} onClick={onClose} aria-label="차곡이 닫기"><XIcon /></Button>
     </header>
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-      {question ? <Feed question={question} originOf={originOf} onAnswer={onAnswer} /> : <p className={bubble}>문항을 고르면 읽어 보고 맞는 경험을 찾아 둘게요.</p>}
+      {question ? <Feed key={question.id} question={question} originOf={originOf} onAnswer={onAnswer} draftActions={draftActions} /> : <p className={bubble}>문항을 고르면 읽어 보고 맞는 경험을 찾아 둘게요.</p>}
     </div>
   </div>;
 }
 
-function Feed({ question: q, originOf, onAnswer }: { question: QuestionDetail; originOf: SupplementOrigin; onAnswer: AnswerHandler }) {
+function Feed({ question: q, originOf, onAnswer, draftActions }: { question: QuestionDetail; originOf: SupplementOrigin; onAnswer: AnswerHandler; draftActions: DraftPanelActions }) {
   if (q.status === "ANALYZING") return <div role="status" aria-live="polite" className={bubble}>문항을 읽고, 쌓인 경험에서 맞는 걸 찾고 있어요…</div>;
   if (q.status === "FAILED") return <p className={bubble}>이 문항은 분석하지 못했어요. 가운데의 「다시 시도」를 눌러 주세요.</p>;
 
@@ -74,5 +75,6 @@ function Feed({ question: q, originOf, onAnswer }: { question: QuestionDetail; o
       const experience = q.recommendations.find(r => r.experience.id === c.experienceId)?.experience;
       return experience ? <ClarificationItem key={c.id} activityName={activityOf(c.experienceId)} clarification={c} experience={experience} onAnswer={onAnswer} /> : null;
     })}</ul>}
+    <DraftFollowUp question={q} onAnswer={onAnswer} {...draftActions} />
   </div>;
 }

@@ -63,6 +63,9 @@ export function useApplications() {
   const pending = useRef(false);
   const fetching = useRef(new Set<number>());
   const drafting = useRef(new Set<number>());
+  const answering = useRef(new Set<number>());
+  const [draftingIds, setDraftingIds] = useState<number[]>([]);
+  const [answeringIds, setAnsweringIds] = useState<number[]>([]);
   const mounted = useRef(false);
 
   /** 받은 문항을 넣는다. 그새 넣기 · 답하기가 있었으면(번호표가 지났으면) 버린다.
@@ -182,6 +185,8 @@ export function useApplications() {
   };
   return {
     loading: state.loading,
+    savingAnswer: state.questionId !== null && answeringIds.includes(state.questionId),
+    requestingDraft: state.questionId !== null && draftingIds.includes(state.questionId),
     error: state.error,
     applications: state.applications,
     pollWarnings: state.applications.flatMap(a => a.questions.flatMap((q, index) => state.pollFailures[q.id]
@@ -207,7 +212,9 @@ export function useApplications() {
     },
     createDraft: async (question: QuestionDetail, experienceIds: number[]) => {
       if (drafting.current.has(question.id)) throw new ApiError("DRAFT_IN_PROGRESS", "이미 초안을 만들고 있어요.", 409);
+      if (answering.current.has(question.id)) throw new ApiError("ANSWER_IN_PROGRESS", "보완을 쌓는 중이에요. 답 저장이 끝나면 다시 만들어 주세요.");
       drafting.current.add(question.id);
+      setDraftingIds([...drafting.current]);
       try {
         const draft = await createQuestionDraft(question, { experienceIds });
         if (!mounted.current) return;
@@ -226,7 +233,7 @@ export function useApplications() {
           if (mounted.current) commit(version, [fresh]);
         }
         throw e;
-      } finally { drafting.current.delete(question.id); }
+      } finally { drafting.current.delete(question.id); setDraftingIds([...drafting.current]); }
     },
     submit: (req: CreateApplicationRequest) => once(async () => {
       const { questionIds } = await submitApplication(req);
@@ -244,9 +251,14 @@ export function useApplications() {
     /** 되묻기에 답하기 — 저장한 뒤 이 지원의 문항을 다시 읽어 보완을 보인다(같은 경험이 다른 문항에도 추천됐을 수 있다).
      *  저장 실패는 부르는 쪽(입력 칸)에 그대로 던진다 */
     answer: async (questionId: number, clarificationId: number, answer: string) => {
-      await answerClarification(clarificationId, { answer });
-      const ids = (ownerOf(state.applications, questionId)?.questions ?? [{ id: questionId }]).map(q => q.id);
-      await reloadAfter(async version => commit(version, await Promise.all(ids.map(fetchQuestion)), { keep: new Set(ids) }));
+      if (answering.current.has(questionId)) throw new ApiError("ANSWER_IN_PROGRESS", "보완을 쌓는 중이에요. 잠시만 기다려 주세요.");
+      if (drafting.current.has(questionId)) throw new ApiError("DRAFT_IN_PROGRESS", "초안을 만드는 중이에요. 완료한 뒤에 답해 주세요.");
+      answering.current.add(questionId); setAnsweringIds([...answering.current]);
+      try {
+        await answerClarification(clarificationId, { answer });
+        const ids = (ownerOf(state.applications, questionId)?.questions ?? [{ id: questionId }]).map(q => q.id);
+        await reloadAfter(async version => commit(version, await Promise.all(ids.map(fetchQuestion)), { keep: new Set(ids) }));
+      } finally { answering.current.delete(questionId); setAnsweringIds([...answering.current]); }
     },
     /** 지원처 종류 · 직무(S-42) · 상태(S-36) · 낸 달(S-37) 바꾸기 — 추천은 다시 돌지 않아 지원 칸만 바꾼다.
      *  낸 달은 BE 가 상태에 맞춰 정할 수 있어 응답 값을 그대로 옮긴다. 실패는 부르는 쪽(칸)에 던진다 */
