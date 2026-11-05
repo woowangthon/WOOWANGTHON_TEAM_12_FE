@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import { useConfirmedAnswer } from "./use-confirmed-answer";
+import { NewFactCandidates } from "./new-fact-candidates";
 import { Button } from "@/components/ui/button";
 import { MAX_GROUNDING_TEXT_LENGTH, type GroundingStatus } from "@/lib/api/question-types";
 import { AnswerEvidence } from "./answer-evidence";
@@ -8,27 +11,42 @@ import { useGroundingCheck } from "./use-grounding-check";
 const LABEL: Record<GroundingStatus, string> = { SOURCE: "원문", USER_INPUT: "내가 입력", UNSUPPORTED: "근거 없음", OPINION: "생각 · AI 해석" };
 const TINT: Record<GroundingStatus, string> = { SOURCE: "bg-evidence-soft", USER_INPUT: "bg-primary-soft", UNSUPPORTED: "bg-review-soft", OPINION: "" };
 
-/** 내가 쓴 답(S-45). 확정 답변(S-48)은 이 입력 컴포넌트 위에 별도로 얹는다. */
+/** 내가 쓴 답(S-45 · S-48): 확정 답 복원 뒤 근거 점검을 독립적으로 읽는다. */
 export function AnswerInput({ questionId }: { questionId: number }) {
-  const g = useGroundingCheck(questionId);
+  const confirmed = useConfirmedAnswer(questionId);
+  return <section aria-labelledby={`answer-title-${questionId}`} className="mb-8 grid min-w-0 gap-4 border-b border-hairline pb-6">
+    <h3 id={`answer-title-${questionId}`} className="m-0 text-[17px] font-semibold">내가 쓴 답</h3>
+    {!confirmed.ready && !confirmed.failure && <p role="status" className="m-0 text-sm text-muted">확정한 답을 불러오고 있어요…</p>}
+    {confirmed.ready && <AnswerEditor questionId={questionId} confirmed={confirmed} />}
+    <NewFactCandidates confirmed={confirmed} />
+  </section>;
+}
+
+function AnswerEditor({ questionId, confirmed: a }: { questionId: number; confirmed: ReturnType<typeof useConfirmedAnswer> }) {
+  const [initialText] = useState(a.initialText);
+  const g = useGroundingCheck(questionId, initialText);
+  const locked = a.busy || a.answer?.newFacts?.status === "ANALYZING";
   const analyzing = g.check?.status === "ANALYZING";
   const valid = !!g.text.trim() && g.text.length <= MAX_GROUNDING_TEXT_LENGTH;
   const stale = g.check?.status === "COMPLETED" && g.text !== g.check.text;
-  return <section aria-labelledby={`answer-title-${questionId}`} className="mb-8 grid min-w-0 gap-4 border-b border-hairline pb-6">
-    <h3 id={`answer-title-${questionId}`} className="m-0 text-[17px] font-semibold">내가 쓴 답</h3>
-    <p id={`answer-help-${questionId}`} className="m-0 text-sm leading-relaxed text-muted">답을 쓰거나 붙여 넣어 주세요. 내 경험 전체에서 문장을 받치는 근거를 찾아요. 점검은 분석 1회로 세어요.</p>
+  return <>
+    <p id={`answer-help-${questionId}`} className="m-0 text-sm leading-relaxed text-muted">답을 쓰거나 붙여 넣어 주세요. 내 경험 전체에서 문장을 받치는 근거를 찾아요. 근거 점검과 확정 뒤 새 경험 후보 찾기는 각각 분석 1회로 세어요. 답 확정 자체는 분석 횟수를 쓰지 않아요.</p>
     <label htmlFor={`answer-${questionId}`} className="sr-only">내가 쓴 답</label>
     <textarea id={`answer-${questionId}`} aria-describedby={`answer-help-${questionId}`} rows={8}
-      maxLength={MAX_GROUNDING_TEXT_LENGTH} value={g.text} disabled={g.loading || g.busy || analyzing || !g.initialized}
+      maxLength={MAX_GROUNDING_TEXT_LENGTH} value={g.text} disabled={g.loading || g.busy || analyzing || !g.initialized || locked}
       placeholder="지원 문항에 맞춰 내 답을 적어 주세요."
       onChange={e => g.setText(e.target.value)}
       className="w-full min-w-0 resize-y rounded-sm border border-hairline bg-canvas p-4 text-[15px] leading-relaxed disabled:bg-surface-soft" />
     <div className="flex flex-wrap items-center justify-between gap-3">
       <span className="text-xs text-muted tabular-nums">{g.text.length.toLocaleString()} / 5,000자</span>
-      <Button className="min-h-11" disabled={!valid || g.loading || g.busy || analyzing || !g.initialized} onClick={() => void g.submit(g.text)}>
+      <div className="flex flex-wrap gap-2">
+      <Button variant="secondary" className="min-h-11" disabled={!valid || g.loading || g.busy || analyzing || !g.initialized} onClick={() => void g.submit(g.text)}>
         {g.busy || analyzing ? "근거 점검 중…" : "근거 점검"}
       </Button>
+      <Button disabled={!valid || g.loading || g.busy || analyzing || !g.initialized || locked} onClick={() => void a.confirm(g.text)}>{a.busy ? "처리 중…" : "확정"}</Button>
+      </div>
     </div>
+    {a.answer && <p role="status" className="m-0 text-sm text-muted">{g.text === a.answer.text ? "답을 확정했어요" : "확정한 글과 달라요 · 다시 확정해 주세요"}</p>}
     {g.loading && <p role="status" className="m-0 text-sm text-muted">마지막 근거 점검을 불러오고 있어요…</p>}
     {analyzing && <p role="status" className="m-0 text-sm text-muted">문장을 근거와 대조하고 있어요. 새로고침해도 점검한 글과 진행 상태를 이어서 확인해요.</p>}
     {g.failure && <div className="grid justify-items-start gap-2">
@@ -55,5 +73,5 @@ export function AnswerInput({ questionId }: { questionId: number }) {
         </li>)}
       </ol>
     </div>}
-  </section>;
+  </>;
 }

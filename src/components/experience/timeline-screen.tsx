@@ -125,15 +125,35 @@ export function TimelineScreen() {
 
   // 지원 화면의 「타임라인에서 활동 보기」(?activity=7&fromQuestion=41) — 처음 불러온 뒤 그 활동을 연다
   const linkedActivity = Number(params.get("activity"));
+  const linkedExperience = Number(params.get("experience")) || null;
   const fromQuestion = Number(params.get("fromQuestion")) || null;
   useEffect(() => {
-    loadList(mock).then((activities) => {
-      if (activities?.some((a) => a.id === linkedActivity) && selectedRef.current == null) {
+    let disposed = false;
+    loadList(mock).then(async (activities) => {
+      // 후보의 activityId는 AI 제안이다. 저장·이동한 실제 활동은 경험 ID로 찾는다.
+      if (linkedExperience && activities) {
+        try {
+          for (const activity of activities) {
+            if (disposed || selectedRef.current != null) return;
+            const detail = await fetchActivity(activity.id);
+            if (detail.experiences.some(e => e.id === linkedExperience)) {
+              if (!disposed && selectedRef.current == null) {
+                selectedRef.current = detail.id; setSelectedId(detail.id); setDetail({ status: "ready", activity: detail });
+              }
+              return;
+            }
+          }
+          if (!disposed) showToast("저장한 경험을 찾을 수 없어요. 내 경험 목록에서 다시 확인해 주세요.", true);
+        } catch (e) { if (!disposed) showToast(e instanceof Error ? e.message : "경험을 불러오지 못했어요. 다시 열어 주세요.", true); }
+        return;
+      }
+      if (!disposed && activities?.some((a) => a.id === linkedActivity) && selectedRef.current == null) {
         selectedRef.current = linkedActivity;
         setSelectedId(linkedActivity);
         loadDetail(linkedActivity);
       }
     });
+    return () => { disposed = true; };
     // 처음 한 번만 — 그 뒤엔 사용자가 고른 활동을 따른다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mock]);

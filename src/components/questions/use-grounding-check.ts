@@ -16,7 +16,8 @@ function message(e: unknown) {
 }
 
 /** S-45: 추천 작업과 별도로 조회한다. 재시도는 글을 보존하고, 상태 조회 실패는 POST로 바꾸지 않는다. */
-export function useGroundingCheck(questionId: number) {
+export function useGroundingCheck(questionId: number, initialText?: string) {
+  const restoredText = useRef(initialText);
   const [text, setText] = useState("");
   const [check, setCheck] = useState<GroundingCheck | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,7 +36,7 @@ export function useGroundingCheck(questionId: number) {
     if (!mounted.current || ticket !== version.current) return;
     setCheck(saved);
     if (!initialized.current) {
-      setText(saved?.text ?? "");
+      setText(restoredText.current ?? saved?.text ?? "");
       initialized.current = true; setReady(true);
     }
     setLoading(false);

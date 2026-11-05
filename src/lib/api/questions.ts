@@ -1,5 +1,7 @@
 // 지원 · 문항 · 추천 · 되묻기 — ETC docs/contracts/question-api.md. 실제 BE 만 부른다(FE#32).
 // API 주소가 없는 목 모드에선 request 가 API_NOT_CONFIGURED 로 실패한다 — 정해진 결과로 대신 채우지 않는다(대회 규칙 2).
+import type { Answer, SaveNewFactRequest } from "./question-types";
+import type { Experience } from "./types";
 import { ApiError } from "./errors";
 import { request } from "./http";
 import { MAX_GROUNDING_TEXT_LENGTH, type GroundingCheck, type CreateDraftRequest, type Draft } from "./question-types";
@@ -102,4 +104,23 @@ export async function createGroundingCheck(questionId: number, req: { text: stri
 
 export async function fetchGroundingCheck(questionId: number): Promise<GroundingCheck | null> {
   return (await request<{ groundingCheck: GroundingCheck | null }>(`/questions/${questionId}/grounding-check`)).groundingCheck;
+}
+
+/** S-48: 먼저 답을 저장하고, 성공한 뒤에만 후보 찾기를 시작한다. */
+export async function confirmAnswer(questionId: number, text: string): Promise<Answer> {
+  if (!text.trim()) throw new ApiError("EMPTY_TEXT", "확정할 답을 입력해 주세요.");
+  if (text.length > MAX_GROUNDING_TEXT_LENGTH) throw new ApiError("TEXT_TOO_LONG", "답은 5,000자까지 입력할 수 있어요.");
+  return (await request<{ answer: Answer }>(`/questions/${questionId}/answer`, { text }, "PUT")).answer;
+}
+export async function findNewFacts(questionId: number): Promise<Answer> {
+  return (await request<{ answer: Answer }>(`/questions/${questionId}/answer/new-facts`, undefined, "POST")).answer;
+}
+export async function saveNewFact(id: number, data: SaveNewFactRequest): Promise<Experience> {
+  if (!data.content.trim() || !Number.isInteger(data.activityId) || data.activityId <= 0 || !["ME", "TEAM", "UNKNOWN"].includes(data.actor)) {
+    throw new ApiError("INVALID_REQUEST", "경험 문장 · 수행 주체 · 붙일 활동을 확인해 주세요.");
+  }
+  return request(`/new-fact-candidates/${id}/save`, data, "POST");
+}
+export function dismissNewFact(id: number): Promise<void> {
+  return request(`/new-fact-candidates/${id}/dismiss`, undefined, "POST");
 }

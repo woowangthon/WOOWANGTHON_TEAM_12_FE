@@ -1,5 +1,5 @@
 // ETC docs/contracts/question-api.md · experience-api.md — 요청·응답 모양 그대로.
-import type { ActivitySummary, Experience, JobStatus, Job, Supplement } from "./types";
+import type { ActivitySummary, Experience, JobStatus, Job, Supplement, Actor } from "./types";
 
 export type { Supplement };
 
@@ -51,6 +51,8 @@ export type QuestionSummary = {
   createdAt: string;
 };
 export type QuestionDetail = QuestionSummary & {
+  /** S-48: 문항마다 최신 확정 답 하나. 미확정은 null */
+  answer?: Answer | null;
   /** S-27. 이전 서버 응답에는 없을 수 있다. 초안 미생성은 null */
   draft?: Draft | null;
   error: Job["error"];
@@ -147,3 +149,15 @@ export type GroundingCheck = {
   sentences: { text: string; status: GroundingStatus; evidence: DraftEvidence[]; note: string | null }[];
   createdAt: string; updatedAt: string;
 };
+
+/** S-48: 확정 답은 근거가 아니다. 저장한 후보의 경험만 다시 쓰인다. */
+export type NewFactCandidate = {
+  id: number; sentence: string; content: string; actor: Actor;
+  activityId: number | null; activityName: string | null;
+  status: "PENDING" | "SAVED" | "DISMISSED"; experienceId: number | null;
+};
+export type Answer = {
+  questionId: number; text: string; confirmedAt: string;
+  newFacts: { status: JobStatus; error: Job["error"]; candidates: NewFactCandidate[]; createdAt: string; updatedAt: string } | null;
+};
+export type SaveNewFactRequest = { activityId: number; content: string; actor: Actor };

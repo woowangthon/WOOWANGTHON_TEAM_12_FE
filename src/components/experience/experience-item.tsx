@@ -2,6 +2,7 @@
 
 // 경험 하나 — 이 화면의 주인공. 상자 없이 구분선, 근거는 접어 둔다 (SPEC S-08 · DESIGN.md 「경험」)
 import { CaretDownIcon, CheckIcon, DotsSixVerticalIcon, DotsThreeIcon, PencilSimpleIcon, QuotesIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import Link from "next/link";
 import { DropdownMenu } from "radix-ui";
 import { cn } from "@/lib/utils";
 import { COMPETENCIES, type Actor, type Experience, type SourceStatus } from "@/lib/api/types";
@@ -64,7 +65,7 @@ export function ExperienceMeta({ experience: e }: { experience: Experience }) {
         </>
       )}
       {sep}
-      <SourceStatusMark status={e.sourceStatus} />
+      {e.origin?.type === "ANSWER" ? <Link href={`/questions?question=${e.origin.questionId}`} className="min-w-0 break-words underline-offset-3 hover:underline">내가 쓴 지원서 · {e.origin.organization || "지원처 미입력"} · {e.origin.questionText}</Link> : <SourceStatusMark status={e.sourceStatus} />}
     </>
   );
 }
@@ -93,7 +94,7 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
   const citeBtn =
     "ml-auto inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-[13px] font-semibold text-evidence hover:bg-evidence-soft";
   return (
-    <li className={cn("group relative grid gap-1.5 border-b border-hairline py-4", dragging && "opacity-40")}>
+    <li id={`experience-${e.id}`} className={cn("group relative grid gap-1.5 border-b border-hairline py-4", dragging && "opacity-40")}>
       {!editing && !readOnly && (
         <span
           draggable
