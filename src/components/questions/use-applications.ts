@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { addApplicationQuestion, answerClarification, createQuestionDraft, fetchApplications, fetchQuestion, retryQuestion, submitApplication, updateApplication, updateQuestionType } from "@/lib/api/questions";
 import { ApiError } from "@/lib/api/errors";
+import type { DraftFrame } from "@/lib/draft-frames";
 import type { Application, CreateApplicationRequest, QuestionDetail, QuestionSummary, QuestionType, UpdateApplicationRequest } from "@/lib/api/question-types";
 
 /** 고른 지원 하나 — 문항마다 추천 결과(넣은 순서, `application.questions` 와 같은 자리). 아직 못 받은 문항은 null(FE#60).
@@ -210,13 +211,13 @@ export function useApplications() {
       const fresh = await fetchQuestion(id);
       if (mounted.current) commit(version, [fresh]);
     },
-    createDraft: async (question: QuestionDetail, experienceIds: number[]) => {
+    createDraft: async (question: QuestionDetail, experienceIds: number[], frame?: DraftFrame) => {
       if (drafting.current.has(question.id)) throw new ApiError("DRAFT_IN_PROGRESS", "이미 초안을 만들고 있어요.", 409);
       if (answering.current.has(question.id)) throw new ApiError("ANSWER_IN_PROGRESS", "보완을 쌓는 중이에요. 답 저장이 끝나면 다시 만들어 주세요.");
       drafting.current.add(question.id);
       setDraftingIds([...drafting.current]);
       try {
-        const draft = await createQuestionDraft(question, { experienceIds });
+        const draft = await createQuestionDraft(question, { experienceIds, frame });
         if (!mounted.current) return;
         // 먼저 출발한 GET은 버리고, POST 응답의 draft만 옮겨 기존 추천·보완은 보존한다.
         ++generation.current;

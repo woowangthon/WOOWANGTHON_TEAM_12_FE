@@ -1,6 +1,7 @@
 "use client";
 
 // 계정 메뉴 — 누가 로그인했나 · 오늘 남은 분석 횟수(S-15) · 로그아웃 (FE#37). 목 모드에선 보이지 않는다
+import Link from "next/link";
 import { SignOutIcon, UserCircleIcon } from "@phosphor-icons/react";
 import { DropdownMenu } from "radix-ui";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,7 @@ export function AccountMenu({ variant = "bar" }: { variant?: "bar" | "sidebar" |
             </span>
           </div>
           <DropdownMenu.Separator className="my-1 h-px bg-hairline" />
+          <DropdownMenu.Item asChild><Link href="/guidelines" className="flex min-h-11 items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">작성 지침</Link></DropdownMenu.Item>
           <DropdownMenu.Item
             onSelect={() => void signOut()}
             className="flex min-h-11 cursor-pointer items-center gap-2 rounded-sm px-3 text-sm outline-none focus:bg-surface-soft"

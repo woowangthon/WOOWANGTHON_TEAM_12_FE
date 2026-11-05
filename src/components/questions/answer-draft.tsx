@@ -1,45 +1,20 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { WarningCircleIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
-import { ApiError } from "@/lib/api/errors";
+import type { DraftFrame } from "@/lib/draft-frames";
+import { DraftGuidance } from "./draft-guidance";
 import type { QuestionDetail } from "@/lib/api/question-types";
 import { AnswerEvidence } from "./answer-evidence";
-import { requestError, failureReason } from "./draft-errors";
-import { ActivityChip } from "./question-result";
+import { failureReason } from "./draft-errors";
 
-export type DraftActions = { onGenerate: (experienceIds: number[]) => Promise<void>; onRefresh: () => Promise<void>; onOpenOmissions: () => void; savingAnswer: boolean; requestingDraft: boolean };
+export type DraftActions = { onGenerate: (experienceIds: number[], frame?: DraftFrame) => Promise<void>; onRefresh: () => Promise<void>; onOpenOmissions: () => void; savingAnswer: boolean; requestingDraft: boolean };
 
-export function AnswerDraft({ question, onGenerate, onRefresh, onOpenOmissions, savingAnswer, requestingDraft }: { question: QuestionDetail } & DraftActions) {
-  const [selected, setSelected] = useState(() => question.draft ? question.draft.experienceIds : question.recommendations.slice(0, 3).map(r => r.experience.id));
-  const [selectionChanged, setSelectionChanged] = useState(false);
+export function AnswerDraft({ question, onOpenOmissions, requestingDraft }: { question: QuestionDetail } & DraftActions) {
   const draft = question.draft ?? null;
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<{ text: string; code?: string } | null>(null);
   const [copy, setCopy] = useState("");
-  const pending = useRef(false);
-
-  const analyzing = busy || requestingDraft || draft?.status === "ANALYZING";
-  const ids = draft && !selectionChanged ? draft.experienceIds : selected;
-  const allowed = ids.length >= 1 && ids.length <= 3 && new Set(ids).size === ids.length && ids.every(id => question.recommendations.some(r => r.experience.id === id));
-  const generate = async () => {
-    if (pending.current || savingAnswer || analyzing || !allowed) return;
-    pending.current = true; setBusy(true); setError(null); setCopy("");
-    try {
-      // 실패 재시도는 저장된 experienceIds로 같은 POST. 새 선택은 완료 뒤 재생성에 사용한다.
-      await onGenerate(ids);
-      setSelectionChanged(false);
-    } catch (e) { setError({ text: requestError(e), code: e instanceof ApiError ? e.code : undefined }); }
-    finally { pending.current = false; setBusy(false); }
-  };
-  const refresh = async () => {
-    if (pending.current || savingAnswer) return;
-    pending.current = true; setBusy(true); setError(null);
-    try { await onRefresh(); }
-    catch (e) { setError({ text: requestError(e) }); }
-    finally { pending.current = false; setBusy(false); }
-  };
+  const analyzing = requestingDraft || draft?.status === "ANALYZING";
   const copyText = async () => {
     if (!draft?.sentences.length) return;
     try {
@@ -52,28 +27,12 @@ export function AnswerDraft({ question, onGenerate, onRefresh, onOpenOmissions, 
     <div className="flex flex-wrap items-center gap-2">
       <h3 id={`draft-title-${question.id}`} className="m-0 text-[17px] font-semibold">답변 초안</h3>
     </div>
-    <p className="m-0 text-sm leading-relaxed text-muted">추천 경험을 1 ~ 3개 골라 주세요. 문장마다 근거를 확인하고, 복사해서 자기 글로 고쳐 쓸 수 있어요.</p>
-    <p className="m-0 text-xs leading-relaxed text-muted">초안 만들기는 분석 1회로 세어요. 만드는 중에 새로고침해도 서버에 저장된 상태를 이어서 확인해요.</p>
-    <fieldset disabled={analyzing || savingAnswer} className="m-0 grid min-w-0 gap-2 border-0 p-0">
-      <legend className="mb-2 text-sm font-semibold">초안에 쓸 경험 · {selected.filter(id => question.recommendations.some(r => r.experience.id === id)).length}개 선택</legend>
-      {question.recommendations.map(r => <label key={r.experience.id} className="flex min-w-0 items-start gap-3 rounded-sm bg-surface-soft p-3 text-sm leading-relaxed">
-        <input type="checkbox" className="mt-1 size-4 shrink-0 accent-primary" checked={selected.includes(r.experience.id)}
-          disabled={!selected.includes(r.experience.id) && selected.length >= 3}
-          onChange={e => { setSelectionChanged(true); setError(null); setSelected(ids => (e.target.checked ? [...ids, r.experience.id] : ids.filter(id => id !== r.experience.id)).filter(id => question.recommendations.some(r => r.experience.id === id))); }} />
-        <span className="grid min-w-0 gap-1 break-words"><ActivityChip name={r.activity.name} />{r.experience.content}</span>
-      </label>)}
-      {!question.recommendations.length && <p className="m-0 text-sm text-muted">추천된 경험이 있으면 초안을 만들 수 있어요.</p>}
-    </fieldset>
-    <div className="flex flex-wrap items-center gap-3">
-      <Button className="min-h-11" onClick={() => void generate()} disabled={!allowed || analyzing || savingAnswer}>{analyzing ? "초안 만드는 중…" : draft ? "다시 만들기" : "초안 만들기"}</Button>
-    </div>
+    <p className="m-0 text-sm leading-relaxed text-muted">차곡이에게 경험과 구성 틀을 골라 초안을 부탁해 보세요. 만든 문장은 여기서 근거와 함께 확인하고, 자기 글로 고쳐 쓸 수 있어요.</p>
+    <Button variant="secondary" className="min-h-11 justify-self-start" onClick={onOpenOmissions}>{draft ? "초안 설정 열기" : "초안 부탁하기"}</Button>
     {analyzing && <p role="status" className="m-0 text-sm text-muted">고른 경험으로 초안을 만드는 중이에요…</p>}
-    {error && (error.code !== "DRAFT_IN_PROGRESS" || analyzing) && <div className="grid justify-items-start gap-2">
-      <p role="alert" className="m-0 text-sm text-error">{error.text}</p>
-      <Button variant="secondary" className="min-h-11" disabled={busy || savingAnswer} onClick={() => void refresh()}>초안 상태 확인</Button>
-    </div>}
-    {draft?.status === "FAILED" && !analyzing && <p role="alert" className="m-0 text-sm text-error">{failureReason(draft.error)} 「다시 만들기」로 같은 경험을 다시 요청할 수 있어요.</p>}
+    {draft?.status === "FAILED" && !analyzing && <p role="alert" className="m-0 text-sm text-error">{failureReason(draft.error)} 차곡이에서 다시 만들 수 있어요.</p>}
     {draft?.status === "COMPLETED" && !analyzing && <>
+      <DraftGuidance draft={draft} />
       <p role="status" className="m-0 text-sm font-medium">초안을 확인해 주세요. 최종 문장은 직접 정해요.</p>
       {draft.sentences.length ? <ol aria-label="초안 문장" className="m-0 grid list-none gap-4 p-0">{draft.sentences.map((sentence, i) => <li key={i} className="grid min-w-0 gap-2 border-t border-hairline-soft pt-4">
         <p className="m-0 break-words text-[15px] leading-relaxed"><span className="mr-2 text-xs text-muted">{i + 1}</span>{sentence.text}</p>
