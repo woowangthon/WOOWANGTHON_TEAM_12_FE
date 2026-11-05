@@ -225,6 +225,7 @@ function Row({
           >
             {activity.name}
           </span>
+          {activity.mergeSuggestion && !continuing && <span className="text-xs font-medium text-muted">AI 제안 · 기존 활동과 같아 보여요</span>}
           <span className={cn("text-muted tabular-nums", continuing ? "text-[13px]" : "text-[13px] lg:text-sm")}>
             {over ? <span className="font-medium text-ink">여기에 놓으면 이 활동으로 옮겨요</span> : sub}
           </span>

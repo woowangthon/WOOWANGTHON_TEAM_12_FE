@@ -8,7 +8,7 @@ async function setup(page: Page) {
   const state = {
     status: "ANALYZING" as Job["status"], error: null as Job["error"], empty: false,
     sources: [] as SourceRequest[], gets: 0, lists: 0, details: 0, retries: 0,
-    getError: 0, retryError: false, refreshError: false,
+    getError: 0, retryError: false, refreshError: false, suggestion: false,
   };
   const job = (): Job => ({ jobId: 34, sourceId: 12, status: state.status, activityIds: state.status === "COMPLETED" && !state.empty ? [70] : [], error: state.error, createdAt: "2026-11-02T21:00:00+09:00", updatedAt: "2026-11-02T21:00:10+09:00" });
   await page.route("**/api/**", async (route) => {
@@ -39,7 +39,7 @@ async function setup(page: Page) {
     if (path === "/api/activities") {
       state.lists++;
       if (state.refreshError && state.status === "COMPLETED") return route.fulfill({ status: 503, json: { error: { code: "INTERNAL_ERROR", message: "Activity refresh failed" } } });
-      return route.fulfill({ json: { activities: state.status === "COMPLETED" && !state.empty ? [{ id: 70, name: detail.name, period: detail.period, experienceCount: 1 }] : [] } });
+      return route.fulfill({ json: { activities: state.status === "COMPLETED" && !state.empty ? [{ id: 70, name: detail.name, period: detail.period, experienceCount: 1, mergeSuggestion: state.suggestion ? { activityId: 7, name: "기존 활동", period: detail.period } : null }] : [] } });
     }
     if (path === "/api/activities/70") { state.details++; return route.fulfill({ json: detail }); }
     throw new Error(`Unexpected API: ${req.method()} ${path}`);
@@ -75,6 +75,14 @@ test("polling survives reload, does not resubmit, then refreshes actual list and
   await page.clock.install();
   await page.clock.runFor(6000);
   expect(state.gets).toBe(completedGets);
+});
+
+test("분석 완료 알림에 이번 활동의 같은 활동 제안 수를 표시한다", async ({ page }) => {
+  const state = await setup(page);
+  state.suggestion = true;
+  state.status = "COMPLETED";
+  await submit(page);
+  await expect(page.getByRole("status")).toContainText("기존 활동과 같아 보이는 활동 1개가 있어요", { timeout: 10000 });
 });
 
 test("AI timeout is a failure; retry uses the same job, prevents duplicate requests", async ({ page }) => {
