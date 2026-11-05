@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 test("mock timeline, competency provenance edits, and source analysis remains mock", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("note")).toContainText("목 모드");
-  await page.getByRole("button", { name: /바꿔요/ }).first().click();
+  await page.getByRole("button", { name: /바꿔요 — 캠퍼스/ }).first().click();
   await page.getByRole("button", { name: "활동 수정", exact: true }).click();
   await page.getByLabel("활동 이름").fill("Cannot save");
   await page.getByRole("button", { name: "저장", exact: true }).click();

@@ -10,22 +10,31 @@ function experience(id: number, activityId: number, content: string, sourceStatu
   };
 }
 
-async function setup(page: Page) {
+async function setup(page: Page, suggested = false) {
   const activities: ActivityDetail[] = [
     { id: 7, name: "Swap app", period: { start: "2025-03", end: "2025-06", ongoing: false },
       experiences: [experience(101, 7, "Chat fix"), experience(102, 7, "Weekly retro"), experience(103, 7, "Deploy", "NEEDS_REVIEW")] },
     { id: 8, name: "Algo study", period: { start: "2024-09", end: null, ongoing: true }, experiences: [experience(111, 8, "Pick problems")] },
     { id: 9, name: "Swap deploy", period: { start: "2025-05", end: "2025-05", ongoing: false }, experiences: [experience(121, 9, "AWS setup")] },
   ];
-  const state = { activities, moves: [] as { id: number; body: unknown }[], merges: [] as { keep: number; body: unknown }[], fail: 0, delay: 0 };
+  if (suggested) activities[2].mergeSuggestion = { activityId: 7, name: activities[0].name, period: activities[0].period };
+  const state = { activities, dismissals: [] as number[], moves: [] as { id: number; body: unknown }[], merges: [] as { keep: number; body: unknown }[], fail: 0, delay: 0 };
   const find = (id: number) => state.activities.find((a) => a.id === id);
-  const summary = (a: ActivityDetail) => ({ id: a.id, name: a.name, period: a.period, experienceCount: a.experiences.length });
+  const summary = (a: ActivityDetail) => ({ id: a.id, name: a.name, period: a.period, mergeSuggestion: a.mergeSuggestion, experienceCount: a.experiences.length });
 
   await page.route("**/api/**", async (route) => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
     if (path.startsWith("/api/auth/")) return route.fallback(); // 로그인 확인은 signed-in 픽스처가 받는다
     const fail = () => route.fulfill({ status: state.fail, json: { error: { code: "INTERNAL_ERROR", message: "Server rejected" } } });
+    const dismissal = path.match(/^\/api\/activities\/(\d+)\/merge-suggestion$/);
+    if (dismissal && req.method() === "DELETE") {
+      expect(req.postData()).toBeNull();
+      state.dismissals.push(Number(dismissal[1]));
+      if (state.fail) return fail();
+      find(Number(dismissal[1]))!.mergeSuggestion = null;
+      return route.fulfill({ status: 204 });
+    }
     let m = path.match(/^\/api\/experiences\/(\d+)\/move$/);
     if (m && req.method() === "POST") {
       const id = Number(m[1]);
@@ -65,6 +74,62 @@ const isMobile = (page: Page) => page.viewportSize()!.width < 1024;
 // 해를 넘는 활동은 다음 해에 흐린 줄(「N년부터 이어짐」)도 있다 — 경험 수가 있는 본 줄을 쓴다
 const row = (page: Page, name: string) => page.getByRole("button", { name: new RegExp(name) }).filter({ hasText: "경험" }).first();
 const detail = (page: Page) => page.getByRole("complementary");
+
+test("같은 활동 제안 — 새로고침 · 합치기 실패와 재시도 · 기존 활동 보존", async ({ page }) => {
+  const state = await setup(page, true);
+  await expect(row(page, "Swap deploy")).toContainText("AI 제안");
+  await page.reload();
+  await open(page, "Swap deploy");
+  const suggestion = page.getByRole("region", { name: "같은 활동 제안" });
+  await expect(suggestion).toContainText("Swap app");
+  await expect(suggestion).toContainText("2025.03");
+  const original = structuredClone(state.activities[0]);
+  const incoming = structuredClone(state.activities[2].experiences[0]);
+  state.fail = 500;
+  await suggestion.getByRole("button", { name: "붙이기", exact: true }).click();
+  await expect(suggestion.getByRole("alert")).toContainText("Server rejected");
+  expect(state.activities).toHaveLength(3);
+  state.fail = 0;
+  state.delay = 300;
+  await suggestion.getByRole("button", { name: "다시 시도" }).click();
+  await expect(suggestion.getByRole("button", { name: "따로 두기" })).toBeDisabled();
+  await expect(detail(page).getByRole("heading", { name: "Swap app", exact: true })).toBeVisible();
+  expect(state.merges).toEqual([{ keep: 7, body: { fromActivityId: 9 } }, { keep: 7, body: { fromActivityId: 9 } }]);
+  expect(state.activities[0]).toEqual({ ...original, experiences: [...original.experiences, { ...incoming, activityId: 7 }] });
+  await page.reload();
+  await expect(row(page, "Swap deploy")).toHaveCount(0);
+});
+
+test("같은 활동 제안 — 따로 두기 실패는 유지하고 성공 뒤 새로고침에도 사라진다", async ({ page }) => {
+  const state = await setup(page, true);
+  await open(page, "Swap deploy");
+  const suggestion = page.getByRole("region", { name: "같은 활동 제안" });
+  state.fail = 503;
+  await suggestion.getByRole("button", { name: "따로 두기" }).click();
+  await expect(suggestion.getByRole("alert")).toBeVisible();
+  state.fail = 0;
+  await suggestion.getByRole("button", { name: "다시 시도" }).click();
+  await expect(suggestion).toHaveCount(0);
+  expect(state.dismissals).toEqual([9, 9]);
+  expect(state.activities).toHaveLength(3);
+  await page.reload();
+  await expect(row(page, "Swap deploy")).not.toContainText("AI 제안");
+  await open(page, "Swap deploy");
+  await expect(suggestion).toHaveCount(0);
+});
+
+test("같은 활동 제안 — 세 폭에서 배치 확인", async ({ page }, testInfo) => {
+  test.skip(isMobile(page), "한 프로젝트에서 세 폭을 확인");
+  await setup(page, true);
+  await open(page, "Swap deploy");
+  for (const width of [1440, 1024, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await expect(page.getByRole("region", { name: "같은 활동 제안" })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({ path: `docs/fe-84/suggestion-${width}.png`, fullPage: true });
+    await testInfo.attach(`suggestion-${width}`, { path: `docs/fe-84/suggestion-${width}.png`, contentType: "image/png" });
+  }
+});
 
 async function open(page: Page, name: string) {
   await row(page, name).click();

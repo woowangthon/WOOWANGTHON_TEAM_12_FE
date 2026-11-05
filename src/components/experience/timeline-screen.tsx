@@ -13,7 +13,7 @@ import { AnalysisBanner, AnalysisCenter, analysisView } from "@/components/sourc
 import { hasPendingAnalysis, useAnalysisJob } from "@/components/source/use-analysis-job";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { fetchActivities, fetchActivity, isMockMode, mergeActivities, moveExperience, updateActivity, type MockAnalysis, type MockMode } from "@/lib/api/experience";
+import { dismissMergeSuggestion, fetchActivities, fetchActivity, isMockMode, mergeActivities, moveExperience, updateActivity, type MockAnalysis, type MockMode } from "@/lib/api/experience";
 import type { ActivitySummary, Experience, Period } from "@/lib/api/types";
 import { monthNumber, periodText, spanOf, yearsOf, type Span } from "@/lib/period";
 import { ActivityDetailView, type DetailState } from "./activity-detail";
@@ -157,9 +157,11 @@ export function TimelineScreen() {
       loadDetail(next);
     }
     // 활동 0개는 기존의 빈 결과 화면 · 띠로 알린다.
-    if (job.activityIds.length) showToast(isMockMode()
+    const suggestedCount = activities.filter((a) => job.activityIds.includes(a.id) && a.mergeSuggestion).length;
+    if (job.activityIds.length) showToast((isMockMode()
       ? `목 분석 결과 활동 ${job.activityIds.length}개예요. 서버에 저장된 결과가 아니에요.`
-      : `분석이 완료됐어요. 활동 ${job.activityIds.length}개를 확인해 보세요.`);
+      : `분석이 완료됐어요. 활동 ${job.activityIds.length}개를 확인해 보세요.`)
+      + (suggestedCount ? ` 기존 활동과 같아 보이는 활동 ${suggestedCount}개가 있어요.` : ""));
   });
   const view = analysisView(analysis.tracked);
 
@@ -287,12 +289,25 @@ export function TimelineScreen() {
     ++listRequest.current;
     ++detailRequest.current;
     setList((prev) => prev.status === "ready" ? { ...prev, activities: prev.activities.filter((a) => a.id !== fromId)
-      .map((a) => a.id === keepId ? { ...a, name: kept.name, period: kept.period, experienceCount: kept.experiences.length } : a) } : prev);
+      .map((a) => a.id === keepId ? { ...a, name: kept.name, period: kept.period, experienceCount: kept.experiences.length, mergeSuggestion: kept.mergeSuggestion }
+        : a.mergeSuggestion?.activityId === fromId ? { ...a, mergeSuggestion: null } : a) } : prev);
     selectedRef.current = keepId;
     setSelectedId(keepId);
     setDetail({ status: "ready", activity: kept });
     setMergeOpen(false);
     showToast(`활동을 합쳤어요. 「${kept.name}」에 경험 ${kept.experiences.length}개가 모였어요.`);
+  };
+
+  const dismissSuggestion = async (id: number) => {
+    const previousDetailRequest = detailRequest.current;
+    await dismissMergeSuggestion(id);
+    ++listRequest.current;
+    const reopened = selectedRef.current === id && previousDetailRequest !== detailRequest.current;
+    if (selectedRef.current === id) ++detailRequest.current;
+    setList((prev) => prev.status === "ready" ? { ...prev, activities: prev.activities.map((a) => a.id === id ? { ...a, mergeSuggestion: null } : a) } : prev);
+    setDetail((prev) => prev.status === "ready" && prev.activity.id === id ? { ...prev, activity: { ...prev.activity, mergeSuggestion: null } } : prev);
+    if (reopened) loadDetail(id);
+    showToast("두 활동을 따로 두었어요.");
   };
 
   const deletion = useExperienceDeletion((experience) => {
@@ -417,6 +432,8 @@ export function TimelineScreen() {
               onExperienceMove={setMoving}
               onDragChange={setDragging}
               draggingId={dragging?.id ?? null}
+              onSuggestedMerge={merge}
+              onSuggestionDismiss={dismissSuggestion}
               onMergeRequest={ready.activities.length > 1 ? () => setMergeOpen(true) : undefined}
             />
             </SupplementSourceContext>

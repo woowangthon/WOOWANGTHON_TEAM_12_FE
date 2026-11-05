@@ -49,11 +49,14 @@ export type Job = {
   updatedAt: string;
 };
 
+export type MergeSuggestion = { activityId: number; name: string; period: Period };
+
 export type ActivitySummary = {
   id: number;
   name: string;
   period: Period;
   experienceCount: number;
+  mergeSuggestion?: MergeSuggestion | null;
 };
 
 export type Citation = {
@@ -94,6 +97,7 @@ export type ActivityDetail = {
   name: string;
   period: Period;
   experiences: Experience[];
+  mergeSuggestion?: MergeSuggestion | null;
 };
 
 export type UpdateActivityRequest = { name?: string; period?: Period };

@@ -42,6 +42,14 @@ function exp(
 }
 
 export const MOCK_ACTIVITIES: ActivityDetail[] = [
+  // MOCK(timeline-activities): 같은 활동 제안 표시용. AI 판단이 아니며 저장은 기존 목 모드처럼 실패를 알린다.
+  {
+    id: 18,
+    name: "바꿔요 프로젝트 README",
+    period: { start: "2025-03", end: "2025-06", ongoing: false },
+    mergeSuggestion: { activityId: 7, name: "바꿔요 — 캠퍼스 중고거래 앱", period: { start: "2025-03", end: "2025-06", ongoing: false } },
+    experiences: [],
+  },
   {
     id: 8,
     name: "알고리즘 스터디",

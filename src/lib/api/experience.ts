@@ -139,6 +139,11 @@ export async function mergeActivities(keepId: number, fromId: number): Promise<A
   return activity;
 }
 
+/** S-44 — 제안만 지우며 두 활동은 그대로 둔다. */
+export function dismissMergeSuggestion(id: number): Promise<void> {
+  return request(`/activities/${id}/merge-suggestion`, undefined, "DELETE");
+}
+
 /** PATCH /api/supplements/{id} — 답만 고친다. 경험의 출처 상태는 그대로 (S-24) */
 export function updateSupplement(id: number, answer: string): Promise<Supplement> {
   return request(`/supplements/${id}`, { answer });

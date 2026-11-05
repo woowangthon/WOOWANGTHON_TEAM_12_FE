@@ -13,6 +13,7 @@ import { CitationList, SourceFile } from "./citation-list";
 import { ExperienceItem, ExperienceMeta } from "./experience-item";
 import { ActivityEditor } from "./activity-editor";
 import { ExperienceEditor } from "./experience-editor";
+import { MergeSuggestionView } from "./merge-suggestion";
 
 const FIRST_COUNT = 3;
 
@@ -37,9 +38,11 @@ type Props = {
   draggingId: number | null;
   /** 다른 활동이 없으면 undefined — 메뉴를 숨긴다 */
   onMergeRequest?: () => void;
+  onSuggestedMerge?: (keepId: number, fromId: number) => Promise<void>;
+  onSuggestionDismiss?: (id: number) => Promise<void>;
 };
 
-export function ActivityDetailView({ summary, state, now, onClose, onRetry, onActivitySaved, onExperienceSaved, onExperienceAdded, onExperienceDelete, onExperienceMove, onDragChange, draggingId, onMergeRequest, readOnly = false }: Props) {
+export function ActivityDetailView({ summary, state, now, onClose, onRetry, onActivitySaved, onExperienceSaved, onExperienceAdded, onExperienceDelete, onExperienceMove, onDragChange, draggingId, onMergeRequest, onSuggestedMerge, onSuggestionDismiss, readOnly = false }: Props) {
   const [editing, setEditing] = useState(false);
   const activity = state.status === "ready" ? state.activity : null;
   const current = activity ?? summary;
@@ -99,6 +102,10 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
           </p>
         )}
       </header>
+
+      {activity?.mergeSuggestion && !readOnly && onSuggestedMerge && onSuggestionDismiss && (
+        <MergeSuggestionView key={`${activity.id}-${activity.mergeSuggestion.activityId}`} activity={activity} suggestion={activity.mergeSuggestion} onMerge={onSuggestedMerge} onDismiss={onSuggestionDismiss} />
+      )}
 
       <div className="px-4.5 pt-2 pb-10 lg:px-7 lg:pb-8">
         {state.status === "loading" && <p className="pt-4 text-sm text-muted">경험을 불러오고 있어요…</p>}
