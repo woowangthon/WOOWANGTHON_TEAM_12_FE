@@ -2,6 +2,8 @@
 // API 주소가 없는 목 모드에선 request 가 API_NOT_CONFIGURED 로 실패한다 — 정해진 결과로 대신 채우지 않는다(대회 규칙 2).
 import { ApiError } from "./errors";
 import { request } from "./http";
+import { readDraftQuestion, startDraft } from "../mock/question-draft";
+import type { CreateDraftRequest, Draft } from "./question-types";
 import {
   MAX_ANSWER_LENGTH, MAX_ORGANIZATION_LENGTH, MAX_QUESTION_LENGTH, MAX_QUESTIONS_PER_SUBMIT,
   type AddQuestionRequest, type AnswerClarificationRequest, type Application, type ApplicationSubmitted, type ClarificationAnswered,
@@ -79,4 +81,14 @@ export async function answerClarification(id: number, req: AnswerClarificationRe
   if (!req.answer.trim()) throw new ApiError("EMPTY_ANSWER", "답을 입력해 주세요.");
   if (req.answer.length > MAX_ANSWER_LENGTH) throw new ApiError("INVALID_REQUEST", "답은 2,000자까지 입력할 수 있어요.");
   return request(`/clarifications/${id}/answer`, req, "POST");
+}
+
+// MOCK(question-draft): FE#74 전용. #75에서 POST /questions/{id}/draft와 fetchQuestion으로 교체한다.
+// question은 기존 실제 API 결과이며, 목 제어 fail은 요청 JSON에 포함되지 않는다.
+export async function createQuestionDraft(question: QuestionDetail, req: CreateDraftRequest, fail = false): Promise<Draft> {
+  return startDraft(question, req, fail);
+}
+/** 목 GET /api/questions/{id}: 응답의 draft 필드만 갱신. 기존 추천 API는 그대로 둔다. */
+export async function fetchDraftQuestion(question: QuestionDetail): Promise<QuestionDetail> {
+  return readDraftQuestion(question);
 }

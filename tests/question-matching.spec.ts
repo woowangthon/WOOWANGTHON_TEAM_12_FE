@@ -62,7 +62,9 @@ test("question 41/42 switch shows contract judgments, actors and supplemental ev
   // 참고 경험 쪽 2개 + 문항 유형 칸의 「AI 해석」 1개(FE#81 — 계약 예시의 유형은 AI 가 붙였다)
   await expect(result(page).getByText("AI 해석", { exact: true })).toHaveCount(3);
   await expect(result(page).getByLabel("문항 유형", { exact: true })).toHaveAccessibleDescription("AI 해석");
-  await expect(page.getByText(/목 모드|예시 결과/)).toHaveCount(0);
+  // FE#74는 초안만 목임을 밝힌다. 추천과 차곡이의 실제 API 결과는 목으로 바뀌지 않는다.
+  await expect(page.getByText("초안 목 모드", { exact: true })).toHaveCount(1);
+  await expect(recommendation(page, 1).getByText(/목 모드|예시 결과/)).toHaveCount(0);
   let chagok = await openChagok(page);
   await expect(chagok.getByText("근거 있음", { exact: true })).toHaveCount(1);
   await expect(chagok.getByText("일부 확인됨", { exact: true })).toBeVisible();
