@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { MAX_QUESTIONS_PER_APPLICATION, type Application, type QuestionDetail, type QuestionSummary, type QuestionType, type UpdateApplicationRequest } from "@/lib/api/question-types";
 import { AddQuestionForm, ApplicationForm } from "./application-form";
 import { overlapsOf, sameExperienceElsewhere, type Overlap } from "./overlap";
+import { AnswerInput } from "./answer-input";
 import { QuestionResult } from "./question-result";
 import { ChagokPanel, Mascot, type SupplementOrigin } from "./chagok-panel";
 import { useApplications } from "./use-applications";
@@ -42,7 +43,7 @@ function progressText(application: Application) {
 }
 
 /** 지원 화면(S-18 · S-21) — 지원 목록(xl 이상은 사이드바) · 상태 꼬리표(S-36), 고른 지원: 여러 문항에 추천된 활동 → 문항 탭 → 참고 경험(#30),
- *  오른쪽 차곡이 패널: 요구사항 · 보완 재사용 · 되묻기(FE#51). 배치는 ETC 시안 6 apply.html. 답변 초안 · 근거 점검 · 패널 버튼은 범위 밖(P1 · ETC#78) */
+ *  오른쪽 차곡이 패널: 요구사항 · 보완 재사용 · 되묻기(FE#51). 배치는 ETC 시안 6 apply.html. 답 입력 · 근거 점검(S-45)은 추천 상태와 따로 쓴다 */
 export function ApplicationScreen() {
   const matching = useApplications();
   const router = useRouter();
@@ -257,6 +258,7 @@ function SelectedQuestion({ summary, question, index, loadError, onReload, overl
       <h3 className="m-0 max-h-52 overflow-y-auto whitespace-pre-wrap text-[20px] leading-relaxed font-[650] tracking-[-0.3px]">{summary.text}</h3>
       <div className="mt-3"><QuestionTypeField question={question ?? summary} onSave={type => onTypeChange(summary.id, type)} /></div>
     </header>
+    <AnswerInput key={`answer-${summary.id}`} questionId={summary.id} />
     {!question ? loadError ? <div role="alert" className="grid justify-items-start gap-3 py-8">
       <p className="m-0 text-error">{loadError}</p><Button variant="secondary" onClick={() => onReload(summary.id)}>다시 불러오기</Button>
     </div> : <div role="status" aria-label="문항을 불러오고 있어요"><AnswerSkeleton /></div>

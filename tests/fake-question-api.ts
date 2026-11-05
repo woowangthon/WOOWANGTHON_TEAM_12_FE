@@ -223,6 +223,7 @@ export class FakeQuestionApi {
       const q = this.find(+m[1]);
       return q ? json(route, this.now(q.detail)) : error(route, 404, "QUESTION_NOT_FOUND");
     }
+    if (/^\/api\/questions\/\d+\/grounding-check$/.test(path) && method === "GET") return json(route, { groundingCheck: null });
     if ((m = path.match(/^\/api\/questions\/(\d+)\/draft$/)) && method === "POST") {
       if (this.draftError) return error(route, this.draftError.status, this.draftError.code);
       const q = this.find(+m[1]);

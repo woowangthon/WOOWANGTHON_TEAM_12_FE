@@ -77,8 +77,10 @@ test("question 41/42 switch shows contract judgments, actors and supplemental ev
   await expect(evidence.getByText("원문 발췌", { exact: true })).toBeVisible();
   await expect(evidence.getByText("내가 입력한 보완", { exact: true })).toBeVisible();
   await expect(evidence).toContainText("서버에 STOMP 엔드포인트를 만들고, 앱의 3초 폴링 코드를 구독 방식으로 바꿨다");
-  // 참고 경험 · 근거는 읽기 전용 — 입력칸은 차곡이의 되묻기 답 칸뿐
-  await expect(result(page).getByRole("textbox")).toHaveCount(0);
+  // S-45의 답 입력칸만 추가된다. 참고 경험과 근거는 계속 읽기 전용이다.
+  await expect(result(page).getByRole("textbox", { name: "내가 쓴 답", exact: true })).toBeVisible();
+  await expect(result(page).getByRole("textbox")).toHaveCount(1);
+  await expect(evidence.getByRole("textbox")).toHaveCount(0);
   if (process.env.UPDATE_QUESTION_SCREENSHOTS === "1") {
     await page.screenshot({ path: `docs/fe-30/questions-${info.project.name}.png`, fullPage: true, style: "nextjs-portal { display: none !important; }" });
   }

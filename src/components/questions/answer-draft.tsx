@@ -3,7 +3,8 @@
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api/errors";
-import type { Draft, DraftEvidence, QuestionDetail } from "@/lib/api/question-types";
+import type { Draft, QuestionDetail } from "@/lib/api/question-types";
+import { AnswerEvidence } from "./answer-evidence";
 import { ActivityChip } from "./question-result";
 
 export type DraftActions = { onGenerate: (experienceIds: number[]) => Promise<void>; onRefresh: () => Promise<void> };
@@ -91,7 +92,7 @@ export function AnswerDraft({ question, onGenerate, onRefresh }: { question: Que
       <p role="status" className="m-0 text-sm font-medium">초안을 확인해 주세요. 최종 문장은 직접 정해요.</p>
       {draft.sentences.length ? <ol aria-label="초안 문장" className="m-0 grid list-none gap-4 p-0">{draft.sentences.map((sentence, i) => <li key={i} className="grid min-w-0 gap-2 border-t border-hairline-soft pt-4">
         <p className="m-0 break-words text-[15px] leading-relaxed"><span className="mr-2 text-xs text-muted">{i + 1}</span>{sentence.text}</p>
-        <div className="grid min-w-0 gap-2">{sentence.evidence.length ? sentence.evidence.map((e, j) => <Evidence key={`${e.type}-${e.id}-${j}`} evidence={e} question={question} />)
+        <div className="grid min-w-0 gap-2">{sentence.evidence.length ? sentence.evidence.map((e, j) => <AnswerEvidence questionId={question.id} key={`${e.type}-${e.id}-${j}`} evidence={e} question={question} />)
           : <p className="m-0 text-sm text-muted">연결된 근거가 지금은 없어요. 문장은 만들었을 때 그대로이니, 복사하기 전에 확인해 주세요.</p>}</div>
       </li>)}</ol> : <p className="m-0 text-sm text-muted">고른 기록에서 받칠 내용을 찾지 못해 문장을 쓰지 않았어요. 경험이 없다는 뜻은 아니에요.</p>}
       {draft.omitted.length > 0 && <div className="grid gap-2 rounded-sm bg-surface-soft p-3.5">
@@ -103,20 +104,4 @@ export function AnswerDraft({ question, onGenerate, onRefresh }: { question: Que
       {copy && <p role="status" className="m-0 text-sm text-muted">{copy}</p>}
     </>}
   </section>;
-}
-
-function Evidence({ evidence: e, question }: { evidence: DraftEvidence; question: QuestionDetail }) {
-  const experience = question.recommendations.find(r => r.experience.id === e.experienceId)?.experience;
-  const citation = e.type === "CITATION" ? experience?.citations.find(c => c.id === e.id) : null;
-  const supplement = e.type === "SUPPLEMENT" ? experience?.supplements.find(s => s.id === e.id) : null;
-  return <details className="min-w-0 rounded-sm border border-hairline-soft bg-surface-soft px-3 py-2 text-sm">
-    <summary className={`min-h-11 cursor-pointer content-center break-words font-medium ${e.type === "CITATION" ? "text-evidence" : "text-body"}`}>
-      {e.type === "CITATION" ? `원문 · ${citation?.sourceName ?? "연결된 발췌"}` : e.type === "SUPPLEMENT" ? `내가 입력 · ${supplement?.question ?? "보완"}` : "내가 입력 · 직접 넣거나 고친 경험"}
-    </summary>
-    <div className="grid gap-2 pt-3">
-      {supplement && <p className="m-0 text-xs text-muted">질문 · {supplement.question}</p>}
-      <blockquote className="m-0 whitespace-pre-wrap break-words border-l-2 border-hairline pl-3 leading-relaxed text-body">{e.text}</blockquote>
-      <a href={`/experience?activity=${e.activityId}&fromQuestion=${question.id}`} className="inline-flex min-h-11 items-center text-xs underline underline-offset-3">타임라인에서 활동 보기 →</a>
-    </div>
-  </details>;
 }
