@@ -4,6 +4,7 @@ import type { Page, Route } from "@playwright/test";
 import type { Application, Clarification, JobRole, OrganizationType, QuestionDetail, QuestionSummary } from "../src/lib/api/question-types";
 import type { ActivityDetail, Supplement } from "../src/lib/api/types";
 import { QUESTION_EXAMPLES } from "./fixtures/question-examples";
+import { DRAFT_EXAMPLE } from "./fixtures/draft-example";
 
 export const ANALYSIS_MS = 1500;
 
@@ -38,6 +39,11 @@ export class FakeQuestionApi {
   types = new Map<number, { organizationType: OrganizationType | null; jobRole: JobRole | null }>();
   /** 문항 ID → 앞으로 실패시킬 GET 횟수 — 폴링의 일시 · 연속 연결 실패 */
   questionFailures = new Map<number, number>();
+  /** 초안 HTTP 계약 시험 제어. 제품 실행에서는 사용하지 않는다. */
+  draftError: { status: number; code: string } | null = null;
+  failDraft = false;
+  holdDraft = false;
+  private draftStarted = new Map<number, number>();
   private nextQuestion = 43;
   private nextApplication = 23;
   private nextClarification = 64;
@@ -48,6 +54,7 @@ export class FakeQuestionApi {
     if (options.empty) return;
     for (const sample of QUESTION_EXAMPLES) {
       const detail = structuredClone(sample);
+      detail.draft = null;
       if (options.sameApplication) {
         detail.applicationId = 22;
         detail.organization = QUESTION_EXAMPLES[1].organization;
@@ -91,6 +98,14 @@ export class FakeQuestionApi {
       q.detail.clarifications = noMatch ? [] : q.template.clarifications
         .filter(c => !(this.supplements.get(c.experienceId) ?? []).some(s => s.question === c.question))
         .map((c): Clarification => ({ ...c, id: this.nextClarification++, supplementId: null }));
+    }
+    for (const q of this.questions) {
+      const draft = q.detail.draft;
+      if (this.holdDraft || draft?.status !== "ANALYZING" || !this.draftStarted.has(q.detail.id) || Date.now() - this.draftStarted.get(q.detail.id)! < 800) continue;
+      q.detail.draft = { ...draft, status: this.failDraft ? "FAILED" : "COMPLETED",
+        error: this.failDraft ? { code: "AI_TIMEOUT", message: "AI 응답 시간이 초과됐어요." } : null,
+        sentences: this.failDraft ? [] : structuredClone(DRAFT_EXAMPLE.sentences).filter(s => s.evidence.every(e => draft.experienceIds.includes(e.experienceId))),
+        omitted: this.failDraft ? [] : [...DRAFT_EXAMPLE.omitted], updatedAt: new Date().toISOString() };
     }
   }
 
@@ -194,6 +209,19 @@ export class FakeQuestionApi {
       }
       const q = this.find(+m[1]);
       return q ? json(route, this.now(q.detail)) : error(route, 404, "QUESTION_NOT_FOUND");
+    }
+    if ((m = path.match(/^\/api\/questions\/(\d+)\/draft$/)) && method === "POST") {
+      if (this.draftError) return error(route, this.draftError.status, this.draftError.code);
+      const q = this.find(+m[1]);
+      if (!q) return error(route, 404, "QUESTION_NOT_FOUND");
+      const ids = body?.experienceIds;
+      if (!Array.isArray(ids) || ids.length < 1 || ids.length > 3 || new Set(ids).size !== ids.length || ids.some(id => !q.detail.recommendations.some(r => r.experience.id === id))) return error(route, 400, "INVALID_REQUEST");
+      if (q.detail.status !== "COMPLETED") return error(route, 409, "QUESTION_NOT_COMPLETED");
+      if (q.detail.draft?.status === "ANALYZING") return error(route, 409, "DRAFT_IN_PROGRESS");
+      const now = new Date().toISOString();
+      q.detail.draft = { questionId: q.detail.id, status: "ANALYZING", error: null, experienceIds: ids, sentences: [], omitted: [], createdAt: now, updatedAt: now };
+      this.draftStarted.set(q.detail.id, Date.now());
+      return json(route, q.detail.draft, 202);
     }
     if ((m = path.match(/^\/api\/questions\/(\d+)\/retry$/)) && method === "POST") {
       const q = this.find(+m[1]);

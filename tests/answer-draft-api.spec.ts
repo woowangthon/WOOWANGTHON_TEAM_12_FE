@@ -1,66 +1,54 @@
-// MOCK(question-draft): 초안 목의 계약 상태 전이·검증·선택 격리를 직접 확인한다.
+// 실제 API 클라이언트를 시험 전용 fetch 응답으로 검증한다. 제품용 목은 없다.
 import { test, expect } from "@playwright/test";
-import { createQuestionDraft, fetchDraftQuestion } from "../src/lib/api/questions";
+import { createQuestionDraft, fetchQuestion } from "../src/lib/api/questions";
+import { onUnauthenticated } from "../src/lib/api/http";
 import { QUESTION_EXAMPLES } from "./fixtures/question-examples";
-
-test("draft mock follows POST/GET contract, rejects invalid selections and preserves one latest result", async () => {
-  const q = structuredClone(QUESTION_EXAMPLES[0]);
-  const originalNow = Date.now;
-  const originalFetch = globalThis.fetch;
-  let now = originalNow();
-  Date.now = () => now;
-  globalThis.fetch = async () => { throw new Error("draft must never call BE or AI"); };
-  try {
-    expect((await fetchDraftQuestion(q)).draft).toBeNull();
-    for (const experienceIds of [[], [101, 101], [101, 102, 103, 104], [102]]) {
-      await expect(createQuestionDraft(q, { experienceIds })).rejects.toMatchObject({ code: "INVALID_REQUEST", status: 400 });
-    }
-    await expect(createQuestionDraft({ ...q, status: "ANALYZING" }, { experienceIds: [101] })).rejects.toMatchObject({ code: "QUESTION_NOT_COMPLETED", status: 409 });
-    const started = await createQuestionDraft(q, { experienceIds: [101] });
-    expect(started).toMatchObject({ questionId: 41, status: "ANALYZING", error: null, experienceIds: [101], sentences: [], omitted: [] });
-    expect(Object.keys(started).sort()).toEqual(["questionId", "status", "error", "experienceIds", "sentences", "omitted", "createdAt", "updatedAt"].sort());
-    await expect(createQuestionDraft(q, { experienceIds: [101] })).rejects.toMatchObject({ code: "DRAFT_IN_PROGRESS", status: 409 });
-    now += 2000;
-    const completed = (await fetchDraftQuestion(q)).draft!;
-    expect(completed.status).toBe("COMPLETED");
-    expect(completed.sentences.map(s => s.evidence[0].id)).toEqual([201, 301]);
-    expect(completed.omitted).toHaveLength(3);
-    // 근거 삭제·보완 변경 뒤에도 문장 자체는 유지한다.
-    const changed = structuredClone(q);
-    changed.recommendations[0].experience.citations = [];
-    changed.recommendations[0].experience.supplements[0].answer = "서버에 STOMP 엔드포인트를 만들었다";
-    const refreshed = (await fetchDraftQuestion(changed)).draft!;
-    expect(refreshed.sentences[0].evidence).toEqual([]);
-    expect(refreshed.sentences[1].text).toBe(completed.sentences[1].text);
-    expect(refreshed.sentences[1].evidence[0].text).toBe(changed.recommendations[0].experience.supplements[0].answer);
-    await createQuestionDraft(q, { experienceIds: [101] }, true);
-    now += 2000;
-    expect((await fetchDraftQuestion(q)).draft).toMatchObject({ status: "FAILED", error: { code: "AI_TIMEOUT" }, sentences: [], omitted: [] });
-    await createQuestionDraft(q, { experienceIds: [101] });
-    now += 2000;
-    expect((await fetchDraftQuestion(q)).draft?.status).toBe("COMPLETED");
-    expect((await fetchDraftQuestion(QUESTION_EXAMPLES[1])).draft).toBeNull();
-  } finally { Date.now = originalNow; globalThis.fetch = originalFetch; }
+import { DRAFT_EXAMPLE } from "./fixtures/draft-example";
+const originalFetch = globalThis.fetch;
+const originalBase = process.env.NEXT_PUBLIC_API_BASE_URL;
+test.beforeEach(() => { process.env.NEXT_PUBLIC_API_BASE_URL = "https://backend.example/api"; });
+test.afterEach(() => {
+  globalThis.fetch = originalFetch;
+  if (originalBase === undefined) delete process.env.NEXT_PUBLIC_API_BASE_URL; else process.env.NEXT_PUBLIC_API_BASE_URL = originalBase;
 });
 
-test("only selected matched citations, supplements and USER_ENTERED bodies become draft evidence", async () => {
-  const q = structuredClone(QUESTION_EXAMPLES[1]);
-  const e = q.recommendations[0].experience;
-  e.citations[0].matched = false;
-  e.sourceStatus = "NEEDS_REVIEW";
-  const originalNow = Date.now;
-  let now = originalNow();
-  Date.now = () => now;
+test("POST sends only selected IDs, receives 202 and reads draft via GET question with session cookies", async () => {
+  const calls: { url: string; options?: RequestInit }[] = [];
+  const analyzing = { ...DRAFT_EXAMPLE, status: "ANALYZING", sentences: [], omitted: [] };
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url: String(url), options });
+    return options?.method === "POST" ? Response.json(analyzing, { status: 202 }) : Response.json({ ...QUESTION_EXAMPLES[0], draft: DRAFT_EXAMPLE });
+  };
+  expect(await createQuestionDraft(QUESTION_EXAMPLES[0], { experienceIds: [101] })).toEqual(analyzing);
+  expect((await fetchQuestion(41)).draft).toEqual(DRAFT_EXAMPLE);
+  expect(calls.map(c => [c.url, c.options?.method])).toEqual([["https://backend.example/api/questions/41/draft", "POST"], ["https://backend.example/api/questions/41", "GET"]]);
+  expect(JSON.parse(calls[0].options!.body as string)).toEqual({ experienceIds: [101] });
+  expect(calls.every(c => c.options?.credentials === "include" && c.options.cache === "no-store")).toBe(true);
+});
+
+test("invalid selections and unfinished questions never reach HTTP; missing base never falls back", async () => {
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; throw new Error("unexpected HTTP"); };
+  for (const experienceIds of [[], [101, 101], [101, 102, 103, 104], [102]])
+    await expect(createQuestionDraft(QUESTION_EXAMPLES[0], { experienceIds })).rejects.toMatchObject({ code: "INVALID_REQUEST" });
+  await expect(createQuestionDraft({ ...QUESTION_EXAMPLES[0], status: "ANALYZING" }, { experienceIds: [101] })).rejects.toMatchObject({ code: "QUESTION_NOT_COMPLETED" });
+  process.env.NEXT_PUBLIC_API_BASE_URL = "";
+  await expect(createQuestionDraft(QUESTION_EXAMPLES[0], { experienceIds: [101] })).rejects.toMatchObject({ code: "API_NOT_CONFIGURED" });
+  expect(calls).toBe(0);
+});
+
+test("contract HTTP and network errors propagate, and 401 uses the shared authentication handler", async () => {
+  for (const [status, code] of [[400, "INVALID_REQUEST"], [404, "QUESTION_NOT_FOUND"], [409, "QUESTION_NOT_COMPLETED"], [409, "DRAFT_IN_PROGRESS"], [429, "DAILY_LIMIT_EXCEEDED"]] as const) {
+    globalThis.fetch = async () => Response.json({ error: { code, message: "서버 오류" } }, { status });
+    await expect(createQuestionDraft(QUESTION_EXAMPLES[0], { experienceIds: [101] })).rejects.toMatchObject({ code, status });
+  }
+  globalThis.fetch = async () => { throw new Error("offline"); };
+  await expect(createQuestionDraft(QUESTION_EXAMPLES[0], { experienceIds: [101] })).rejects.toMatchObject({ code: "NETWORK_ERROR" });
+  let signedOut = false;
+  const unsubscribe = onUnauthenticated(() => { signedOut = true; });
   try {
-    await createQuestionDraft(q, { experienceIds: [102] });
-    now += 2000;
-    expect((await fetchDraftQuestion(q)).draft?.sentences).toEqual([]);
-    e.sourceStatus = "USER_ENTERED";
-    await createQuestionDraft(q, { experienceIds: [102] });
-    now += 2000;
-    const result = (await fetchDraftQuestion(q)).draft!;
-    expect(result.experienceIds).toEqual([102]);
-    expect(result.sentences).toEqual([{ text: e.content, evidence: [{ type: "EXPERIENCE", id: 102, experienceId: 102, activityId: 7, text: e.content }] }]);
-    expect(result.sentences.some(s => s.text.includes("STOMP"))).toBe(false);
-  } finally { Date.now = originalNow; }
+    globalThis.fetch = async () => Response.json({ error: { code: "UNAUTHENTICATED", message: "로그인 만료" } }, { status: 401 });
+    await expect(createQuestionDraft(QUESTION_EXAMPLES[0], { experienceIds: [101] })).rejects.toMatchObject({ code: "UNAUTHENTICATED" });
+    expect(signedOut).toBe(true);
+  } finally { unsubscribe(); }
 });

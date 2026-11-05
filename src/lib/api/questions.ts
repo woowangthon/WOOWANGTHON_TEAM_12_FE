@@ -2,7 +2,6 @@
 // API 주소가 없는 목 모드에선 request 가 API_NOT_CONFIGURED 로 실패한다 — 정해진 결과로 대신 채우지 않는다(대회 규칙 2).
 import { ApiError } from "./errors";
 import { request } from "./http";
-import { readDraftQuestion, startDraft } from "../mock/question-draft";
 import type { CreateDraftRequest, Draft } from "./question-types";
 import {
   MAX_ANSWER_LENGTH, MAX_ORGANIZATION_LENGTH, MAX_QUESTION_LENGTH, MAX_QUESTIONS_PER_SUBMIT,
@@ -83,12 +82,13 @@ export async function answerClarification(id: number, req: AnswerClarificationRe
   return request(`/clarifications/${id}/answer`, req, "POST");
 }
 
-// MOCK(question-draft): FE#74 전용. #75에서 POST /questions/{id}/draft와 fetchQuestion으로 교체한다.
-// question은 기존 실제 API 결과이며, 목 제어 fail은 요청 JSON에 포함되지 않는다.
-export async function createQuestionDraft(question: QuestionDetail, req: CreateDraftRequest, fail = false): Promise<Draft> {
-  return startDraft(question, req, fail);
-}
-/** 목 GET /api/questions/{id}: 응답의 draft 필드만 갱신. 기존 추천 API는 그대로 둔다. */
-export async function fetchDraftQuestion(question: QuestionDetail): Promise<QuestionDetail> {
-  return readDraftQuestion(question);
+/** POST /api/questions/{id}/draft → 202 Draft. 결과 조회는 기존 fetchQuestion의 draft 필드다. */
+export async function createQuestionDraft(question: QuestionDetail, req: CreateDraftRequest): Promise<Draft> {
+  const ids = req.experienceIds;
+  if (!Array.isArray(ids) || ids.length < 1 || ids.length > 3 || new Set(ids).size !== ids.length
+    || ids.some(id => !question.recommendations.some(r => r.experience.id === id))) {
+    throw new ApiError("INVALID_REQUEST", "이 문항의 추천 경험을 1 ~ 3개 골라 주세요.", 400);
+  }
+  if (question.status !== "COMPLETED") throw new ApiError("QUESTION_NOT_COMPLETED", "문항 분석이 끝난 뒤 초안을 만들 수 있어요.", 409);
+  return request(`/questions/${question.id}/draft`, { experienceIds: ids }, "POST");
 }
