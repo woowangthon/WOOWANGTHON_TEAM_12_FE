@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import type { Job, SourceRequest, ActivityDetail } from "../src/lib/api/types";
+import { makePdf, makePptx } from "./fixtures/source-files";
 
 // Contract fixtures only. These tests do not run BE, DB or an AI model.
 async function setup(page: Page) {
@@ -165,7 +166,7 @@ test("text.length blocks 50001 UTF-16 units, accepts 50000 and prevents duplicat
 test("file validation and JSON upload keep original name and text", async ({ page }) => {
   const state = await setup(page);
   await page.getByRole("button", { name: "자료 넣기", exact: true }).filter({ visible: true }).first().click();
-  await page.getByRole("tab", { name: ".md · .txt 파일", exact: true }).click();
+  await page.getByRole("tab", { name: "파일", exact: true }).click();
   const input = page.locator('input[type="file"]');
   const button = page.getByRole("button", { name: "분석 시작", exact: true });
   await input.setInputFiles({ name: "bad.pdf", mimeType: "application/pdf", buffer: Buffer.from("invalid") });
@@ -202,4 +203,41 @@ test("restore validates storage, separates mock jobs and shows a missing job err
   await page.clock.runFor(6000);
   expect(state.gets).toBe(gets);
   expect(state.sources).toHaveLength(0);
+});
+
+test("PDF · PPTX 는 브라우저에서 글자를 뽑아 sections 와 함께 보내고, 못 읽는 파일은 보내지 않는다 (FE#79)", async ({ page }) => {
+  const state = await setup(page);
+  await page.getByRole("button", { name: "자료 넣기", exact: true }).filter({ visible: true }).first().click();
+  await page.getByRole("tab", { name: "파일", exact: true }).click();
+  const input = page.locator('input[type="file"]');
+  const button = page.getByRole("button", { name: "분석 시작", exact: true });
+  const dialog = page.getByRole("dialog");
+
+  // 스캔 PDF 흉내 — 글자 층이 없다
+  await input.setInputFiles({ name: "scan.pdf", mimeType: "application/pdf", buffer: makePdf([[], []]) });
+  await expect(dialog.getByRole("alert")).toContainText("글자를 읽을 수 없어요");
+  await expect(button).toBeDisabled();
+  // 깨진 파일
+  await input.setInputFiles({ name: "broken.pptx", mimeType: "application/zip", buffer: Buffer.from("not a zip") });
+  await expect(dialog.getByRole("alert")).toContainText("읽지 못했어요");
+  await expect(button).toBeDisabled();
+
+  await input.setInputFiles({ name: "resume.pdf", mimeType: "application/pdf", buffer: makePdf([["Kim Chagok", "Backend developer"], [], ["2024-09 Algorithm study"]]) });
+  await expect(dialog.getByText("3쪽 중 1쪽(2쪽)은 글자를 읽지 못해", { exact: false })).toBeVisible();
+  await expect(dialog.getByText(/2쪽 · \d+자/)).toBeVisible();
+  await expect(button).toBeEnabled();
+
+  await input.setInputFiles({ name: "발표.pptx", buffer: await makePptx(), mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation" });
+  await expect(dialog.getByText("3장 중 1장(슬라이드 3)", { exact: false })).toBeVisible();
+  await page.screenshot({ path: `artifacts/source-pptx-${test.info().project.name}.png`, style: "nextjs-portal { display: none !important; }" });
+  await button.click();
+  await expect(page.getByRole("progressbar")).toBeVisible();
+  expect(state.sources).toEqual([{
+    kind: "FILE", name: "발표.pptx",
+    text: "바꿔요 캡스톤 발표\n백엔드 담당\n4명 팀\n\n지표\n응답 1.2초",
+    sections: [
+      { kind: "SLIDE", number: 1, startLine: 1, endLine: 3 },
+      { kind: "SLIDE", number: 2, startLine: 5, endLine: 6 },
+    ],
+  }]);
 });

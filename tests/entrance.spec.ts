@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import type { EntranceKind } from "../src/lib/api/entrance";
+import { makePdf } from "./fixtures/source-files";
 
 const PARSED = { organization: "OO 백엔드 부트캠프 4기", organizationType: "BOOTCAMP", jobRole: "BACKEND", questions: ["협업한 경험을 적어 주세요.", "지원 동기는?"] };
 
@@ -220,8 +221,8 @@ test("긴 글은 자르지 않고 한도 안내 뒤 자료 쪽으로 그대로 �
 test("홈 파일 오류와 쌓기 실패는 글을 남기고 저장 성공으로 꾸미지 않는다", async ({ page }) => {
   const calls = await setup(page);
   const home = page.getByRole("region", { name: "홈 입력", exact: true });
-  await page.getByLabel("홈 첨부 파일").setInputFiles({ name: "문서.pdf", mimeType: "application/pdf", buffer: Buffer.from("지원하지 않는 파일") });
-  await expect(home.getByRole("alert")).toContainText(".md · .txt");
+  await page.getByLabel("홈 첨부 파일").setInputFiles({ name: "문서.hwp", mimeType: "application/x-hwp", buffer: Buffer.from("지원하지 않는 파일") });
+  await expect(home.getByRole("alert")).toContainText(".md · .txt · .pdf · .pptx");
   await expect(page.getByRole("button", { name: "보내기", exact: true })).toBeDisabled();
   await page.getByLabel("홈 첨부 파일").setInputFiles({ name: "빈파일.txt", mimeType: "text/plain", buffer: Buffer.from(" ") });
   await expect(home.getByRole("alert")).toContainText("비어 있어요");
@@ -247,4 +248,16 @@ test("실제 API 모드에서는 개발용 주소도 목 선택기를 열지 않
   await page.getByRole("button", { name: "보내기", exact: true }).click();
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(PARSED.questions[0]);
   expect(calls.routes).toEqual([{ text: "실제 분류로 보내는 글" }]);
+});
+
+test("홈에 PDF 를 올려도 같은 추출로 쪽 위치와 함께 보낸다 (FE#79)", async ({ page }) => {
+  const calls = await setup(page);
+  await page.getByLabel("홈 첨부 파일").setInputFiles({ name: "이력서.pdf", mimeType: "application/pdf", buffer: makePdf([["Kim Chagok"], ["Backend", "WebSocket"]]) });
+  await expect(page.getByText(/이력서.pdf ·/)).toBeVisible();
+  await page.getByRole("button", { name: "보내기", exact: true }).click();
+  await expect.poll(() => calls.sources.length).toBe(1);
+  expect(calls.sources[0]).toEqual({
+    kind: "FILE", name: "이력서.pdf", text: "Kim Chagok\n\nBackend\nWebSocket",
+    sections: [{ kind: "PAGE", number: 1, startLine: 1, endLine: 1 }, { kind: "PAGE", number: 2, startLine: 3, endLine: 4 }],
+  });
 });

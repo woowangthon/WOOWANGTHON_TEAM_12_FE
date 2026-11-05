@@ -512,7 +512,7 @@ function EmptyState({ addSource }: { addSource: AddSourceProps }) {
       body="프로젝트 README · 회고 · 활동 정리 노트를 그대로 넣어 주세요. 활동과 그 안에서 한 일을 찾아 연도별로 정리해 둘게요."
     >
       <div className="flex flex-wrap justify-center gap-1.5">
-        {["README.md", "프로젝트 회고", "노션에서 복사한 활동 목록", ".md · .txt · 붙여넣기"].map((t) => (
+        {["README.md", "프로젝트 회고", "노션에서 복사한 활동 목록", ".md · .pdf · .pptx · 붙여넣기"].map((t) => (
           <span key={t} className="rounded-full border border-hairline px-2.5 py-0.5 text-[13px] text-muted">
             {t}
           </span>

@@ -14,7 +14,7 @@ export default defineConfig({
   },
   projects: [
     { name: "large-font", testMatch: mock ? [] : "responsive-breakpoint.spec.ts", metadata: { defaultFontSize: 20 }, use: { viewport: { width: 1400, height: 1000 }, launchOptions: { args: ["--blink-settings=defaultFontSize=20"] } } },
-    { name: "api", testMatch: ["api.spec.ts", "question-api.spec.ts", "answer-draft-api.spec.ts", "auth-api.spec.ts", "entrance-api.spec.ts"] },
+    { name: "api", testMatch: ["api.spec.ts", "question-api.spec.ts", "answer-draft-api.spec.ts", "auth-api.spec.ts", "entrance-api.spec.ts", "source-sections.spec.ts"] },
     { name: "entrance-desktop", testMatch: mock ? "entrance-mock.spec.ts" : ["entrance.spec.ts", "home.spec.ts"], use: { viewport: { width: 1440, height: 1000 } } },
     { name: "entrance-rail", testMatch: mock ? "entrance-mock.spec.ts" : ["entrance.spec.ts", "home.spec.ts"], use: { viewport: { width: 1024, height: 1000 } } },
     { name: "entrance-mobile", testMatch: mock ? "entrance-mock.spec.ts" : ["entrance.spec.ts", "home.spec.ts"], use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },

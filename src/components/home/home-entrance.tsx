@@ -18,6 +18,7 @@ import { submitApplication } from "@/lib/api/questions";
 import { submitSource, type MockAnalysis } from "@/lib/api/experience";
 import { dailyLimitMessage } from "@/lib/api/auth";
 import { useAuth } from "@/components/auth/auth-gate";
+import { readSourceFile, SOURCE_FILE_ACCEPT, SourceFileError, type SourceFile } from "@/lib/source-file/read";
 import { MAX_TEXT_LENGTH } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
@@ -54,7 +55,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
   const [destination, setDestination] = useState<Destination | null>(null);
   const [saving, setSaving] = useState(false);
   const [mockKind, setMockKind] = useState<EntranceKind>("UNSURE");
-  const [file, setFile] = useState<{ name: string; text: string } | null>(null);
+  const [file, setFile] = useState<SourceFile | null>(null);
   const [readingFile, setReadingFile] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [sourceSubmitting, setSourceSubmitting] = useState(false);
@@ -70,12 +71,10 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     const version = ++fileVersion.current;
     setFile(null); setError(null); setFileError(null); setChoosing(false); setReadingFile(true); setMode("in");
     try {
-      if (!/\.(md|txt)$/i.test(picked.name)) throw new Error(".md · .txt 파일 하나를 넣어 주세요.");
-      const content = await picked.text();
-      if (!content.trim()) throw new Error("파일 내용이 비어 있어요.");
-      if (content.length > MAX_TEXT_LENGTH) throw new Error("파일은 50,000자까지 넣을 수 있어요. 나눠서 넣어 주세요.");
-      if (fileVersion.current === version) setFile({ name: picked.name, text: content });
-    } catch (e) { if (fileVersion.current === version) setFileError(e instanceof Error ? e.message : "파일을 읽지 못했어요. 다시 골라 주세요."); }
+      const read = await readSourceFile(picked);
+      if (read.text.length > MAX_TEXT_LENGTH) throw new SourceFileError(`파일은 50,000자까지 넣을 수 있어요. 지금 ${read.text.length.toLocaleString("ko-KR")}자예요 — 나눠서 넣어 주세요.`);
+      if (fileVersion.current === version) setFile(read);
+    } catch (e) { if (fileVersion.current === version) setFileError(e instanceof SourceFileError ? e.message : "파일을 읽지 못했어요. 다시 골라 주세요."); }
     finally { if (fileVersion.current === version) setReadingFile(false); }
   };
 
@@ -102,7 +101,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
       if (sourceBusy) return;
       pending.current = true; setSourceSubmitting(true); setError(null); setChoosing(false);
       try {
-        const result = await submitSource(file ? { kind: "FILE", name: file.name, text: file.text } : { kind: "TEXT", name: null, text }, mockAnalysis);
+        const result = await submitSource(file ? { kind: "FILE", name: file.name, text: file.text, ...(file.sections && { sections: file.sections }) } : { kind: "TEXT", name: null, text }, mockAnalysis);
         onSourceSubmitted({ jobId: result.jobId, name: file?.name ?? "붙여넣은 텍스트" });
         refreshAccount();
         setText(""); setFile(null);
@@ -136,7 +135,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
           placeholder={mode === "out" ? "한 줄로 물어보거나, 지원 문항 · 공고를 그대로 붙여 넣어 보세요" : "오늘 한 일 한 줄이나, README · 회고를 붙여 넣어 보세요"}
           className="min-h-14 w-full resize-none border-0 bg-transparent text-base leading-relaxed outline-none placeholder:text-muted-soft focus-visible:outline-none" />
         <div className="mt-3 flex items-center justify-between gap-3">
-          <input ref={fileInput} type="file" accept=".md,.txt,text/markdown,text/plain" aria-label="홈 첨부 파일" className="sr-only" disabled={busy || sourceBusy} onChange={e => { void pickFile(e.target.files?.[0]); e.target.value = ""; }} />
+          <input ref={fileInput} type="file" accept={SOURCE_FILE_ACCEPT} aria-label="홈 첨부 파일" className="sr-only" disabled={busy || sourceBusy} onChange={e => { void pickFile(e.target.files?.[0]); e.target.value = ""; }} />
           <Button type="button" variant="ghost" size="icon" className="size-11 bg-surface-soft" aria-label="파일 올리기" disabled={busy || sourceBusy} onClick={() => fileInput.current?.click()}><PlusIcon aria-hidden="true" /></Button>
           <span id="entrance-length" className={cn("text-[11px] tabular-nums", tooLong ? "text-error" : "text-muted")}>{text.length > 0 && `${text.length.toLocaleString("ko-KR")} / 50,000`}</span>
           <ModelMenu />
@@ -153,6 +152,8 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     <p id="entrance-note" className="mt-3 mb-0 text-center text-xs leading-relaxed text-muted">넣은 글은 가르기 · 분석을 위해 외부 AI(OpenAI)로 보내져요. AI 학습에는 쓰지 않아요.<br />{mode === "in" ? "보내기를 누르면 자료를 저장하고 분석을 시작해요." : "자료 · 지원은 다음 입력 화면에서 확인한 뒤 저장해요."}</p>
     {readingFile && <p role="status" className="mt-4 text-center text-sm text-muted">파일을 읽고 있어요…</p>}
     {fileError && <p role="alert" className="mt-4 text-sm text-error">{fileError}</p>}
+    {readingFile && <p role="status" className="mt-3 text-sm text-muted">파일에서 글자를 읽는 중…</p>}
+    {file?.notice && <p className="mt-3 text-sm text-review">{file.notice}</p>}
     {sourceSubmitting && <p role="status" className="mt-4 text-center text-sm text-muted">자료를 보내고 있어요…</p>}
     {sourceBusy && <p className="mt-3 text-center text-sm text-muted">자료 분석 중이에요. 분석이 끝나면 더 쌓을 수 있어요.</p>}
     {isMockMode() && showMockControls && <label className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs text-muted">목 분류 결과 (AI 호출 없음)
