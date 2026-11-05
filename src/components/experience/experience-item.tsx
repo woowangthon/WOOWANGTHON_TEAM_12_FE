@@ -11,6 +11,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ExperienceEditor } from "./experience-editor";
 import { SupplementList } from "./supplement-list";
+import { UsedInChip, UsedInList } from "./used-in";
 
 const ACTOR: Record<Actor, string> = { ME: "나", TEAM: "팀", UNKNOWN: "알 수 없음" };
 
@@ -89,7 +90,9 @@ type Props = {
 
 export function ExperienceItem({ experience, citationsOpen, onToggleCitations, onShowCitations, onSaved, onDelete, onMove, onDragChange, dragging, readOnly = false }: Props) {
   const [editing, setEditing] = useState(false);
+  const [usedInOpen, setUsedInOpen] = useState(false);
   const e = experience;
+  const usedIn = e.usedIn ?? [];
   const n = e.citations.length;
   const citeBtn =
     "ml-auto inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-[13px] font-semibold text-evidence hover:bg-evidence-soft";
@@ -114,7 +117,7 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
           <DotsSixVerticalIcon className="size-4" />
         </span>
       )}
-      {editing ? <ExperienceEditor experience={e} onCancel={() => setEditing(false)} onSaved={(result) => { onSaved(result); setEditing(false); }} /> : (
+      {editing ? <ExperienceEditor experience={e} onCancel={() => setEditing(false)} onSaved={(result) => { onSaved({ ...result, usedIn: result.usedIn ?? e.usedIn }); setEditing(false); }} /> : (
         <div className="flex items-start gap-2">
           <p className="m-0 flex-1 whitespace-pre-wrap text-base leading-relaxed text-ink">{e.content}</p>
           {!readOnly && <><Button variant="ghost" size="sm" onClick={() => setEditing(true)} aria-label={`경험 수정: ${e.content}`}>수정</Button>
@@ -134,6 +137,7 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
       )}
       <div className="flex flex-wrap items-center gap-1.5 text-[13px] font-medium text-muted">
         <ExperienceMeta experience={e} />
+        <UsedInChip usedIn={usedIn} open={usedInOpen} onToggle={() => setUsedInOpen((v) => !v)} controls={`used-in-${e.id}`} />
         {n === 0 ? (
           <span className="ml-auto text-muted-soft">근거 없음</span>
         ) : (
@@ -158,6 +162,7 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
           </>
         )}
       </div>
+      {usedInOpen && usedIn.length > 0 && <UsedInList usedIn={usedIn} id={`used-in-${e.id}`} />}
       {citationsOpen && (
         <div className="mt-1.5 hidden lg:block">
           <CitationList citations={e.citations} />
