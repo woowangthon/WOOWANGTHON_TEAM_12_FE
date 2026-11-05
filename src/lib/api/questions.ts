@@ -2,7 +2,7 @@
 // API 주소가 없는 목 모드에선 request 가 API_NOT_CONFIGURED 로 실패한다 — 정해진 결과로 대신 채우지 않는다(대회 규칙 2).
 import { ApiError } from "./errors";
 import { request } from "./http";
-import type { CreateDraftRequest, Draft } from "./question-types";
+import { MAX_GROUNDING_TEXT_LENGTH, type GroundingCheck, type CreateDraftRequest, type Draft } from "./question-types";
 import {
   MAX_ANSWER_LENGTH, MAX_ORGANIZATION_LENGTH, MAX_QUESTION_LENGTH, MAX_QUESTIONS_PER_SUBMIT,
   type AddQuestionRequest, type AnswerClarificationRequest, type Application, type ApplicationSubmitted, type ClarificationAnswered,
@@ -91,4 +91,15 @@ export async function createQuestionDraft(question: QuestionDetail, req: CreateD
   }
   if (question.status !== "COMPLETED") throw new ApiError("QUESTION_NOT_COMPLETED", "문항 분석이 끝난 뒤 초안을 만들 수 있어요.", 409);
   return request(`/questions/${question.id}/draft`, { experienceIds: ids }, "POST");
+}
+
+/** S-45: 실패를 고정 결과로 대체하지 않고, 공백과 길이는 HTTP 전에 확인한다. */
+export async function createGroundingCheck(questionId: number, req: { text: string }): Promise<GroundingCheck> {
+  if (!req.text.trim()) throw new ApiError("EMPTY_TEXT", "점검할 답을 입력해 주세요.");
+  if (req.text.length > MAX_GROUNDING_TEXT_LENGTH) throw new ApiError("TEXT_TOO_LONG", "답은 5,000자까지 입력할 수 있어요.");
+  return request(`/questions/${questionId}/grounding-check`, req, "POST");
+}
+
+export async function fetchGroundingCheck(questionId: number): Promise<GroundingCheck | null> {
+  return (await request<{ groundingCheck: GroundingCheck | null }>(`/questions/${questionId}/grounding-check`)).groundingCheck;
 }

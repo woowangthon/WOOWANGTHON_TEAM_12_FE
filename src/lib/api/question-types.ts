@@ -133,3 +133,12 @@ export type QuestionAdded = { questionId: number; status: "ANALYZING" };
 /** POST /api/clarifications/{id}/answer — 답이 그 경험의 보완이 된다 */
 export type AnswerClarificationRequest = { answer: string };
 export type ClarificationAnswered = { experienceId: number; supplement: Supplement };
+
+/** S-45: 문항마다 최신 하나, 추천 상태와 별도로 점검한다. */
+export const MAX_GROUNDING_TEXT_LENGTH = 5000;
+export type GroundingStatus = "SOURCE" | "USER_INPUT" | "UNSUPPORTED" | "OPINION";
+export type GroundingCheck = {
+  questionId: number; status: JobStatus; error: Job["error"]; text: string;
+  sentences: { text: string; status: GroundingStatus; evidence: DraftEvidence[]; note: string | null }[];
+  createdAt: string; updatedAt: string;
+};
