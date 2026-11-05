@@ -6,6 +6,7 @@ import { MOCK_ACTIVITIES } from "../mock/activities";
 import { mockAddedActivities, mockFetchJob, mockRetryJob, mockSubmitSource } from "../mock/analysis";
 import { ApiError } from "./errors";
 import { isMockMode, request } from "./http";
+import { activityNoteError } from "./editing";
 import type { ActivityDetail, ActivitySummary, Job, SourceRequest, Experience, Supplement, UpdateActivityRequest, UpdateExperienceRequest, CreateExperienceRequest } from "./types";
 import { COMPETENCIES, MAX_TEXT_LENGTH, type SourceSubmitted } from "./types";
 
@@ -73,8 +74,17 @@ export async function retryJob(jobId: number): Promise<Job> {
 }
 
 
-export function updateActivity(id: number, data: UpdateActivityRequest): Promise<ActivitySummary> {
-  return request(`/activities/${id}`, data);
+export async function updateActivity(id: number, data: UpdateActivityRequest): Promise<ActivitySummary> {
+  if (data.note !== undefined) {
+    const invalid = data.note === null ? null : activityNoteError(data.note);
+    if (invalid) throw new ApiError("INVALID_REQUEST", invalid);
+    data = { ...data, note: data.note?.trim() || null };
+  }
+  const activity = await request<ActivitySummary>(`/activities/${id}`, data);
+  if (data.note !== undefined && activity.note !== null && typeof activity.note !== "string") {
+    throw new ApiError("INVALID_RESPONSE", "저장 응답에 계기가 없어요. 서버 버전을 확인하고 다시 시도해 주세요.");
+  }
+  return activity;
 }
 
 function checkCompetencies(experience: Experience): Experience {

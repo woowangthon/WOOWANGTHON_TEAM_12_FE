@@ -4,6 +4,45 @@ import { activityError, validDate } from "../src/lib/api/editing";
 
 const originalFetch = globalThis.fetch;
 const originalBase = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+test("activity note PATCH trims, clears with null, preserves omission and returns the server value", async () => {
+  process.env.NEXT_PUBLIC_API_BASE_URL = "https://backend.example/api";
+  const calls: { url: string; method?: string; body: unknown }[] = [];
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url: String(url), method: options?.method, body: JSON.parse(options!.body as string) });
+    return Response.json({ id: 7, note: "서버에서 돌려준 메모" });
+  };
+  expect(await updateActivity(7, { note: "  당시 생각  " })).toMatchObject({ note: "서버에서 돌려준 메모" });
+  await updateActivity(7, { note: "   " });
+  await updateActivity(7, { note: null });
+  await updateActivity(7, { name: "이름만 수정" });
+  await updateActivity(7, { note: `  ${"가".repeat(200)}  ` });
+  expect(calls.map(c => c.body)).toEqual([{ note: "당시 생각" }, { note: null }, { note: null }, { name: "이름만 수정" }, { note: "가".repeat(200) }]);
+  expect(calls.every(c => c.method === "PATCH" && c.url === "https://backend.example/api/activities/7")).toBe(true);
+});
+
+test("activity note rejects more than 200 UTF-16 units or newlines before HTTP and never mocks a save", async () => {
+  process.env.NEXT_PUBLIC_API_BASE_URL = "https://backend.example/api";
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return Response.json({ id: 7, note: null }); };
+  for (const note of ["가".repeat(201), "😀".repeat(101), "첫 줄\n둘째 줄", "첫 줄\r둘째 줄"]) {
+    await expect(updateActivity(7, { note })).rejects.toMatchObject({ code: "INVALID_REQUEST" });
+  }
+  expect(calls).toBe(0);
+  process.env.NEXT_PUBLIC_API_BASE_URL = "";
+  await expect(updateActivity(7, { note: "한 줄" })).rejects.toMatchObject({ code: "API_NOT_CONFIGURED" });
+  expect(calls).toBe(0);
+});
+
+test("note save failures and a response missing note do not look successful", async () => {
+  process.env.NEXT_PUBLIC_API_BASE_URL = "https://backend.example/api";
+  for (const [status, code] of [[400, "INVALID_REQUEST"], [404, "ACTIVITY_NOT_FOUND"], [503, "INTERNAL_ERROR"]] as const) {
+    globalThis.fetch = async () => Response.json({ error: { code, message: "저장 실패" } }, { status });
+    await expect(updateActivity(7, { note: "남길 내용" })).rejects.toMatchObject({ code, message: "저장 실패" });
+  }
+  globalThis.fetch = async () => Response.json({ id: 7 });
+  await expect(updateActivity(7, { note: "남길 내용" })).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
+});
 test.afterEach(() => {
   globalThis.fetch = originalFetch;
   if (originalBase === undefined) delete process.env.NEXT_PUBLIC_API_BASE_URL;

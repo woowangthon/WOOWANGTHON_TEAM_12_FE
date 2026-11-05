@@ -1,5 +1,12 @@
 import type { Period } from "./types";
 
+export const MAX_ACTIVITY_NOTE_LENGTH = 200;
+export function activityNoteError(note: string): string | null {
+  if (/[\r\n]/.test(note)) return "줄바꿈 없이 한 줄로 적어 주세요.";
+  if (note.trim().length > MAX_ACTIVITY_NOTE_LENGTH) return "앞뒤 공백을 뺀 200자까지 적을 수 있어요.";
+  return null;
+}
+
 export function validDate(value: string | null): boolean {
   if (value === null) return true;
   if (!/^\d{4}(-\d{2})?(-\d{2})?$/.test(value)) return false;

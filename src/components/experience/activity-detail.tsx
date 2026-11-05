@@ -12,6 +12,7 @@ import { durationText, periodText } from "@/lib/period";
 import { CitationList, SourceFile } from "./citation-list";
 import { ExperienceItem, ExperienceMeta } from "./experience-item";
 import { ActivityEditor } from "./activity-editor";
+import { ActivityNote } from "./activity-note";
 import { ExperienceEditor } from "./experience-editor";
 import { MergeSuggestionView } from "./merge-suggestion";
 
@@ -30,6 +31,7 @@ type Props = {
   onClose: () => void;
   onRetry: () => void;
   onActivitySaved: (activity: ActivitySummary) => void;
+  onNoteSaved: (activity: ActivitySummary) => void;
   onExperienceSaved: (experience: Experience) => void;
   onExperienceAdded: (experience: Experience) => void;
   onExperienceDelete: (experience: Experience) => void;
@@ -42,7 +44,7 @@ type Props = {
   onSuggestionDismiss?: (id: number) => Promise<void>;
 };
 
-export function ActivityDetailView({ summary, state, now, onClose, onRetry, onActivitySaved, onExperienceSaved, onExperienceAdded, onExperienceDelete, onExperienceMove, onDragChange, draggingId, onMergeRequest, onSuggestedMerge, onSuggestionDismiss, readOnly = false }: Props) {
+export function ActivityDetailView({ summary, state, now, onClose, onRetry, onActivitySaved, onNoteSaved, onExperienceSaved, onExperienceAdded, onExperienceDelete, onExperienceMove, onDragChange, draggingId, onMergeRequest, onSuggestedMerge, onSuggestionDismiss, readOnly = false }: Props) {
   const [editing, setEditing] = useState(false);
   const activity = state.status === "ready" ? state.activity : null;
   const current = activity ?? summary;
@@ -102,6 +104,8 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
           </p>
         )}
       </header>
+
+      {activity && <ActivityNote key={activity.id} activity={activity} readOnly={readOnly} onSaved={onNoteSaved} />}
 
       {activity?.mergeSuggestion && !readOnly && onSuggestedMerge && onSuggestionDismiss && (
         <MergeSuggestionView key={`${activity.id}-${activity.mergeSuggestion.activityId}`} activity={activity} suggestion={activity.mergeSuggestion} onMerge={onSuggestedMerge} onDismiss={onSuggestionDismiss} />
