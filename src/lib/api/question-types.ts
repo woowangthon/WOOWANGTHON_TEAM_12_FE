@@ -99,10 +99,13 @@ export const JOB_ROLE_LABEL: Record<JobRole, string> = {
 export type Application = {
   id: number; organization: string | null;
   organizationType?: OrganizationType | null; jobRole?: JobRole | null;
+  /** 공고 원문 링크(S-46) — 넣은 뒤엔 고치지 않는다. 없으면 null */
+  postingUrl?: string | null;
   questions: QuestionSummary[]; createdAt: string;
 };
 export type CreateApplicationRequest = {
   organization?: string | null; organizationType?: OrganizationType | null; jobRole?: JobRole | null;
+  postingUrl?: string | null;
   questions: { text: string }[];
 };
 /** PATCH /api/applications/{id} — 보낸 필드만 바꾸고, null 이면 비운다 */

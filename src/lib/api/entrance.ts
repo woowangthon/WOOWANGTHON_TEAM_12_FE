@@ -2,7 +2,7 @@ import { ApiError } from "./errors";
 import { isMockMode, request } from "./http";
 import { JOB_ROLE_LABEL, ORGANIZATION_TYPE_LABEL, type JobRole, type OrganizationType } from "./question-types";
 import { MAX_TEXT_LENGTH } from "./types";
-import { mockParseApplication } from "../mock/application-parse";
+import { mockParseApplication, mockParseApplicationUrl } from "../mock/application-parse";
 import { mockAsk, type MockAskResult } from "../mock/ask";
 import type { Recommendation } from "./question-types";
 
@@ -27,16 +27,30 @@ export async function routeEntrance(text: string, mockKind: EntranceKind = "UNSU
   return result;
 }
 
-/** S-30: 붙여 넣은 글을 지원 칸 값으로 나눈다. 저장하지 않는다 — 사용자가 고친 뒤 POST /api/applications 로 넣는다. */
-export async function parseApplication(text: string): Promise<ParsedApplication> {
-  if (!text.trim()) throw new ApiError("EMPTY_TEXT", "글을 입력해 주세요.");
-  if (text.length > MAX_PARSE_TEXT_LENGTH) throw new ApiError("TEXT_TOO_LONG", "지원 칸 채우기는 한 번에 20,000자까지 읽어요. 줄여서 다시 넣어 주세요.");
+/** 공고 원문 링크 최대 길이(자) — parse-application `url` · applications `postingUrl` */
+export const MAX_POSTING_URL_LENGTH = 2000;
+/** `http(s)://` 링크 하나인가 — 계약의 INVALID_URL 과 같은 기준(공백이 없는 주소 하나) */
+export const isPostingUrl = (value: string) => value.length <= MAX_POSTING_URL_LENGTH && /^https?:\/\/[^\s/?#]+\S*$/i.test(value);
+/** 홈 입력이 앞뒤 공백을 빼고 링크 하나뿐이면 그 링크 — 가르기를 부르지 않고 바로 링크로 나눈다(S-46, 코드로 판단) */
+export function singleLink(text: string): string | null {
+  const value = text.trim();
+  return isPostingUrl(value) ? value : null;
+}
+
+/** S-30 · S-46: 붙여 넣은 글(또는 공고 링크)을 지원 칸 값으로 나눈다. 저장하지 않는다 — 사용자가 고친 뒤 POST /api/applications 로 넣는다.
+ *  링크를 못 읽으면 422(URL_BLOCKED · URL_UNREADABLE)를 그대로 올린다 — 정해진 값으로 채우지 않는다 */
+export async function parseApplication(input: string | { url: string }): Promise<ParsedApplication> {
+  const body: { text: string } | { url: string } = typeof input === "string" ? { text: input } : { url: input.url.trim() };
+  if ("text" in body) {
+    if (!body.text.trim()) throw new ApiError("EMPTY_TEXT", "글을 입력해 주세요.");
+    if (body.text.length > MAX_PARSE_TEXT_LENGTH) throw new ApiError("TEXT_TOO_LONG", "지원 칸 채우기는 한 번에 20,000자까지 읽어요. 줄여서 다시 넣어 주세요.");
+  } else if (!isPostingUrl(body.url)) throw new ApiError("INVALID_URL", "http:// 나 https:// 로 시작하는 링크 하나를 넣어 주세요(2,000자까지).");
   if (isMockMode()) {
     // MOCK(application-parse): API 주소가 없을 때만 규칙으로 나눈다. 실제 실패 대체용이 아니다.
     await new Promise(resolve => setTimeout(resolve, 400));
-    return mockParseApplication(text);
+    return "text" in body ? mockParseApplication(body.text) : mockParseApplicationUrl(body.url);
   }
-  const result = await request<ParsedApplication>("/entrance/parse-application", { text }, "POST");
+  const result = await request<ParsedApplication>("/entrance/parse-application", body, "POST");
   if (!Array.isArray(result?.questions)) throw new ApiError("INVALID_RESPONSE", "지원 나누기 결과를 읽지 못했어요. 다시 시도해 주세요.");
   // 닫힌 목록 밖의 값은 고를 수 없는 칸이 되니 비운다(S-42 — 둘 다 선택 칸)
   return {
