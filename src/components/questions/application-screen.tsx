@@ -11,13 +11,13 @@ import { CenterState } from "@/components/center-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { MAX_QUESTIONS_PER_APPLICATION, type Application, type QuestionDetail, type QuestionSummary, type QuestionType } from "@/lib/api/question-types";
+import { MAX_QUESTIONS_PER_APPLICATION, type Application, type QuestionDetail, type QuestionSummary, type QuestionType, type UpdateApplicationRequest } from "@/lib/api/question-types";
 import { AddQuestionForm, ApplicationForm } from "./application-form";
 import { overlapsOf, sameExperienceElsewhere, type Overlap } from "./overlap";
 import { QuestionResult } from "./question-result";
 import { ChagokPanel, Mascot, type SupplementOrigin } from "./chagok-panel";
 import { useApplications } from "./use-applications";
-import { ApplicationTypeFields, QuestionTypeField } from "./type-fields";
+import { ApplicationStatusTag, ApplicationTypeFields, QuestionTypeField } from "./type-fields";
 
 const STATUS = { ANALYZING: "분석 중", COMPLETED: "완료", FAILED: "실패" } as const;
 const DOT = { ANALYZING: "bg-muted-soft", COMPLETED: "bg-mark", FAILED: "bg-error" } as const;
@@ -32,6 +32,8 @@ function failureText(error: QuestionDetail["error"]) {
 /** 원문 링크의 사이트 이름만 — 긴 주소를 그대로 보이지 않는다 */
 const hostOf = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; } };
 const dateText = (iso: string) => new Date(iso).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" });
+/** 낸 달 "2026-11" → 「2026년 11월」 */
+const monthText = (month: string) => { const [y, m] = month.split("-"); return `${y}년 ${Number(m)}월`; };
 
 /** 「지원 3 · 분석 중 1」처럼 — 문항 상태를 한 줄로 */
 function progressText(application: Application) {
@@ -39,7 +41,7 @@ function progressText(application: Application) {
   return [`문항 ${application.questions.length}`, n("ANALYZING") && `분석 중 ${n("ANALYZING")}`, n("FAILED") && `실패 ${n("FAILED")}`].filter(Boolean).join(" · ");
 }
 
-/** 지원 화면(S-18 · S-21) — 지원 목록(xl 이상은 사이드바), 고른 지원: 여러 문항에 추천된 활동 → 문항 탭 → 참고 경험(#30),
+/** 지원 화면(S-18 · S-21) — 지원 목록(xl 이상은 사이드바) · 상태 꼬리표(S-36), 고른 지원: 여러 문항에 추천된 활동 → 문항 탭 → 참고 경험(#30),
  *  오른쪽 차곡이 패널: 요구사항 · 보완 재사용 · 되묻기(FE#51). 배치는 ETC 시안 6 apply.html. 답변 초안 · 근거 점검 · 패널 버튼은 범위 밖(P1 · ETC#78) */
 export function ApplicationScreen() {
   const matching = useApplications();
@@ -69,11 +71,12 @@ export function ApplicationScreen() {
     onClose={() => setPanelChoice(false)} />;
   const pick = (a: Application) => { setComposing(false); setAdding(false); matching.selectApplication(a); scrollToDetail(); };
   const activeId = composing ? null : open?.application.id ?? null;
+  const list = { applications: matching.applications, activeId, onPick: pick, onSave: matching.updateApplication };
 
   return <div className="min-h-dvh bg-canvas xl:flex xl:items-start">
     {/* 「자료 넣기」 — 시안 6 사이드바는 세 화면이 같다(FE#64). 자료 넣기 창 · 분석 상태는 내 경험 화면에 있어 그리로 가서 연다 */}
     <AppHeader activePage="questions" addSource={{ onClick: () => router.push("/experience?add=1") }}
-      sidebarExtra={ready ? <ApplicationList applications={matching.applications} activeId={activeId} onPick={pick} sidebar /> : undefined} />
+      sidebarExtra={ready ? <ApplicationList {...list} sidebar /> : undefined} />
     <div className="min-w-0 flex-1">
     <main className="mx-auto max-w-[1280px] px-4.5 py-6 lg:px-8 lg:py-8">
       <div className="mb-7 flex items-start justify-between gap-3">
@@ -94,7 +97,7 @@ export function ApplicationScreen() {
         <ApplicationForm onSubmit={req => matching.submit(req)} />
       </section> : <div className="grid items-start gap-7 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-10 xl:grid-cols-1">
         {collapsed && <aside id="application-list" className="min-w-0 scroll-mt-4 lg:sticky lg:top-6 xl:static" aria-label="지원 목록">
-          <ApplicationList applications={matching.applications} activeId={activeId} onPick={pick} />
+          <ApplicationList {...list} />
         </aside>}
         <section id="selected-application" className="min-w-0 scroll-mt-5" aria-label={composing ? "새 지원 입력" : "선택한 지원"}>
           {composing ? <ApplicationForm onCancel={() => setComposing(false)} onSubmit={async req => {
@@ -104,7 +107,10 @@ export function ApplicationScreen() {
             <a href="#application-list" className="mb-3 inline-flex min-h-11 items-center text-sm text-muted underline underline-offset-4 lg:hidden">지원 목록으로</a>
             <header className="mb-5 flex items-start gap-3">
               <div className="min-w-0 flex-1">
-                <h2 className="m-0 text-[24px] leading-snug font-bold tracking-[-0.4px]">{open.application.organization || "지원처 이름 없음"}</h2>
+                <div className="flex flex-wrap items-center gap-x-2.5">
+                  <h2 className="m-0 min-w-0 text-[24px] leading-snug font-bold tracking-[-0.4px]">{open.application.organization || "지원처 이름 없음"}</h2>
+                  <ApplicationStatusTag key={open.application.id} application={open.application} onSave={req => matching.updateApplication(open.application.id, req)} />
+                </div>
                 <p className="mt-1 mb-0 text-[13px] text-muted tabular-nums">{progressText(open.application)} · {dateText(open.application.createdAt)}에 넣음</p>
                 {/* 공고 원문 링크(S-46) — 새 탭으로. http(s) 주소일 때만 링크로 만든다 */}
                 {open.application.postingUrl && isPostingUrl(open.application.postingUrl) && <a href={open.application.postingUrl} target="_blank" rel="noopener noreferrer"
@@ -164,8 +170,9 @@ function AnswerSkeleton() {
 }
 
 /** 지원 목록 — 펼친 사이드바 안, 접었거나 좁으면 화면 안 왼쪽 · 위 */
-function ApplicationList({ applications, activeId, onPick, sidebar = false }: {
-  applications: Application[]; activeId: number | null; onPick: (application: Application) => void; sidebar?: boolean;
+function ApplicationList({ applications, activeId, onPick, onSave, sidebar = false }: {
+  applications: Application[]; activeId: number | null; onPick: (application: Application) => void;
+  onSave: (applicationId: number, req: UpdateApplicationRequest) => Promise<void>; sidebar?: boolean;
 }) {
   return <>
     <div className={cn("mb-3 flex items-baseline justify-between", sidebar && "mb-1.5 px-3.5")}>
@@ -174,14 +181,16 @@ function ApplicationList({ applications, activeId, onPick, sidebar = false }: {
     </div>
     <ul className={cn("m-0 grid list-none content-start gap-1 overflow-y-auto p-0", sidebar ? "min-h-0" : "max-h-72 lg:max-h-[calc(100dvh-240px)] xl:max-h-72")}>{applications.map(a => {
       const active = activeId === a.id;
-      return <li key={a.id}>
+      return <li key={a.id} className="relative">
         <button type="button" aria-pressed={active} onClick={() => onPick(a)}
           className={cn("grid w-full gap-1 rounded-sm px-3.5 text-left transition-colors", sidebar ? "py-2" : "py-3",
             active ? (sidebar ? "bg-canvas" : "bg-mark-soft") : (sidebar ? "hover:bg-canvas/60" : "hover:bg-surface-soft"))}>
-          <span className="text-sm font-semibold">{a.organization || "지원처 이름 없음"}</span>
+          <span className="pr-16 text-sm font-semibold">{a.organization || "지원처 이름 없음"}</span>
           <span className="line-clamp-1 text-[13px] text-body">{a.questions[0].text}</span>
-          <span className="text-xs text-muted tabular-nums">{progressText(a)} · {dateText(a.createdAt)}</span>
+          <span className="text-xs text-muted tabular-nums">{progressText(a)} · {a.submittedMonth ? `${monthText(a.submittedMonth)} 냄` : dateText(a.createdAt)}</span>
         </button>
+        {/* 버튼 안에 버튼을 둘 수 없어 줄의 형제로 겹친다 */}
+        <ApplicationStatusTag application={a} onSave={req => onSave(a.id, req)} className={cn("absolute right-1.5", sidebar ? "-top-0.5" : "top-0")} errorClassName="px-3.5 pb-2" />
       </li>;
     })}</ul>
   </>;
