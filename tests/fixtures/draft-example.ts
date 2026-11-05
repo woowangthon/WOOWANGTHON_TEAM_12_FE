@@ -3,8 +3,8 @@ import type { Draft } from "../../src/lib/api/question-types";
 export const DRAFT_EXAMPLE: Draft = {
   questionId: 41, status: "COMPLETED", error: null, experienceIds: [101],
   sentences: [
-    { text: "「바꿔요」 프로젝트에서 채팅 메시지가 늦게 도착하는 문제가 있었고, 제가 폴링을 WebSocket 으로 바꿔 해결했습니다.", evidence: [{ type: "CITATION", id: 201, experienceId: 101, activityId: 7, text: "채팅 메시지가 늦게 도착하는 문제가 있었다. 내가 폴링을 WebSocket 으로 바꿔 해결했다." }] },
-    { text: "서버에 STOMP 엔드포인트를 만들고, 앱의 3초 폴링 코드를 구독 방식으로 바꿨습니다.", evidence: [{ type: "SUPPLEMENT", id: 301, experienceId: 101, activityId: 7, text: "서버에 STOMP 엔드포인트를 만들고, 앱의 3초 폴링 코드를 구독 방식으로 바꿨다" }] },
+    { kind: "FACT", text: "「바꿔요」 프로젝트에서 채팅 메시지가 늦게 도착하는 문제가 있었고, 제가 폴링을 WebSocket 으로 바꿔 해결했습니다.", evidence: [{ type: "CITATION", id: 201, experienceId: 101, activityId: 7, text: "채팅 메시지가 늦게 도착하는 문제가 있었다. 내가 폴링을 WebSocket 으로 바꿔 해결했다." }] },
+    { kind: "FACT", text: "서버에 STOMP 엔드포인트를 만들고, 앱의 3초 폴링 코드를 구독 방식으로 바꿨습니다.", evidence: [{ type: "SUPPLEMENT", id: 301, experienceId: 101, activityId: 7, text: "서버에 STOMP 엔드포인트를 만들고, 앱의 3초 폴링 코드를 구독 방식으로 바꿨다" }] },
   ],
   omitted: [
     { text: "바꾼 뒤 메시지가 제때 오는지 확인한 방법", question: "WebSocket 으로 바꾼 뒤 메시지가 제때 오는지 어떻게 확인했나요?", experienceId: 101, clarificationId: 64, supplementId: null },

@@ -18,7 +18,7 @@ async function closeDraftPanel(page: Page) {
 }
 const exampleDraft = (patch: Partial<Draft> = {}): Draft => ({
   questionId: 41, status: "COMPLETED", error: null, experienceIds: [101],
-  sentences: [{ text: QUESTION_EXAMPLES[0].recommendations[0].experience.citations[0].quote, evidence: [] }],
+  sentences: [{ kind: "FACT", text: QUESTION_EXAMPLES[0].recommendations[0].experience.citations[0].quote, evidence: [] }],
   omitted: [structuredClone(DRAFT_EXAMPLE.omitted[0])], createdAt: "2026-11-04T10:10:00+09:00", updatedAt: "2026-11-04T10:10:21+09:00", ...patch,
 });
 async function setup(page: Page, edit?: (q: QuestionDetail) => void) {
@@ -130,7 +130,7 @@ test("EXPERIENCE is labeled as user input and its original content is inspectabl
   await setup(page, q => {
     // experience-api PATCH 예시 104의 직접 고친 본문. 새 경험 ID를 만들지 않는다.
     const text = "백엔드 API 중 채팅 · 거래 API 를 설계했다";
-    q.draft = exampleDraft({ sentences: [{ text, evidence: [{ type: "EXPERIENCE", id: 104, experienceId: 104, activityId: 7, text }] }] });
+    q.draft = exampleDraft({ sentences: [{ kind: "FACT", text, evidence: [{ type: "EXPERIENCE", id: 104, experienceId: 104, activityId: 7, text }] }] });
   });
   const screen = draftScreen(page);
   await screen.locator("summary").click();
@@ -270,7 +270,7 @@ test("retry uses server experienceIds and UNKNOWN sentences are shown verbatim w
   api.holdDraft = true;
   api.edit(41, q => {
     q.recommendations.find(r => r.experience.id === 101)!.experience.actor = "UNKNOWN";
-    q.draft = { ...structuredClone(DRAFT_EXAMPLE), sentences: [{ text: "코드가 수정됐습니다.", evidence: [structuredClone(DRAFT_EXAMPLE.sentences[0].evidence[0])] }] };
+    q.draft = { ...structuredClone(DRAFT_EXAMPLE), sentences: [{ kind: "FACT", text: "코드가 수정됐습니다.", evidence: [structuredClone(DRAFT_EXAMPLE.sentences[0].evidence[0])] }] };
   });
   await expect(draftScreen(page).getByRole("list", { name: "초안 문장" })).toContainText("코드가 수정됐습니다.");
   await expect(draftScreen(page).getByRole("list", { name: "초안 문장" })).not.toContainText("팀은");
@@ -474,4 +474,55 @@ test("a panel regeneration disables the main controls before the POST response a
   await expect.poll(() => api.calls.filter(c => c.call.endsWith("/draft")).length).toBe(1);
   api.edit(41, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
   await expect(draftScreen(page).getByRole("list", { name: "초안 문장" })).toBeVisible();
+});
+
+test("opinion labels stay separate from facts and text-only copy across reload and responsive widths", async ({ page }, info) => {
+  const draft = structuredClone(DRAFT_EXAMPLE);
+  draft.sentences = [
+    draft.sentences[0],
+    { kind: "OPINION", text: "앞으로도 문제의 원인을 살피는 개발자가 되고 싶습니다.", evidence: [] },
+    draft.sentences[1],
+    { kind: "FACT", text: "서버에 STOMP 엔드포인트를 만들었습니다.", evidence: [] },
+    { kind: "OPINION", text: "이 경험을 바탕으로 서비스의 문제를 살피고 싶습니다.", evidence: [] },
+    { kind: "OPINION", text: "앞으로도 사용자에게 필요한 기능을 고민하고 싶습니다.", evidence: [] },
+  ];
+  await setup(page, q => { q.draft = draft; });
+  const screen = draftScreen(page);
+  const sentences = screen.getByRole("list", { name: "초안 문장" });
+  const items = sentences.getByRole("listitem");
+  await expect(items).toHaveCount(draft.sentences.length);
+  for (const [index, sentence] of draft.sentences.entries()) {
+    await expect(items.nth(index)).toContainText(sentence.text);
+    await expect(items.nth(index).getByText("AI 제안 — 확인 필요", { exact: true })).toHaveCount(sentence.kind === "OPINION" ? 1 : 0);
+    if (sentence.kind === "OPINION") {
+      await expect(items.nth(index).locator("details")).toHaveCount(0);
+      await expect(items.nth(index)).not.toContainText("연결된 근거가 지금은 없어요");
+    }
+  }
+  await expect(items.nth(3)).toContainText("연결된 근거가 지금은 없어요");
+  await expect(sentences.locator("summary")).toHaveCount(2);
+  await sentences.locator("summary").first().click();
+  await expect(sentences.locator("blockquote").first()).toBeVisible();
+  await page.reload();
+  await expect(sentences.getByText("AI 제안 — 확인 필요", { exact: true })).toHaveCount(3);
+  await screen.getByRole("button", { name: "텍스트로 복사", exact: true }).click();
+  expect(await page.evaluate(() => (window as unknown as { copied: string }).copied)).toBe(draft.sentences.map(s => s.text).join(" "));
+  for (const width of info.project.name === "desktop" ? [1440, 1024] : [390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await items.nth(1).scrollIntoViewIfNeeded();
+    await expect(sentences.getByText("AI 제안 — 확인 필요", { exact: true }).first()).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    if (process.env.UPDATE_OPINION_SCREENSHOTS === "1") {
+      await page.screenshot({ path: `docs/fe-104/ai-opinion-${width}.png`, fullPage: true, style: "nextjs-portal { display: none !important; }" });
+    }
+    if (width === 1024) {
+      await openDraftFollowUp(page);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      if (process.env.UPDATE_OPINION_SCREENSHOTS === "1") {
+        await page.screenshot({ path: "docs/fe-104/ai-opinion-panel-1024.png", fullPage: true, style: "nextjs-portal { display: none !important; }" });
+      }
+      await closeDraftPanel(page);
+      await expect(sentences.getByText("AI 제안 — 확인 필요", { exact: true }).first()).toBeVisible();
+    }
+  }
 });
