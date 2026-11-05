@@ -62,7 +62,7 @@ test("default selection, zero-selection guard, generating, evidence details and 
   await screen.getByRole("button", { name: "텍스트로 복사", exact: true }).click();
   await expect(screen.getByRole("status").last()).toContainText("문장만 복사했어요");
   expect(await page.evaluate(() => (window as unknown as { copied: string }).copied)).toBe("「바꿔요」 프로젝트에서 채팅 메시지가 늦게 도착하는 문제가 있었고, 제가 폴링을 WebSocket 으로 바꿔 해결했습니다. 서버에 STOMP 엔드포인트를 만들고, 앱의 3초 폴링 코드를 구독 방식으로 바꿨습니다.");
-  expect(api.calls.filter(c => c.call.endsWith("/draft"))).toEqual([{ call: "POST /api/questions/41/draft", body: { experienceIds: [101] } }]);
+  expect(api.calls.filter(c => c.call.endsWith("/draft"))).toEqual([{ call: "POST /api/questions/41/draft", body: { experienceIds: [101], frame: "STAR" } }]);
   // 화면과 기존 추천은 함께 남는다. 문항을 오가도 최신 초안 하나만 유지한다.
   const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab");
   await tabs.nth(1).click();
@@ -110,7 +110,7 @@ test("failure shows its reason without success text; retry uses the same POST fl
   await screen.getByRole("button", { name: "다시 만들기", exact: true }).click();
   await expect(screen.getByRole("list", { name: "초안 문장" }).getByRole("listitem")).toHaveCount(2);
   await expect(screen.getByRole("alert")).toHaveCount(0);
-  expect(api.calls.filter(c => c.call.endsWith("/draft")).map(c => c.body)).toEqual([{ experienceIds: [101] }, { experienceIds: [101] }]);
+  expect(api.calls.filter(c => c.call.endsWith("/draft")).map(c => c.body)).toEqual([{ experienceIds: [101], frame: "STAR" }, { experienceIds: [101], frame: "STAR" }]);
 });
 
 test("missing evidence preserves the sentence and shows a careful notice", async ({ page }) => {
@@ -266,7 +266,7 @@ test("retry uses server experienceIds and UNKNOWN sentences are shown verbatim w
   });
   await draftScreen(page).getByRole("button", { name: "다시 만들기", exact: true }).click();
   await expect.poll(() => api.calls.filter(c => c.call.endsWith("/draft")).length).toBe(1);
-  expect(api.calls.find(c => c.call.endsWith("/draft"))!.body).toEqual({ experienceIds: [101] });
+  expect(api.calls.find(c => c.call.endsWith("/draft"))!.body).toEqual({ experienceIds: [101], frame: "NONE" });
   api.holdDraft = true;
   api.edit(41, q => {
     q.recommendations.find(r => r.experience.id === 101)!.experience.actor = "UNKNOWN";
@@ -337,7 +337,7 @@ test("saving an omitted answer uses its server ID, persists after reload and reg
   await expect(panel.getByRole("button", { name: "다시 만들기", exact: true })).toBeEnabled();
   await expect(omissions).not.toContainText(DRAFT_EXAMPLE.omitted[0].text);
   expect(api.calls.filter(c => c.call.endsWith("/draft"))).toEqual([
-    { call: "POST /api/questions/41/draft", body: { experienceIds: [101] } },
+    { call: "POST /api/questions/41/draft", body: { experienceIds: [101], frame: "NONE" } },
   ]);
   expect(api.supplements.get(101)?.some(s => s.answer === answer && s.questionId === 41)).toBe(true);
   // 추천의 질문 ID와 내용은 초안 재생성으로 바뀌지 않는다.
@@ -422,7 +422,7 @@ test("a completed draft restores its selected experiences for regeneration", asy
   await expect(screen.getByRole("checkbox").last()).not.toBeChecked();
   await screen.getByRole("button", { name: "다시 만들기", exact: true }).click();
   expect(api.calls.filter(c => c.call.endsWith("/draft"))).toEqual([
-    { call: "POST /api/questions/41/draft", body: { experienceIds: [102] } },
+    { call: "POST /api/questions/41/draft", body: { experienceIds: [102], frame: "NONE" } },
   ]);
 });
 
@@ -454,7 +454,7 @@ test("the panel shows an AI failure and retries with the same experiences", asyn
   await panel.getByRole("button", { name: "다시 만들기", exact: true }).click();
   await expect(panel.getByRole("button", { name: "다시 만들기", exact: true })).toBeEnabled();
   await expect(panel.getByRole("alert")).toHaveCount(0);
-  expect(api.calls.filter(c => c.call.endsWith("/draft")).map(c => c.body)).toEqual([{ experienceIds: [101] }, { experienceIds: [101] }]);
+  expect(api.calls.filter(c => c.call.endsWith("/draft")).map(c => c.body)).toEqual([{ experienceIds: [101], frame: "NONE" }, { experienceIds: [101], frame: "NONE" }]);
 });
 
 test("a panel regeneration disables the main controls before the POST response arrives", async ({ page }) => {

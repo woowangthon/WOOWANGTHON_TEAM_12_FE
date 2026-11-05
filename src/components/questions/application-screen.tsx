@@ -15,6 +15,7 @@ import { MAX_QUESTIONS_PER_APPLICATION, type Application, type QuestionDetail, t
 import { AddQuestionForm, ApplicationForm } from "./application-form";
 import { overlapsOf, sameExperienceElsewhere, type Overlap } from "./overlap";
 import { AnswerInput } from "./answer-input";
+import type { DraftFrame } from "@/lib/draft-frames";
 import type { DraftActions } from "./answer-draft";
 import { QuestionResult } from "./question-result";
 import { ChagokPanel, Mascot, type SupplementOrigin } from "./chagok-panel";
@@ -65,7 +66,7 @@ export function ApplicationScreen() {
   const unanswered = (selected?.clarifications.filter(c => c.supplementId === null).length ?? 0)
     + (selected?.draft?.status === "COMPLETED" ? selected.draft.omitted.filter(o => o.clarificationId !== null && o.supplementId === null).length : 0);
   const draftActions = {
-    onGenerate: (ids: number[]) => selected ? matching.createDraft(selected, ids) : Promise.resolve(),
+    onGenerate: (ids: number[], frame?: DraftFrame) => selected ? matching.createDraft(selected, ids, frame) : Promise.resolve(),
     onRefresh: () => selected ? matching.refreshDraft(selected.id) : Promise.resolve(),
     savingAnswer: matching.savingAnswer, requestingDraft: matching.requestingDraft,
   };

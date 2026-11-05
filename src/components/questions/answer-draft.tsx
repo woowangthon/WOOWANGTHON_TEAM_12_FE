@@ -4,17 +4,21 @@ import { useRef, useState } from "react";
 import { WarningCircleIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api/errors";
+import { suggestedFrame, type DraftFrame } from "@/lib/draft-frames";
+import { DraftGuidance, FramePicker } from "./draft-guidance";
 import type { QuestionDetail } from "@/lib/api/question-types";
 import { AnswerEvidence } from "./answer-evidence";
 import { requestError, failureReason } from "./draft-errors";
 import { ActivityChip } from "./question-result";
 
-export type DraftActions = { onGenerate: (experienceIds: number[]) => Promise<void>; onRefresh: () => Promise<void>; onOpenOmissions: () => void; savingAnswer: boolean; requestingDraft: boolean };
+export type DraftActions = { onGenerate: (experienceIds: number[], frame?: DraftFrame) => Promise<void>; onRefresh: () => Promise<void>; onOpenOmissions: () => void; savingAnswer: boolean; requestingDraft: boolean };
 
 export function AnswerDraft({ question, onGenerate, onRefresh, onOpenOmissions, savingAnswer, requestingDraft }: { question: QuestionDetail } & DraftActions) {
   const [selected, setSelected] = useState(() => question.draft ? question.draft.experienceIds : question.recommendations.slice(0, 3).map(r => r.experience.id));
   const [selectionChanged, setSelectionChanged] = useState(false);
   const draft = question.draft ?? null;
+  const [chosenFrame, setChosenFrame] = useState<DraftFrame | null>(null);
+  const frame = chosenFrame ?? (draft ? draft.frame ?? 'NONE' : suggestedFrame(question.questionType));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ text: string; code?: string } | null>(null);
   const [copy, setCopy] = useState("");
@@ -28,7 +32,8 @@ export function AnswerDraft({ question, onGenerate, onRefresh, onOpenOmissions, 
     pending.current = true; setBusy(true); setError(null); setCopy("");
     try {
       // 실패 재시도는 저장된 experienceIds로 같은 POST. 새 선택은 완료 뒤 재생성에 사용한다.
-      await onGenerate(ids);
+      await onGenerate(ids, frame);
+      setChosenFrame(null);
       setSelectionChanged(false);
     } catch (e) { setError({ text: requestError(e), code: e instanceof ApiError ? e.code : undefined }); }
     finally { pending.current = false; setBusy(false); }
@@ -64,6 +69,7 @@ export function AnswerDraft({ question, onGenerate, onRefresh, onOpenOmissions, 
       </label>)}
       {!question.recommendations.length && <p className="m-0 text-sm text-muted">추천된 경험이 있으면 초안을 만들 수 있어요.</p>}
     </fieldset>
+    <FramePicker frame={frame} disabled={analyzing || savingAnswer} proposed={!draft && chosenFrame === null} onChange={setChosenFrame} />
     <div className="flex flex-wrap items-center gap-3">
       <Button className="min-h-11" onClick={() => void generate()} disabled={!allowed || analyzing || savingAnswer}>{analyzing ? "초안 만드는 중…" : draft ? "다시 만들기" : "초안 만들기"}</Button>
     </div>
@@ -74,6 +80,7 @@ export function AnswerDraft({ question, onGenerate, onRefresh, onOpenOmissions, 
     </div>}
     {draft?.status === "FAILED" && !analyzing && <p role="alert" className="m-0 text-sm text-error">{failureReason(draft.error)} 「다시 만들기」로 같은 경험을 다시 요청할 수 있어요.</p>}
     {draft?.status === "COMPLETED" && !analyzing && <>
+      <DraftGuidance draft={draft} />
       <p role="status" className="m-0 text-sm font-medium">초안을 확인해 주세요. 최종 문장은 직접 정해요.</p>
       {draft.sentences.length ? <ol aria-label="초안 문장" className="m-0 grid list-none gap-4 p-0">{draft.sentences.map((sentence, i) => <li key={i} className="grid min-w-0 gap-2 border-t border-hairline-soft pt-4">
         <p className="m-0 break-words text-[15px] leading-relaxed"><span className="mr-2 text-xs text-muted">{i + 1}</span>{sentence.text}</p>

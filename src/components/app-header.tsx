@@ -11,7 +11,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-type Page = "home" | "timeline" | "questions" | "connections";
+type Page = "home" | "timeline" | "questions" | "connections" | "guidelines";
 type HeaderProps = {
   /** 1024 미만에서 세부를 전체 화면으로 열면 위 막대를 숨긴다 */
   hideOnMobile?: boolean; addSource?: AddSourceProps; activePage?: Page;

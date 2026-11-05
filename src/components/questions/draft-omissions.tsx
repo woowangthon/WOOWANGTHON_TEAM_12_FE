@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { DraftFrame } from "@/lib/draft-frames";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api/errors";
@@ -83,7 +84,7 @@ function OmissionItem({ item, question, onAnswer, onRefresh, disabled }: {
 }
 
 export type DraftPanelActions = {
-  onGenerate: (ids: number[]) => Promise<void>; onRefresh: () => Promise<void>;
+  onGenerate: (ids: number[], frame?: DraftFrame) => Promise<void>; onRefresh: () => Promise<void>;
   savingAnswer: boolean; requestingDraft: boolean; focusRequest: number;
 };
 
@@ -108,7 +109,7 @@ export function DraftFollowUp({ question, onAnswer, onGenerate, onRefresh, savin
   const generate = async () => {
     if (pending.current || disabled || !allowed || !draft) return;
     pending.current = true; setError(null);
-    try { await onGenerate(draft.experienceIds); }
+    try { await onGenerate(draft.experienceIds, draft.frame ?? "NONE"); }
     catch (e) { setError(requestError(e)); }
     finally { pending.current = false; }
   };

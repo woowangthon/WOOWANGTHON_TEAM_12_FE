@@ -1,6 +1,8 @@
 // ETC docs/contracts/question-api.md · experience-api.md — 요청·응답 모양 그대로.
 import type { ActivitySummary, Experience, JobStatus, Job, Supplement, Actor } from "./types";
 
+import type { DraftFrame } from '../draft-frames';
+import type { DraftGuideline } from './guidelines';
 export type { Supplement };
 
 export const MAX_ORGANIZATION_LENGTH = 100;
@@ -69,11 +71,13 @@ export type DraftOmission = {
   clarificationId: number | null; supplementId: number | null;
 };
 export type Draft = {
+  /** 전환 전 서버의 저장 초안은 NONE / []로 표시한다. */
+  frame?: DraftFrame; guidelines?: DraftGuideline[];
   questionId: number; status: JobStatus; error: Job["error"]; experienceIds: number[];
   sentences: { kind: "FACT" | "OPINION"; text: string; evidence: DraftEvidence[] }[]; omitted: DraftOmission[];
   createdAt: string; updatedAt: string;
 };
-export type CreateDraftRequest = { experienceIds: number[] };
+export type CreateDraftRequest = { experienceIds: number[]; frame?: DraftFrame };
 export type CreateQuestionRequest = { organization?: string | null; text: string };
 export type QuestionSubmitted = { questionId: number; applicationId: number; status: "ANALYZING" };
 

@@ -92,7 +92,8 @@ export async function createQuestionDraft(question: QuestionDetail, req: CreateD
     throw new ApiError("INVALID_REQUEST", "이 문항의 추천 경험을 1 ~ 3개 골라 주세요.", 400);
   }
   if (question.status !== "COMPLETED") throw new ApiError("QUESTION_NOT_COMPLETED", "문항 분석이 끝난 뒤 초안을 만들 수 있어요.", 409);
-  return request(`/questions/${question.id}/draft`, { experienceIds: ids }, "POST");
+  if (req.frame !== undefined && !['STAR', 'CARL', 'PREP', 'NONE'].includes(req.frame)) throw new ApiError('INVALID_REQUEST', '구성 틀을 골라 주세요.', 400);
+  return request(`/questions/${question.id}/draft`, { experienceIds: ids, ...(req.frame === undefined ? {} : { frame: req.frame }) }, "POST");
 }
 
 /** S-45: 실패를 고정 결과로 대체하지 않고, 공백과 길이는 HTTP 전에 확인한다. */

@@ -236,7 +236,7 @@ export class FakeQuestionApi {
       if (q.detail.status !== "COMPLETED") return error(route, 409, "QUESTION_NOT_COMPLETED");
       if (q.detail.draft?.status === "ANALYZING") return error(route, 409, "DRAFT_IN_PROGRESS");
       const now = new Date().toISOString();
-      q.detail.draft = { questionId: q.detail.id, status: "ANALYZING", error: null, experienceIds: ids, sentences: [], omitted: [], createdAt: now, updatedAt: now };
+      q.detail.draft = { questionId: q.detail.id, status: "ANALYZING", error: null, experienceIds: ids, frame: body.frame ?? "NONE", guidelines: [], sentences: [], omitted: [], createdAt: now, updatedAt: now };
       this.draftStarted.set(q.detail.id, Date.now());
       return json(route, q.detail.draft, 202);
     }
