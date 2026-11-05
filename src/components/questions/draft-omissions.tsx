@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api/errors";
 import { MAX_ANSWER_LENGTH, type DraftOmission, type QuestionDetail } from "@/lib/api/question-types";
 import { bubble, type AnswerHandler } from "./clarifications";
+import { DraftComposer } from "./draft-composer";
 import { ActivityChip } from "./question-result";
-import { requestError, failureReason } from "./draft-errors";
+import { requestError } from "./draft-errors";
 
 function answerError(e: unknown) {
   if (e instanceof ApiError) {
@@ -104,15 +105,6 @@ export function DraftFollowUp({ question, onAnswer, onGenerate, onRefresh, savin
   const draft = question.draft;
   const analyzing = requestingDraft || draft?.status === "ANALYZING";
   const disabled = savingAnswer || analyzing || refreshing;
-  const allowed = !!draft && draft.experienceIds.length >= 1 && draft.experienceIds.length <= 3
-    && draft.experienceIds.every(id => question.recommendations.some(r => r.experience.id === id));
-  const generate = async () => {
-    if (pending.current || disabled || !allowed || !draft) return;
-    pending.current = true; setError(null);
-    try { await onGenerate(draft.experienceIds, draft.frame ?? "NONE"); }
-    catch (e) { setError(requestError(e)); }
-    finally { pending.current = false; }
-  };
   const refresh = async () => {
     if (pending.current || disabled) return;
     pending.current = true; setRefreshing(true); setError(null);
@@ -120,13 +112,12 @@ export function DraftFollowUp({ question, onAnswer, onGenerate, onRefresh, savin
     catch (e) { setError(requestError(e)); }
     finally { pending.current = false; setRefreshing(false); }
   };
-  if (!draft && !analyzing) return null;
-  return <section ref={target} tabIndex={-1} aria-label="초안 보완" className="mt-3 grid min-w-0 scroll-mt-4 gap-2.5 border-t border-hairline pt-4 outline-none">
-    <h3 className="m-0 text-xs font-semibold text-muted">초안 보완</h3>
-    {analyzing ? <p role="status" className={bubble}>고른 경험과 보완을 읽고 초안을 만드는 중이에요…</p> : <>
-      {draft?.status === "FAILED" ? <p role="alert" className={bubble}>{failureReason(draft.error)} 같은 경험으로 다시 만들 수 있어요.</p> : <>
+  return <section ref={target} tabIndex={-1} aria-label="차곡이의 초안" className="mt-3 grid min-w-0 scroll-mt-4 gap-2.5 border-t border-hairline pt-4 outline-none">
+    <h3 className="m-0 text-xs font-semibold text-muted">{draft ? "초안 보완" : "초안 준비"}</h3>
+    {analyzing ? <p role="status" className={bubble}>고른 경험과 보완을 읽고 초안을 만드는 중이에요…</p> : draft ? <>
+      {draft?.status === "FAILED" ? <p className={bubble}>초안을 완성하지 못했어요. 아래 설정에서 다시 요청해 주세요.</p> : <>
         <div className={bubble}>
-          <p className="m-0">{draft?.omitted.length ? "초안을 써 봤어요. 아래 내용은 자료에서 확인하지 못해 쓰지 않았어요." : "초안을 만들었어요. 가운데 답변 초안에서 문장과 근거를 확인해 주세요."}</p>
+          <p className="m-0">{draft?.omitted.length ? "초안을 써 봤어요. 아래 내용은 자료에서 확인하지 못해 쓰지 않았어요." : "초안을 만들었어요. 답변 초안에서 문장과 근거를 확인해 주세요."}</p>
           {!!draft?.omitted.length && <>
             <p className="m-0 text-xs font-semibold">자료에 없어 쓰지 않았어요 · AI 해석</p>
             <p className="m-0 text-xs text-muted">기억나는 것만 알려 주세요. 답은 선택이에요. 건너뛰어도 초안을 복사할 수 있어요.</p>
@@ -137,12 +128,8 @@ export function DraftFollowUp({ question, onAnswer, onGenerate, onRefresh, savin
         </ul>
       </>}
       {savingAnswer && <p role="status" className={bubble}>보완으로 쌓는 중이에요…</p>}
-      <div className={bubble}>
-        <p className="m-0">「다시 만들기」를 누르면 이 초안에 쓴 경험과 최신 보완으로 다시 써요.</p>
-        <p className="m-0 text-xs text-muted">답을 저장할 때는 분석 횟수를 쓰지 않아요. 초안 다시 만들기는 분석 1회로 세어요.</p>
-        <Button size="sm" className="mt-1 min-h-11 justify-self-start" disabled={disabled || !allowed} onClick={() => void generate()}>다시 만들기</Button>
-      </div>
-    </>}
+    </> : null}
+    <DraftComposer question={question} onGenerate={onGenerate} onRefresh={onRefresh} savingAnswer={savingAnswer} requestingDraft={requestingDraft || refreshing} />
     {error && <div className={bubble}>
       <p role="alert" className="m-0 text-error">{error}</p>
       <Button variant="secondary" size="sm" className="min-h-11 justify-self-start" disabled={disabled} onClick={() => void refresh()}>초안 상태 확인</Button>
