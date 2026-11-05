@@ -749,3 +749,28 @@ test("a successful analyzing poll resets consecutive failures and another questi
   await expect(page.getByRole("button", { name: "다시 불러오기", exact: true })).toHaveCount(0);
   expect(gets(api).filter(c => c === "GET /api/questions/43")).toHaveLength(1);
 });
+
+// FE#95 — 공고 원문 링크(S-46)
+test("the posting link is sent with the application and opens in a new tab from the header; no link, no row", async ({ page }) => {
+  const api = await fake(page);
+  await page.goto("/questions");
+  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await page.getByLabel("원문 링크 (선택)").fill("javascript:alert(1)");
+  await page.getByLabel("문항 1", { exact: true }).fill("지원 동기를 적어 주세요.");
+  await page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "원문 링크는 http://" })).toBeVisible();
+  expect(posts(api)).toHaveLength(0);
+  await page.getByLabel("원문 링크 (선택)").fill("  https://www.example.com/recruit/1234  ");
+  await page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true }).click();
+  await expect.poll(() => posts(api).length).toBe(1);
+  expect(posts(api)[0].body).toEqual({ organization: null, postingUrl: "https://www.example.com/recruit/1234", questions: [{ text: "지원 동기를 적어 주세요." }] });
+  const link = page.getByRole("link", { name: /공고 원문 열기/ });
+  await expect(link).toHaveAttribute("href", "https://www.example.com/recruit/1234");
+  await expect(link).toHaveAttribute("target", "_blank");
+  await expect(link).toContainText("example.com");
+  await page.screenshot({ path: `artifacts/posting-link-application-${test.info().project.name}.png`, animations: "disabled", caret: "hide", style: "nextjs-portal { visibility: hidden; }" });
+  // 링크 없이 넣은 지원엔 줄이 없다
+  await page.goto("/questions?question=41");
+  await expect(page.getByLabel("직무", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: /공고 원문 열기/ })).toHaveCount(0);
+});

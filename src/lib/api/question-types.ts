@@ -113,10 +113,13 @@ export type Application = {
   applicationStatus: ApplicationStatus;
   /** 낸 달 "YYYY-MM"(S-37). 작성 중이면 null, 벗어날 때 값이 없으면 BE 가 그 달을 붙인다 */
   submittedMonth: string | null;
+  /** 공고 원문 링크(S-46) — 넣은 뒤엔 고치지 않는다. 없으면 null */
+  postingUrl?: string | null;
   questions: QuestionSummary[]; createdAt: string;
 };
 export type CreateApplicationRequest = {
   organization?: string | null; organizationType?: OrganizationType | null; jobRole?: JobRole | null;
+  postingUrl?: string | null;
   questions: { text: string }[];
 };
 /** PATCH /api/applications/{id} — 보낸 필드만 바꾼다. 종류 · 직무는 null 이면 비우고, 상태 · 낸 달은 null 을 받지 않는다 */

@@ -39,6 +39,8 @@ export class FakeQuestionApi {
   types = new Map<number, { organizationType: OrganizationType | null; jobRole: JobRole | null }>();
   /** 지원 ID → 상태 · 낸 달(S-36 · S-37). 없으면 새 지원처럼 작성 중 */
   statuses = new Map<number, { applicationStatus: ApplicationStatus; submittedMonth: string | null }>();
+  /** 지원 ID → 공고 원문 링크(S-46) */
+  postingUrls = new Map<number, string | null>();
   /** 문항 ID → 앞으로 실패시킬 GET 횟수 — 폴링의 일시 · 연속 연결 실패 */
   questionFailures = new Map<number, number>();
   /** 초안 HTTP 계약 시험 제어. 제품 실행에서는 사용하지 않는다. */
@@ -130,7 +132,7 @@ export class FakeQuestionApi {
     const questions = this.questions.filter(q => q.detail.applicationId === id).map(q => this.summary(q));
     const { organizationType = null, jobRole = null } = this.types.get(id) ?? {};
     const { applicationStatus = "WRITING", submittedMonth = null } = this.statuses.get(id) ?? {};
-    return { id, organization: this.applications.get(id) ?? null, organizationType, jobRole, applicationStatus, submittedMonth, questions, createdAt: questions[0].createdAt };
+    return { id, organization: this.applications.get(id) ?? null, organizationType, jobRole, postingUrl: this.postingUrls.get(id) ?? null, applicationStatus, submittedMonth, questions, createdAt: questions[0].createdAt };
   }
 
   private push(applicationId: number, text: string) {
@@ -196,6 +198,7 @@ export class FakeQuestionApi {
       const applicationId = this.nextApplication++;
       this.applications.set(applicationId, body.organization ?? null);
       this.types.set(applicationId, { organizationType: body.organizationType ?? null, jobRole: body.jobRole ?? null });
+      this.postingUrls.set(applicationId, body.postingUrl ?? null);
       const questionIds = body.questions.map((q: { text: string }) => this.push(applicationId, q.text));
       return json(route, { applicationId, questionIds }, 202);
     }

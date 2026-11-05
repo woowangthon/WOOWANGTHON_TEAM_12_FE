@@ -2,7 +2,8 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowsClockwiseIcon, MagnifyingGlassIcon, PlusIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { ArrowSquareOutIcon, ArrowsClockwiseIcon, MagnifyingGlassIcon, PlusIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { isPostingUrl } from "@/lib/api/entrance";
 import { AppHeader } from "@/components/app-header";
 import { useSidebar } from "@/components/sidebar-layout";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -28,6 +29,8 @@ function failureText(error: QuestionDetail["error"]) {
     : error?.message || "서버에서 분석을 마치지 못했어요.";
   return `${why} 문항은 저장돼 있으니 다시 시도해 주세요.`;
 }
+/** 원문 링크의 사이트 이름만 — 긴 주소를 그대로 보이지 않는다 */
+const hostOf = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; } };
 const dateText = (iso: string) => new Date(iso).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" });
 /** 낸 달 "2026-11" → 「2026년 11월」 */
 const monthText = (month: string) => { const [y, m] = month.split("-"); return `${y}년 ${Number(m)}월`; };
@@ -109,6 +112,11 @@ export function ApplicationScreen() {
                   <ApplicationStatusTag key={open.application.id} application={open.application} onSave={req => matching.updateApplication(open.application.id, req)} />
                 </div>
                 <p className="mt-1 mb-0 text-[13px] text-muted tabular-nums">{progressText(open.application)} · {dateText(open.application.createdAt)}에 넣음</p>
+                {/* 공고 원문 링크(S-46) — 새 탭으로. http(s) 주소일 때만 링크로 만든다 */}
+                {open.application.postingUrl && isPostingUrl(open.application.postingUrl) && <a href={open.application.postingUrl} target="_blank" rel="noopener noreferrer"
+                  className="mt-1 inline-flex min-h-11 max-w-full items-center gap-1.5 text-[13px] text-body underline underline-offset-4 hover:text-ink">
+                  <ArrowSquareOutIcon aria-hidden="true" className="shrink-0" /><span className="truncate">공고 원문 열기 · {hostOf(open.application.postingUrl)}</span><span className="sr-only">(새 탭)</span>
+                </a>}
                 <div className="mt-3"><ApplicationTypeFields key={open.application.id} application={open.application}
                   onSave={req => matching.updateApplication(open.application.id, req)} /></div>
               </div>
