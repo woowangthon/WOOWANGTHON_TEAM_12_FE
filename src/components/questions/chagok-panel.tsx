@@ -2,7 +2,8 @@
 
 // 차곡이 패널 — 시안 6 apply.html 오른쪽 「AI 동료」. 문항을 읽고 → 맞는 경험을 고르고 → 지난 보완을 다시 쓰고 → 빠진 것만 묻는다.
 // 보이는 말은 전부 이 문항의 실제 결과(요구사항 · 추천 · evidence · 되묻기)에서 만든다 — 지어낸 진행 단계를 보이지 않는다(대회 규칙 1 · 2).
-// 시안의 부탁 입력 · 「근거 찾기」 같은 버튼은 도구 호출(S-31 P1 · ADR-007 · ETC#78)이라 두지 않는다
+// 그 아래에 부탁 입력과 차곡이가 도구로 일하는 과정(S-31)이 붙는다 — chagok-run.tsx
+import { useEffect, useRef } from "react";
 import Image from "next/image";
 import { CheckIcon, MinusCircleIcon, WarningCircleIcon, XIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,8 @@ import type { QuestionDetail, RequirementStatus, Supplement } from "@/lib/api/qu
 import { bubble, ClarificationItem, type AnswerHandler } from "./clarifications";
 import { DraftFollowUp, type DraftPanelActions } from "./draft-omissions";
 import { shortName } from "./question-result";
+import { ChagokComposer, ChagokRunFeed } from "./chagok-run";
+import type { ChagokRunControl } from "./use-chagok-run";
 
 const JUDGMENT: Record<RequirementStatus, { label: string; icon: typeof CheckIcon; tone: string }> = {
   SUPPORTED: { label: "근거 있음", icon: CheckIcon, tone: "text-evidence" },
@@ -24,9 +27,13 @@ export function Mascot({ size = 28 }: { size?: number }) {
 /** 보완이 어디서 나왔나 — 「OO 부트캠프 문항」 · 「이 지원의 문항 2」 */
 export type SupplementOrigin = (supplement: Supplement) => string;
 
-export function ChagokPanel({ question, index, originOf, onAnswer, onClose, draftActions }: {
-  question: QuestionDetail | null; index: number; originOf: SupplementOrigin; onAnswer: AnswerHandler; onClose: () => void; draftActions: DraftPanelActions;
+export function ChagokPanel({ question, index, originOf, onAnswer, onClose, draftActions, control }: {
+  question: QuestionDetail | null; index: number; originOf: SupplementOrigin; onAnswer: AnswerHandler; onClose: () => void; draftActions: DraftPanelActions; control: ChagokRunControl;
 }) {
+  // 단계가 쌓이면 맨 아래를 보인다
+  const body = useRef<HTMLDivElement>(null);
+  const progress = control.run && `${control.run.runId}:${control.run.status}:${control.run.steps.length}`;
+  useEffect(() => { if (progress && body.current) body.current.scrollTop = body.current.scrollHeight; }, [progress]);
   return <div className="flex h-full min-h-0 flex-col bg-surface-soft">
     <header className="flex items-center gap-2 border-b border-hairline bg-canvas px-4 py-3">
       <Mascot />
@@ -34,9 +41,11 @@ export function ChagokPanel({ question, index, originOf, onAnswer, onClose, draf
       {question && <span className="ml-auto text-[13px] text-muted">문항 {index + 1}</span>}
       <Button variant="ghost" size="icon" className={question ? "" : "ml-auto"} onClick={onClose} aria-label="차곡이 닫기"><XIcon /></Button>
     </header>
-    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+    <div ref={body} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
       {question ? <Feed key={question.id} question={question} originOf={originOf} onAnswer={onAnswer} draftActions={draftActions} /> : <p className={bubble}>문항을 고르면 읽어 보고 맞는 경험을 찾아 둘게요.</p>}
+      <ChagokRunFeed control={control} currentQuestionId={question?.id ?? null} />
     </div>
+    <ChagokComposer control={control} hasQuestion={!!question} />
   </div>;
 }
 
