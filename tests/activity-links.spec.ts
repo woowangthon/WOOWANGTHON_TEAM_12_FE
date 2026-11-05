@@ -4,7 +4,7 @@ import { test, expect } from "./signed-in";
 import type { ActivityDetail, ActivityLink } from "../src/lib/api/types";
 
 const region = (page: Page) => page.getByRole("region", { name: "이어진 활동", exact: true });
-const summary = ({ experiences, links: _links, ...rest }: ActivityDetail) => ({ ...rest, experienceCount: experiences.length });
+const summary = ({ id, name, period, note, experiences }: ActivityDetail) => ({ id, name, period, note, experienceCount: experiences.length });
 
 const SUGGESTION: ActivityLink = {
   id: 501, fromActivityId: 8, fromActivityName: "알고리즘 스터디", toActivityId: 7, toActivityName: "바꿔요 — 캠퍼스 중고거래 앱",
