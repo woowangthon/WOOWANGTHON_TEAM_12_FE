@@ -39,7 +39,7 @@ function HomeContent() {
     <AppHeader activePage="home" addSource={{ onClick: () => setAddOpen(true), busy: view === "analyzing" }} />
     <p className="m-0 border-b border-hairline px-4 py-2 text-xs text-muted" role="note">{isMockMode() ? "목 모드 · 예시 데이터이며 서버에 저장할 수 없어요." : "실제 API 모드 · 내 기록으로 이어져요."}</p>
     <main className="home-background min-h-[calc(100dvh-2rem)] px-4.5 pt-10 pb-12 lg:px-9 lg:pt-[9vh]">
-      <HomeEntrance sourceBusy={view === "analyzing"} mockAnalysis={mock} onSourceSubmitted={analysis.start} overview={overview} onRefresh={() => void refresh()} />
+      <HomeEntrance sourceBusy={view === "analyzing"} mockAnalysis={mock} onSourceSubmitted={analysis.start} overview={overview} onRefresh={() => void refresh()} showMockControls={params.get("debug") === "entrance"} />
       <div className="mx-auto max-w-3xl">
         {view && analysis.tracked && <AnalysisBanner view={view} tracked={analysis.tracked} onRetry={analysis.retry} onRecheck={analysis.recheck} onDismiss={analysis.dismiss} onAddSource={() => { analysis.dismiss(); setAddOpen(true); }} />}
         {notice && <p role="status" className="text-sm text-body">{notice} <Link href="/experience" className="font-semibold underline underline-offset-4">내 경험 보기</Link></p>}

@@ -37,10 +37,11 @@ const EXAMPLES = {
 } as const;
 
 /** 시안 6 홈 — S-28만 연결한다. S-29 · S-30 전의 분기는 entrance-api 계약을 따른다. */
-export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, overview, onRefresh }: {
+export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, overview, onRefresh, showMockControls = false }: {
   sourceBusy: boolean; mockAnalysis: MockAnalysis;
   onSourceSubmitted: (job: { jobId: number; name: string }) => void;
   overview: HomeOverview; onRefresh: () => void;
+  showMockControls?: boolean;
 }) {
   const router = useRouter();
   const { refresh: refreshAccount } = useAuth();
@@ -104,7 +105,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     pending.current = true;
     setRouting(true); setError(null); setChoosing(false);
     try {
-      const result = await routeEntrance(text, mockKind);
+      const result = await routeEntrance(text, showMockControls ? mockKind : "UNSURE");
       if (result.kind === "SOURCE") openDestination("source");
       else if (result.kind === "APPLICATION") openDestination("application");
       else setChoosing(true); // ASK도 S-29 전에는 사용자가 고른다.
@@ -146,7 +147,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     {fileError && <p role="alert" className="mt-4 text-sm text-error">{fileError}</p>}
     {sourceSubmitting && <p role="status" className="mt-4 text-center text-sm text-muted">자료를 보내고 있어요…</p>}
     {sourceBusy && <p className="mt-3 text-center text-sm text-muted">자료 분석 중이에요. 분석이 끝나면 더 쌓을 수 있어요.</p>}
-    {isMockMode() && <label className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs text-muted">목 분류 결과 (AI 호출 없음)
+    {isMockMode() && showMockControls && <label className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs text-muted">목 분류 결과 (AI 호출 없음)
       <select aria-label="목 분류 결과" value={mockKind} disabled={routing} onChange={e => setMockKind(e.target.value as EntranceKind)} className="min-h-11 rounded-sm border border-hairline bg-canvas px-3 text-ink">
         {ENTRANCE_KINDS.map(kind => <option key={kind} value={kind}>{MOCK_LABEL[kind]}</option>)}
       </select>

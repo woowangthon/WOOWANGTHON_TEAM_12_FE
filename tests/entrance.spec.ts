@@ -141,3 +141,14 @@ test("홈 파일 오류와 쌓기 실패는 글을 남기고 저장 성공으로
   await expect.poll(() => calls.sources.length).toBe(2);
   expect(calls.sources[1]).toEqual({ kind: "FILE", name: "기록.txt", text: "원문 그대로" });
 });
+
+test("실제 API 모드에서는 개발용 주소도 목 선택기를 열지 않는다", async ({ page }) => {
+  const calls = await setup(page, "APPLICATION");
+  await page.goto("/?debug=entrance");
+  await expect(page.getByLabel("홈에 넣을 글")).toBeVisible();
+  await expect(page.getByLabel("목 분류 결과")).toHaveCount(0);
+  await page.getByLabel("홈에 넣을 글").fill("실제 분류로 보내는 글");
+  await page.getByRole("button", { name: "보내기", exact: true }).click();
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("실제 분류로 보내는 글");
+  expect(calls.routes).toEqual([{ text: "실제 분류로 보내는 글" }]);
+});
