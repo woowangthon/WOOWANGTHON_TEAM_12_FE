@@ -68,7 +68,7 @@ export type DraftOmission = {
 };
 export type Draft = {
   questionId: number; status: JobStatus; error: Job["error"]; experienceIds: number[];
-  sentences: { text: string; evidence: DraftEvidence[] }[]; omitted: DraftOmission[];
+  sentences: { kind: "FACT" | "OPINION"; text: string; evidence: DraftEvidence[] }[]; omitted: DraftOmission[];
   createdAt: string; updatedAt: string;
 };
 export type CreateDraftRequest = { experienceIds: number[] };
