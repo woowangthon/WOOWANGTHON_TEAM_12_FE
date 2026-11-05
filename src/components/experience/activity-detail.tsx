@@ -13,6 +13,7 @@ import { CitationList, SourceFile } from "./citation-list";
 import { ExperienceItem, ExperienceMeta } from "./experience-item";
 import { ActivityEditor } from "./activity-editor";
 import { ActivityNote } from "./activity-note";
+import { ActivityLinks } from "./activity-links";
 import { ExperienceEditor } from "./experience-editor";
 import { MergeSuggestionView } from "./merge-suggestion";
 
@@ -42,9 +43,11 @@ type Props = {
   onMergeRequest?: () => void;
   onSuggestedMerge?: (keepId: number, fromId: number) => Promise<void>;
   onSuggestionDismiss?: (id: number) => Promise<void>;
+  /** 이어진 활동(S-35)을 누르면 그 활동 세부로 간다 */
+  onOpenActivity: (id: number) => void;
 };
 
-export function ActivityDetailView({ summary, state, now, onClose, onRetry, onActivitySaved, onNoteSaved, onExperienceSaved, onExperienceAdded, onExperienceDelete, onExperienceMove, onDragChange, draggingId, onMergeRequest, onSuggestedMerge, onSuggestionDismiss, readOnly = false }: Props) {
+export function ActivityDetailView({ summary, state, now, onClose, onRetry, onActivitySaved, onNoteSaved, onExperienceSaved, onExperienceAdded, onExperienceDelete, onExperienceMove, onDragChange, draggingId, onMergeRequest, onSuggestedMerge, onSuggestionDismiss, onOpenActivity, readOnly = false }: Props) {
   const [editing, setEditing] = useState(false);
   const activity = state.status === "ready" ? state.activity : null;
   const current = activity ?? summary;
@@ -106,6 +109,7 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
       </header>
 
       {activity && <ActivityNote key={activity.id} activity={activity} readOnly={readOnly} onSaved={onNoteSaved} />}
+      {activity && <ActivityLinks key={`links-${activity.id}`} activity={activity} readOnly={readOnly} onOpenActivity={onOpenActivity} />}
 
       {activity?.mergeSuggestion && !readOnly && onSuggestedMerge && onSuggestionDismiss && (
         <MergeSuggestionView key={`${activity.id}-${activity.mergeSuggestion.activityId}`} activity={activity} suggestion={activity.mergeSuggestion} onMerge={onSuggestedMerge} onDismiss={onSuggestionDismiss} />

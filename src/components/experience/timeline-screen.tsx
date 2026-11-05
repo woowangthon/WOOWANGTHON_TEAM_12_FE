@@ -474,6 +474,7 @@ export function TimelineScreen() {
               draggingId={dragging?.id ?? null}
               onSuggestedMerge={merge}
               onSuggestionDismiss={dismissSuggestion}
+              onOpenActivity={select}
               onMergeRequest={ready.activities.length > 1 ? () => setMergeOpen(true) : undefined}
             />
             </SupplementSourceContext>

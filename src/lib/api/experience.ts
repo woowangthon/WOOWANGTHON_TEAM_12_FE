@@ -7,7 +7,7 @@ import { mockAddedActivities, mockFetchJob, mockRetryJob, mockSubmitSource } fro
 import { ApiError } from "./errors";
 import { isMockMode, request } from "./http";
 import { activityNoteError } from "./editing";
-import type { ActivityDetail, ActivitySummary, Job, SourceRequest, Experience, Supplement, UpdateActivityRequest, UpdateExperienceRequest, CreateExperienceRequest } from "./types";
+import type { ActivityDetail, ActivityLink, ActivitySummary, Job, SourceRequest, Experience, Supplement, UpdateActivityRequest, UpdateExperienceRequest, CreateExperienceRequest } from "./types";
 import { COMPETENCIES, MAX_TEXT_LENGTH, type SourceSubmitted } from "./types";
 
 export { ApiError, isMockMode };
@@ -152,6 +152,16 @@ export async function mergeActivities(keepId: number, fromId: number): Promise<A
 /** S-44 — 제안만 지우며 두 활동은 그대로 둔다. */
 export function dismissMergeSuggestion(id: number): Promise<void> {
   return request(`/activities/${id}/merge-suggestion`, undefined, "DELETE");
+}
+
+/** POST /api/activities/{id}/link-suggestions — 새로 생긴 SUGGESTED 이어짐 0 ~ 3개(S-35). 동기 · 최대 60초 */
+export async function suggestLinks(id: number): Promise<ActivityLink[]> {
+  return (await request<{ links: ActivityLink[] }>(`/activities/${id}/link-suggestions`, undefined, "POST")).links;
+}
+
+/** PATCH /api/activity-links/{id} — 맞아요(CONFIRMED) · 아니에요(REJECTED). 정한 뒤엔 바꿀 수 없다 */
+export function decideLink(id: number, status: "CONFIRMED" | "REJECTED"): Promise<ActivityLink> {
+  return request(`/activity-links/${id}`, { status });
 }
 
 /** PATCH /api/supplements/{id} — 답만 고친다. 경험의 출처 상태는 그대로 (S-24) */
