@@ -4,7 +4,11 @@ import { useRef, useState } from "react";
 import { ArrowDownIcon, ArrowUpIcon, ListChecksIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { CommonQuestionPicker } from "./common-question-picker";
+import { ParseFailureNotice, useApplicationParse } from "./application-parse";
+import { Mascot } from "./chagok-panel";
+import { MAX_PARSE_TEXT_LENGTH, type ParsedApplication } from "@/lib/api/entrance";
 import { ApiError } from "@/lib/api/errors";
+import { isMockMode } from "@/lib/api/http";
 import {
   JOB_ROLE_LABEL, MAX_ORGANIZATION_LENGTH, MAX_QUESTION_LENGTH, MAX_QUESTIONS_PER_SUBMIT, ORGANIZATION_TYPE_LABEL,
   type CreateApplicationRequest, type JobRole, type OrganizationType,
@@ -24,17 +28,27 @@ export function submitErrorMessage(e: unknown, fallback: string) {
   return e instanceof Error ? e.message : fallback;
 }
 
-/** 지원 넣기 — 지원처 이름(선택) + 문항 칸 여러 개. 넣기 전엔 자유롭게 더하고 빼고 순서를 바꾼다(S-18) */
-export function ApplicationForm({ onSubmit, onCancel, initialText = "", onMoveToSource, onSavingChange, moveToSourceDisabled = false }: {
+/** 나누기로 채운 칸의 꼬리표(S-30). 칸 값이 나눈 값과 같을 때만 보여서, 고치면 사라진다 */
+function FilledTag() {
+  return <span className="text-xs font-normal text-muted">{isMockMode() ? "목 규칙으로 채움" : "AI 가 채움"}</span>;
+}
+
+/** 지원 넣기 — 지원처 이름(선택) + 문항 칸 여러 개. 넣기 전엔 자유롭게 더하고 빼고 순서를 바꾼다(S-18).
+ *  공고 · 문항 글을 붙이면 칸을 나눠 채운다(S-30). prefill 은 홈에서 이미 나눈 값, pastedText 는 그 원문이다 */
+export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill, pastedText = "", onMoveToSource, onSavingChange, moveToSourceDisabled = false }: {
   onSubmit: (req: CreateApplicationRequest) => Promise<unknown>; onCancel?: () => void;
-  initialText?: string; onMoveToSource?: (text: string) => void; onSavingChange?: (saving: boolean) => void;
+  initialText?: string; prefill?: ParsedApplication; pastedText?: string;
+  onMoveToSource?: (text: string) => void; onSavingChange?: (saving: boolean) => void;
   moveToSourceDisabled?: boolean;
 }) {
-  const [organization, setOrganization] = useState("");
+  const [organization, setOrganization] = useState(prefill?.organization ?? "");
   // 지원처 종류 · 직무(S-42) — 둘 다 선택. 넣은 뒤에도 지원 화면에서 바꾼다
-  const [organizationType, setOrganizationType] = useState<OrganizationType | "">("");
-  const [jobRole, setJobRole] = useState<JobRole | "">("");
-  const [texts, setTexts] = useState([initialText]);
+  const [organizationType, setOrganizationType] = useState<OrganizationType | "">(prefill?.organizationType ?? "");
+  const [jobRole, setJobRole] = useState<JobRole | "">(prefill?.jobRole ?? "");
+  const [texts, setTexts] = useState(prefill?.questions.length ? prefill.questions.slice(0, MAX_QUESTIONS_PER_SUBMIT) : [prefill ? "" : initialText]);
+  const [paste, setPaste] = useState(pastedText);
+  const [filled, setFilled] = useState<ParsedApplication | null>(prefill ?? null);
+  const parse = useApplicationParse();
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const pending = useRef(false);
@@ -52,8 +66,25 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", onMoveTo
     setError(null);
   };
 
+  // 채우기 — 사용자가 직접 넣은 값은 두고, 비었거나 지난번 나눈 값 그대로인 칸만 바꾼다
+  const mine = (value: string, ai: string | null | undefined) => !!value.trim() && value !== ai;
+  const fill = async () => {
+    const result = await parse.run(paste);
+    if (!result) return;
+    setOrganization(prev => (mine(prev, filled?.organization) ? prev : result.organization ?? ""));
+    setOrganizationType(prev => (mine(prev, filled?.organizationType) ? prev : result.organizationType ?? ""));
+    setJobRole(prev => (mine(prev, filled?.jobRole) ? prev : result.jobRole ?? ""));
+    setTexts(prev => {
+      const next = [...prev.filter(t => mine(t, filled?.questions.find(q => q === t))), ...result.questions].slice(0, MAX_QUESTIONS_PER_SUBMIT);
+      return next.length ? next : [""];
+    });
+    setFilled(result); setError(null);
+  };
+  const noQuestions = !!filled && !filled.questions.length && texts.every(t => !t.trim());
+  const filledAny = !!filled && !!(filled.organization || filled.organizationType || filled.jobRole || filled.questions.length);
+
   return (
-    <form className="grid gap-5" aria-busy={saving} onSubmit={async event => {
+    <form className="grid gap-5" aria-busy={saving || parse.parsing} onSubmit={async event => {
       event.preventDefault();
       if (pending.current) return;
       const blank = texts.findIndex(t => !t.trim());
@@ -71,37 +102,49 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", onMoveTo
     }}>
       <div className="grid gap-1.5">
         <h2 className="m-0 text-[21px] font-[650] tracking-[-0.3px]">어디에 지원하나요?</h2>
-        <p className="m-0 text-sm text-muted">지원서의 문항을 순서대로 넣으면 문항마다 꺼내 볼 경험을 찾아요.</p>
-      </div>
-      <div className="grid gap-2">
-        <span className="text-[13px] font-medium text-muted">예시 문항으로 시작하기</span>
-        <div className="flex flex-wrap gap-2">
-          {EXAMPLES.map(sample => (
-            <Button key={sample.label} type="button" variant="secondary" size="sm" className="min-h-11" disabled={saving} onClick={() => {
-              setOrganization(prev => prev || sample.organization);
-              // 비어 있는 첫 칸에, 없으면 새 칸에
-              setTexts(prev => { const at = prev.findIndex(t => !t.trim()); if (at >= 0) return prev.map((t, j) => (j === at ? sample.text : t)); return prev.length < MAX_QUESTIONS_PER_SUBMIT ? [...prev, sample.text] : prev; });
-              setError(null);
-            }}>{sample.label}</Button>
-          ))}
-        </div>
+        <p className="m-0 text-sm text-muted">공고나 지원서 문항을 그대로 붙여 넣으면 칸을 나눠 채우고, 문항마다 꺼내 볼 경험을 찾아요.</p>
       </div>
       <fieldset disabled={saving} className="m-0 grid min-w-0 gap-5 border-0 p-0">
+        <div className="grid gap-2 rounded-sm bg-surface-soft p-3.5">
+          <label htmlFor="application-paste" className="text-[15px] font-semibold">공고 · 문항 글로 칸 채우기</label>
+          <textarea id="application-paste" autoFocus={!initialText && !prefill} rows={4} value={paste} disabled={parse.parsing} onChange={e => { setPaste(e.target.value); parse.clear(); }} className={`${field} resize-y`} placeholder="예: [OO 부트캠프 백엔드 과정] 1. 기술적인 문제를 해결한 경험을 적어 주세요 (700자) 2. 지원 동기 … 글에 적힌 문항만 찾아요." />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Button type="button" variant={filled ? "secondary" : "default"} className="min-h-11" disabled={parse.parsing || !paste.trim()} onClick={() => void fill()}>{parse.parsing ? "나누는 중…" : "칸 채우기"}</Button>
+            <span className={`text-xs tabular-nums ${paste.length > MAX_PARSE_TEXT_LENGTH ? "text-error" : "text-muted"}`}>{paste.length > 0 && `${paste.length.toLocaleString("ko-KR")} / 20,000`}</span>
+          </div>
+          {parse.parsing && <p role="status" className="m-0 text-sm text-muted">글을 읽고 지원처와 문항을 나누고 있어요…</p>}
+          {parse.failure && <ParseFailureNotice failure={parse.failure} onRetry={() => void fill()} onManual={() => { insert([parse.failure!.text]); parse.clear(); }} />}
+          {noQuestions && <p role="status" className="m-0 text-sm text-body">글에서 문항을 찾지 못했어요. 문항 칸에 직접 넣어 주세요.</p>}
+        </div>
+        {!filled && <div className="grid gap-2">
+          <span className="text-[13px] font-medium text-muted">예시 문항으로 시작하기</span>
+          <div className="flex flex-wrap gap-2">
+            {EXAMPLES.map(sample => (
+              <Button key={sample.label} type="button" variant="secondary" size="sm" className="min-h-11" disabled={saving} onClick={() => {
+                setOrganization(prev => prev || sample.organization);
+                // 비어 있는 첫 칸에, 없으면 새 칸에
+                setTexts(prev => { const at = prev.findIndex(t => !t.trim()); if (at >= 0) return prev.map((t, j) => (j === at ? sample.text : t)); return prev.length < MAX_QUESTIONS_PER_SUBMIT ? [...prev, sample.text] : prev; });
+                setError(null);
+              }}>{sample.label}</Button>
+            ))}
+          </div>
+        </div>}
+        {filledAny && <p className="m-0 flex items-center gap-2 text-[13px] font-semibold text-muted"><Mascot size={18} />{isMockMode() ? "목 모드 — AI 호출 없이 글의 번호 달린 줄만 규칙으로 나눴어요 · 고쳐도 돼요" : "AI 가 나눠 채웠어요 · 고쳐도 돼요"}</p>}
         <label className="grid gap-1.5 text-sm font-medium">
-          지원처 이름 (선택)
+          <span className="flex flex-wrap items-center gap-2">지원처 이름 (선택){filled?.organization && organization === filled.organization && <FilledTag />}</span>
           <input aria-label="지원처 이름 (선택)" autoComplete="organization" maxLength={MAX_ORGANIZATION_LENGTH} value={organization} onChange={e => setOrganization(e.target.value)} className={`${field} min-h-11 py-0`} placeholder="동아리 · 부트캠프 · 대외활동 · 회사 이름" />
           <span className="text-right text-xs font-normal text-muted tabular-nums">{organization.length} / 100</span>
         </label>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="grid gap-1.5 text-sm font-medium">
-            지원처 종류 (선택)
+            <span className="flex flex-wrap items-center gap-2">지원처 종류 (선택){filled?.organizationType && organizationType === filled.organizationType && <FilledTag />}</span>
             <select value={organizationType} onChange={e => setOrganizationType(e.target.value as OrganizationType | "")} className={selectField}>
               <option value="">고르지 않음</option>
               {(Object.keys(ORGANIZATION_TYPE_LABEL) as OrganizationType[]).map(v => <option key={v} value={v}>{ORGANIZATION_TYPE_LABEL[v]}</option>)}
             </select>
           </label>
           <label className="grid gap-1.5 text-sm font-medium">
-            직무 (선택)
+            <span className="flex flex-wrap items-center gap-2">직무 (선택){filled?.jobRole && jobRole === filled.jobRole && <FilledTag />}</span>
             <select value={jobRole} onChange={e => setJobRole(e.target.value as JobRole | "")} className={selectField}>
               <option value="">고르지 않음</option>
               {(Object.keys(JOB_ROLE_LABEL) as JobRole[]).map(v => <option key={v} value={v}>{JOB_ROLE_LABEL[v]}</option>)}
@@ -112,14 +155,17 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", onMoveTo
           {texts.map((text, i) => (
             <li key={i} className="grid gap-1.5">
               <div className="flex items-center justify-between gap-2">
-                <label htmlFor={`question-${i}`} className="text-sm font-medium">문항 {i + 1}</label>
+                <span className="flex flex-wrap items-center gap-2">
+                  <label htmlFor={`question-${i}`} className="text-sm font-medium">문항 {i + 1}</label>
+                  {filled?.questions.includes(text) && <FilledTag />}
+                </span>
                 {texts.length > 1 && <span className="flex gap-0.5">
                   <Button type="button" variant="ghost" size="icon" aria-label={`문항 ${i + 1} 위로`} disabled={i === 0} onClick={() => move(i, i - 1)}><ArrowUpIcon /></Button>
                   <Button type="button" variant="ghost" size="icon" aria-label={`문항 ${i + 1} 아래로`} disabled={i === texts.length - 1} onClick={() => move(i, i + 1)}><ArrowDownIcon /></Button>
                   <Button type="button" variant="ghost" size="icon" aria-label={`문항 ${i + 1} 빼기`} onClick={() => setTexts(prev => prev.filter((_, j) => j !== i))}><XIcon /></Button>
                 </span>}
               </div>
-              <textarea id={`question-${i}`} autoFocus={i === 0} rows={4} maxLength={MAX_QUESTION_LENGTH} value={text} onChange={e => set(i, e.target.value)} className={`${field} resize-y`} placeholder="문항을 붙여 넣어 주세요. 글자 수 · 공고 일부를 함께 넣어도 괜찮아요." />
+              <textarea id={`question-${i}`} autoFocus={i === 0 && !!initialText && !prefill} rows={4} maxLength={MAX_QUESTION_LENGTH} value={text} onChange={e => set(i, e.target.value)} className={`${field} resize-y`} placeholder="문항을 붙여 넣어 주세요. 글자 수 · 공고 일부를 함께 넣어도 괜찮아요." />
               <span className="text-right text-xs font-normal text-muted tabular-nums">{text.length.toLocaleString("ko-KR")} / 5,000</span>
             </li>
           ))}
@@ -133,8 +179,8 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", onMoveTo
       <p className="m-0 text-[13px] text-muted">넣은 뒤엔 문항을 고치지 않아요 — 잘못 넣었으면 그 지원에 새로 더해 주세요.</p>
       {error && <p role="alert" className="m-0 text-sm text-error">{error}</p>}
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" disabled={saving}>{saving ? "지원을 넣고 있어요…" : texts.length > 1 ? `문항 ${texts.length}개 넣고 경험 찾기` : "지원 넣고 경험 찾기"}</Button>
-        {onMoveToSource && <Button type="button" variant="secondary" disabled={saving || moveToSourceDisabled} onClick={() => onMoveToSource(texts.join("\n\n"))}>자료로 쌓기</Button>}
+        <Button type="submit" disabled={saving || parse.parsing}>{saving ? "지원을 넣고 있어요…" : texts.length > 1 ? `문항 ${texts.length}개 넣고 경험 찾기` : "지원 넣고 경험 찾기"}</Button>
+        {onMoveToSource && <Button type="button" variant="secondary" disabled={saving || moveToSourceDisabled} onClick={() => onMoveToSource(paste.trim() ? paste : texts.join("\n\n"))}>자료로 쌓기</Button>}
         {onCancel && <Button type="button" variant="ghost" disabled={saving} onClick={onCancel}>취소</Button>}
       </div>
     </form>

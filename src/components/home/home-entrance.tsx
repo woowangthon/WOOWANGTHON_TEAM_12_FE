@@ -7,11 +7,12 @@ import { ContinueCards, HomeMascot } from "./home-overview";
 import { ModelMenu } from "./model-menu";
 import type { HomeOverview } from "./use-home-overview";
 import { ApplicationForm } from "@/components/questions/application-form";
+import { ParseFailureNotice, useApplicationParse } from "@/components/questions/application-parse";
 import { AddSourceDialog } from "@/components/source/add-source-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ApiError } from "@/lib/api/errors";
-import { ENTRANCE_KINDS, routeEntrance, type EntranceKind } from "@/lib/api/entrance";
+import { ENTRANCE_KINDS, routeEntrance, type EntranceKind, type ParsedApplication } from "@/lib/api/entrance";
 import { isMockMode } from "@/lib/api/http";
 import { submitApplication } from "@/lib/api/questions";
 import { submitSource, type MockAnalysis } from "@/lib/api/experience";
@@ -20,7 +21,7 @@ import { useAuth } from "@/components/auth/auth-gate";
 import { MAX_TEXT_LENGTH } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
-type Destination = { kind: "source" | "application"; text: string };
+type Destination = { kind: "source" | "application"; text: string; prefill?: ParsedApplication };
 const MOCK_LABEL: Record<EntranceKind, string> = { SOURCE: "자료", APPLICATION: "지원", ASK: "한 줄 질문", UNSURE: "애매함" };
 // SAMPLE(home-input-examples): 시안 6의 입력 예시. 칸만 채우며 결과·저장은 만들지 않는다.
 const EXAMPLES = {
@@ -36,7 +37,7 @@ const EXAMPLES = {
   ],
 } as const;
 
-/** 시안 6 홈 — S-28만 연결한다. S-29 · S-30 전의 분기는 entrance-api 계약을 따른다. */
+/** 시안 6 홈 — S-28 · S-30 을 연결한다. S-29 전의 ASK 분기는 entrance-api 계약을 따른다. */
 export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, overview, onRefresh, showMockControls = false }: {
   sourceBusy: boolean; mockAnalysis: MockAnalysis;
   onSourceSubmitted: (job: { jobId: number; name: string }) => void;
@@ -57,11 +58,12 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
   const [readingFile, setReadingFile] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [sourceSubmitting, setSourceSubmitting] = useState(false);
+  const parse = useApplicationParse();
   const fileInput = useRef<HTMLInputElement>(null);
   const fileVersion = useRef(0);
   const pending = useRef(false);
   const tooLong = text.length > MAX_TEXT_LENGTH;
-  const busy = routing || sourceSubmitting || readingFile;
+  const busy = routing || parse.parsing || sourceSubmitting || readingFile;
 
   const pickFile = async (picked: File | undefined) => {
     if (!picked) return;
@@ -88,6 +90,12 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     setError(null);
   };
 
+  /** 지원 나누기 → 칸을 채워 지원 넣기로. 실패하면 오류 · 다시 시도 · 직접 채우기(S-30) */
+  const fillApplication = async (value: string) => {
+    const prefill = await parse.run(value);
+    if (prefill) { setDestination({ kind: "application", text: value, prefill }); setChoosing(false); setError(null); }
+  };
+
   const send = async () => {
     if (pending.current || readingFile || (!file && (!text.trim() || tooLong))) return;
     if (mode === "in" || file) {
@@ -107,7 +115,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     try {
       const result = await routeEntrance(text, showMockControls ? mockKind : "UNSURE");
       if (result.kind === "SOURCE") openDestination("source");
-      else if (result.kind === "APPLICATION") openDestination("application");
+      else if (result.kind === "APPLICATION") await fillApplication(text);
       else setChoosing(true); // ASK도 S-29 전에는 사용자가 고른다.
     } catch (e) {
       setError(e instanceof Error ? e.message : "글을 가르지 못했어요. 다시 시도해 주세요.");
@@ -124,7 +132,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
       <div className="mt-8 rounded-lg border border-hairline bg-canvas pt-4 pr-3.5 pb-3 pl-5.5 shadow-home-input focus-within:border-ink">
         {file && <span className="mb-2 inline-flex max-w-full items-center gap-2 rounded-full bg-surface-soft px-3 py-1 text-xs text-body"><span className="min-w-0 break-all">{file.name} · {file.text.length.toLocaleString("ko-KR")}자</span><button type="button" aria-label="첨부 파일 빼기" disabled={busy} className="flex size-11 shrink-0 items-center justify-center" onClick={() => { ++fileVersion.current; setFile(null); setError(null); }}><XIcon aria-hidden="true" /></button></span>}
         <textarea aria-label="홈에 넣을 글" aria-describedby="entrance-note entrance-length" aria-invalid={tooLong}
-          id="home-text" rows={2} value={text} disabled={busy || !!file} onChange={e => { setText(e.target.value); setChoosing(false); setError(null); }}
+          id="home-text" rows={2} value={text} disabled={busy || !!file} onChange={e => { setText(e.target.value); setChoosing(false); setError(null); parse.clear(); }}
           placeholder={mode === "out" ? "한 줄로 물어보거나, 지원 문항 · 공고를 그대로 붙여 넣어 보세요" : "오늘 한 일 한 줄이나, README · 회고를 붙여 넣어 보세요"}
           className="min-h-14 w-full resize-none border-0 bg-transparent text-base leading-relaxed outline-none placeholder:text-muted-soft focus-visible:outline-none" />
         <div className="mt-3 flex items-center justify-between gap-3">
@@ -152,7 +160,9 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
         {ENTRANCE_KINDS.map(kind => <option key={kind} value={kind}>{MOCK_LABEL[kind]}</option>)}
       </select>
     </label>}
-    {routing && <p role="status" className="mt-4 text-center text-sm text-muted">글을 읽고 자료인지 지원인지 가르고 있어요…</p>}
+    {routing && !parse.parsing && <p role="status" className="mt-4 text-center text-sm text-muted">글을 읽고 자료인지 지원인지 가르고 있어요…</p>}
+    {parse.parsing && <p role="status" className="mt-4 text-center text-sm text-muted">글을 읽고 지원처와 문항을 나누고 있어요…</p>}
+    {parse.failure && <ParseFailureNotice className="mt-4" failure={parse.failure} onRetry={() => void fillApplication(parse.failure!.text)} onManual={() => { openDestination("application", parse.failure!.text); parse.clear(); }} />}
     {tooLong && !file && <p role="alert" className="mt-4 text-sm text-error">한 번에 50,000자까지 넣을 수 있어요. 나눠서 넣어 주세요.</p>}
     {error && <div role="alert" className="mt-4 text-sm text-error">{error} <Button variant="link" disabled={busy || (!file && !text.trim())} onClick={() => void send()}>다시 시도</Button></div>}
     {choosing && <div className="mt-5 rounded-md border border-hairline p-4" aria-label="사용자가 종류 고르기">
@@ -165,8 +175,8 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
       onSubmitted={job => { onSourceSubmitted(job); setText(""); setDestination(null); }} />}
     <Dialog open={destination?.kind === "application"} onOpenChange={open => { if (!open && !saving) setDestination(null); }}>
       <DialogContent>
-        <DialogHeader className="pr-10"><DialogTitle>지원 넣기</DialogTitle><DialogDescription>{destination?.text ? "입력한 글을 문항 하나로 옮겼어요. 지원처와 문항을 확인하고 넣어 주세요." : "지원처와 문항을 넣어 주세요."}</DialogDescription></DialogHeader>
-        {destination?.kind === "application" && <ApplicationForm initialText={destination.text} onSavingChange={setSaving} moveToSourceDisabled={sourceBusy}
+        <DialogHeader className="pr-10"><DialogTitle>지원 넣기</DialogTitle><DialogDescription>{destination?.prefill ? "글에서 나눈 내용으로 칸을 채웠어요. 고친 뒤 넣어 주세요." : destination?.text ? "입력한 글을 문항 하나로 옮겼어요. 지원처와 문항을 확인하고 넣어 주세요." : "지원처와 문항을 넣어 주세요."}</DialogDescription></DialogHeader>
+        {destination?.kind === "application" && <ApplicationForm key={destination.prefill ? "filled" : "plain"} initialText={destination.text} prefill={destination.prefill} pastedText={destination.prefill ? destination.text : ""} onSavingChange={setSaving} moveToSourceDisabled={sourceBusy}
           onMoveToSource={value => openDestination("source", value)} onCancel={() => setDestination(null)}
           onSubmit={async req => { const result = await submitApplication(req); setDestination(null); setText(""); router.push(`/questions?question=${result.questionIds[0]}`); }} />}
       </DialogContent>

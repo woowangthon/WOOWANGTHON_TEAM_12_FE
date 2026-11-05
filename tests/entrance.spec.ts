@@ -2,8 +2,10 @@ import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import type { EntranceKind } from "../src/lib/api/entrance";
 
+const PARSED = { organization: "OO 백엔드 부트캠프 4기", organizationType: "BOOTCAMP", jobRole: "BACKEND", questions: ["협업한 경험을 적어 주세요.", "지원 동기는?"] };
+
 async function setup(page: Page, kind: EntranceKind = "SOURCE", status = 200) {
-  const calls = { routes: [] as { text: string }[], sources: [] as unknown[], applications: [] as unknown[], sourceError: 0 };
+  const calls = { routes: [] as { text: string }[], parses: [] as unknown[], parseStatus: 200, parsed: PARSED as Record<string, unknown>, sources: [] as unknown[], applications: [] as unknown[], sourceError: 0 };
   await page.route("**/api/**", async route => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
@@ -13,6 +15,11 @@ async function setup(page: Page, kind: EntranceKind = "SOURCE", status = 200) {
       calls.routes.push(req.postDataJSON());
       await new Promise(resolve => setTimeout(resolve, 150));
       return route.fulfill({ status, json: status === 200 ? { kind, reason: "시험 분류" } : { error: { code: "AI_FAILED", message: "가르기에 실패했어요." } } });
+    }
+    if (path === "/api/entrance/parse-application") {
+      calls.parses.push(req.postDataJSON());
+      await new Promise(resolve => setTimeout(resolve, 150));
+      return route.fulfill({ status: calls.parseStatus, json: calls.parseStatus === 200 ? calls.parsed : { error: { code: calls.parseStatus === 504 ? "AI_TIMEOUT" : "AI_FAILED", message: "PARSE_FAILED" } } });
     }
     if (path === "/api/sources") {
       calls.sources.push(req.postDataJSON());
@@ -56,16 +63,104 @@ test("자료 분류는 확인 전 저장하지 않고 양쪽 전환에서도 수
   await expect(page.getByLabel("홈에 넣을 글")).toHaveValue("");
 });
 
-test("지원 분류는 전체를 문항 하나로 채우고 사용자가 저장한 뒤 지원으로 이동한다", async ({ page }) => {
+test("지원 분류는 나눈 값으로 칸을 채우고, 고친 칸의 꼬리표를 지우고, 사용자가 넣은 뒤 지원으로 이동한다", async ({ page }) => {
   const calls = await setup(page, "APPLICATION");
   const text = "모집 공고\n1. 협업한 경험을 적어 주세요.\n2. 지원 동기는?";
   await page.getByLabel("홈에 넣을 글").fill(text);
   await page.getByRole("button", { name: "보내기", exact: true }).click();
-  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(text);
+  await expect(page.getByRole("status").filter({ hasText: "나누고 있어요" })).toBeVisible();
+  const dialog = page.getByRole("dialog");
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(PARSED.questions[0]);
+  await expect(page.getByLabel("문항 2", { exact: true })).toHaveValue(PARSED.questions[1]);
+  await expect(page.getByLabel("지원처 이름 (선택)")).toHaveValue(PARSED.organization);
+  await expect(page.getByLabel("지원처 종류 (선택)")).toHaveValue("BOOTCAMP");
+  await expect(page.getByLabel("직무 (선택)")).toHaveValue("BACKEND");
+  await expect(dialog.getByText("AI 가 채움", { exact: true })).toHaveCount(5);
+  await expect(dialog.getByText("AI 가 나눠 채웠어요 · 고쳐도 돼요", { exact: true })).toBeVisible();
+  expect(calls.parses).toEqual([{ text }]);
   expect(calls.applications).toHaveLength(0);
-  await page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true }).click();
+  // 고치면 그 칸만 꼬리표가 사라지고, 순서를 바꿔도 남은 꼬리표는 문항을 따라간다
+  await page.getByLabel("지원처 이름 (선택)").fill("고친 이름");
+  await page.getByLabel("문항 1", { exact: true }).fill("고친 문항");
+  await expect(dialog.getByText("AI 가 채움", { exact: true })).toHaveCount(3);
+  await page.getByRole("button", { name: "문항 2 위로", exact: true }).click();
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(PARSED.questions[1]);
+  await expect(dialog.getByText("AI 가 채움", { exact: true })).toHaveCount(3);
+  await page.getByRole("button", { name: "문항 2개 넣고 경험 찾기", exact: true }).click();
   await expect(page).toHaveURL(/\/questions\?question=41/);
-  expect(calls.applications).toEqual([{ organization: null, questions: [{ text }] }]);
+  expect(calls.applications).toEqual([{ organization: "고친 이름", organizationType: "BOOTCAMP", jobRole: "BACKEND", questions: [{ text: PARSED.questions[1] }, { text: "고친 문항" }] }]);
+});
+
+test("문항을 못 찾으면 입력 글을 문항으로 지어 넣지 않고 빈 칸을 둔다", async ({ page }) => {
+  const calls = await setup(page, "APPLICATION");
+  calls.parsed = { organization: "OO 동아리", organizationType: "CLUB", jobRole: null, questions: [] };
+  await page.getByLabel("홈에 넣을 글").fill("OO 동아리 모집 안내입니다.");
+  await page.getByRole("button", { name: "보내기", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText(/글에서 문항을 찾지 못했어요/)).toBeVisible();
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("");
+  await expect(page.getByLabel("지원처 이름 (선택)")).toHaveValue("OO 동아리");
+  await expect(page.getByLabel("직무 (선택)")).toHaveValue("");
+  await expect(dialog.getByText("AI 가 채움", { exact: true })).toHaveCount(2);
+  // 다른 쪽으로 보낼 땐 원문이 그대로 간다
+  await page.getByRole("button", { name: "자료로 쌓기", exact: true }).click();
+  await expect(page.getByLabel("붙여넣을 자료")).toHaveValue("OO 동아리 모집 안내입니다.");
+});
+
+for (const status of [502, 504]) {
+  test(`나누기 ${status} 면 칸을 채우지 않고 다시 시도 · 직접 채우기를 보인다`, async ({ page }) => {
+    const calls = await setup(page, "APPLICATION");
+    calls.parseStatus = status;
+    const text = "공고 원문";
+    await page.getByLabel("홈에 넣을 글").fill(text);
+    await page.getByRole("button", { name: "보내기", exact: true }).click();
+    const alert = page.getByRole("region", { name: "홈 입력", exact: true }).getByRole("alert");
+    await expect(alert).toContainText("지원처와 문항을 나누");
+    await expect(alert).not.toContainText("PARSE_FAILED");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await page.getByRole("button", { name: "다시 시도", exact: true }).click();
+    await expect.poll(() => calls.parses.length).toBe(2);
+    await expect(alert).toBeVisible();
+    calls.parseStatus = 200;
+    await page.getByRole("button", { name: "다시 시도", exact: true }).click();
+    await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(PARSED.questions[0]);
+    await page.getByRole("button", { name: "취소", exact: true }).click();
+    calls.parseStatus = status;
+    await page.getByRole("button", { name: "보내기", exact: true }).click();
+    await page.getByRole("button", { name: "직접 채우기", exact: true }).click();
+    await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(text);
+    await expect(page.getByRole("dialog").getByText("AI 가 채움", { exact: true })).toHaveCount(0);
+    expect(calls.applications).toHaveLength(0);
+  });
+}
+
+test("지원 넣기 화면에서 공고를 붙여 칸을 채우고, 직접 넣은 칸은 건드리지 않는다", async ({ page }) => {
+  const calls = await setup(page, "UNSURE");
+  await page.getByLabel("홈에 넣을 글").fill("직접 넣은 문항");
+  await page.getByRole("button", { name: "보내기", exact: true }).click();
+  await page.getByRole("button", { name: "지원으로 만들기", exact: true }).click();
+  expect(calls.parses).toHaveLength(0);
+  await expect(page.getByRole("dialog").getByText("AI 가 나눠 채웠어요 · 고쳐도 돼요", { exact: true })).toHaveCount(0);
+  await page.getByLabel("지원처 이름 (선택)").fill("내가 쓴 이름");
+  await page.getByLabel("공고 · 문항 글로 칸 채우기").fill("붙인 공고");
+  await page.getByRole("button", { name: "칸 채우기", exact: true }).click();
+  await expect(page.getByLabel("문항 3", { exact: true })).toHaveValue(PARSED.questions[1]);
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("직접 넣은 문항");
+  await expect(page.getByLabel("지원처 이름 (선택)")).toHaveValue("내가 쓴 이름");
+  await expect(page.getByLabel("지원처 종류 (선택)")).toHaveValue("BOOTCAMP");
+  expect(calls.parses).toEqual([{ text: "붙인 공고" }]);
+  // 다시 채우면 지난번 AI 값은 바뀌고 직접 넣은 칸은 남는다
+  calls.parsed = { organization: null, organizationType: null, jobRole: null, questions: [] };
+  await page.getByRole("button", { name: "칸 채우기", exact: true }).click();
+  await expect(page.getByLabel("문항 2", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("직접 넣은 문항");
+  await expect(page.getByLabel("지원처 종류 (선택)")).toHaveValue("");
+  await expect(page.getByText(/글에서 문항을 찾지 못했어요/)).toHaveCount(0);
+  // 실패면 그 글을 문항 칸으로 옮길 수 있다
+  calls.parseStatus = 502;
+  await page.getByRole("button", { name: "칸 채우기", exact: true }).click();
+  await page.getByRole("button", { name: "직접 채우기", exact: true }).click();
+  await expect(page.getByLabel("문항 2", { exact: true })).toHaveValue("붙인 공고");
 });
 
 for (const result of [{ kind: "ASK", status: 200 }, { kind: "UNSURE", status: 200 }, { kind: "SOURCE", status: 502 }, { kind: "SOURCE", status: 504 }] as const) {
@@ -112,6 +207,7 @@ test("긴 글은 자르지 않고 한도 안내 뒤 자료 쪽으로 그대로 �
   expect(calls.routes).toHaveLength(0);
   const text = "가".repeat(5001);
   await page.getByLabel("홈에 넣을 글").fill(text);
+  calls.parsed = { ...PARSED, questions: [text] };
   await page.getByRole("button", { name: "보내기", exact: true }).click();
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(text);
   await page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true }).click();
@@ -149,6 +245,6 @@ test("실제 API 모드에서는 개발용 주소도 목 선택기를 열지 않
   await expect(page.getByLabel("목 분류 결과")).toHaveCount(0);
   await page.getByLabel("홈에 넣을 글").fill("실제 분류로 보내는 글");
   await page.getByRole("button", { name: "보내기", exact: true }).click();
-  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("실제 분류로 보내는 글");
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(PARSED.questions[0]);
   expect(calls.routes).toEqual([{ text: "실제 분류로 보내는 글" }]);
 });
