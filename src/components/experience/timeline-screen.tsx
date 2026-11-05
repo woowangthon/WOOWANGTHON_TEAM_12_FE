@@ -53,6 +53,7 @@ export function TimelineScreen() {
   const [moving, setMoving] = useState<Experience | null>(null);
   const [mergeOpen, setMergeOpen] = useState(false);
   const detailRequest = useRef(0);
+  const savedNotes = useRef(new Map<number, { note: string | null }>());
   const listRequest = useRef(0);
   const selectedRef = useRef<number | null>(null);
   const listScrollY = useRef(0);
@@ -108,12 +109,15 @@ export function TimelineScreen() {
 
   const loadDetail = (id: number) => {
     const request = ++detailRequest.current;
+    const noteAtRequest = savedNotes.current.get(id);
     setDetail({ status: "loading" });
     fetchActivity(id).then(
       (activity) => {
         if (request !== detailRequest.current) return;
         rememberActivity(id, me?.id);
-        setDetail({ status: "ready", activity: { ...activity, period: periodSaves.current.get(id)?.latest ?? activity.period } });
+        const noteSavedDuringRequest = savedNotes.current.get(id);
+        setDetail({ status: "ready", activity: { ...activity, period: periodSaves.current.get(id)?.latest ?? activity.period,
+          ...(noteSavedDuringRequest !== noteAtRequest && noteSavedDuringRequest ? { note: noteSavedDuringRequest.note } : {}) } });
       },
       (e: Error) => request === detailRequest.current && setDetail({ status: "error", message: e.message }),
     );
@@ -195,6 +199,14 @@ export function TimelineScreen() {
     ++listRequest.current;
     setList((prev) => prev.status === "ready" ? { ...prev, activities: prev.activities.map((a) => a.id === activity.id ? activity : a) } : prev);
     setDetail((prev) => prev.status === "ready" && prev.activity.id === activity.id ? { ...prev, activity: { ...prev.activity, name: activity.name, period: activity.period } } : prev);
+  };
+
+  // note만 반영해 동시에 편집한 이름·기간·경험은 보존한다. 다른 활동으로 옮겨도 해당 ID만 갱신한다.
+  const noteSaved = (activity: ActivitySummary) => {
+    savedNotes.current.set(activity.id, { note: activity.note ?? null });
+    ++listRequest.current;
+    setList(prev => prev.status === "ready" ? { ...prev, activities: prev.activities.map(a => a.id === activity.id ? { ...a, note: activity.note } : a) } : prev);
+    setDetail(prev => prev.status === "ready" && prev.activity.id === activity.id ? { ...prev, activity: { ...prev.activity, note: activity.note } } : prev);
   };
 
   /** 띠는 즉시 반영한다. 같은 활동은 한 요청씩 보내고, 대기 중 변경은 마지막 것만 저장한다(#62). */
@@ -433,6 +445,7 @@ export function TimelineScreen() {
               onClose={close}
               onRetry={() => loadDetail(selected.id)}
               onActivitySaved={activitySaved}
+              onNoteSaved={noteSaved}
               onExperienceSaved={experienceSaved}
               onExperienceAdded={experienceAdded}
               onExperienceDelete={deletion.remove}

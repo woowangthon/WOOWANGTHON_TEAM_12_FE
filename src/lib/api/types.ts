@@ -52,6 +52,8 @@ export type Job = {
 export type MergeSuggestion = { activityId: number; name: string; period: Period };
 
 export type ActivitySummary = {
+  /** S-34. 사용자만 쓰는 계기·생각. 이전 응답/기존 목에는 없을 수 있다. */
+  note?: string | null;
   id: number;
   name: string;
   period: Period;
@@ -93,6 +95,7 @@ export type Supplement = {
 };
 
 export type ActivityDetail = {
+  note?: string | null;
   id: number;
   name: string;
   period: Period;
@@ -100,7 +103,7 @@ export type ActivityDetail = {
   mergeSuggestion?: MergeSuggestion | null;
 };
 
-export type UpdateActivityRequest = { name?: string; period?: Period };
+export type UpdateActivityRequest = { name?: string; period?: Period; note?: string | null };
 // 생략하면 유지하고, [] 를 보내면 역량을 지운다.
 export type UpdateExperienceRequest = { content?: string; competencies?: Competency[]; actor?: Actor };
 export type CreateExperienceRequest = { content: string; competencies?: Competency[]; actor: Actor };
