@@ -95,18 +95,35 @@ export const JOB_ROLE_LABEL: Record<JobRole, string> = {
   OTHER: "기타",
 };
 
+/** 지원 상태(S-36) — contracts README 「값 목록」. 사용자가 붙인 꼬리표 — 합격률 · 개수로 모으지 않고 합격 · 불합격을 색으로 가르지 않는다 */
+export type ApplicationStatus = "WRITING" | "SUBMITTED" | "PASSED" | "NOT_PASSED" | "UNKNOWN";
+export const APPLICATION_STATUS_LABEL: Record<ApplicationStatus, string> = {
+  WRITING: "작성 중",
+  SUBMITTED: "냈음",
+  PASSED: "합격",
+  NOT_PASSED: "불합격",
+  UNKNOWN: "모름",
+};
+
 /** 지원 = 지원처 하나 + 문항 여러 개. `questions` 는 넣은 순서(지원서의 문항 순서) */
 export type Application = {
   id: number; organization: string | null;
   organizationType?: OrganizationType | null; jobRole?: JobRole | null;
+  /** 늘 값이 있다. 새 지원은 WRITING, 사용자가 PATCH 로만 바꾼다 */
+  applicationStatus: ApplicationStatus;
+  /** 낸 달 "YYYY-MM"(S-37). 작성 중이면 null, 벗어날 때 값이 없으면 BE 가 그 달을 붙인다 */
+  submittedMonth: string | null;
   questions: QuestionSummary[]; createdAt: string;
 };
 export type CreateApplicationRequest = {
   organization?: string | null; organizationType?: OrganizationType | null; jobRole?: JobRole | null;
   questions: { text: string }[];
 };
-/** PATCH /api/applications/{id} — 보낸 필드만 바꾸고, null 이면 비운다 */
-export type UpdateApplicationRequest = { organizationType?: OrganizationType | null; jobRole?: JobRole | null };
+/** PATCH /api/applications/{id} — 보낸 필드만 바꾼다. 종류 · 직무는 null 이면 비우고, 상태 · 낸 달은 null 을 받지 않는다 */
+export type UpdateApplicationRequest = {
+  organizationType?: OrganizationType | null; jobRole?: JobRole | null;
+  applicationStatus?: ApplicationStatus; submittedMonth?: string;
+};
 export type ApplicationSubmitted = { applicationId: number; questionIds: number[] };
 export type AddQuestionRequest = { text: string };
 export type QuestionAdded = { questionId: number; status: "ANALYZING" };

@@ -353,6 +353,78 @@ test("a failed type save goes back to the saved value, says why and retries the 
   expect(patches(api)).toEqual([["PATCH /api/applications/21", { jobRole: "FRONTEND" }], ["PATCH /api/applications/21", { jobRole: "FRONTEND" }]]);
 });
 
+test("status tag changes with one choice, the month appears and can be corrected, and all of it survives reload", async ({ page }) => {
+  const api = await fake(page);
+  await page.goto("/questions?question=41");
+  const organization = QUESTION_EXAMPLES[0].organization;
+  const tag = page.locator("#selected-application").getByLabel(`${organization} 지원 상태`);
+  await expect(tag).toHaveValue("WRITING");
+  await expect(page.getByLabel("낸 달 연도")).toHaveCount(0);
+  await tag.selectOption("SUBMITTED");
+  const [year, month] = new Date().toISOString().slice(0, 7).split("-");
+  await expect(page.getByLabel("낸 달 연도")).toHaveValue(year);
+  await expect(page.getByLabel("낸 달 월")).toHaveValue(month);
+  await page.getByLabel("낸 달 연도").selectOption("2025");
+  await expect(page.getByLabel("낸 달 연도")).toHaveValue("2025");
+  await page.getByLabel("낸 달 월").selectOption("02");
+  await expect(page.getByLabel("낸 달 월")).toHaveValue("02");
+  await tag.selectOption("PASSED");
+  await expect(tag).toHaveValue("PASSED");
+  await page.reload();
+  await expect(tag).toHaveValue("PASSED");
+  await expect(page.getByLabel("낸 달 연도")).toHaveValue("2025");
+  await expect(page.getByLabel("낸 달 월")).toHaveValue("02");
+  await expect(page.getByText("2025년 2월 냄").first()).toBeAttached();
+  await tag.selectOption("WRITING");
+  await expect(page.getByLabel("낸 달 연도")).toHaveCount(0);
+  expect(patches(api).map(([, body]) => body)).toEqual([
+    { applicationStatus: "SUBMITTED" }, { submittedMonth: `2025-${month}` }, { submittedMonth: "2025-02" }, { applicationStatus: "PASSED" }, { applicationStatus: "WRITING" },
+  ]);
+  expect(api.statuses.get(21)).toEqual({ applicationStatus: "WRITING", submittedMonth: null });
+});
+
+test("status can be changed from the list without opening that application, and a failed save reverts and retries", async ({ page }) => {
+  const api = await fake(page);
+  await page.goto("/questions?question=41");
+  const otherOrganization = QUESTION_EXAMPLES[1].organization!;
+  const other = page.getByLabel(`${otherOrganization} 지원 상태`).filter({ visible: true });
+  await expect(other).toHaveValue("WRITING");
+  const url = page.url();
+  api.patchDown = true;
+  await other.selectOption("UNKNOWN");
+  const failure = page.getByRole("alert").filter({ hasText: "지원 상태를 저장하지 못했어요" });
+  await expect(failure).toContainText("잠시 뒤 다시 시도해 주세요");
+  await expect(other).toHaveValue("WRITING");
+  api.patchDown = false;
+  await failure.getByRole("button", { name: "다시 시도" }).click();
+  await expect(other).toHaveValue("UNKNOWN");
+  await expect(failure).toHaveCount(0);
+  expect(page.url()).toBe(url);
+  expect(patches(api)).toEqual([["PATCH /api/applications/22", { applicationStatus: "UNKNOWN" }], ["PATCH /api/applications/22", { applicationStatus: "UNKNOWN" }]]);
+});
+
+test("status tags fit every width: 44 touch target, same look for passed and not passed, no sideways scroll", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "폭을 직접 바꾼다");
+  const api = await fake(page);
+  api.statuses.set(21, { applicationStatus: "PASSED", submittedMonth: "2025-02" });
+  api.statuses.set(22, { applicationStatus: "NOT_PASSED", submittedMonth: "2026-11" });
+  for (const width of [1440, 1024, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/questions?question=41");
+    const tags = page.getByLabel("지원 상태").filter({ visible: true });
+    await expect(tags.first()).toBeVisible();
+    await expect(page.getByText("2025년 2월 냄").filter({ visible: true }).first()).toBeVisible();
+    for (const tag of await tags.all()) expect((await tag.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    const look = (label: string) => page.getByLabel(label).filter({ visible: true }).first().locator("xpath=preceding-sibling::span").evaluate(el => {
+      const { backgroundColor, color } = getComputedStyle(el);
+      return { backgroundColor, color };
+    });
+    expect(await look(`${QUESTION_EXAMPLES[0].organization} 지원 상태`)).toEqual(await look(`${QUESTION_EXAMPLES[1].organization} 지원 상태`));
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    if (process.env.UPDATE_STATUS_SCREENSHOTS === "1") await page.screenshot({ path: `docs/fe-96/status-${width}.png`, style: "nextjs-portal { display: none !important; }" });
+  }
+});
+
 test("question type shows the AI reading, can be corrected, and a choice made while analyzing is kept", async ({ page }) => {
   const api = await fake(page);
   await page.goto("/questions?question=41");

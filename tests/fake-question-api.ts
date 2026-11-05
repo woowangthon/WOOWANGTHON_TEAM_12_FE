@@ -1,7 +1,7 @@
 // 시험용 가짜 BE — question-api.md 대로 지원 · 문항 · 되묻기 · 보완과, 추천 활동을 여는 타임라인(활동 7)만 흉내 낸다.
 // 화면이 계약대로 부르고 그 응답을 그대로 그리는지 보려는 것이다. 추천 내용은 계약 예시(문항 41 · 42)를 그대로 쓴다 — AI 판단을 흉내 내지 않는다.
 import type { Page, Route } from "@playwright/test";
-import type { Application, Clarification, JobRole, OrganizationType, QuestionDetail, QuestionSummary } from "../src/lib/api/question-types";
+import type { Application, ApplicationStatus, Clarification, JobRole, OrganizationType, QuestionDetail, QuestionSummary } from "../src/lib/api/question-types";
 import type { ActivityDetail, Supplement } from "../src/lib/api/types";
 import { QUESTION_EXAMPLES } from "./fixtures/question-examples";
 import { DRAFT_EXAMPLE } from "./fixtures/draft-example";
@@ -33,10 +33,12 @@ export class FakeQuestionApi {
   calls: { call: string; body: unknown }[] = [];
   /** 켜 두면 GET /api/applications 가 503 — 불러오기 실패 화면 */
   listDown = false;
-  /** 켜 두면 PATCH(지원처 종류 · 직무 · 문항 유형)가 503 — 저장 실패 */
+  /** 켜 두면 PATCH(지원처 종류 · 직무 · 상태 · 낸 달 · 문항 유형)가 503 — 저장 실패 */
   patchDown = false;
   /** 지원 ID → 지원처 종류 · 직무(S-42) */
   types = new Map<number, { organizationType: OrganizationType | null; jobRole: JobRole | null }>();
+  /** 지원 ID → 상태 · 낸 달(S-36 · S-37). 없으면 새 지원처럼 작성 중 */
+  statuses = new Map<number, { applicationStatus: ApplicationStatus; submittedMonth: string | null }>();
   /** 문항 ID → 앞으로 실패시킬 GET 횟수 — 폴링의 일시 · 연속 연결 실패 */
   questionFailures = new Map<number, number>();
   /** 초안 HTTP 계약 시험 제어. 제품 실행에서는 사용하지 않는다. */
@@ -127,7 +129,8 @@ export class FakeQuestionApi {
     if (!this.applications.has(id)) return null;
     const questions = this.questions.filter(q => q.detail.applicationId === id).map(q => this.summary(q));
     const { organizationType = null, jobRole = null } = this.types.get(id) ?? {};
-    return { id, organization: this.applications.get(id) ?? null, organizationType, jobRole, questions, createdAt: questions[0].createdAt };
+    const { applicationStatus = "WRITING", submittedMonth = null } = this.statuses.get(id) ?? {};
+    return { id, organization: this.applications.get(id) ?? null, organizationType, jobRole, applicationStatus, submittedMonth, questions, createdAt: questions[0].createdAt };
   }
 
   private push(applicationId: number, text: string) {
@@ -167,9 +170,16 @@ export class FakeQuestionApi {
     if ((m = path.match(/^\/api\/applications\/(\d+)$/)) && method === "PATCH") {
       if (this.patchDown) return error(route, 503, "INTERNAL_ERROR", "잠시 뒤 다시 시도해 주세요");
       if (!this.applications.has(+m[1])) return error(route, 404, "APPLICATION_NOT_FOUND");
-      if (!("organizationType" in body) && !("jobRole" in body)) return error(route, 400, "INVALID_REQUEST");
+      const { applicationStatus, submittedMonth, ...types } = body;
+      if (!Object.keys(body).length || applicationStatus === null || submittedMonth === null) return error(route, 400, "INVALID_REQUEST");
+      if (submittedMonth !== undefined && !/^\d{4}-(0[1-9]|1[0-2])$/.test(submittedMonth)) return error(route, 400, "INVALID_REQUEST");
+      // 낸 달 규칙(question-api.md 「지원 Application」) — 작성 중을 벗어날 때 값이 없으면 그 달, 되돌리면 null, 보낸 달이 이긴다
+      const was = this.statuses.get(+m[1]) ?? { applicationStatus: "WRITING" as ApplicationStatus, submittedMonth: null };
+      const next = applicationStatus ?? was.applicationStatus;
+      if (next === "WRITING" && submittedMonth !== undefined) return error(route, 400, "INVALID_REQUEST");
+      this.statuses.set(+m[1], { applicationStatus: next, submittedMonth: next === "WRITING" ? null : submittedMonth ?? was.submittedMonth ?? new Date().toISOString().slice(0, 7) });
       const now = this.types.get(+m[1]) ?? { organizationType: null, jobRole: null };
-      this.types.set(+m[1], { ...now, ...body });
+      this.types.set(+m[1], { ...now, ...types });
       return json(route, this.application(+m[1]));
     }
     if ((m = path.match(/^\/api\/questions\/(\d+)$/)) && method === "PATCH") {

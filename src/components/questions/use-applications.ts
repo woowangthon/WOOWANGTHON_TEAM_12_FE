@@ -248,11 +248,12 @@ export function useApplications() {
       const ids = (ownerOf(state.applications, questionId)?.questions ?? [{ id: questionId }]).map(q => q.id);
       await reloadAfter(async version => commit(version, await Promise.all(ids.map(fetchQuestion)), { keep: new Set(ids) }));
     },
-    /** 지원처 종류 · 직무 바꾸기 · 비우기(S-42) — 추천은 다시 돌지 않아 지원 칸만 바꾼다. 실패는 부르는 쪽(칸)에 던진다 */
+    /** 지원처 종류 · 직무(S-42) · 상태(S-36) · 낸 달(S-37) 바꾸기 — 추천은 다시 돌지 않아 지원 칸만 바꾼다.
+     *  낸 달은 BE 가 상태에 맞춰 정할 수 있어 응답 값을 그대로 옮긴다. 실패는 부르는 쪽(칸)에 던진다 */
     updateApplication: async (applicationId: number, req: UpdateApplicationRequest) => {
       const saved = await updateApplication(applicationId, req);
       setState(prev => ({ ...prev, applications: prev.applications.map(a => a.id === applicationId
-        ? { ...a, organizationType: saved.organizationType ?? null, jobRole: saved.jobRole ?? null } : a) }));
+        ? { ...a, organizationType: saved.organizationType ?? null, jobRole: saved.jobRole ?? null, applicationStatus: saved.applicationStatus, submittedMonth: saved.submittedMonth } : a) }));
     },
     /** 문항 유형 고치기(S-41) — 분석 중 · 실패여도 된다. 먼저 출발한 폴링 응답(옛 유형)은 번호표로 버린다. 실패는 부르는 쪽에 던진다 */
     updateQuestionType: async (questionId: number, questionType: QuestionType) => {
