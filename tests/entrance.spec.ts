@@ -14,7 +14,7 @@ const ASKED = [{
 const PARSED = { organization: "OO 백엔드 부트캠프 4기", organizationType: "BOOTCAMP", jobRole: "BACKEND", questions: ["협업한 경험을 적어 주세요.", "지원 동기는?"] };
 
 async function setup(page: Page, kind: EntranceKind = "SOURCE", status = 200) {
-  const calls = { routes: [] as { text: string }[], parses: [] as unknown[], parseStatus: 200, parsed: PARSED as Record<string, unknown>, sources: [] as unknown[], applications: [] as unknown[], sourceError: 0, asks: [] as unknown[], askStatus: 200, asked: ASKED as unknown[] };
+  const calls = { routes: [] as { text: string }[], parses: [] as unknown[], parseStatus: 200, parseCode: "URL_UNREADABLE", parsed: PARSED as Record<string, unknown>, sources: [] as unknown[], applications: [] as unknown[], sourceError: 0, asks: [] as unknown[], askStatus: 200, asked: ASKED as unknown[] };
   await page.route("**/api/**", async route => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
@@ -28,7 +28,9 @@ async function setup(page: Page, kind: EntranceKind = "SOURCE", status = 200) {
     if (path === "/api/entrance/parse-application") {
       calls.parses.push(req.postDataJSON());
       await new Promise(resolve => setTimeout(resolve, 150));
-      return route.fulfill({ status: calls.parseStatus, json: calls.parseStatus === 200 ? calls.parsed : { error: { code: calls.parseStatus === 504 ? "AI_TIMEOUT" : "AI_FAILED", message: "PARSE_FAILED" } } });
+      return route.fulfill({ status: calls.parseStatus, json: calls.parseStatus === 200 ? calls.parsed
+        : calls.parseStatus === 422 ? { error: { code: calls.parseCode, message: "글이 거의 없는 페이지예요 — 화면을 그림이나 스크립트로 그리는 사이트일 수 있어요." } }
+        : { error: { code: calls.parseStatus === 504 ? "AI_TIMEOUT" : "AI_FAILED", message: "PARSE_FAILED" } } });
     }
     if (path === "/api/ask") {
       calls.asks.push(req.postDataJSON());
@@ -327,3 +329,86 @@ for (const status of [502, 504, 429] as const) {
     expect(calls.asks).toHaveLength(2);
   });
 }
+
+// FE#95 — 공고 링크로 지원 칸 채우기(S-46)
+const LINK = "https://example.com/recruit/1234";
+test("링크만 넣은 홈 입력은 가르지 않고 링크로 칸을 채우고, 넣을 때 원문 링크를 보낸다", async ({ page }) => {
+  const calls = await setup(page, "SOURCE");
+  await page.getByLabel("홈에 넣을 글").fill(`  ${LINK}\n`);
+  await page.getByRole("button", { name: "보내기", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "링크를 읽고" })).toBeVisible();
+  const dialog = page.getByRole("dialog");
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(PARSED.questions[0]);
+  await expect(page.getByLabel("원문 링크 (선택)")).toHaveValue(LINK);
+  await expect(dialog.getByText("링크를 읽어 AI 가 나눠 채웠어요 · 고쳐도 돼요", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("AI 가 채움", { exact: true })).toHaveCount(5);
+  expect(calls.routes).toHaveLength(0);
+  expect(calls.parses).toEqual([{ url: LINK }]);
+  await page.screenshot({ path: `artifacts/posting-link-filled-${test.info().project.name}.png` });
+  await page.getByRole("button", { name: "문항 2개 넣고 경험 찾기", exact: true }).click();
+  await expect(page).toHaveURL(/\/questions\?question=41/);
+  expect(calls.applications).toEqual([{ organization: PARSED.organization, organizationType: "BOOTCAMP", jobRole: "BACKEND", postingUrl: LINK, questions: PARSED.questions.map(text => ({ text })) }]);
+});
+
+test("링크와 다른 글이 섞이면 지금처럼 가르기로 보낸다", async ({ page }) => {
+  const calls = await setup(page, "APPLICATION");
+  const text = `이 공고 봐 줘 ${LINK}`;
+  await page.getByLabel("홈에 넣을 글").fill(text);
+  await page.getByRole("button", { name: "보내기", exact: true }).click();
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(PARSED.questions[0]);
+  expect(calls.routes).toEqual([{ text }]);
+  expect(calls.parses).toEqual([{ text }]);
+  await expect(page.getByLabel("원문 링크 (선택)")).toHaveValue("");
+});
+
+for (const code of ["URL_UNREADABLE", "URL_BLOCKED"]) {
+  test(`링크를 못 읽으면(${code}) 칸을 채우지 않고 링크를 남긴 채 본문 붙여 넣기로 잇는다`, async ({ page }) => {
+    const calls = await setup(page);
+    calls.parseStatus = 422; calls.parseCode = code;
+    await page.getByLabel("홈에 넣을 글").fill(LINK);
+    await page.getByRole("button", { name: "보내기", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    const alert = dialog.getByRole("alert");
+    await expect(alert).toContainText("이 링크는 읽지 못했어요 — 공고 본문을 붙여 넣어 주세요");
+    await expect(alert).toContainText("글이 거의 없는 페이지예요");
+    await expect(page.getByLabel("원문 링크 (선택)")).toHaveValue(LINK);
+    await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("");
+    await expect(dialog.getByText("AI 가 채움", { exact: true })).toHaveCount(0);
+    await expect(dialog.getByRole("button", { name: "다시 시도", exact: true })).toHaveCount(code === "URL_UNREADABLE" ? 1 : 0);
+    if (code === "URL_UNREADABLE") await page.screenshot({ path: `artifacts/posting-link-unreadable-${test.info().project.name}.png` });
+    if (code === "URL_UNREADABLE") {
+      await dialog.getByRole("button", { name: "다시 시도", exact: true }).click();
+      await expect.poll(() => calls.parses.length).toBe(2);
+      await expect(alert).toContainText("이 링크는 읽지 못했어요");
+    }
+    await dialog.getByRole("button", { name: "본문 붙여 넣기", exact: true }).click();
+    await expect(page.getByLabel("공고 · 문항 글로 칸 채우기")).toBeFocused();
+    calls.parseStatus = 200;
+    await page.getByLabel("공고 · 문항 글로 칸 채우기").fill("붙인 공고 본문");
+    await page.getByRole("button", { name: "칸 채우기", exact: true }).click();
+    await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(PARSED.questions[0]);
+    expect(calls.parses.at(-1)).toEqual({ text: "붙인 공고 본문" });
+    expect(calls.routes).toHaveLength(0);
+    await page.getByRole("button", { name: "문항 2개 넣고 경험 찾기", exact: true }).click();
+    await expect(page).toHaveURL(/\/questions\?question=41/);
+    expect((calls.applications[0] as { postingUrl: string }).postingUrl).toBe(LINK);
+  });
+}
+
+test("링크에서 문항을 못 찾으면 지원 양식 안내와 붙여 넣기를 보인다 · 지원 넣기 화면의 링크 칸으로도 채운다", async ({ page }) => {
+  const calls = await setup(page, "UNSURE");
+  calls.parsed = { organization: "OO 연합 동아리", organizationType: "CLUB", jobRole: null, questions: [] };
+  await page.getByLabel("홈에 넣을 글").fill("직접 넣은 문항");
+  await page.getByRole("button", { name: "보내기", exact: true }).click();
+  await page.getByRole("button", { name: "지원으로 만들기", exact: true }).click();
+  await page.getByLabel("원문 링크 (선택)").fill(LINK);
+  await page.getByRole("button", { name: "링크로 칸 채우기", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(page.getByLabel("지원처 이름 (선택)")).toHaveValue("OO 연합 동아리");
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("직접 넣은 문항");
+  expect(calls.parses).toEqual([{ url: LINK }]);
+  // 직접 넣은 문항이 있으면 「못 찾음」은 문항 칸이 비었을 때만 — 비우면 보인다
+  await page.getByLabel("문항 1", { exact: true }).fill("");
+  await expect(dialog.getByText(/링크에서 문항을 찾지 못했어요 — 문항이 지원 양식\(구글폼 등\) 안에 있을 수 있어요/)).toBeVisible();
+  await expect(page.getByLabel("공고 · 문항 글로 칸 채우기")).toBeVisible();
+});

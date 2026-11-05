@@ -1,12 +1,12 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ArrowDownIcon, ArrowUpIcon, ListChecksIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
+import { ArrowDownIcon, ArrowUpIcon, LinkIcon, ListChecksIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { CommonQuestionPicker } from "./common-question-picker";
-import { ParseFailureNotice, useApplicationParse } from "./application-parse";
+import { ParseFailureNotice, useApplicationParse, type ParseFailure, type ParseInput } from "./application-parse";
 import { Mascot } from "./chagok-panel";
-import { MAX_PARSE_TEXT_LENGTH, type ParsedApplication } from "@/lib/api/entrance";
+import { isPostingUrl, MAX_PARSE_TEXT_LENGTH, MAX_POSTING_URL_LENGTH, type ParsedApplication } from "@/lib/api/entrance";
 import { ApiError } from "@/lib/api/errors";
 import { isMockMode } from "@/lib/api/http";
 import {
@@ -34,10 +34,12 @@ function FilledTag() {
 }
 
 /** 지원 넣기 — 지원처 이름(선택) + 문항 칸 여러 개. 넣기 전엔 자유롭게 더하고 빼고 순서를 바꾼다(S-18).
- *  공고 · 문항 글을 붙이면 칸을 나눠 채운다(S-30). prefill 은 홈에서 이미 나눈 값, pastedText 는 그 원문이다 */
-export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill, pastedText = "", onMoveToSource, onSavingChange, moveToSourceDisabled = false }: {
+ *  공고 · 문항 글(S-30)이나 공고 링크(S-46)로 칸을 나눠 채운다. prefill 은 홈에서 이미 나눈 값, pastedText 는 그 원문,
+ *  initialUrl 은 홈에 넣은 링크(원문 링크 칸에 남긴다), initialFailure 는 홈에서 그 링크를 못 읽은 결과다 */
+export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill, pastedText = "", initialUrl = "", initialFailure = null, onMoveToSource, onSavingChange, moveToSourceDisabled = false }: {
   onSubmit: (req: CreateApplicationRequest) => Promise<unknown>; onCancel?: () => void;
   initialText?: string; prefill?: ParsedApplication; pastedText?: string;
+  initialUrl?: string; initialFailure?: ParseFailure | null;
   onMoveToSource?: (text: string) => void; onSavingChange?: (saving: boolean) => void;
   moveToSourceDisabled?: boolean;
 }) {
@@ -48,7 +50,12 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
   const [texts, setTexts] = useState(prefill?.questions.length ? prefill.questions.slice(0, MAX_QUESTIONS_PER_SUBMIT) : [prefill ? "" : initialText]);
   const [paste, setPaste] = useState(pastedText);
   const [filled, setFilled] = useState<ParsedApplication | null>(prefill ?? null);
-  const parse = useApplicationParse();
+  // 원문 링크(S-46) — 링크로 채우는 데 쓰고, 넣을 때 postingUrl 로 보낸다. 못 읽어도 지우지 않는다
+  const [postingUrl, setPostingUrl] = useState(initialUrl);
+  const [filledFrom, setFilledFrom] = useState<"url" | "text" | null>(prefill ? (initialUrl ? "url" : "text") : null);
+  const [reading, setReading] = useState<"url" | "text">("text");
+  const parse = useApplicationParse(initialFailure);
+  const pasteBox = useRef<HTMLTextAreaElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const pending = useRef(false);
@@ -68,9 +75,11 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
 
   // 채우기 — 사용자가 직접 넣은 값은 두고, 비었거나 지난번 나눈 값 그대로인 칸만 바꾼다
   const mine = (value: string, ai: string | null | undefined) => !!value.trim() && value !== ai;
-  const fill = async () => {
-    const result = await parse.run(paste);
-    if (!result) return;
+  const fill = async (input: ParseInput) => {
+    setReading("url" in input ? "url" : "text");
+    const outcome = await parse.run(input);
+    if (!outcome || !("parsed" in outcome)) return;
+    const result = outcome.parsed;
     setOrganization(prev => (mine(prev, filled?.organization) ? prev : result.organization ?? ""));
     setOrganizationType(prev => (mine(prev, filled?.organizationType) ? prev : result.organizationType ?? ""));
     setJobRole(prev => (mine(prev, filled?.jobRole) ? prev : result.jobRole ?? ""));
@@ -78,8 +87,10 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
       const next = [...prev.filter(t => mine(t, filled?.questions.find(q => q === t))), ...result.questions].slice(0, MAX_QUESTIONS_PER_SUBMIT);
       return next.length ? next : [""];
     });
-    setFilled(result); setError(null);
+    setFilled(result); setFilledFrom("url" in input ? "url" : "text"); setError(null);
   };
+  const urlTrimmed = postingUrl.trim();
+  const urlInvalid = !!urlTrimmed && !isPostingUrl(urlTrimmed);
   const noQuestions = !!filled && !filled.questions.length && texts.every(t => !t.trim());
   const filledAny = !!filled && !!(filled.organization || filled.organizationType || filled.jobRole || filled.questions.length);
 
@@ -92,10 +103,11 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
       if (texts.some(t => t.length > MAX_QUESTION_LENGTH) || organization.length > MAX_ORGANIZATION_LENGTH) {
         setError("지원처는 100자, 문항은 5,000자까지 입력할 수 있어요."); return;
       }
+      if (urlInvalid) { setError("원문 링크는 http:// 나 https:// 로 시작하는 주소 하나여야 해요. 고치거나 비워 주세요."); return; }
       pending.current = true; setSaving(true); setError(null);
       onSavingChange?.(true);
       // 고른 칸만 싣는다 — 비운 칸은 보내지 않는다(없거나 null 이면 비움, question-api.md)
-      const types = { ...(organizationType && { organizationType }), ...(jobRole && { jobRole }) };
+      const types = { ...(organizationType && { organizationType }), ...(jobRole && { jobRole }), ...(urlTrimmed && { postingUrl: urlTrimmed }) };
       try { await onSubmit({ organization: organization.trim() || null, ...types, questions: texts.map(text => ({ text })) }); }
       catch (e) { setError(submitErrorMessage(e, "지원을 넣지 못했어요.")); }
       finally { pending.current = false; setSaving(false); onSavingChange?.(false); }
@@ -105,16 +117,31 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
         <p className="m-0 text-sm text-muted">공고나 지원서 문항을 그대로 붙여 넣으면 칸을 나눠 채우고, 문항마다 꺼내 볼 경험을 찾아요.</p>
       </div>
       <fieldset disabled={saving} className="m-0 grid min-w-0 gap-5 border-0 p-0">
-        <div className="grid gap-2 rounded-sm bg-surface-soft p-3.5">
-          <label htmlFor="application-paste" className="text-[15px] font-semibold">공고 · 문항 글로 칸 채우기</label>
-          <textarea id="application-paste" autoFocus={!initialText && !prefill} rows={4} value={paste} disabled={parse.parsing} onChange={e => { setPaste(e.target.value); parse.clear(); }} className={`${field} resize-y`} placeholder="예: [OO 부트캠프 백엔드 과정] 1. 기술적인 문제를 해결한 경험을 적어 주세요 (700자) 2. 지원 동기 … 글에 적힌 문항만 찾아요." />
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <Button type="button" variant={filled ? "secondary" : "default"} className="min-h-11" disabled={parse.parsing || !paste.trim()} onClick={() => void fill()}>{parse.parsing ? "나누는 중…" : "칸 채우기"}</Button>
-            <span className={`text-xs tabular-nums ${paste.length > MAX_PARSE_TEXT_LENGTH ? "text-error" : "text-muted"}`}>{paste.length > 0 && `${paste.length.toLocaleString("ko-KR")} / 20,000`}</span>
+        <div className="grid gap-3 rounded-sm bg-surface-soft p-3.5">
+          <div className="grid gap-2">
+            <label htmlFor="application-url" className="flex items-center gap-1.5 text-[15px] font-semibold"><LinkIcon aria-hidden="true" />원문 링크 (선택)</label>
+            <div className="flex flex-wrap gap-2">
+              <input id="application-url" type="url" inputMode="url" autoComplete="url" maxLength={MAX_POSTING_URL_LENGTH} value={postingUrl} disabled={parse.parsing} aria-invalid={urlInvalid}
+                aria-describedby="application-url-note" onChange={e => { setPostingUrl(e.target.value); if (parse.failure && "url" in parse.failure.input) parse.clear(); }}
+                className={`${field} min-h-11 min-w-0 flex-1 basis-60 py-0`} placeholder="https://… 공고 페이지 주소" />
+              <Button type="button" variant={filledFrom === "url" ? "secondary" : "default"} className="min-h-11" disabled={parse.parsing || !urlTrimmed || urlInvalid} onClick={() => void fill({ url: urlTrimmed })}>{parse.parsing && reading === "url" ? "읽는 중…" : "링크로 칸 채우기"}</Button>
+            </div>
+            <p id="application-url-note" className={`m-0 text-xs ${urlInvalid ? "text-error" : "text-muted"}`}>{urlInvalid ? "http:// 나 https:// 로 시작하는 주소 하나를 넣어 주세요." : "링크를 한 번 읽어 칸을 채우고, 넣은 지원에서 원문을 열 수 있게 남겨요. 읽은 본문은 저장하지 않아요."}</p>
           </div>
-          {parse.parsing && <p role="status" className="m-0 text-sm text-muted">글을 읽고 지원처와 문항을 나누고 있어요…</p>}
-          {parse.failure && <ParseFailureNotice failure={parse.failure} onRetry={() => void fill()} onManual={() => { insert([parse.failure!.text]); parse.clear(); }} />}
-          {noQuestions && <p role="status" className="m-0 text-sm text-body">글에서 문항을 찾지 못했어요. 문항 칸에 직접 넣어 주세요.</p>}
+          <div className="grid gap-2 border-t border-hairline pt-3">
+            <label htmlFor="application-paste" className="text-[15px] font-semibold">공고 · 문항 글로 칸 채우기</label>
+            <textarea ref={pasteBox} id="application-paste" autoFocus={!initialText && !prefill && !initialUrl} rows={4} value={paste} disabled={parse.parsing} onChange={e => { setPaste(e.target.value); if (parse.failure && "text" in parse.failure.input) parse.clear(); }} className={`${field} resize-y`} placeholder="예: [OO 부트캠프 백엔드 과정] 1. 기술적인 문제를 해결한 경험을 적어 주세요 (700자) 2. 지원 동기 … 글에 적힌 문항만 찾아요." />
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Button type="button" variant={filledFrom === "text" ? "secondary" : "default"} className="min-h-11" disabled={parse.parsing || !paste.trim()} onClick={() => void fill({ text: paste })}>{parse.parsing && reading === "text" ? "나누는 중…" : "칸 채우기"}</Button>
+              <span className={`text-xs tabular-nums ${paste.length > MAX_PARSE_TEXT_LENGTH ? "text-error" : "text-muted"}`}>{paste.length > 0 && `${paste.length.toLocaleString("ko-KR")} / 20,000`}</span>
+            </div>
+          </div>
+          {parse.parsing && <p role="status" className="m-0 text-sm text-muted">{reading === "url" ? "링크를 읽고 지원처와 문항을 나누고 있어요…" : "글을 읽고 지원처와 문항을 나누고 있어요…"}</p>}
+          {parse.failure && <ParseFailureNotice failure={parse.failure} onRetry={() => void fill(parse.failure!.input)}
+            onManual={() => { const input = parse.failure!.input; if ("text" in input) { insert([input.text]); parse.clear(); } else pasteBox.current?.focus(); }} />}
+          {noQuestions && (filledFrom === "url"
+            ? <p role="status" className="m-0 text-sm text-body">링크에서 문항을 찾지 못했어요 — 문항이 지원 양식(구글폼 등) 안에 있을 수 있어요. 공고 본문이나 문항을 위 칸에 붙여 넣고 「칸 채우기」를 눌러 주세요.</p>
+            : <p role="status" className="m-0 text-sm text-body">글에서 문항을 찾지 못했어요. 문항 칸에 직접 넣어 주세요.</p>)}
         </div>
         {!filled && <div className="grid gap-2">
           <span className="text-[13px] font-medium text-muted">예시 문항으로 시작하기</span>
@@ -129,7 +156,7 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
             ))}
           </div>
         </div>}
-        {filledAny && <p className="m-0 flex items-center gap-2 text-[13px] font-semibold text-muted"><Mascot size={18} />{isMockMode() ? "목 모드 — AI 호출 없이 글의 번호 달린 줄만 규칙으로 나눴어요 · 고쳐도 돼요" : "AI 가 나눠 채웠어요 · 고쳐도 돼요"}</p>}
+        {filledAny && <p className="m-0 flex items-center gap-2 text-[13px] font-semibold text-muted"><Mascot size={18} />{isMockMode() ? (filledFrom === "url" ? "목 모드 — 링크를 읽지 않고 예시 공고로 채웠어요 · 고쳐도 돼요" : "목 모드 — AI 호출 없이 글의 번호 달린 줄만 규칙으로 나눴어요 · 고쳐도 돼요") : filledFrom === "url" ? "링크를 읽어 AI 가 나눠 채웠어요 · 고쳐도 돼요" : "AI 가 나눠 채웠어요 · 고쳐도 돼요"}</p>}
         <label className="grid gap-1.5 text-sm font-medium">
           <span className="flex flex-wrap items-center gap-2">지원처 이름 (선택){filled?.organization && organization === filled.organization && <FilledTag />}</span>
           <input aria-label="지원처 이름 (선택)" autoComplete="organization" maxLength={MAX_ORGANIZATION_LENGTH} value={organization} onChange={e => setOrganization(e.target.value)} className={`${field} min-h-11 py-0`} placeholder="동아리 · 부트캠프 · 대외활동 · 회사 이름" />

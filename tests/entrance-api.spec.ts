@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { ENTRANCE_KINDS, parseApplication, routeEntrance } from "../src/lib/api/entrance";
+import { ENTRANCE_KINDS, parseApplication, routeEntrance, singleLink } from "../src/lib/api/entrance";
 import { thisTimeLastYear } from "../src/lib/home-overview";
 import type { ActivityDetail, Period } from "../src/lib/api/types";
 
@@ -72,4 +72,29 @@ test("작년 이맘때는 월을 모르는 기간을 추측하지 않고 겹치�
   expect(thisTimeLastYear([unknown, unknownEnd], now)).toBeNull();
   expect(thisTimeLastYear([unknown, unknownEnd, old, recent], now)?.id).toBe(4);
   expect(thisTimeLastYear([activity(5, { start: "2026-01", end: null, ongoing: true })], now)).toBeNull();
+});
+
+test("공고 링크는 url 하나로 POST 하고 422 를 그대로 올리며, 링크 하나뿐인 입력만 링크로 본다 (S-46)", async () => {
+  expect(singleLink("  https://example.com/recruit/1?a=b \n")).toBe("https://example.com/recruit/1?a=b");
+  for (const text of ["공고 https://example.com", "https://a.com https://b.com", "ftp://example.com", "https://", `https://e.com/${"a".repeat(2000)}`]) expect(singleLink(text)).toBeNull();
+  process.env.NEXT_PUBLIC_API_BASE_URL = "https://backend.example/api/";
+  globalThis.fetch = async (url, options) => {
+    expect(String(url)).toBe("https://backend.example/api/entrance/parse-application");
+    expect(options).toMatchObject({ method: "POST", body: JSON.stringify({ url: "https://example.com/r" }) });
+    return Response.json({ organization: null, organizationType: null, jobRole: null, questions: [] });
+  };
+  expect((await parseApplication({ url: " https://example.com/r " })).questions).toEqual([]);
+  globalThis.fetch = async () => Response.json({ error: { code: "URL_BLOCKED", message: "막아 두었어요" } }, { status: 422 });
+  await expect(parseApplication({ url: "https://example.com/r" })).rejects.toMatchObject({ status: 422, code: "URL_BLOCKED", message: "막아 두었어요" });
+  globalThis.fetch = async () => { throw new Error("unexpected HTTP"); };
+  await expect(parseApplication({ url: "javascript:alert(1)" })).rejects.toMatchObject({ code: "INVALID_URL" });
+});
+
+test("목 링크 읽기는 주소 낱말로 상태만 고르고 네트워크를 쓰지 않는다", async () => {
+  delete process.env.NEXT_PUBLIC_API_BASE_URL;
+  globalThis.fetch = async () => { throw new Error("unexpected HTTP"); };
+  expect((await parseApplication({ url: "https://example.com/recruit" })).questions).toHaveLength(2);
+  expect((await parseApplication({ url: "https://example.com/form" })).questions).toEqual([]);
+  await expect(parseApplication({ url: "https://example.com/blocked" })).rejects.toMatchObject({ status: 422, code: "URL_BLOCKED" });
+  await expect(parseApplication({ url: "https://example.com/unreadable" })).rejects.toMatchObject({ status: 422, code: "URL_UNREADABLE" });
 });

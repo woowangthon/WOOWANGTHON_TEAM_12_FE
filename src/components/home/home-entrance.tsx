@@ -8,12 +8,12 @@ import { ModelMenu } from "./model-menu";
 import { AskAnswer, AskFailureNotice, type AskAnswerState, type AskFailure } from "./ask-answer";
 import type { HomeOverview } from "./use-home-overview";
 import { ApplicationForm } from "@/components/questions/application-form";
-import { ParseFailureNotice, useApplicationParse } from "@/components/questions/application-parse";
+import { ParseFailureNotice, useApplicationParse, type ParseFailure } from "@/components/questions/application-parse";
 import { AddSourceDialog } from "@/components/source/add-source-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ApiError } from "@/lib/api/errors";
-import { askExperiences, ENTRANCE_KINDS, routeEntrance, type EntranceKind, type ParsedApplication } from "@/lib/api/entrance";
+import { askExperiences, ENTRANCE_KINDS, routeEntrance, singleLink, type EntranceKind, type ParsedApplication } from "@/lib/api/entrance";
 import { isMockMode } from "@/lib/api/http";
 import { submitApplication } from "@/lib/api/questions";
 import { submitSource, type MockAnalysis } from "@/lib/api/experience";
@@ -24,7 +24,8 @@ import { MAX_TEXT_LENGTH } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 import type { MockAskResult } from "@/lib/mock/ask";
 
-type Destination = { kind: "source" | "application"; text: string; prefill?: ParsedApplication };
+/** url · failure: 링크만 넣은 홈 입력(S-46) — 원문 링크 칸에 남기고, 못 읽었으면 그 결과를 지원 넣기에서 보인다 */
+type Destination = { kind: "source" | "application"; text: string; prefill?: ParsedApplication; url?: string; failure?: ParseFailure };
 const MOCK_LABEL: Record<EntranceKind, string> = { SOURCE: "자료", APPLICATION: "지원", ASK: "한 줄 질문", UNSURE: "애매함" };
 // SAMPLE(home-input-examples): 시안 6의 입력 예시. 칸만 채우며 결과·저장은 만들지 않는다.
 const EXAMPLES = {
@@ -97,8 +98,18 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
 
   /** 지원 나누기 → 칸을 채워 지원 넣기로. 실패하면 오류 · 다시 시도 · 직접 채우기(S-30) */
   const fillApplication = async (value: string) => {
-    const prefill = await parse.run(value);
-    if (prefill) { setDestination({ kind: "application", text: value, prefill }); setChoosing(false); setError(null); }
+    const outcome = await parse.run({ text: value });
+    if (outcome && "parsed" in outcome) { setDestination({ kind: "application", text: value, prefill: outcome.parsed }); setChoosing(false); setError(null); }
+  };
+
+  /** S-46 링크만 넣은 홈 입력 — 가르기 없이 링크로 나눈다. 못 읽으면(422) 지원 넣기로 가서 원문 링크를 두고 본문 붙여 넣기로 잇는다 */
+  const fillFromLink = async (url: string) => {
+    const outcome = await parse.run({ url });
+    if (!outcome) return;
+    if ("parsed" in outcome) setDestination({ kind: "application", text: "", url, prefill: outcome.parsed });
+    else if (outcome.failure.linkUnreadable) { setDestination({ kind: "application", text: "", url, failure: outcome.failure }); parse.clear(); }
+    else return;
+    setChoosing(false); setError(null);
   };
 
   /** S-29 꺼내기 — 한 번 묻고 경험 카드로 답한다. 실패는 정해진 답으로 채우지 않는다 */
@@ -132,6 +143,12 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
       finally { pending.current = false; setSourceSubmitting(false); }
       return;
     }
+    const link = singleLink(text);
+    if (link) {
+      pending.current = true; setError(null); setChoosing(false); setAnswer(null); setAskFailure(null);
+      try { await fillFromLink(link); } finally { pending.current = false; }
+      return;
+    }
     pending.current = true;
     setRouting(true); setError(null); setChoosing(false); setAnswer(null); setAskFailure(null);
     try {
@@ -156,7 +173,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
         {file && <span className="mb-2 inline-flex max-w-full items-center gap-2 rounded-full bg-surface-soft px-3 py-1 text-xs text-body"><span className="min-w-0 break-all">{file.name} · {file.text.length.toLocaleString("ko-KR")}자</span><button type="button" aria-label="첨부 파일 빼기" disabled={busy} className="flex size-11 shrink-0 items-center justify-center" onClick={() => { ++fileVersion.current; setFile(null); setError(null); }}><XIcon aria-hidden="true" /></button></span>}
         <textarea aria-label="홈에 넣을 글" aria-describedby="entrance-note entrance-length" aria-invalid={tooLong}
           id="home-text" rows={2} value={text} disabled={busy || !!file} onChange={e => { setText(e.target.value); setChoosing(false); setError(null); parse.clear(); }}
-          placeholder={mode === "out" ? "한 줄로 물어보거나, 지원 문항 · 공고를 그대로 붙여 넣어 보세요" : "오늘 한 일 한 줄이나, README · 회고를 붙여 넣어 보세요"}
+          placeholder={mode === "out" ? "한 줄로 물어보거나, 지원 문항 · 공고(링크도 돼요)를 그대로 붙여 넣어 보세요" : "오늘 한 일 한 줄이나, README · 회고를 붙여 넣어 보세요"}
           className="min-h-14 w-full resize-none border-0 bg-transparent text-base leading-relaxed outline-none placeholder:text-muted-soft focus-visible:outline-none" />
         <div className="mt-3 flex items-center justify-between gap-3">
           <input ref={fileInput} type="file" accept={SOURCE_FILE_ACCEPT} aria-label="홈 첨부 파일" className="sr-only" disabled={busy || sourceBusy} onChange={e => { void pickFile(e.target.files?.[0]); e.target.value = ""; }} />
@@ -194,8 +211,15 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     {answer && <AskAnswer answer={answer} busy={busy} onMakeApplication={() => makeApplication(answer.text)} />}
     {askFailure && <AskFailureNotice failure={askFailure} busy={busy} onRetry={() => void ask(askFailure.text)} onMakeApplication={() => makeApplication(askFailure.text)} />}
     {routing && !parse.parsing && !asking && <p role="status" className="mt-4 text-center text-sm text-muted">글을 읽고 자료인지 지원인지 가르고 있어요…</p>}
-    {parse.parsing && <p role="status" className="mt-4 text-center text-sm text-muted">글을 읽고 지원처와 문항을 나누고 있어요…</p>}
-    {parse.failure && <ParseFailureNotice className="mt-4" failure={parse.failure} onRetry={() => void fillApplication(parse.failure!.text)} onManual={() => { openDestination("application", parse.failure!.text); parse.clear(); }} />}
+    {parse.parsing && <p role="status" className="mt-4 text-center text-sm text-muted">{singleLink(text) ? "링크를 읽고 지원처와 문항을 나누고 있어요…" : "글을 읽고 지원처와 문항을 나누고 있어요…"}</p>}
+    {parse.failure && <ParseFailureNotice className="mt-4" failure={parse.failure}
+      onRetry={() => { const input = parse.failure!.input; void ("url" in input ? fillFromLink(input.url) : fillApplication(input.text)); }}
+      onManual={() => {
+        const input = parse.failure!.input;
+        if ("url" in input) { setDestination({ kind: "application", text: "", url: input.url }); setChoosing(false); setError(null); }
+        else openDestination("application", input.text);
+        parse.clear();
+      }} />}
     {tooLong && !file && <p role="alert" className="mt-4 text-sm text-error">한 번에 50,000자까지 넣을 수 있어요. 나눠서 넣어 주세요.</p>}
     {error && <div role="alert" className="mt-4 text-sm text-error">{error} <Button variant="link" disabled={busy || (!file && !text.trim())} onClick={() => void send()}>다시 시도</Button></div>}
     {choosing && <div className="mt-5 rounded-md border border-hairline p-4" aria-label="사용자가 종류 고르기">
@@ -208,8 +232,9 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
       onSubmitted={job => { onSourceSubmitted(job); setText(""); setDestination(null); }} />}
     <Dialog open={destination?.kind === "application"} onOpenChange={open => { if (!open && !saving) setDestination(null); }}>
       <DialogContent>
-        <DialogHeader className="pr-10"><DialogTitle>지원 넣기</DialogTitle><DialogDescription>{destination?.prefill ? "글에서 나눈 내용으로 칸을 채웠어요. 고친 뒤 넣어 주세요." : destination?.text ? "입력한 글을 문항 하나로 옮겼어요. 지원처와 문항을 확인하고 넣어 주세요." : "지원처와 문항을 넣어 주세요."}</DialogDescription></DialogHeader>
-        {destination?.kind === "application" && <ApplicationForm key={destination.prefill ? "filled" : "plain"} initialText={destination.text} prefill={destination.prefill} pastedText={destination.prefill ? destination.text : ""} onSavingChange={setSaving} moveToSourceDisabled={sourceBusy}
+        <DialogHeader className="pr-10"><DialogTitle>지원 넣기</DialogTitle><DialogDescription>{destination?.url ? (destination.prefill ? "링크에서 나눈 내용으로 칸을 채웠어요. 고친 뒤 넣어 주세요." : destination.failure ? "링크를 읽지 못했어요. 공고 본문을 붙여 넣으면 칸을 채워요." : "원문 링크를 남겨 뒀어요. 지원처와 문항을 넣어 주세요.") : destination?.prefill ? "글에서 나눈 내용으로 칸을 채웠어요. 고친 뒤 넣어 주세요." : destination?.text ? "입력한 글을 문항 하나로 옮겼어요. 지원처와 문항을 확인하고 넣어 주세요." : "지원처와 문항을 넣어 주세요."}</DialogDescription></DialogHeader>
+        {destination?.kind === "application" && <ApplicationForm key={`${destination.prefill ? "filled" : "plain"}:${destination.url ?? ""}`} initialText={destination.text} prefill={destination.prefill} pastedText={destination.prefill ? destination.text : ""}
+          initialUrl={destination.url} initialFailure={destination.failure} onSavingChange={setSaving} moveToSourceDisabled={sourceBusy}
           onMoveToSource={value => openDestination("source", value)} onCancel={() => setDestination(null)}
           onSubmit={async req => { const result = await submitApplication(req); setDestination(null); setText(""); router.push(`/questions?question=${result.questionIds[0]}`); }} />}
       </DialogContent>
