@@ -20,6 +20,7 @@ import type { DraftActions } from "./answer-draft";
 import { QuestionResult } from "./question-result";
 import { ChagokPanel, Mascot, type SupplementOrigin } from "./chagok-panel";
 import { useApplications } from "./use-applications";
+import { useChagokRun } from "./use-chagok-run";
 import { ApplicationStatusTag, ApplicationTypeFields, QuestionTypeField } from "./type-fields";
 
 const STATUS = { ANALYZING: "분석 중", COMPLETED: "완료", FAILED: "실패" } as const;
@@ -81,7 +82,9 @@ export function ApplicationScreen() {
     if (owner.id === open?.application.id) return `이 지원의 문항 ${owner.questions.findIndex(q => q.id === supplement.questionId) + 1}`;
     return `${owner.organization || "다른 지원"} 문항`;
   };
-  const panel = <ChagokPanel question={composing || adding ? null : selected} index={selectedIndex} originOf={originOf}
+  const panelQuestion = composing || adding ? null : selected;
+  const chagok = useChagokRun(panelQuestion?.id ?? null);
+  const panel = <ChagokPanel question={panelQuestion} index={selectedIndex} originOf={originOf} control={chagok}
     onAnswer={(clarificationId, answer) => selected ? matching.answer(selected.id, clarificationId, answer) : Promise.resolve()}
     draftActions={{ ...draftActions, focusRequest: draftFocus?.questionId === selected?.id ? draftFocus?.request ?? 0 : 0 }}
     onClose={() => setPanelChoice(false)} />;
