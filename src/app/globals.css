@@ -24,6 +24,10 @@
   --on-primary: #ffffff;
   --mark: #41a1f5; /* 로고의 파랑 — 기간 띠 · 진행 중 · 고른 줄 */
   --mark-soft: #e3f3fe;
+  --record-green: #51c291;
+  --record-pink: #e666a6;
+  --home-glow: radial-gradient(50% 42% at 50% 34%, rgb(65 161 245 / 0.13), transparent 70%);
+  --home-input-shadow: 0 8px 30px rgb(30 60 100 / 0.07);
   --evidence: #1f6fb2;
   --evidence-soft: #e3f3fe;
   --review: #a15c00;
@@ -75,6 +79,9 @@
   --color-on-primary: var(--on-primary);
   --color-mark: var(--mark);
   --color-mark-soft: var(--mark-soft);
+  --color-record-green: var(--record-green);
+  --color-record-pink: var(--record-pink);
+  --shadow-home-input: var(--home-input-shadow);
   --color-evidence: var(--evidence);
   --color-evidence-soft: var(--evidence-soft);
   --color-review: var(--review);
@@ -106,6 +113,8 @@
   --radius-md: 18px;
   --radius-lg: 28px;
 }
+
+.home-background { background-image: var(--home-glow); }
 
 @layer base {
   * {

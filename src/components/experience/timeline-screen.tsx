@@ -22,6 +22,8 @@ import { Timeline } from "./timeline";
 import { useExperienceDeletion } from "./use-experience-deletion";
 import { SupplementSourceContext, supplementSource } from "./supplement-list";
 import { fetchQuestions } from "@/lib/api/questions";
+import { useAuth } from "@/components/auth/auth-gate";
+import { rememberActivity } from "@/lib/home-overview";
 
 type ListState =
   | { status: "loading" }
@@ -38,6 +40,7 @@ function toMockAnalysis(value: string | null): MockAnalysis {
 }
 
 export function TimelineScreen() {
+  const { me } = useAuth();
   const params = useSearchParams();
   const mock = toMockMode(params.get("mock"));
   const mockAnalysis = toMockAnalysis(params.get("analysis"));
@@ -107,7 +110,11 @@ export function TimelineScreen() {
     const request = ++detailRequest.current;
     setDetail({ status: "loading" });
     fetchActivity(id).then(
-      (activity) => request === detailRequest.current && setDetail({ status: "ready", activity: { ...activity, period: periodSaves.current.get(id)?.latest ?? activity.period } }),
+      (activity) => {
+        if (request !== detailRequest.current) return;
+        rememberActivity(id, me?.id);
+        setDetail({ status: "ready", activity: { ...activity, period: periodSaves.current.get(id)?.latest ?? activity.period } });
+      },
       (e: Error) => request === detailRequest.current && setDetail({ status: "error", message: e.message }),
     );
   };

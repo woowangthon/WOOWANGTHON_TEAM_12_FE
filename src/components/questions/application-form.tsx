@@ -25,12 +25,16 @@ export function submitErrorMessage(e: unknown, fallback: string) {
 }
 
 /** 지원 넣기 — 지원처 이름(선택) + 문항 칸 여러 개. 넣기 전엔 자유롭게 더하고 빼고 순서를 바꾼다(S-18) */
-export function ApplicationForm({ onSubmit, onCancel }: { onSubmit: (req: CreateApplicationRequest) => Promise<unknown>; onCancel?: () => void }) {
+export function ApplicationForm({ onSubmit, onCancel, initialText = "", onMoveToSource, onSavingChange, moveToSourceDisabled = false }: {
+  onSubmit: (req: CreateApplicationRequest) => Promise<unknown>; onCancel?: () => void;
+  initialText?: string; onMoveToSource?: (text: string) => void; onSavingChange?: (saving: boolean) => void;
+  moveToSourceDisabled?: boolean;
+}) {
   const [organization, setOrganization] = useState("");
   // 지원처 종류 · 직무(S-42) — 둘 다 선택. 넣은 뒤에도 지원 화면에서 바꾼다
   const [organizationType, setOrganizationType] = useState<OrganizationType | "">("");
   const [jobRole, setJobRole] = useState<JobRole | "">("");
-  const [texts, setTexts] = useState([""]);
+  const [texts, setTexts] = useState([initialText]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const pending = useRef(false);
@@ -58,11 +62,12 @@ export function ApplicationForm({ onSubmit, onCancel }: { onSubmit: (req: Create
         setError("지원처는 100자, 문항은 5,000자까지 입력할 수 있어요."); return;
       }
       pending.current = true; setSaving(true); setError(null);
+      onSavingChange?.(true);
       // 고른 칸만 싣는다 — 비운 칸은 보내지 않는다(없거나 null 이면 비움, question-api.md)
       const types = { ...(organizationType && { organizationType }), ...(jobRole && { jobRole }) };
       try { await onSubmit({ organization: organization.trim() || null, ...types, questions: texts.map(text => ({ text })) }); }
       catch (e) { setError(submitErrorMessage(e, "지원을 넣지 못했어요.")); }
-      finally { pending.current = false; setSaving(false); }
+      finally { pending.current = false; setSaving(false); onSavingChange?.(false); }
     }}>
       <div className="grid gap-1.5">
         <h2 className="m-0 text-[21px] font-[650] tracking-[-0.3px]">어디에 지원하나요?</h2>
@@ -129,6 +134,7 @@ export function ApplicationForm({ onSubmit, onCancel }: { onSubmit: (req: Create
       {error && <p role="alert" className="m-0 text-sm text-error">{error}</p>}
       <div className="flex flex-wrap gap-2">
         <Button type="submit" disabled={saving}>{saving ? "지원을 넣고 있어요…" : texts.length > 1 ? `문항 ${texts.length}개 넣고 경험 찾기` : "지원 넣고 경험 찾기"}</Button>
+        {onMoveToSource && <Button type="button" variant="secondary" disabled={saving || moveToSourceDisabled} onClick={() => onMoveToSource(texts.join("\n\n"))}>자료로 쌓기</Button>}
         {onCancel && <Button type="button" variant="ghost" disabled={saving} onClick={onCancel}>취소</Button>}
       </div>
     </form>

@@ -66,7 +66,7 @@ async function setup(page: Page, suggested = false) {
     if (a) return route.fulfill({ json: a });
     return route.fulfill({ status: 404, json: { error: { code: "ACTIVITY_NOT_FOUND", message: "없음" } } });
   });
-  await page.goto("/");
+  await page.goto("/experience");
   return state;
 }
 

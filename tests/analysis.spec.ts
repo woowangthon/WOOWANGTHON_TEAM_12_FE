@@ -44,7 +44,7 @@ async function setup(page: Page) {
     if (path === "/api/activities/70") { state.details++; return route.fulfill({ json: detail }); }
     throw new Error(`Unexpected API: ${req.method()} ${path}`);
   });
-  await page.goto("/");
+  await page.goto("/experience");
   await expect(page.getByRole("heading", { name: "어떤 일을 해 왔나요?" })).toBeVisible();
   return state;
 }
