@@ -10,7 +10,7 @@ const draftScreen = (page: Page) => page.getByRole("region", { name: "답변 초
 const exampleDraft = (patch: Partial<Draft> = {}): Draft => ({
   questionId: 41, status: "COMPLETED", error: null, experienceIds: [101],
   sentences: [{ text: QUESTION_EXAMPLES[0].recommendations[0].experience.citations[0].quote, evidence: [] }],
-  omitted: ["바꾼 뒤 메시지가 제때 오는지 확인한 방법"], createdAt: "2026-11-04T10:10:00+09:00", updatedAt: "2026-11-04T10:10:21+09:00", ...patch,
+  omitted: [structuredClone(DRAFT_EXAMPLE.omitted[0])], createdAt: "2026-11-04T10:10:00+09:00", updatedAt: "2026-11-04T10:10:21+09:00", ...patch,
 });
 async function setup(page: Page, edit?: (q: QuestionDetail) => void) {
   const api = new FakeQuestionApi({ sameApplication: true });
@@ -265,4 +265,135 @@ test("retry uses server experienceIds and UNKNOWN sentences are shown verbatim w
   });
   await expect(draftScreen(page).getByRole("list", { name: "초안 문장" })).toContainText("코드가 수정됐습니다.");
   await expect(draftScreen(page).getByRole("list", { name: "초안 문장" })).not.toContainText("팀은");
+});
+
+test("omitted facts have optional experience questions, while unlinked gaps stay manual; skipping permits copy", async ({ page }, info) => {
+  const api = await setup(page, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
+  const screen = draftScreen(page);
+  const omissions = screen.getByRole("list", { name: "초안의 빠진 사실" });
+  await expect(omissions.getByRole("listitem")).toHaveCount(3);
+  await expect(omissions.getByRole("textbox")).toHaveCount(2);
+  const manual = omissions.getByRole("listitem").filter({ hasText: "Java · Spring" });
+  await expect(manual).toContainText("직접 쓸 거리");
+  await expect(manual.getByRole("textbox")).toHaveCount(0);
+  await expect(manual.getByRole("button")).toHaveCount(0);
+  await expect(omissions.getByRole("link").first()).toContainText(QUESTION_EXAMPLES[0].recommendations[0].experience.content);
+  const first = omissions.getByRole("listitem").first();
+  await first.getByRole("button", { name: "건너뛰기", exact: true }).click();
+  await expect(first).toContainText("건너뛴 질문");
+  await screen.getByRole("button", { name: "텍스트로 복사", exact: true }).click();
+  expect(await page.evaluate(() => (window as unknown as { copied: string }).copied)).toBe(DRAFT_EXAMPLE.sentences.map(s => s.text).join(" "));
+  expect(api.calls.filter(c => c.call.startsWith("POST"))).toEqual([]);
+  await first.getByRole("button", { name: "다시 보기", exact: true }).click();
+  await expect(first.getByRole("textbox")).toHaveAttribute("maxlength", "2000");
+  if (process.env.UPDATE_DRAFT_OMISSION_SCREENSHOTS === "1") {
+    for (const width of info.project.name === "desktop" ? [1440, 1024] : [390]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await screen.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `docs/fe-103/draft-omissions-${width}.png`, fullPage: true, style: "nextjs-portal { display: none !important; }" });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    }
+  }
+});
+
+test("saving an omitted answer uses its server ID, persists after reload and regenerates only on click", async ({ page }) => {
+  const api = await setup(page, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
+  const screen = draftScreen(page);
+  const omissions = screen.getByRole("list", { name: "초안의 빠진 사실" });
+  const first = omissions.getByRole("listitem").first();
+  const answer = "두 기기로 메시지를 보내고 양쪽 화면에 도착하는지 확인했다";
+  await first.getByRole("textbox").fill("  " + answer + "  ");
+  await first.getByRole("button", { name: "보완으로 쌓기", exact: true }).click();
+  await expect(first).toContainText("내가 입력 · 경험에 보완으로 쌓았어요");
+  await expect(first).toContainText(answer);
+  expect(api.calls.filter(c => c.call.startsWith("POST"))).toEqual([
+    { call: "POST /api/clarifications/64/answer", body: { answer } },
+  ]);
+  await expect(screen.getByRole("list", { name: "초안 문장" })).toContainText(DRAFT_EXAMPLE.sentences[0].text);
+  await page.reload();
+  await expect(first).toContainText(answer);
+  await expect(first.getByRole("textbox")).toHaveCount(0);
+  await screen.getByRole("button", { name: "다시 만들기", exact: true }).click();
+  await expect(screen.getByRole("list", { name: "초안 문장" })).toBeVisible();
+  await expect(omissions).not.toContainText(DRAFT_EXAMPLE.omitted[0].text);
+  expect(api.calls.filter(c => c.call.endsWith("/draft"))).toEqual([
+    { call: "POST /api/questions/41/draft", body: { experienceIds: [101] } },
+  ]);
+  expect(api.supplements.get(101)?.some(s => s.answer === answer && s.questionId === 41)).toBe(true);
+  // 추천의 질문 ID와 내용은 초안 재생성으로 바뀌지 않는다.
+  expect(api.questions.find(q => q.detail.id === 41)?.detail.clarifications).toEqual(QUESTION_EXAMPLES[0].clarifications);
+});
+
+test("saving blocks regeneration and duplicate answers until the save response arrives", async ({ page }) => {
+  const api = await setup(page, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route("**/api/clarifications/64/answer", async route => { await gate; await route.fallback(); });
+  const screen = draftScreen(page);
+  const omissions = screen.getByRole("list", { name: "초안의 빠진 사실" });
+  await omissions.getByRole("textbox").first().fill("메시지가 도착하는지 확인했다");
+  await omissions.getByRole("button", { name: "보완으로 쌓기", exact: true }).first().click();
+  await expect(screen.getByRole("button", { name: "다시 만들기", exact: true })).toBeDisabled();
+  await expect(omissions.getByRole("textbox").last()).toBeDisabled();
+  await expect(screen.getByRole("status").filter({ hasText: "보완으로 쌓는 중" })).toBeVisible();
+  await expect(screen.getByRole("button", { name: "텍스트로 복사", exact: true })).toBeEnabled();
+  release();
+  await expect(omissions).toContainText("내가 입력 · 경험에 보완으로 쌓았어요");
+  await expect(screen.getByRole("button", { name: "다시 만들기", exact: true })).toBeEnabled();
+  expect(api.calls.filter(c => c.call.endsWith("/answer"))).toHaveLength(1);
+  expect(api.calls.filter(c => c.call.endsWith("/draft"))).toHaveLength(0);
+});
+
+test("save errors preserve the answer and draft, and retry stores it once", async ({ page }) => {
+  const api = await setup(page, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
+  let down = true;
+  await page.route("**/api/clarifications/64/answer", route => down
+    ? route.fulfill({ status: 503, json: { error: { code: "INTERNAL_ERROR", message: "보완을 저장하지 못했어요." } } })
+    : route.fallback());
+  const screen = draftScreen(page);
+  const first = screen.getByRole("list", { name: "초안의 빠진 사실" }).getByRole("listitem").first();
+  const answer = "두 기기에서 메시지를 확인했다";
+  await first.getByRole("textbox").fill(answer);
+  await first.getByRole("button", { name: "보완으로 쌓기", exact: true }).click();
+  await expect(first.getByRole("alert")).toContainText("보완을 저장하지 못했어요");
+  await expect(first.getByRole("textbox")).toHaveValue(answer);
+  await expect(first).not.toContainText("내가 입력 · 경험에 보완으로 쌓았어요");
+  await expect(screen.getByRole("button", { name: "텍스트로 복사", exact: true })).toBeEnabled();
+  down = false;
+  await first.getByRole("button", { name: "다시 시도", exact: true }).click();
+  await expect(first).toContainText("내가 입력 · 경험에 보완으로 쌓았어요");
+  expect(api.calls.filter(c => c.call.endsWith("/answer"))).toHaveLength(1);
+});
+
+for (const [status, code, note] of [
+  [404, "CLARIFICATION_NOT_FOUND", "초안이 바뀌어"],
+  [409, "CLARIFICATION_ALREADY_ANSWERED", "이미 답한 질문"],
+] as const) {
+  test(`stale omitted answer ${code} offers refresh without creating a new draft`, async ({ page }) => {
+    const api = await setup(page, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
+    await page.route("**/api/clarifications/64/answer", route => route.fulfill({ status, json: { error: { code, message: code } } }));
+    const screen = draftScreen(page);
+    const first = screen.getByRole("list", { name: "초안의 빠진 사실" }).getByRole("listitem").first();
+    await first.getByRole("textbox").fill("두 기기로 확인했다");
+    await first.getByRole("button", { name: "보완으로 쌓기", exact: true }).click();
+    await expect(first.getByRole("alert")).toContainText(note);
+    api.edit(41, q => { q.draft!.omitted = []; });
+    await first.getByRole("button", { name: "초안 상태 확인", exact: true }).click();
+    await expect(first).toHaveCount(0);
+    expect(api.calls.filter(c => c.call.endsWith("/draft"))).toHaveLength(0);
+  });
+}
+
+test("a completed draft restores its selected experiences for regeneration", async ({ page }) => {
+  const api = await setup(page, q => {
+    q.recommendations = structuredClone(QUESTION_EXAMPLES[1].recommendations);
+    q.draft = { ...structuredClone(DRAFT_EXAMPLE), experienceIds: [102] };
+  });
+  const screen = draftScreen(page);
+  await expect(screen.getByRole("checkbox").first()).toBeChecked();
+  await expect(screen.getByRole("checkbox").last()).not.toBeChecked();
+  await screen.getByRole("button", { name: "다시 만들기", exact: true }).click();
+  expect(api.calls.filter(c => c.call.endsWith("/draft"))).toEqual([
+    { call: "POST /api/questions/41/draft", body: { experienceIds: [102] } },
+  ]);
 });

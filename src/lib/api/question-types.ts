@@ -61,9 +61,14 @@ export type QuestionDetail = QuestionSummary & {
 };
 /** ETC question-api.md S-27 / GroundingCheck와 같은 근거 모양 */
 export type DraftEvidence = { type: "CITATION" | "SUPPLEMENT" | "EXPERIENCE"; id: number; experienceId: number; activityId: number; text: string };
+/** 초안 전용 빠진 사실. 추천 clarification과 섞지 않고 서버 ID로 답한다(S-27). */
+export type DraftOmission = {
+  text: string; question: string | null; experienceId: number | null;
+  clarificationId: number | null; supplementId: number | null;
+};
 export type Draft = {
   questionId: number; status: JobStatus; error: Job["error"]; experienceIds: number[];
-  sentences: { text: string; evidence: DraftEvidence[] }[]; omitted: string[];
+  sentences: { text: string; evidence: DraftEvidence[] }[]; omitted: DraftOmission[];
   createdAt: string; updatedAt: string;
 };
 export type CreateDraftRequest = { experienceIds: number[] };

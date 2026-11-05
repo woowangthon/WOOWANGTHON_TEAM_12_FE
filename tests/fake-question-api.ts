@@ -50,7 +50,7 @@ export class FakeQuestionApi {
   private draftStarted = new Map<number, number>();
   private nextQuestion = 43;
   private nextApplication = 23;
-  private nextClarification = 64;
+  private nextClarification = 66;
   private nextSupplement = 302;
   private applications = new Map<number, string | null>();
 
@@ -109,7 +109,10 @@ export class FakeQuestionApi {
       q.detail.draft = { ...draft, status: this.failDraft ? "FAILED" : "COMPLETED",
         error: this.failDraft ? { code: "AI_TIMEOUT", message: "AI 응답 시간이 초과됐어요." } : null,
         sentences: this.failDraft ? [] : structuredClone(DRAFT_EXAMPLE.sentences).filter(s => s.evidence.every(e => draft.experienceIds.includes(e.experienceId))),
-        omitted: this.failDraft ? [] : [...DRAFT_EXAMPLE.omitted], updatedAt: new Date().toISOString() };
+        omitted: this.failDraft ? [] : structuredClone(DRAFT_EXAMPLE.omitted)
+          .filter(item => item.experienceId === null || draft.experienceIds.includes(item.experienceId))
+          .filter(item => item.experienceId === null || !(this.supplements.get(item.experienceId) ?? []).some(s => s.question === item.question))
+          .map(item => ({ ...item, clarificationId: item.experienceId === null ? null : this.nextClarification++ })), updatedAt: new Date().toISOString() };
     }
   }
 
@@ -246,14 +249,17 @@ export class FakeQuestionApi {
       return json(route, q.detail, 202);
     }
     if ((m = path.match(/^\/api\/clarifications\/(\d+)\/answer$/)) && method === "POST") {
-      const owner = this.questions.find(q => q.detail.clarifications.some(c => c.id === +m![1]));
-      const c = owner?.detail.clarifications.find(c => c.id === +m![1]);
+      const owner = this.questions.find(q => q.detail.clarifications.some(c => c.id === +m![1])
+        || q.detail.draft?.omitted.some(c => c.clarificationId === +m![1]));
+      const omitted = owner?.detail.draft?.omitted.find(c => c.clarificationId === +m![1]);
+      const c = owner?.detail.clarifications.find(c => c.id === +m![1]) ?? (omitted?.experienceId != null && omitted.question !== null ? { ...omitted, experienceId: omitted.experienceId, question: omitted.question } : undefined);
       if (!owner || !c) return error(route, 404, "CLARIFICATION_NOT_FOUND");
       if (c.supplementId !== null) return error(route, 409, "CLARIFICATION_ALREADY_ANSWERED");
       const now = new Date().toISOString();
       const supplement: Supplement = { id: this.nextSupplement++, question: c.question, answer: body.answer, questionId: owner.detail.id, createdAt: now, updatedAt: now };
       this.supplements.set(c.experienceId, [...(this.supplements.get(c.experienceId) ?? []), supplement]);
       c.supplementId = supplement.id;
+      if (omitted) omitted.supplementId = supplement.id;
       return json(route, { experienceId: c.experienceId, supplement }, 201);
     }
     if (method === "GET" && path === "/api/activities") {
