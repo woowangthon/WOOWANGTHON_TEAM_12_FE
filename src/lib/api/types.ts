@@ -83,6 +83,7 @@ export type Citation = {
 };
 
 export type Experience = {
+  origin?: { type: "ANSWER"; questionId: number; applicationId: number; organization: string | null; questionText: string } | null;
   id: number;
   activityId: number;
   content: string;
