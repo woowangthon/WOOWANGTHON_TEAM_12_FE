@@ -76,6 +76,7 @@ test("지원 분류는 나눈 값으로 칸을 채우고, 고친 칸의 꼬리�
   await expect(page.getByLabel("지원처 종류 (선택)")).toHaveValue("BOOTCAMP");
   await expect(page.getByLabel("직무 (선택)")).toHaveValue("BACKEND");
   await expect(dialog.getByText("AI 가 채움", { exact: true })).toHaveCount(5);
+  await expect(dialog.getByText("AI 가 나눠 채웠어요 · 고쳐도 돼요", { exact: true })).toBeVisible();
   expect(calls.parses).toEqual([{ text }]);
   expect(calls.applications).toHaveLength(0);
   // 고치면 그 칸만 꼬리표가 사라지고, 순서를 바꿔도 남은 꼬리표는 문항을 따라간다
@@ -139,6 +140,7 @@ test("지원 넣기 화면에서 공고를 붙여 칸을 채우고, 직접 넣�
   await page.getByRole("button", { name: "보내기", exact: true }).click();
   await page.getByRole("button", { name: "지원으로 만들기", exact: true }).click();
   expect(calls.parses).toHaveLength(0);
+  await expect(page.getByRole("dialog").getByText("AI 가 나눠 채웠어요 · 고쳐도 돼요", { exact: true })).toHaveCount(0);
   await page.getByLabel("지원처 이름 (선택)").fill("내가 쓴 이름");
   await page.getByLabel("공고 · 문항 글로 칸 채우기").fill("붙인 공고");
   await page.getByRole("button", { name: "칸 채우기", exact: true }).click();

@@ -5,6 +5,7 @@ import { ArrowDownIcon, ArrowUpIcon, ListChecksIcon, PlusIcon, XIcon } from "@ph
 import { Button } from "@/components/ui/button";
 import { CommonQuestionPicker } from "./common-question-picker";
 import { ParseFailureNotice, useApplicationParse } from "./application-parse";
+import { Mascot } from "./chagok-panel";
 import { MAX_PARSE_TEXT_LENGTH, type ParsedApplication } from "@/lib/api/entrance";
 import { ApiError } from "@/lib/api/errors";
 import { isMockMode } from "@/lib/api/http";
@@ -80,6 +81,7 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
     setFilled(result); setError(null);
   };
   const noQuestions = !!filled && !filled.questions.length && texts.every(t => !t.trim());
+  const filledAny = !!filled && !!(filled.organization || filled.organizationType || filled.jobRole || filled.questions.length);
 
   return (
     <form className="grid gap-5" aria-busy={saving || parse.parsing} onSubmit={async event => {
@@ -100,34 +102,34 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
     }}>
       <div className="grid gap-1.5">
         <h2 className="m-0 text-[21px] font-[650] tracking-[-0.3px]">어디에 지원하나요?</h2>
-        <p className="m-0 text-sm text-muted">지원서의 문항을 순서대로 넣으면 문항마다 꺼내 볼 경험을 찾아요.</p>
-      </div>
-      <div className="grid gap-2">
-        <span className="text-[13px] font-medium text-muted">예시 문항으로 시작하기</span>
-        <div className="flex flex-wrap gap-2">
-          {EXAMPLES.map(sample => (
-            <Button key={sample.label} type="button" variant="secondary" size="sm" className="min-h-11" disabled={saving} onClick={() => {
-              setOrganization(prev => prev || sample.organization);
-              // 비어 있는 첫 칸에, 없으면 새 칸에
-              setTexts(prev => { const at = prev.findIndex(t => !t.trim()); if (at >= 0) return prev.map((t, j) => (j === at ? sample.text : t)); return prev.length < MAX_QUESTIONS_PER_SUBMIT ? [...prev, sample.text] : prev; });
-              setError(null);
-            }}>{sample.label}</Button>
-          ))}
-        </div>
+        <p className="m-0 text-sm text-muted">공고나 지원서 문항을 그대로 붙여 넣으면 칸을 나눠 채우고, 문항마다 꺼내 볼 경험을 찾아요.</p>
       </div>
       <fieldset disabled={saving} className="m-0 grid min-w-0 gap-5 border-0 p-0">
         <div className="grid gap-2 rounded-sm bg-surface-soft p-3.5">
-          <label htmlFor="application-paste" className="text-sm font-medium">공고 · 문항 글로 칸 채우기</label>
-          <textarea id="application-paste" rows={3} value={paste} disabled={parse.parsing} onChange={e => { setPaste(e.target.value); parse.clear(); }} className={`${field} resize-y`} placeholder="공고나 지원서 문항을 그대로 붙여 넣으면 지원처 · 종류 · 직무 · 문항을 나눠 채워요. 글에 적힌 문항만 찾아요." />
+          <label htmlFor="application-paste" className="text-[15px] font-semibold">공고 · 문항 글로 칸 채우기</label>
+          <textarea id="application-paste" autoFocus={!initialText && !prefill} rows={4} value={paste} disabled={parse.parsing} onChange={e => { setPaste(e.target.value); parse.clear(); }} className={`${field} resize-y`} placeholder="예: [OO 부트캠프 백엔드 과정] 1. 기술적인 문제를 해결한 경험을 적어 주세요 (700자) 2. 지원 동기 … 글에 적힌 문항만 찾아요." />
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <Button type="button" variant="secondary" className="min-h-11" disabled={parse.parsing || !paste.trim()} onClick={() => void fill()}>{parse.parsing ? "나누는 중…" : "칸 채우기"}</Button>
+            <Button type="button" variant={filled ? "secondary" : "default"} className="min-h-11" disabled={parse.parsing || !paste.trim()} onClick={() => void fill()}>{parse.parsing ? "나누는 중…" : "칸 채우기"}</Button>
             <span className={`text-xs tabular-nums ${paste.length > MAX_PARSE_TEXT_LENGTH ? "text-error" : "text-muted"}`}>{paste.length > 0 && `${paste.length.toLocaleString("ko-KR")} / 20,000`}</span>
           </div>
           {parse.parsing && <p role="status" className="m-0 text-sm text-muted">글을 읽고 지원처와 문항을 나누고 있어요…</p>}
           {parse.failure && <ParseFailureNotice failure={parse.failure} onRetry={() => void fill()} onManual={() => { insert([parse.failure!.text]); parse.clear(); }} />}
-          {filled && isMockMode() && <p className="m-0 text-xs text-muted">목 모드 — AI 호출 없이 글의 번호 달린 줄만 규칙으로 나눴어요.</p>}
           {noQuestions && <p role="status" className="m-0 text-sm text-body">글에서 문항을 찾지 못했어요. 문항 칸에 직접 넣어 주세요.</p>}
         </div>
+        {!filled && <div className="grid gap-2">
+          <span className="text-[13px] font-medium text-muted">예시 문항으로 시작하기</span>
+          <div className="flex flex-wrap gap-2">
+            {EXAMPLES.map(sample => (
+              <Button key={sample.label} type="button" variant="secondary" size="sm" className="min-h-11" disabled={saving} onClick={() => {
+                setOrganization(prev => prev || sample.organization);
+                // 비어 있는 첫 칸에, 없으면 새 칸에
+                setTexts(prev => { const at = prev.findIndex(t => !t.trim()); if (at >= 0) return prev.map((t, j) => (j === at ? sample.text : t)); return prev.length < MAX_QUESTIONS_PER_SUBMIT ? [...prev, sample.text] : prev; });
+                setError(null);
+              }}>{sample.label}</Button>
+            ))}
+          </div>
+        </div>}
+        {filledAny && <p className="m-0 flex items-center gap-2 text-[13px] font-semibold text-muted"><Mascot size={18} />{isMockMode() ? "목 모드 — AI 호출 없이 글의 번호 달린 줄만 규칙으로 나눴어요 · 고쳐도 돼요" : "AI 가 나눠 채웠어요 · 고쳐도 돼요"}</p>}
         <label className="grid gap-1.5 text-sm font-medium">
           <span className="flex flex-wrap items-center gap-2">지원처 이름 (선택){filled?.organization && organization === filled.organization && <FilledTag />}</span>
           <input aria-label="지원처 이름 (선택)" autoComplete="organization" maxLength={MAX_ORGANIZATION_LENGTH} value={organization} onChange={e => setOrganization(e.target.value)} className={`${field} min-h-11 py-0`} placeholder="동아리 · 부트캠프 · 대외활동 · 회사 이름" />
@@ -163,7 +165,7 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
                   <Button type="button" variant="ghost" size="icon" aria-label={`문항 ${i + 1} 빼기`} onClick={() => setTexts(prev => prev.filter((_, j) => j !== i))}><XIcon /></Button>
                 </span>}
               </div>
-              <textarea id={`question-${i}`} autoFocus={i === 0} rows={4} maxLength={MAX_QUESTION_LENGTH} value={text} onChange={e => set(i, e.target.value)} className={`${field} resize-y`} placeholder="문항을 붙여 넣어 주세요. 글자 수 · 공고 일부를 함께 넣어도 괜찮아요." />
+              <textarea id={`question-${i}`} autoFocus={i === 0 && !!initialText && !prefill} rows={4} maxLength={MAX_QUESTION_LENGTH} value={text} onChange={e => set(i, e.target.value)} className={`${field} resize-y`} placeholder="문항을 붙여 넣어 주세요. 글자 수 · 공고 일부를 함께 넣어도 괜찮아요." />
               <span className="text-right text-xs font-normal text-muted tabular-nums">{text.length.toLocaleString("ko-KR")} / 5,000</span>
             </li>
           ))}
