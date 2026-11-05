@@ -112,6 +112,14 @@ BE #4·#5의 조회·수정·자료 등록·작업 조회·재시도 연결 코�
 - 테스트 계정(`test`) 비밀번호는 화면 · README 에 적지 않는다 — Public 레포라 제출 폼에만.
 - 시험: `tests/auth.spec.ts`(화면) · `tests/auth-api.spec.ts`(요청 모양). 다른 화면 시험은 `tests/signed-in.ts` 픽스처로 「로그인된 상태」에서 시작하고, 각 `page.route("**/api/**")` 처리기는 `/api/auth/` 를 `route.fallback()` 으로 넘긴다.
 
+## 홈 입력 하나 (FE#86 · S-28)
+
+- 홈의 꺼내기(기본)는 `POST /api/entrance/route`로 글을 가른다. 자료면 자료 넣기, 지원이면 글 전체를 문항 하나로 채운 지원 넣기 창을 연다. 다음 화면에서 사용자가 눌러야 저장한다.
+- 한 줄 질문(`ASK`, S-29 전) · 애매함(`UNSURE`) · AI 오류(502 · 504)는 자료/지원을 직접 고른다. 입력창의 「지원으로 만들기 / 자료로 쌓기」로 수정한 글을 들고 다른 쪽으로 보낼 수 있다.
+- 쌓기와 파일 올리기는 가르기를 건너뛰고 기존 자료 넣기를 연다. 파일은 S-01의 `.md` · `.txt` 하나를 받는다. PDF · PPTX(S-39), 경험으로 답하기(S-29), 지원 칸 자동 채우기(S-30)는 별도 이슈다.
+- 목 모드에선 홈의 「목 분류 결과」로 네 종류를 확인한다. AI를 호출하지 않으며 실제 API 오류를 목 결과로 바꾸지 않는다. 마커 `MOCK(entrance-route)`는 ETC `docs/ai-scope.md` §3에 등록한다.
+- 시험: `tests/entrance-api.spec.ts` · `tests/entrance.spec.ts` · `tests/entrance-mock.spec.ts`. UI 시험은 1440 · 1024 · 390에서 HTTP 응답을 흉내 내 요청과 전환을 검사하며 실제 AI 품질 검증은 아니다.
+
 ## 배포 · 미리보기
 
 - **PR 을 열면** Vercel 봇이 PR 에 미리보기 URL 을 댓글로 단다. 커밋을 더 올리면 같은 댓글이 새 URL 로 바뀐다.

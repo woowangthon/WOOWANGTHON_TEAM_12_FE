@@ -34,11 +34,14 @@ type Props = {
   mock: MockAnalysis;
   /** 분석 작업이 만들어졌다 — name 은 화면에 보일 자료 이름 */
   onSubmitted: (job: { jobId: number; name: string }) => void;
+  initialText?: string;
+  initialMode?: Mode;
+  onMoveToApplication?: (text: string) => void;
 };
 
-export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted }: Props) {
-  const [mode, setMode] = useState<Mode>("paste");
-  const [text, setText] = useState("");
+export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initialText = "", initialMode = "paste", onMoveToApplication }: Props) {
+  const [mode, setMode] = useState<Mode>(initialMode);
+  const [text, setText] = useState(initialText);
   const [file, setFile] = useState<PickedFile | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -246,6 +249,7 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted }: Props
         )}
 
         <DialogFooter>
+          {onMoveToApplication && mode === "paste" && <Button variant="link" disabled={submitting || !text.trim()} onClick={() => onMoveToApplication(text)}>지원으로 만들기</Button>}
           <Button variant="link" onClick={() => changeOpen(false)} disabled={submitting}>
             취소
           </Button>

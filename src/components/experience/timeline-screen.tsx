@@ -22,6 +22,7 @@ import { Timeline } from "./timeline";
 import { useExperienceDeletion } from "./use-experience-deletion";
 import { SupplementSourceContext, supplementSource } from "./supplement-list";
 import { fetchQuestions } from "@/lib/api/questions";
+import { HomeEntrance } from "@/components/home/home-entrance";
 
 type ListState =
   | { status: "loading" }
@@ -364,6 +365,7 @@ export function TimelineScreen() {
             selected && "hidden lg:block",
           )}
         >
+          <HomeEntrance sourceBusy={view === "analyzing"} mockAnalysis={mockAnalysis} onSourceSubmitted={analysis.start} />
           {list.status === "loading" && <p className="py-10 text-center text-sm text-muted">타임라인을 불러오고 있어요…</p>}
           {list.status === "error" && (
             <CenterState
