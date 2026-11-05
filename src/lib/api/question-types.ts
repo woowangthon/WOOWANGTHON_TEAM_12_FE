@@ -51,12 +51,22 @@ export type QuestionSummary = {
   createdAt: string;
 };
 export type QuestionDetail = QuestionSummary & {
+  /** S-27. 이전 서버 응답에는 없을 수 있다. 초안 미생성은 null */
+  draft?: Draft | null;
   error: Job["error"];
   requirements: Requirement[];
   recommendations: Recommendation[];
   clarifications: Clarification[];
   updatedAt: string;
 };
+/** ETC question-api.md S-27 / GroundingCheck와 같은 근거 모양 */
+export type DraftEvidence = { type: "CITATION" | "SUPPLEMENT" | "EXPERIENCE"; id: number; experienceId: number; activityId: number; text: string };
+export type Draft = {
+  questionId: number; status: JobStatus; error: Job["error"]; experienceIds: number[];
+  sentences: { text: string; evidence: DraftEvidence[] }[]; omitted: string[];
+  createdAt: string; updatedAt: string;
+};
+export type CreateDraftRequest = { experienceIds: number[] };
 export type CreateQuestionRequest = { organization?: string | null; text: string };
 export type QuestionSubmitted = { questionId: number; applicationId: number; status: "ANALYZING" };
 

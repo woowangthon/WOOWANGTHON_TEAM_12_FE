@@ -5,6 +5,7 @@ import { CitationList } from "@/components/experience/citation-list";
 import { UserEnteredLabel } from "@/components/experience/supplement-list";
 import type { QuestionDetail, Recommendation } from "@/lib/api/question-types";
 import type { OverlapUse } from "./overlap";
+import { AnswerDraft } from "./answer-draft";
 
 /** 「바꿔요 — 캠퍼스 중고거래 앱」 → 「바꿔요」 (시안의 활동 칩) */
 export const shortName = (name: string) => name.split(" — ")[0];
@@ -43,14 +44,14 @@ const boxTitle = "m-0 text-xs font-semibold text-muted";
 /** 「참고 — 꺼내 쓸 경험」(시안 6 apply.html 의 접기 카드). 펼치기 전엔 활동 칩 · 경험 · 이유 한 줄, 펼치면 강조점 · 근거 · 빠진 것.
  *  요구사항 판정 · 되묻기는 차곡이 패널에 있다. elsewhere — 같은 지원의 다른 문항에도 추천된 같은 경험(FE#38 · S-21) */
 export function QuestionResult({ question, elsewhere }: { question: QuestionDetail; elsewhere?: (experienceId: number) => OverlapUse[] }) {
-  return <section aria-labelledby="refs-title">
+  return <><AnswerDraft key={question.id} question={question} /><section aria-labelledby="refs-title">
     <h3 id="refs-title" className="m-0 text-[17px] font-semibold">참고 — 꺼내 쓸 경험</h3>
     {question.recommendations.length === 0 ? <div className="mt-4 grid gap-2 rounded-sm bg-surface-soft p-5">
       <p className="m-0 font-medium">현재 자료에서 연결된 경험을 찾지 못했어요.</p>
       <p className="m-0 text-sm text-muted">경험이 없다는 뜻은 아니에요. 관련 기록을 더 확인하면 좋겠어요.</p>
     </div> : <ol className="m-0 mt-4 grid list-none gap-2.5 p-0">{question.recommendations.map((r, i) => { const answered = answeredFor(question, r.experience.id); return <li key={r.experience.id} id={`recommendation-${question.id}-${r.experience.id}`}
       className="scroll-mt-5" aria-label={`추천 경험 ${i + 1}`}>
-      {/* 첫 카드만 펼쳐 둔다 — 시안은 다 접지만, 위의 답변 칸(초안, P1)이 아직 없어 이 목록이 화면의 본체라서 */}
+      {/* 첫 추천은 기존처럼 펼쳐 근거를 바로 확인할 수 있게 둔다. */}
       <details open={i === 0} className="group rounded-[18px] bg-mark-soft">
         <summary className="grid cursor-pointer list-none grid-cols-[auto_minmax(0,1fr)] items-start gap-3 px-4 py-3.5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-4.5 [&::-webkit-details-marker]:hidden">
           <CaretRightIcon aria-hidden="true" className="mt-1 size-4 text-muted transition-transform group-open:rotate-90" />
@@ -95,5 +96,5 @@ export function QuestionResult({ question, elsewhere }: { question: QuestionDeta
         </div>
       </details>
     </li>; })}</ol>}
-  </section>;
+  </section></>;
 }
