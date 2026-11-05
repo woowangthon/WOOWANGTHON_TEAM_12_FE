@@ -20,6 +20,7 @@ import { ActivityDetailView, type DetailState } from "./activity-detail";
 import { MergeActivityDialog, MoveExperienceDialog } from "./regroup-dialogs";
 import { Timeline } from "./timeline";
 import { useExperienceDeletion } from "./use-experience-deletion";
+import { useTimelineApplications, type TimelineApplicationsState } from "./use-timeline-applications";
 import { SupplementSourceContext, supplementSource } from "./supplement-list";
 import { fetchQuestions } from "@/lib/api/questions";
 import { useAuth } from "@/components/auth/auth-gate";
@@ -44,6 +45,8 @@ export function TimelineScreen() {
   const params = useSearchParams();
   const mock = toMockMode(params.get("mock"));
   const mockAnalysis = toMockAnalysis(params.get("analysis"));
+  const applications = useTimelineApplications(params.get("applications") === "error");
+  const appItems = applications.state.status === "ready" ? applications.state.items : null;
   const [list, setList] = useState<ListState>({ status: "loading" });
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detail, setDetail] = useState<DetailState>({ status: "loading" });
@@ -372,8 +375,10 @@ export function TimelineScreen() {
       const s = spanOf(a.period, ready.now);
       if (s) spans.set(a.id, s);
     }
-    return { spans, years: yearsOf([...spans.values()]) };
-  }, [ready]);
+    // 지원만 있는 해도 연도로 세운다 — 낸 지원이 사라져 보이지 않게
+    const marks = (appItems ?? []).map((a) => ({ start: a.month, end: a.month }));
+    return { spans, years: yearsOf([...spans.values(), ...marks]) };
+  }, [ready, appItems]);
 
   const selected = ready?.activities.find((a) => a.id === selectedId) ?? null;
   const hasActivities = !!ready && ready.activities.length > 0;
@@ -437,7 +442,9 @@ export function TimelineScreen() {
               {view && analysis.tracked && (
                 <AnalysisBanner view={view} tracked={analysis.tracked} {...analysisActions} />
               )}
+              <ApplicationsToggle shown={applications.shown} onChange={applications.setShown} state={applications.state} onRetry={applications.retry} />
               <Timeline
+                applications={appItems ?? undefined}
                 activities={ready.activities}
                 spans={timeline.spans}
                 years={timeline.years}
@@ -519,6 +526,33 @@ export function TimelineScreen() {
           </div>}
           {toast && <div role={toast.alert ? "alert" : "status"} className="rounded-sm bg-ink px-4 py-3 text-sm text-canvas shadow-float">{toast.text}</div>}
         </div>
+      )}
+    </div>
+  );
+}
+
+/** 「지원도 같이 보기」(S-37) — 기본 꺼짐. 켠 동안 지원을 못 받으면 활동은 그대로 두고 여기에만 오류 · 다시 시도 */
+function ApplicationsToggle({ shown, onChange, state, onRetry }: {
+  shown: boolean; onChange: (next: boolean) => void; state: TimelineApplicationsState; onRetry: () => void;
+}) {
+  return (
+    <div className="mt-4 flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1">
+      <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 text-[13px] text-muted">
+        <input type="checkbox" checked={shown} onChange={(e) => onChange(e.target.checked)} className="size-4 accent-record-pink" />
+        지원도 같이 보기
+      </label>
+      {state.status === "loading" && <span className="text-xs text-muted" role="status">지원을 불러오고 있어요…</span>}
+      {state.status === "ready" && state.items.length === 0 && (
+        <span className="text-xs text-muted" role="status">낸 지원이 아직 없어요. 작성 중인 지원은 내면 그 달에 놓여요.</span>
+      )}
+      {state.status === "error" && (
+        <span className="inline-flex flex-wrap items-center gap-2 text-xs text-error" role="alert">
+          지원을 불러오지 못했어요. {state.message}
+          <Button variant="secondary" size="sm" onClick={onRetry}>
+            <ArrowsClockwiseIcon />
+            다시 시도
+          </Button>
+        </span>
       )}
     </div>
   );

@@ -26,6 +26,10 @@
   --mark-soft: #e3f3fe;
   --record-green: #51c291;
   --record-pink: #e666a6;
+  /* 타임라인의 지원 한 줄(S-37) — 시안 6 .row--app: 점선 테두리 · 연분홍 바탕 · 진분홍 이름 */
+  --application: #a1406f;
+  --application-soft: #fffafd;
+  --application-line: #efb8d3;
   --home-glow: radial-gradient(50% 42% at 50% 34%, rgb(65 161 245 / 0.13), transparent 70%);
   --home-input-shadow: 0 8px 30px rgb(30 60 100 / 0.07);
   --evidence: #1f6fb2;
@@ -81,6 +85,9 @@
   --color-mark-soft: var(--mark-soft);
   --color-record-green: var(--record-green);
   --color-record-pink: var(--record-pink);
+  --color-application: var(--application);
+  --color-application-soft: var(--application-soft);
+  --color-application-line: var(--application-line);
   --shadow-home-input: var(--home-input-shadow);
   --color-evidence: var(--evidence);
   --color-evidence-soft: var(--evidence-soft);

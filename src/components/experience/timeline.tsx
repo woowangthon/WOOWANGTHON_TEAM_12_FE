@@ -3,9 +3,13 @@
 // 연도별 타임라인 — 활동 줄 목록 + 오른쪽 얇은 기간 띠(그해 1–12월). 겹침은 띠끼리 견줘 읽는다 (SPEC S-07 · DESIGN.md 「활동 줄」)
 // PC 는 이름 옆에 띠, 모바일은 이름 아래에 띠
 import { useState, type DragEvent, type PointerEvent, type ReactNode } from "react";
+import Link from "next/link";
+import { FileTextIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import type { ActivitySummary, Experience, Period } from "@/lib/api/types";
+import { APPLICATION_STATUS_LABEL } from "@/lib/api/question-types";
 import { groupYear, periodText, type Span } from "@/lib/period";
+import type { TimelineApplication } from "./use-timeline-applications";
 
 type Edge = "start" | "end";
 
@@ -22,6 +26,8 @@ type Props = {
   onDropExperience: (experience: Experience, toActivityId: number) => void;
   /** PC — 기간 띠 끝을 끌어 기간을 고친다 (S-17). 놓았을 때 한 번 부른다 */
   onPeriodChange: (activity: ActivitySummary, period: Period) => void;
+  /** 「지원도 같이 보기」를 켰을 때 낸 달에 놓을 지원(S-37). 그해 시작한 활동 뒤 · 이어진 활동 앞에 낸 달 순으로 */
+  applications?: TimelineApplication[];
 };
 
 /** 끈 쪽 끝만 「YYYY-MM」 으로 바꾼다. 종료가 비어 있던(한 달짜리) 활동의 시작을 끌면 원래 시작을 종료로 남긴다 */
@@ -41,7 +47,7 @@ type Drop = {
 
 const rowLayout = "lg:grid-cols-[minmax(0,1fr)_264px] lg:items-center lg:gap-6";
 
-export function Timeline({ activities, spans, years, selectedId, onSelect, dragging, onDropExperience, onPeriodChange, readOnly = false }: Props) {
+export function Timeline({ activities, spans, years, selectedId, onSelect, dragging, onDropExperience, onPeriodChange, applications = [], readOnly = false }: Props) {
   const [overId, setOverId] = useState<number | null>(null);
   const drop: Drop = { dragging, overId: dragging ? overId : null, setOverId, onDrop: onDropExperience };
   // 띠 끝을 끄는 동안의 미리보기 — 놓기 전엔 저장하지 않는다
@@ -92,6 +98,10 @@ export function Timeline({ activities, spans, years, selectedId, onSelect, dragg
                   />
                 );
               })}
+              {applications
+                .filter((a) => Math.floor(a.month / 12) === year)
+                .sort((a, b) => a.month - b.month)
+                .map((a) => <ApplicationRow key={`application-${a.id}`} application={a} year={year} />)}
               {continuing.map(({ item, span }) => {
                 const selected = item.id === selectedId;
                 return (
@@ -232,6 +242,41 @@ function Row({
         </span>
         {band}
       </button>
+    </li>
+  );
+}
+
+/** 지원 한 줄(S-37) — 활동과 구분되게 점선 테두리 · 문서 아이콘 · 띠 대신 낸 달에 점 하나(시안 6 `appRow`). 누르면 그 지원 화면 */
+function ApplicationRow({ application, year }: { application: TimelineApplication; year: number }) {
+  const month = application.month - year * 12;
+  const name = application.organization || "지원처 이름 없음";
+  return (
+    <li className="my-1 list-none">
+      <Link
+        href={application.href}
+        className={cn(
+          "-mx-2.5 grid w-[calc(100%+20px)] gap-1.5 rounded-sm border border-dashed border-application-line bg-application-soft px-2.5 py-2.5 text-left transition-colors hover:bg-surface-soft",
+          rowLayout,
+        )}
+      >
+        <span className="grid min-w-0 gap-0.5">
+          <span className="flex min-w-0 items-center gap-1.5 text-sm font-semibold leading-snug text-application">
+            <FileTextIcon className="size-3.5 shrink-0 text-record-pink" aria-hidden="true" />
+            <span className="truncate">{name}</span>
+          </span>
+          <span className="text-[13px] text-muted tabular-nums">
+            {year}.{String(month + 1).padStart(2, "0")} · 지원 · {APPLICATION_STATUS_LABEL[application.status]}
+          </span>
+        </span>
+        <span className="relative grid grid-cols-12 gap-0.5" aria-hidden="true">
+          <span className="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 bg-hairline-soft" />
+          {Array.from({ length: 12 }, (_, i) => (
+            <i key={i} className="relative flex h-2 items-center justify-center">
+              {i === month && <span className="size-2 rounded-full bg-record-pink" />}
+            </i>
+          ))}
+        </span>
+      </Link>
     </li>
   );
 }
