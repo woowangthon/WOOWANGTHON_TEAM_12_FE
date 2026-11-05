@@ -15,7 +15,7 @@ export function ActivityChip({ name, onTint = false }: { name: string; onTint?: 
   return <span className={`inline-flex justify-self-start rounded-full px-2.5 py-px text-xs font-semibold whitespace-nowrap text-evidence ${onTint ? "bg-canvas/85" : "bg-mark-soft"}`}>{shortName(name)}</span>;
 }
 
-export function RecommendationEvidence({ recommendation }: { recommendation: Recommendation }) {
+export function RecommendationEvidence({ recommendation }: { recommendation: Pick<Recommendation, "experience" | "evidence"> }) {
   if (!recommendation.evidence.length) return <p className="m-0 text-sm text-muted">이 추천에 연결된 원문 근거나 보완이 없어요.</p>;
   return <div className="grid gap-3">{recommendation.evidence.map((ref, i) => {
     const experience = recommendation.experience;

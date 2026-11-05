@@ -3,10 +3,18 @@ import { test, expect } from "./signed-in";
 import type { EntranceKind } from "../src/lib/api/entrance";
 import { makePdf } from "./fixtures/source-files";
 
+const ASKED = [{
+  activity: { id: 7, name: "바꿔요 — 캠퍼스 중고거래 앱", period: { start: "2025-03", end: "2025-06", ongoing: false } },
+  experience: { id: 102, activityId: 7, content: "매주 금요일 스프린트 회고를 했다", competencies: ["COLLABORATION"], actor: "TEAM", sourceStatus: "SOURCE_CONFIRMED",
+    citations: [{ id: 202, sourceId: 12, sourceName: "바꿔요-회고.md", quote: "팀은 매주 금요일 스프린트 회고를 했다.", matched: true, location: { startLine: 6, endLine: 6, section: null } }],
+    supplements: [{ id: 301, question: "회고에서 맡은 일은?", answer: "회고 안건을 모았다", createdAt: "2026-11-05T00:00:00Z" }] },
+  reason: "팀이 매주 회고로 의견을 모은 자리라 질문과 맞는다",
+  evidence: [{ type: "CITATION", id: 202 }, { type: "SUPPLEMENT", id: 301 }],
+}];
 const PARSED = { organization: "OO 백엔드 부트캠프 4기", organizationType: "BOOTCAMP", jobRole: "BACKEND", questions: ["협업한 경험을 적어 주세요.", "지원 동기는?"] };
 
 async function setup(page: Page, kind: EntranceKind = "SOURCE", status = 200) {
-  const calls = { routes: [] as { text: string }[], parses: [] as unknown[], parseStatus: 200, parsed: PARSED as Record<string, unknown>, sources: [] as unknown[], applications: [] as unknown[], sourceError: 0 };
+  const calls = { routes: [] as { text: string }[], parses: [] as unknown[], parseStatus: 200, parsed: PARSED as Record<string, unknown>, sources: [] as unknown[], applications: [] as unknown[], sourceError: 0, asks: [] as unknown[], askStatus: 200, asked: ASKED as unknown[] };
   await page.route("**/api/**", async route => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
@@ -21,6 +29,12 @@ async function setup(page: Page, kind: EntranceKind = "SOURCE", status = 200) {
       calls.parses.push(req.postDataJSON());
       await new Promise(resolve => setTimeout(resolve, 150));
       return route.fulfill({ status: calls.parseStatus, json: calls.parseStatus === 200 ? calls.parsed : { error: { code: calls.parseStatus === 504 ? "AI_TIMEOUT" : "AI_FAILED", message: "PARSE_FAILED" } } });
+    }
+    if (path === "/api/ask") {
+      calls.asks.push(req.postDataJSON());
+      await new Promise(resolve => setTimeout(resolve, 150));
+      const code = { 429: "DAILY_LIMIT_EXCEEDED", 502: "AI_FAILED", 504: "AI_TIMEOUT" }[calls.askStatus as 429 | 502 | 504];
+      return route.fulfill({ status: calls.askStatus, json: calls.askStatus === 200 ? { recommendations: calls.asked } : { error: { code, message: "ASK_FAILED" } } });
     }
     if (path === "/api/sources") {
       calls.sources.push(req.postDataJSON());
@@ -164,7 +178,7 @@ test("지원 넣기 화면에서 공고를 붙여 칸을 채우고, 직접 넣�
   await expect(page.getByLabel("문항 2", { exact: true })).toHaveValue("붙인 공고");
 });
 
-for (const result of [{ kind: "ASK", status: 200 }, { kind: "UNSURE", status: 200 }, { kind: "SOURCE", status: 502 }, { kind: "SOURCE", status: 504 }] as const) {
+for (const result of [{ kind: "UNSURE", status: 200 }, { kind: "SOURCE", status: 502 }, { kind: "SOURCE", status: 504 }] as const) {
   test(`${result.kind} / ${result.status}면 직접 고를 때까지 저장하지 않는다`, async ({ page }) => {
     const calls = await setup(page, result.kind, result.status);
     await page.getByLabel("홈에 넣을 글").fill("입력한 전체 글");
@@ -261,3 +275,55 @@ test("홈에 PDF 를 올려도 같은 추출로 쪽 위치와 함께 보낸다 (
     sections: [{ kind: "PAGE", number: 1, startLine: 1, endLine: 1 }, { kind: "PAGE", number: 2, startLine: 3, endLine: 4 }],
   });
 });
+
+test("ASK 면 꺼내기로 경험 카드 · 근거 · AI 해석을 보이고 활동 세부와 지원으로 만들기로 잇는다 (S-29)", async ({ page }, info) => {
+  const calls = await setup(page, "ASK");
+  await page.getByLabel("홈에 넣을 글").fill("동아리에서 의견 모아 본 적 있었나?");
+  await page.getByRole("button", { name: "보내기", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText(/가르고|찾고/);
+  const answer = page.getByRole("region", { name: "꺼내기 답" });
+  const card = answer.getByRole("listitem", { name: "꺼낸 경험 1" });
+  await expect(card).toContainText("바꿔요 — 캠퍼스 중고거래 앱");
+  await expect(card).toContainText("2025.03 – 2025.06");
+  await expect(card).toContainText("매주 금요일 스프린트 회고를 했다");
+  await expect(card).toContainText("AI 해석");
+  await expect(card).toContainText("팀은 매주 금요일 스프린트 회고를 했다.");
+  await expect(card).toContainText("회고 안건을 모았다");
+  expect(calls.asks).toEqual([{ text: "동아리에서 의견 모아 본 적 있었나?" }]);
+  expect(calls.applications).toHaveLength(0);
+  await expect(card.getByRole("link", { name: "활동 세부 보기 →" })).toHaveAttribute("href", "/experience?activity=7");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
+  await page.screenshot({ path: `artifacts/ask-answer-${info.project.name}.png`, fullPage: true });
+  await answer.getByRole("button", { name: "지원으로 만들기", exact: true }).click();
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(PARSED.questions[0]);
+  expect(calls.parses).toEqual([{ text: "동아리에서 의견 모아 본 적 있었나?" }]);
+});
+
+test("꺼내기 0개면 부족하다고 말하지 않고 찾지 못했다고 보인다", async ({ page }) => {
+  const calls = await setup(page, "ASK");
+  calls.asked = [];
+  await page.getByLabel("홈에 넣을 글").fill("해외 봉사 해 본 적 있나?");
+  await page.getByRole("button", { name: "보내기", exact: true }).click();
+  const answer = page.getByRole("region", { name: "꺼내기 답" });
+  await expect(answer).toContainText("쌓인 자료에서 찾지 못했어요.");
+  await expect(answer.getByRole("button", { name: "지원으로 만들기", exact: true })).toBeVisible();
+});
+
+for (const status of [502, 504, 429] as const) {
+  test(`꺼내기가 ${status} 면 정해진 답 없이 오류를 보인다`, async ({ page }) => {
+    const calls = await setup(page, "ASK");
+    calls.askStatus = status;
+    await page.getByLabel("홈에 넣을 글").fill("리더십 경험 있어?");
+    await page.getByRole("button", { name: "보내기", exact: true }).click();
+    const answer = page.getByRole("region", { name: "꺼내기 답" });
+    await expect(answer.getByRole("alert")).toContainText(status === 429 ? "오늘 분석 횟수를 다 썼어요" : status === 504 ? "시간이 너무" : "찾지 못했어요");
+    await expect(answer.getByRole("listitem")).toHaveCount(0);
+    await expect(answer.getByRole("button", { name: "다시 시도", exact: true })).toHaveCount(status === 429 ? 0 : 1);
+    if (status === 429) return;
+    calls.askStatus = 200;
+    await answer.getByRole("button", { name: "다시 시도", exact: true }).click();
+    await expect(page.getByRole("listitem", { name: "꺼낸 경험 1" })).toBeVisible();
+    expect(calls.asks).toHaveLength(2);
+  });
+}

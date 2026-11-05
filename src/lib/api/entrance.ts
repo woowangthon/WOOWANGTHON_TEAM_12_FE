@@ -3,6 +3,8 @@ import { isMockMode, request } from "./http";
 import { JOB_ROLE_LABEL, ORGANIZATION_TYPE_LABEL, type JobRole, type OrganizationType } from "./question-types";
 import { MAX_TEXT_LENGTH } from "./types";
 import { mockParseApplication } from "../mock/application-parse";
+import { mockAsk, type MockAskResult } from "../mock/ask";
+import type { Recommendation } from "./question-types";
 
 export const ENTRANCE_KINDS = ["SOURCE", "APPLICATION", "ASK", "UNSURE"] as const;
 export type EntranceKind = typeof ENTRANCE_KINDS[number];
@@ -43,4 +45,23 @@ export async function parseApplication(text: string): Promise<ParsedApplication>
     jobRole: result.jobRole && result.jobRole in JOB_ROLE_LABEL ? result.jobRole : null,
     questions: result.questions.filter(q => typeof q === "string" && q.trim()),
   };
+}
+
+/** 꺼내기 질문 최대 길이(자) — POST /api/ask */
+export const MAX_ASK_TEXT_LENGTH = 2000;
+/** question-api 「Recommendation」에서 emphasis · gaps 를 뺀 것 — reason 은 AI 해석 */
+export type AskRecommendation = Omit<Recommendation, "emphasis" | "gaps">;
+
+/** S-29: 한 줄 질문에 쌓인 경험 0 ~ 3개로 답한다. 저장하지 않는다 · 하루 분석 한도를 1회 센다. */
+export async function askExperiences(text: string, mockResult: MockAskResult = "CARDS"): Promise<AskRecommendation[]> {
+  if (!text.trim()) throw new ApiError("EMPTY_TEXT", "글을 입력해 주세요.");
+  if (text.length > MAX_ASK_TEXT_LENGTH) throw new ApiError("INVALID_REQUEST", "꺼내기 질문은 2,000자까지 읽어요. 줄여서 물어보거나 지원으로 만들어 주세요.");
+  if (isMockMode()) {
+    // MOCK(entrance-ask): API 주소가 없을 때만 고정 예시(카드 있는 답 · 0개 답)를 돌려준다. 실제 실패 대체용이 아니다.
+    await new Promise(resolve => setTimeout(resolve, 400));
+    return mockAsk(mockResult);
+  }
+  const result = await request<{ recommendations: AskRecommendation[] }>("/ask", { text }, "POST");
+  if (!Array.isArray(result?.recommendations)) throw new ApiError("INVALID_RESPONSE", "꺼내기 결과를 읽지 못했어요. 다시 시도해 주세요.");
+  return result.recommendations.slice(0, 3).map(r => ({ ...r, evidence: r.evidence ?? [], experience: { ...r.experience, citations: r.experience.citations ?? [], supplements: r.experience.supplements ?? [] } }));
 }

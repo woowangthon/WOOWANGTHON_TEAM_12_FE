@@ -11,9 +11,29 @@ test("목임을 표시하고 네 분류를 실제 호출 없이 확인한다", a
     await page.getByRole("button", { name: "보내기", exact: true }).click();
     if (kind === "SOURCE") await expect(page.getByLabel("붙여넣을 자료")).toHaveValue("목에서 확인할 글");
     else if (kind === "APPLICATION") await expect(page.getByText(/글에서 문항을 찾지 못했어요/)).toBeVisible();
+    else if (kind === "ASK") await expect(page.getByRole("listitem", { name: "꺼낸 경험 1" })).toBeVisible();
     else await expect(page.getByText("자료로 쌓을까요, 지원으로 만들까요?", { exact: true })).toBeVisible();
   }
   expect(requests).toBe(0);
+});
+
+test("목 꺼내기 답은 카드 있는 답 · 0개 답을 고정 예시로 보이고 목임을 밝힌다", async ({ page }, info) => {
+  await page.goto("/?debug=entrance");
+  await page.getByRole("combobox", { name: "목 분류 결과", exact: true }).selectOption("ASK");
+  await page.getByRole("button", { name: "리더십을 보여 준 경험 있어?", exact: true }).click();
+  await page.getByRole("button", { name: "보내기", exact: true }).click();
+  const answer = page.getByRole("region", { name: "꺼내기 답" });
+  await expect(answer.getByRole("listitem", { name: /꺼낸 경험/ })).toHaveCount(2);
+  await expect(answer).toContainText("목 모드 예시예요");
+  await expect(answer.getByText(/목 예시 — AI 판단이 아니에요/).first()).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
+  await page.screenshot({ path: `artifacts/ask-mock-${info.project.name}.png`, fullPage: true });
+  await page.getByRole("combobox", { name: "목 꺼내기 답", exact: true }).selectOption("EMPTY");
+  await page.getByRole("button", { name: "보내기", exact: true }).click();
+  await expect(answer).toContainText("쌓인 자료에서 찾지 못했어요.");
+  await answer.getByRole("button", { name: "지원으로 만들기", exact: true }).click();
+  await expect(page.getByRole("dialog").getByRole("heading", { name: "지원 넣기" })).toBeVisible();
 });
 
 test("목 지원 나누기는 글에 적힌 문항만 규칙으로 나누고 목임을 밝힌다", async ({ page }, info) => {

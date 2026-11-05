@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowUpIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { ContinueCards, HomeMascot } from "./home-overview";
 import { ModelMenu } from "./model-menu";
+import { AskAnswer, AskFailureNotice, type AskAnswerState, type AskFailure } from "./ask-answer";
 import type { HomeOverview } from "./use-home-overview";
 import { ApplicationForm } from "@/components/questions/application-form";
 import { ParseFailureNotice, useApplicationParse } from "@/components/questions/application-parse";
@@ -12,7 +13,7 @@ import { AddSourceDialog } from "@/components/source/add-source-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ApiError } from "@/lib/api/errors";
-import { ENTRANCE_KINDS, routeEntrance, type EntranceKind, type ParsedApplication } from "@/lib/api/entrance";
+import { askExperiences, ENTRANCE_KINDS, routeEntrance, type EntranceKind, type ParsedApplication } from "@/lib/api/entrance";
 import { isMockMode } from "@/lib/api/http";
 import { submitApplication } from "@/lib/api/questions";
 import { submitSource, type MockAnalysis } from "@/lib/api/experience";
@@ -21,6 +22,7 @@ import { useAuth } from "@/components/auth/auth-gate";
 import { readSourceFile, SOURCE_FILE_ACCEPT, SourceFileError, type SourceFile } from "@/lib/source-file/read";
 import { MAX_TEXT_LENGTH } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
+import type { MockAskResult } from "@/lib/mock/ask";
 
 type Destination = { kind: "source" | "application"; text: string; prefill?: ParsedApplication };
 const MOCK_LABEL: Record<EntranceKind, string> = { SOURCE: "자료", APPLICATION: "지원", ASK: "한 줄 질문", UNSURE: "애매함" };
@@ -38,7 +40,7 @@ const EXAMPLES = {
   ],
 } as const;
 
-/** 시안 6 홈 — S-28 · S-30 을 연결한다. S-29 전의 ASK 분기는 entrance-api 계약을 따른다. */
+/** 시안 6 홈 — S-28 가르기 → S-29 꺼내기 답 · S-30 지원 나누기로 잇는다(entrance-api 「흐름」). */
 export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, overview, onRefresh, showMockControls = false }: {
   sourceBusy: boolean; mockAnalysis: MockAnalysis;
   onSourceSubmitted: (job: { jobId: number; name: string }) => void;
@@ -55,6 +57,10 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
   const [destination, setDestination] = useState<Destination | null>(null);
   const [saving, setSaving] = useState(false);
   const [mockKind, setMockKind] = useState<EntranceKind>("UNSURE");
+  const [mockAsk, setMockAsk] = useState<MockAskResult>("CARDS");
+  const [asking, setAsking] = useState(false);
+  const [answer, setAnswer] = useState<AskAnswerState | null>(null);
+  const [askFailure, setAskFailure] = useState<AskFailure | null>(null);
   const [file, setFile] = useState<SourceFile | null>(null);
   const [readingFile, setReadingFile] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -64,7 +70,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
   const fileVersion = useRef(0);
   const pending = useRef(false);
   const tooLong = text.length > MAX_TEXT_LENGTH;
-  const busy = routing || parse.parsing || sourceSubmitting || readingFile;
+  const busy = routing || asking || parse.parsing || sourceSubmitting || readingFile;
 
   const pickFile = async (picked: File | undefined) => {
     if (!picked) return;
@@ -95,6 +101,23 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     if (prefill) { setDestination({ kind: "application", text: value, prefill }); setChoosing(false); setError(null); }
   };
 
+  /** S-29 꺼내기 — 한 번 묻고 경험 카드로 답한다. 실패는 정해진 답으로 채우지 않는다 */
+  const ask = async (value: string) => {
+    setAsking(true); setAskFailure(null); setAnswer(null);
+    try {
+      const recommendations = await askExperiences(value, mockAsk);
+      setAnswer({ text: value, recommendations, mock: isMockMode() });
+      refreshAccount();
+    } catch (e) {
+      if (e instanceof ApiError && e.code === "DAILY_LIMIT_EXCEEDED") setAskFailure({ text: value, retryable: false, message: "오늘 분석 횟수를 다 썼어요. 한국 시간 자정에 다시 채워지면 물어봐 주세요." });
+      else if (e instanceof ApiError && (e.status === 502 || e.status === 504 || e.code === "NETWORK_ERROR" || e.code === "INVALID_RESPONSE"))
+        setAskFailure({ text: value, retryable: true, message: e.status === 504 ? "경험을 찾는 데 시간이 너무 걸렸어요." : "쌓인 경험에서 찾지 못했어요 — 잠시 뒤 다시 시도해 주세요." });
+      else setAskFailure({ text: value, retryable: false, message: e instanceof Error ? e.message : "경험을 찾지 못했어요." });
+    } finally { setAsking(false); }
+  };
+
+  const makeApplication = (value: string) => { setAnswer(null); setAskFailure(null); void fillApplication(value); };
+
   const send = async () => {
     if (pending.current || readingFile || (!file && (!text.trim() || tooLong))) return;
     if (mode === "in" || file) {
@@ -110,12 +133,13 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
       return;
     }
     pending.current = true;
-    setRouting(true); setError(null); setChoosing(false);
+    setRouting(true); setError(null); setChoosing(false); setAnswer(null); setAskFailure(null);
     try {
       const result = await routeEntrance(text, showMockControls ? mockKind : "UNSURE");
       if (result.kind === "SOURCE") openDestination("source");
       else if (result.kind === "APPLICATION") await fillApplication(text);
-      else setChoosing(true); // ASK도 S-29 전에는 사용자가 고른다.
+      else if (result.kind === "ASK") await ask(text);
+      else setChoosing(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "글을 가르지 못했어요. 다시 시도해 주세요.");
       if (e instanceof ApiError && (e.status === 502 || e.status === 504 || e.code === "NETWORK_ERROR" || e.code === "INVALID_RESPONSE")) setChoosing(true);
@@ -161,7 +185,15 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
         {ENTRANCE_KINDS.map(kind => <option key={kind} value={kind}>{MOCK_LABEL[kind]}</option>)}
       </select>
     </label>}
-    {routing && !parse.parsing && <p role="status" className="mt-4 text-center text-sm text-muted">글을 읽고 자료인지 지원인지 가르고 있어요…</p>}
+    {isMockMode() && showMockControls && mockKind === "ASK" && <label className="mt-2 flex flex-wrap items-center justify-center gap-2 text-xs text-muted">목 꺼내기 답 (AI 호출 없음)
+      <select aria-label="목 꺼내기 답" value={mockAsk} disabled={busy} onChange={e => setMockAsk(e.target.value as MockAskResult)} className="min-h-11 rounded-sm border border-hairline bg-canvas px-3 text-ink">
+        <option value="CARDS">경험 카드 있음</option><option value="EMPTY">0개</option>
+      </select>
+    </label>}
+    {asking && <p role="status" className="mt-4 text-center text-sm text-muted">쌓인 경험에서 찾고 있어요…</p>}
+    {answer && <AskAnswer answer={answer} busy={busy} onMakeApplication={() => makeApplication(answer.text)} />}
+    {askFailure && <AskFailureNotice failure={askFailure} busy={busy} onRetry={() => void ask(askFailure.text)} onMakeApplication={() => makeApplication(askFailure.text)} />}
+    {routing && !parse.parsing && !asking && <p role="status" className="mt-4 text-center text-sm text-muted">글을 읽고 자료인지 지원인지 가르고 있어요…</p>}
     {parse.parsing && <p role="status" className="mt-4 text-center text-sm text-muted">글을 읽고 지원처와 문항을 나누고 있어요…</p>}
     {parse.failure && <ParseFailureNotice className="mt-4" failure={parse.failure} onRetry={() => void fillApplication(parse.failure!.text)} onManual={() => { openDestination("application", parse.failure!.text); parse.clear(); }} />}
     {tooLong && !file && <p role="alert" className="mt-4 text-sm text-error">한 번에 50,000자까지 넣을 수 있어요. 나눠서 넣어 주세요.</p>}
