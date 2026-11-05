@@ -1,6 +1,6 @@
 "use client";
 
-// 자료 넣기 — 붙여넣기 또는 .md · .txt 파일 하나 (SPEC S-01). 분석을 시작하기 전에 외부 AI 로 보내진다는 걸 보인다 (S-16)
+// 자료 넣기 — 붙여넣기 또는 .md · .txt · .pdf · .pptx 파일 하나 (SPEC S-01 · S-39). 분석을 시작하기 전에 외부 AI 로 보내진다는 걸 보인다 (S-16)
 // PC 는 가운데 대화창, 모바일은 아래에 붙는 시트(ui/dialog)
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { FileTextIcon, UploadSimpleIcon } from "@phosphor-icons/react";
@@ -11,19 +11,19 @@ import { useAuth } from "@/components/auth/auth-gate";
 import { dailyLimitMessage } from "@/lib/api/auth";
 import { ApiError, submitSource, type MockAnalysis } from "@/lib/api/experience";
 import { MAX_TEXT_LENGTH, type SourceRequest } from "@/lib/api/types";
+import { readSourceFile, SOURCE_FILE_ACCEPT, SOURCE_FILE_LABEL, SourceFileError, type SourceFile } from "@/lib/source-file/read";
 
 type Mode = "paste" | "file";
-type PickedFile = { name: string; text: string };
 
 const SUBMIT_ERRORS: Record<string, string> = {
   EMPTY_TEXT: "내용이 비어 있어요.",
-  UNSUPPORTED_FILE_TYPE: ".md · .txt 파일만 넣을 수 있어요.",
+  UNSUPPORTED_FILE_TYPE: `${SOURCE_FILE_LABEL} 파일만 넣을 수 있어요.`,
+  INVALID_SECTIONS: "파일의 쪽 · 슬라이드 위치를 맞추지 못했어요. 다시 골라 주세요.",
   TEXT_TOO_LONG: `한 번에 ${MAX_TEXT_LENGTH.toLocaleString()}자까지 넣을 수 있어요.`,
   // 429 — 서버가 원본을 저장하지 않고 분석을 시작하지 않았다 (S-15)
   DAILY_LIMIT_EXCEEDED: dailyLimitMessage("new"),
 };
 
-const isTextFile = (name: string) => /\.(md|txt)$/i.test(name);
 const tooLong = (text: string) => text.length > MAX_TEXT_LENGTH;
 const tooLongText = (text: string) =>
   `한 번에 ${MAX_TEXT_LENGTH.toLocaleString()}자까지 넣을 수 있어요. 지금 ${text.length.toLocaleString()}자예요 — 나눠서 넣어 주세요.`;
@@ -41,7 +41,9 @@ type Props = {
 export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initialText = "", onMoveToApplication }: Props) {
   const [mode, setMode] = useState<Mode>("paste");
   const [text, setText] = useState(initialText);
-  const [file, setFile] = useState<PickedFile | null>(null);
+  const [file, setFile] = useState<SourceFile | null>(null);
+  const [reading, setReading] = useState(false);
+  const pickVersion = useRef(0);
   const [fileError, setFileError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   // 오늘 남은 분석 횟수(S-15) — 로그인했을 때만. 열 때마다 다시 읽는다
@@ -57,7 +59,9 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
   const reset = () => {
     setMode("paste");
     setText("");
+    ++pickVersion.current;
     setFile(null);
+    setReading(false);
     setFileError(null);
     setSubmitError(null);
     setDragging(false);
@@ -72,19 +76,22 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
   const pick = async (picked: File | undefined) => {
     setSubmitError(null);
     if (!picked) return;
-    if (!isTextFile(picked.name)) {
-      setFile(null);
-      setFileError(`이 파일(${picked.name})은 넣을 수 없어요. .md · .txt 파일만 읽을 수 있어요(PDF · PPT 는 아직 못 읽어요).`);
-      return;
+    // 늦게 끝난 앞 파일이 뒤에 고른 파일을 덮지 않게
+    const version = ++pickVersion.current;
+    setFile(null);
+    setFileError(null);
+    setReading(true);
+    try {
+      const read = await readSourceFile(picked);
+      if (pickVersion.current !== version) return;
+      setFile(read);
+      setFileError(tooLong(read.text) ? tooLongText(read.text) : null);
+    } catch (e) {
+      if (pickVersion.current !== version) return;
+      setFileError(e instanceof SourceFileError ? e.message : `이 파일(${picked.name})을 읽지 못했어요. 다시 골라 주세요.`);
+    } finally {
+      if (pickVersion.current === version) setReading(false);
     }
-    const content = await picked.text();
-    if (!content.trim()) {
-      setFile(null);
-      setFileError(`이 파일(${picked.name})이 비어 있어요.`);
-      return;
-    }
-    setFile({ name: picked.name, text: content });
-    setFileError(tooLong(content) ? tooLongText(content) : null);
   };
 
   const onDrop = (e: DragEvent) => {
@@ -105,7 +112,7 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
         ? { kind: "TEXT", name: null, text }
         : null
       : file && !fileError
-        ? { kind: "FILE", name: file.name, text: file.text }
+        ? { kind: "FILE", name: file.name, text: file.text, ...(file.sections && { sections: file.sections }) }
         : null;
 
   const submit = async () => {
@@ -143,7 +150,7 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
           {(
             [
               ["paste", "붙여넣기"],
-              ["file", ".md · .txt 파일"],
+              ["file", "파일"],
             ] as const
           ).map(([value, label]) => (
             <button
@@ -201,20 +208,28 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
             >
               <input
                 type="file"
-                accept=".md,.txt,text/markdown,text/plain"
+                accept={SOURCE_FILE_ACCEPT}
                 className="sr-only"
+                disabled={reading}
                 onChange={(e) => {
                   void pick(e.target.files?.[0]);
                   e.target.value = "";
                 }}
               />
-              {file ? (
+              {reading ? (
+                <span className="grid justify-items-center gap-1.5" role="status">
+                  <UploadSimpleIcon className="size-7 animate-pulse text-muted" aria-hidden="true" />
+                  <span className="text-[15px] font-medium">파일에서 글자를 읽는 중…</span>
+                  <span className="text-[13px] text-muted">이 기기 안에서 읽어요</span>
+                </span>
+              ) : file ? (
                 <span className="grid justify-items-center gap-1.5">
                   <span className="inline-flex items-center gap-1.5 text-[15px] font-medium text-evidence">
                     <FileTextIcon className="size-[1.15em]" aria-hidden="true" />
                     {file.name}
                   </span>
                   <span className="text-[13px] text-muted tabular-nums">
+                    {file.sections && `읽은 ${file.sections.length}${file.sections[0].kind === "PAGE" ? "쪽" : "장"} · `}
                     {file.text.length.toLocaleString()}자 · 다른 파일로 바꾸려면 눌러 주세요
                   </span>
                 </span>
@@ -222,11 +237,13 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
                 <span className="grid justify-items-center gap-1.5">
                   <UploadSimpleIcon className="size-7 text-ink" aria-hidden="true" />
                   <span className="text-[15px] font-medium">파일을 끌어다 놓거나 눌러서 고르세요</span>
-                  <span className="text-[13px] text-muted">.md · .txt 파일 하나 · {MAX_TEXT_LENGTH.toLocaleString()}자까지</span>
+                  <span className="text-[13px] text-muted">{SOURCE_FILE_LABEL} 파일 하나 · {MAX_TEXT_LENGTH.toLocaleString()}자까지</span>
+                  <span className="text-[13px] text-muted">스캔한 PDF · 그림 속 글자는 읽지 못해요</span>
                 </span>
               )}
             </label>
-            {fileError && <p className="m-0 text-[13px] text-error">{fileError}</p>}
+            {fileError && <p className="m-0 text-[13px] text-error" role="alert">{fileError}</p>}
+            {!fileError && file?.notice && <p className="m-0 text-[13px] text-review">{file.notice}</p>}
           </div>
         )}
 
@@ -252,7 +269,7 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
           <Button variant="link" onClick={() => changeOpen(false)} disabled={submitting}>
             취소
           </Button>
-          <Button onClick={submit} disabled={!request || submitting}>
+          <Button onClick={submit} disabled={!request || submitting || reading}>
             {submitting ? "보내는 중…" : "분석 시작"}
           </Button>
         </DialogFooter>

@@ -28,7 +28,13 @@ export const MAX_TEXT_LENGTH = 50000;
 /** 자료 넣기 요청 — POST /api/sources. 파일도 브라우저에서 읽어 text 로 보낸다 */
 export type SourceRequest =
   | { kind: "TEXT"; name: null; text: string }
-  | { kind: "FILE"; name: string; text: string };
+  | { kind: "FILE"; name: string; text: string; sections?: SourceSection[] | null };
+
+/** 쪽(PDF) · 슬라이드(PPTX) — README 「값 목록」 sectionKind (S-39) */
+export type SectionKind = "PAGE" | "SLIDE";
+
+/** 원본의 쪽 · 슬라이드가 text 의 몇째 줄부터 몇째 줄까지인가 — .pdf · .pptx 면 필수 */
+export type SourceSection = { kind: SectionKind; number: number; startLine: number; endLine: number };
 
 /** POST /api/sources 응답(202) */
 export type SourceSubmitted = { sourceId: number; jobId: number; status: "ANALYZING" };
@@ -68,7 +74,12 @@ export type Citation = {
   quote: string;
   /** 원본에서 찾았나. null 이면 아직 대조하지 않았다 */
   matched: boolean | null;
-  location: { startLine: number; endLine: number } | null;
+  location: {
+    startLine: number;
+    endLine: number;
+    /** 원본이 PDF · PPTX 면 몇 쪽 · 몇 번째 슬라이드(BE 가 계산). 없으면 null */
+    section?: { kind: SectionKind; from: number; to: number } | null;
+  } | null;
 };
 
 export type Experience = {

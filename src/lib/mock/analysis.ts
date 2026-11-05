@@ -56,8 +56,8 @@ function nowText() {
 
 export function mockSubmitSource(req: SourceRequest, outcome: Outcome) {
   if (!req.text.trim()) throw new ApiError("EMPTY_TEXT", "text 가 비었거나 공백뿐");
-  if (req.kind === "FILE" && !/\.(md|txt)$/i.test(req.name)) {
-    throw new ApiError("UNSUPPORTED_FILE_TYPE", ".md · .txt 가 아님");
+  if (req.kind === "FILE" && !/\.(md|txt|pdf|pptx)$/i.test(req.name)) {
+    throw new ApiError("UNSUPPORTED_FILE_TYPE", ".md · .txt · .pdf · .pptx 가 아님");
   }
   if (req.text.length > MAX_TEXT_LENGTH) throw new ApiError("TEXT_TOO_LONG", `텍스트가 ${MAX_TEXT_LENGTH}자를 넘습니다`);
 

@@ -1,6 +1,7 @@
 // 근거 — 원본 이름 + 발췌문 (SPEC S-09 · DESIGN.md 「근거」). 원본에서 못 찾았거나 대조 전이면 그렇다고 적는다
 import { FileTextIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import type { Citation } from "@/lib/api/types";
+import { sectionLabel } from "@/lib/source-file/sections";
 
 export function ReviewWarning({ children }: { children: string }) {
   return (
@@ -20,7 +21,9 @@ export function SourceFile({ name }: { name: string }) {
   );
 }
 
-function lineText({ startLine, endLine }: NonNullable<Citation["location"]>) {
+/** PDF · PPTX 면 쪽 · 슬라이드(S-39) — 뽑은 글자의 줄 번호는 원본에서 찾을 수 없어 보이지 않는다 */
+function lineText({ startLine, endLine, section }: NonNullable<Citation["location"]>) {
+  if (section) return sectionLabel(section);
   return startLine === endLine ? `${startLine}번째 줄` : `${startLine}–${endLine}번째 줄`;
 }
 
