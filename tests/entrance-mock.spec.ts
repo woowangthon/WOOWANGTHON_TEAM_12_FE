@@ -16,12 +16,12 @@ test("목임을 표시하고 네 분류를 실제 호출 없이 확인한다", a
   expect(requests).toBe(0);
 });
 
-test("1024 레일에서 활동 세부를 열어도 홈 입력이 넘치지 않는다", async ({ page }, info) => {
+test("1024 레일에서 내 경험 활동 세부가 넘치지 않는다", async ({ page }, info) => {
   test.skip(info.project.name !== "entrance-rail", "1024 폭 점검");
-  await page.goto("/");
+  await page.goto("/experience");
   await page.getByRole("button", { name: /바꿔요 — 캠퍼스/ }).first().click();
   await expect(page.getByRole("complementary", { name: "활동 세부" })).toBeVisible();
-  await expect(page.getByLabel("홈에 넣을 글")).toBeVisible();
+  await expect(page.getByLabel("홈에 넣을 글")).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
   await page.screenshot({ path: "artifacts/entrance-1024-detail.png", fullPage: true });

@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test("mock timeline, competency provenance edits, and source analysis remains mock", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/experience");
   await expect(page.getByRole("note")).toContainText("목 모드");
   await page.getByRole("button", { name: /바꿔요 — 캠퍼스/ }).first().click();
   await page.getByRole("button", { name: "활동 수정", exact: true }).click();
@@ -42,8 +42,8 @@ test("mock timeline, competency provenance edits, and source analysis remains mo
 });
 
 test("empty and error mock routes remain available", async ({ page }) => {
-  await page.goto("/?mock=empty");
+  await page.goto("/experience?mock=empty");
   await expect(page.getByText("어떤 일을 해 왔나요?", { exact: true })).toBeVisible();
-  await page.goto("/?mock=error");
+  await page.goto("/experience?mock=error");
   await expect(page.getByText("타임라인을 불러오지 못했어요", { exact: true })).toBeVisible();
 });

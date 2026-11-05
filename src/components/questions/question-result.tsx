@@ -90,7 +90,7 @@ export function QuestionResult({ question, elsewhere }: { question: QuestionDeta
               <span><b className="font-semibold">차곡이 질문에 답했어요</b> — 보완으로 쌓여 다음 문항부터 근거로 써요. 이 추천은 문항을 넣을 때 만든 거라 위 목록은 그대로예요.</span>
             </p>}
           </div>}
-          <Link href={`/?activity=${r.activity.id}&fromQuestion=${question.id}`}
+          <Link href={`/experience?activity=${r.activity.id}&fromQuestion=${question.id}`}
             className="inline-flex min-h-11 items-center justify-self-start text-sm font-medium text-ink underline-offset-3 hover:underline sm:col-span-2">타임라인에서 활동 보기 →</Link>
         </div>
       </details>

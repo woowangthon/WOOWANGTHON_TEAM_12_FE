@@ -449,7 +449,7 @@ test("answering a clarification posts it and shows it on the experience as user-
 
   // 활동 세부(실제 타임라인) — 원문 확인 표시는 그대로, 보완은 「내가 입력한 보완」으로 따로 · 어느 지원에서 답했는지
   await recommendation(page, 1).getByRole("link", { name: /타임라인에서 활동 보기/ }).click();
-  await expect(page).toHaveURL(/\/\?activity=7&fromQuestion=41/);
+  await expect(page).toHaveURL(/\/experience\?activity=7&fromQuestion=41/);
   const activity = page.getByRole("complementary", { name: "활동 세부" });
   const first = activity.locator("li").first();
   await expect(first).toContainText("WebSocket");
@@ -518,7 +518,7 @@ test("add source from the application screen opens the dialog on the timeline on
     await page.getByRole("button", { name: "자료 넣기", exact: true }).filter({ visible: true }).click();
     const dialog = page.getByRole("dialog", { name: "자료 넣기" });
     await expect(dialog).toBeVisible();
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(/\/experience$/);
     await page.reload();
     await expect(page.getByRole("note")).toContainText("실제 API 모드");
     await expect(dialog).toHaveCount(0);

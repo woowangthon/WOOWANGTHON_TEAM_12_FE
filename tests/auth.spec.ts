@@ -44,7 +44,7 @@ async function setup(page: Page, init: { signedIn?: boolean; meError?: number; m
     }
     return route.fulfill({ status: 404, json: { error: { code: "NOT_FOUND", message: "없음" } } });
   });
-  await page.goto("/");
+  await page.goto("/experience");
   return state;
 }
 

@@ -35,12 +35,11 @@ type Props = {
   /** 분석 작업이 만들어졌다 — name 은 화면에 보일 자료 이름 */
   onSubmitted: (job: { jobId: number; name: string }) => void;
   initialText?: string;
-  initialMode?: Mode;
   onMoveToApplication?: (text: string) => void;
 };
 
-export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initialText = "", initialMode = "paste", onMoveToApplication }: Props) {
-  const [mode, setMode] = useState<Mode>(initialMode);
+export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initialText = "", onMoveToApplication }: Props) {
+  const [mode, setMode] = useState<Mode>("paste");
   const [text, setText] = useState(initialText);
   const [file, setFile] = useState<PickedFile | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);

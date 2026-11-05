@@ -3,7 +3,7 @@ import { test, expect } from "./signed-in";
 import type { EntranceKind } from "../src/lib/api/entrance";
 
 async function setup(page: Page, kind: EntranceKind = "SOURCE", status = 200) {
-  const calls = { routes: [] as { text: string }[], sources: [] as unknown[], applications: [] as unknown[] };
+  const calls = { routes: [] as { text: string }[], sources: [] as unknown[], applications: [] as unknown[], sourceError: 0 };
   await page.route("**/api/**", async route => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
@@ -16,6 +16,7 @@ async function setup(page: Page, kind: EntranceKind = "SOURCE", status = 200) {
     }
     if (path === "/api/sources") {
       calls.sources.push(req.postDataJSON());
+      if (calls.sourceError) return route.fulfill({ status: calls.sourceError, json: { error: { code: "DAILY_LIMIT_EXCEEDED", message: "오늘 한도" } } });
       return route.fulfill({ status: 202, json: { sourceId: 12, jobId: 34, status: "ANALYZING" } });
     }
     if (path === "/api/jobs/34") return route.fulfill({ json: { jobId: 34, sourceId: 12, status: "ANALYZING", activityIds: [], error: null, createdAt: "2026-11-05T00:00:00Z", updatedAt: "2026-11-05T00:00:00Z" } });
@@ -80,24 +81,28 @@ for (const result of [{ kind: "ASK", status: 200 }, { kind: "UNSURE", status: 20
   });
 }
 
-test("쌓기와 파일은 가르지 않으며 세 폭에서 가로 넘침이 없다", async ({ page }, info) => {
+test("쌓기와 파일은 가르지 않으며 세 폭에서 가로 넘침이 없다", async ({ page }) => {
   const calls = await setup(page);
   await expect(page.getByRole("button", { name: "꺼내기", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
-  await page.screenshot({ path: `artifacts/entrance-${info.project.name}.png`, fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole("button", { name: "쌓기", exact: true }).click();
   await page.getByLabel("홈에 넣을 글").fill("쌓을 자료");
   await page.getByRole("button", { name: "보내기", exact: true }).click();
-  await expect(page.getByLabel("붙여넣을 자료")).toHaveValue("쌓을 자료");
-  await page.getByRole("button", { name: "취소", exact: true }).click();
-  await page.getByRole("button", { name: "파일 올리기", exact: true }).click();
-  await page.getByRole("dialog").locator('input[type="file"]').setInputFiles({ name: "회고.md", mimeType: "text/markdown", buffer: Buffer.from("파일의 원문") });
-  await expect(page.getByText("회고.md", { exact: true })).toBeVisible();
-  expect(calls.routes).toHaveLength(0); expect(calls.sources).toHaveLength(0);
-  await page.getByRole("button", { name: "분석 시작", exact: true }).click();
   await expect.poll(() => calls.sources.length).toBe(1);
-  expect(calls.sources[0]).toEqual({ kind: "FILE", name: "회고.md", text: "파일의 원문" });
+  expect(calls.sources[0]).toEqual({ kind: "TEXT", name: null, text: "쌓을 자료" });
+  expect(calls.routes).toHaveLength(0);
+  await expect(page.getByRole("button", { name: "보내기", exact: true })).toBeDisabled();
+  // 파일도 새 홈에서 보낸다. 진행 중인 작업을 지우는 것은 이 시험의 격리뿐이다.
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.getByLabel("홈 첨부 파일").setInputFiles({ name: "회고.md", mimeType: "text/markdown", buffer: Buffer.from("파일의 원문") });
+  await expect(page.getByText(/회고.md ·/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "쌓기", exact: true })).toHaveAttribute("aria-pressed", "true");
+  expect(calls.routes).toHaveLength(0); expect(calls.sources).toHaveLength(1);
+  await page.getByRole("button", { name: "보내기", exact: true }).click();
+  await expect.poll(() => calls.sources.length).toBe(2);
+  expect(calls.sources[1]).toEqual({ kind: "FILE", name: "회고.md", text: "파일의 원문" });
 });
 
 test("긴 글은 자르지 않고 한도 안내 뒤 자료 쪽으로 그대로 옮긴다", async ({ page }) => {
@@ -114,4 +119,25 @@ test("긴 글은 자르지 않고 한도 안내 뒤 자료 쪽으로 그대로 �
   expect(calls.applications).toHaveLength(0);
   await page.getByRole("button", { name: "자료로 쌓기", exact: true }).click();
   await expect(page.getByLabel("붙여넣을 자료")).toHaveValue(text);
+});
+
+test("홈 파일 오류와 쌓기 실패는 글을 남기고 저장 성공으로 꾸미지 않는다", async ({ page }) => {
+  const calls = await setup(page);
+  const home = page.getByRole("region", { name: "홈 입력", exact: true });
+  await page.getByLabel("홈 첨부 파일").setInputFiles({ name: "문서.pdf", mimeType: "application/pdf", buffer: Buffer.from("지원하지 않는 파일") });
+  await expect(home.getByRole("alert")).toContainText(".md · .txt");
+  await expect(page.getByRole("button", { name: "보내기", exact: true })).toBeDisabled();
+  await page.getByLabel("홈 첨부 파일").setInputFiles({ name: "빈파일.txt", mimeType: "text/plain", buffer: Buffer.from(" ") });
+  await expect(home.getByRole("alert")).toContainText("비어 있어요");
+  await page.getByLabel("홈 첨부 파일").setInputFiles({ name: "기록.txt", mimeType: "text/plain", buffer: Buffer.from("원문 그대로") });
+  await expect(home.getByRole("alert")).toHaveCount(0);
+  calls.sourceError = 429;
+  await page.getByRole("button", { name: "보내기", exact: true }).click();
+  await expect(home.getByRole("alert")).toContainText("저장하지 않았어요");
+  await expect(page.getByText(/기록.txt ·/)).toBeVisible();
+  expect(calls.routes).toHaveLength(0);
+  calls.sourceError = 0;
+  await page.getByRole("button", { name: "다시 시도", exact: true }).click();
+  await expect.poll(() => calls.sources.length).toBe(2);
+  expect(calls.sources[1]).toEqual({ kind: "FILE", name: "기록.txt", text: "원문 그대로" });
 });

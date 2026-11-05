@@ -69,7 +69,7 @@ export function ApplicationScreen() {
 
   return <div className="min-h-dvh bg-canvas xl:flex xl:items-start">
     {/* 「자료 넣기」 — 시안 6 사이드바는 세 화면이 같다(FE#64). 자료 넣기 창 · 분석 상태는 내 경험 화면에 있어 그리로 가서 연다 */}
-    <AppHeader activePage="questions" addSource={{ onClick: () => router.push("/?add=1") }}
+    <AppHeader activePage="questions" addSource={{ onClick: () => router.push("/experience?add=1") }}
       sidebarExtra={ready ? <ApplicationList applications={matching.applications} activeId={activeId} onPick={pick} sidebar /> : undefined} />
     <div className="min-w-0 flex-1">
     <main className="mx-auto max-w-[1280px] px-4.5 py-6 lg:px-8 lg:py-8">
