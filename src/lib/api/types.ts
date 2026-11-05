@@ -57,6 +57,19 @@ export type Job = {
 
 export type MergeSuggestion = { activityId: number; name: string; period: Period };
 
+/** S-35 이어짐 — 「from 활동의 계기가 to 활동으로 이어졌나」. reason 은 확인한 뒤에도 AI 해석이다(experience-api 「ActivityLink」) */
+export type LinkStatus = "SUGGESTED" | "CONFIRMED" | "REJECTED";
+export type ActivityLink = {
+  id: number;
+  fromActivityId: number;
+  fromActivityName: string;
+  toActivityId: number;
+  toActivityName: string;
+  reason: string;
+  status: LinkStatus;
+  createdAt: string;
+};
+
 export type ActivitySummary = {
   /** S-34. 사용자만 쓰는 계기·생각. 이전 응답/기존 목에는 없을 수 있다. */
   note?: string | null;
@@ -113,6 +126,8 @@ export type ActivityDetail = {
   period: Period;
   experiences: Experience[];
   mergeSuggestion?: MergeSuggestion | null;
+  /** S-35. REJECTED 는 빠져 온다. 목 · 이전 응답엔 없을 수 있다 */
+  links?: ActivityLink[];
 };
 
 export type UpdateActivityRequest = { name?: string; period?: Period; note?: string | null };
