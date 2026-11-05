@@ -1,5 +1,7 @@
 # FE #74 — 답변 초안 목
 
+> 이 문서는 #74 당시의 목 구현 기록이다. #75에서 제품용 초안 목·실패 재현·메모리 폴링을 제거하고 실제 API로 전환했다. 현재 동작과 ETC 등록 삭제 대상은 [FE #75 작업 기록](../fe-75/README.md)을 따른다. 아래 목 설명·캡처·등록 행은 과거 기록이며 현재 제품 동작이 아니다.
+
 기준: ETC `docs/SPEC.md` §0 · S-23 · S-27, `docs/contracts/question-api.md` 답변 초안 절, [ETC PR #123](https://github.com/woowangthon/WOOWANGTHON_TEAM_12_ETC/pull/123). `feat/74-draft-mock` 브랜치에서 작업했다. 사용자 요청에 따라 #74 관련 파일만 커밋하며 Push·PR 생성·Merge는 하지 않는다.
 
 ## 화면과 흐름

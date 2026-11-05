@@ -120,7 +120,8 @@ export function ApplicationScreen() {
                 if (saved) setAdding(false);
               }} /> : <SelectedQuestion key={matching.questionId} summary={summary} question={selected} index={selectedIndex}
                 loadError={matching.detailError} onReload={matching.reloadQuestion}
-                overlaps={overlaps} onRetry={id => matching.retry(id)} onTypeChange={(id, type) => matching.updateQuestionType(id, type)} />}
+                overlaps={overlaps} onRetry={id => matching.retry(id)} onTypeChange={(id, type) => matching.updateQuestionType(id, type)}
+                onGenerate={ids => selected ? matching.createDraft(selected, ids) : Promise.resolve()} onRefresh={() => selected ? matching.refreshDraft(selected.id) : Promise.resolve()} />}
             </div>
           </> : null}
         </section>
@@ -223,9 +224,10 @@ function OverlapPanel({ overlaps, onPick }: { overlaps: Overlap[]; onPick: (ques
 }
 
 /** 고른 문항 — 받아 둔 내용이 있으면 바로, 처음 보는 문항이면 받는 동안 자리만(FE#60). 문항 글 · 상태는 지원 목록에 이미 있다 */
-function SelectedQuestion({ summary, question, index, loadError, onReload, overlaps, onRetry, onTypeChange }: {
+function SelectedQuestion({ summary, question, index, loadError, onReload, overlaps, onRetry, onTypeChange, onGenerate, onRefresh }: {
   summary: QuestionSummary | null; question: QuestionDetail | null; index: number; loadError: string | null; onReload: (id: number) => void;
   overlaps: Overlap[]; onRetry: (id: number) => Promise<unknown>; onTypeChange: (id: number, type: QuestionType) => Promise<void>;
+  onGenerate: (ids: number[]) => Promise<void>; onRefresh: () => Promise<void>;
 }) {
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
@@ -254,6 +256,6 @@ function SelectedQuestion({ summary, question, index, loadError, onReload, overl
           finally { retryPending.current = false; setRetrying(false); }
         }}><ArrowsClockwiseIcon aria-hidden="true" />{retrying ? "다시 시작하고 있어요…" : "다시 시도"}</Button>
         {retryError && <p role="alert" className="m-0 text-sm text-error">{retryError}</p>}
-      </CenterState> : <QuestionResult key={question.id} question={question} elsewhere={id => sameExperienceElsewhere(overlaps, question.id, id)} />}
+      </CenterState> : <QuestionResult key={question.id} question={question} elsewhere={id => sameExperienceElsewhere(overlaps, question.id, id)} onGenerate={onGenerate} onRefresh={onRefresh} />}
   </section>;
 }

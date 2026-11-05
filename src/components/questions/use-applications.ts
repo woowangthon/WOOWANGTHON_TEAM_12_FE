@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { addApplicationQuestion, answerClarification, fetchApplications, fetchQuestion, retryQuestion, submitApplication, updateApplication, updateQuestionType } from "@/lib/api/questions";
+import { addApplicationQuestion, answerClarification, createQuestionDraft, fetchApplications, fetchQuestion, retryQuestion, submitApplication, updateApplication, updateQuestionType } from "@/lib/api/questions";
+import { ApiError } from "@/lib/api/errors";
 import type { Application, CreateApplicationRequest, QuestionDetail, QuestionSummary, QuestionType, UpdateApplicationRequest } from "@/lib/api/question-types";
 
 /** 고른 지원 하나 — 문항마다 추천 결과(넣은 순서, `application.questions` 와 같은 자리). 아직 못 받은 문항은 null(FE#60).
@@ -61,6 +62,8 @@ export function useApplications() {
   const generation = useRef(0);
   const pending = useRef(false);
   const fetching = useRef(new Set<number>());
+  const drafting = useRef(new Set<number>());
+  const mounted = useRef(false);
 
   /** 받은 문항을 넣는다. 그새 넣기 · 답하기가 있었으면(번호표가 지났으면) 버린다.
    *  keep 이 있으면 그 밖의 받아 둔 문항은 지운다 — 보완이 생겨 다른 지원의 추천 경험도 바뀌었을 수 있어 다음에 열 때 다시 받는다 */
@@ -97,8 +100,9 @@ export function useApplications() {
   /** 화면을 떠나면 오가던 응답을 버린다 */
   const invalidate = useCallback(() => { ++generation.current; }, []);
   useEffect(() => {
+    mounted.current = true;
     void load();
-    return invalidate;
+    return () => { mounted.current = false; invalidate(); };
   }, [load, invalidate]);
 
   /** 고른 지원에서 아직 못 받은 문항만 동시에 받는다. 받는 사이 넣기 · 답하기가 먼저 새것을 넣었으면 덮지 않는다 */
@@ -129,7 +133,8 @@ export function useApplications() {
   /** 분석 중인 문항만 2초마다 — 한 문항의 실패가 다른 문항의 성공을 버리지 않는다.
    *  연속 3회 실패한 문항만 멈춘다. 탭 전환으로 횟수를 초기화하지 않는다 */
   const analyzing = state.applications.flatMap(a => a.questions)
-    .filter(q => q.status === "ANALYZING" && (state.pollFailures[q.id] ?? 0) < MAX_POLL_FAILURES).map(q => q.id).join(",");
+    .filter(q => (q.status === "ANALYZING" || state.details[q.id]?.draft?.status === "ANALYZING")
+      && (state.pollFailures[q.id] ?? 0) < MAX_POLL_FAILURES).map(q => q.id).join(",");
   useEffect(() => {
     if (!analyzing || state.error) return;
     const ids = analyzing.split(",").map(Number);
@@ -194,6 +199,35 @@ export function useApplications() {
     reloadQuestion: (id: number) => setState(prev => { const detailErrors = { ...prev.detailErrors }; delete detailErrors[id]; return { ...prev, detailErrors }; }),
     selectQuestion,
     selectApplication: (application: Application) => selectQuestion(application.questions[0].id),
+    /** 문항 응답만 다시 읽는다. 초안 전용 GET/재시도 API나 별도 저장소는 없다. */
+    refreshDraft: async (id: number) => {
+      const version = ++generation.current;
+      const fresh = await fetchQuestion(id);
+      if (mounted.current) commit(version, [fresh]);
+    },
+    createDraft: async (question: QuestionDetail, experienceIds: number[]) => {
+      if (drafting.current.has(question.id)) throw new ApiError("DRAFT_IN_PROGRESS", "이미 초안을 만들고 있어요.", 409);
+      drafting.current.add(question.id);
+      try {
+        const draft = await createQuestionDraft(question, { experienceIds });
+        if (!mounted.current) return;
+        // 먼저 출발한 GET은 버리고, POST 응답의 draft만 옮겨 기존 추천·보완은 보존한다.
+        ++generation.current;
+        setState(prev => {
+          const previous = prev.details[question.id];
+          if (!previous) return prev;
+          const pollFailures = { ...prev.pollFailures }; delete pollFailures[question.id];
+          return { ...prev, pollFailures, details: { ...prev.details, [question.id]: { ...previous, draft } } };
+        });
+      } catch (e) {
+        if (e instanceof ApiError && e.code === "DRAFT_IN_PROGRESS" && mounted.current) {
+          const version = ++generation.current;
+          const fresh = await fetchQuestion(question.id);
+          if (mounted.current) commit(version, [fresh]);
+        }
+        throw e;
+      } finally { drafting.current.delete(question.id); }
+    },
     submit: (req: CreateApplicationRequest) => once(async () => {
       const { questionIds } = await submitApplication(req);
       await reloadAfter(async version => {

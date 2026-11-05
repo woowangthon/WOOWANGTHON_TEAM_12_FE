@@ -1,9 +1,10 @@
-// MOCK(question-draft): 계약 예시와 명시적 경계 상태만 쓰는 초안 화면 시험.
+// 시험 전용 HTTP 응답으로 실제 초안 POST·GET 흐름을 확인한다. 실제 BE/AI 검증과 구분한다.
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import { FakeQuestionApi } from "./fake-question-api";
 import { QUESTION_EXAMPLES } from "./fixtures/question-examples";
 import type { Draft, QuestionDetail } from "../src/lib/api/question-types";
+import { DRAFT_EXAMPLE } from "./fixtures/draft-example";
 
 const draftScreen = (page: Page) => page.getByRole("region", { name: "답변 초안", exact: true });
 const exampleDraft = (patch: Partial<Draft> = {}): Draft => ({
@@ -35,7 +36,7 @@ async function generate(page: Page) {
 test("default selection, zero-selection guard, generating, evidence details and text-only copy", async ({ page }, info) => {
   const api = await setup(page);
   const screen = draftScreen(page);
-  await expect(screen.getByText("초안 목 모드", { exact: true })).toBeVisible();
+  await expect(screen.getByText("초안 목 모드", { exact: true })).toHaveCount(0);
   await expect(screen.getByRole("checkbox")).toBeChecked();
   await screen.getByRole("checkbox").uncheck();
   await expect(screen.getByRole("button", { name: "초안 만들기", exact: true })).toBeDisabled();
@@ -52,7 +53,7 @@ test("default selection, zero-selection guard, generating, evidence details and 
   await screen.getByRole("button", { name: "텍스트로 복사", exact: true }).click();
   await expect(screen.getByRole("status").last()).toContainText("문장만 복사했어요");
   expect(await page.evaluate(() => (window as unknown as { copied: string }).copied)).toBe("「바꿔요」 프로젝트에서 채팅 메시지가 늦게 도착하는 문제가 있었고, 제가 폴링을 WebSocket 으로 바꿔 해결했습니다. 서버에 STOMP 엔드포인트를 만들고, 앱의 3초 폴링 코드를 구독 방식으로 바꿨습니다.");
-  expect(api.calls.some(c => c.call.endsWith("/draft"))).toBe(false);
+  expect(api.calls.filter(c => c.call.endsWith("/draft"))).toEqual([{ call: "POST /api/questions/41/draft", body: { experienceIds: [101] } }]);
   // 화면과 기존 추천은 함께 남는다. 문항을 오가도 최신 초안 하나만 유지한다.
   const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab");
   await tabs.nth(1).click();
@@ -65,7 +66,7 @@ test("default selection, zero-selection guard, generating, evidence details and 
     for (const width of info.project.name === "desktop" ? [1440, 1024] : [390]) {
       await page.setViewportSize({ width, height: 1000 });
       await screen.scrollIntoViewIfNeeded();
-      await page.screenshot({ path: `docs/fe-74/draft-${width}.png`, fullPage: true, style: "nextjs-portal { display: none !important; }" });
+      await page.screenshot({ path: `docs/fe-75/http-draft-${width}.png`, fullPage: true, style: "nextjs-portal { display: none !important; }" });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     }
   }
@@ -90,16 +91,17 @@ test("three selected by default, a fourth cannot be selected, and only recommend
 });
 
 test("failure shows its reason without success text; retry uses the same POST flow", async ({ page }) => {
-  await setup(page);
+  const api = await setup(page);
   const screen = draftScreen(page);
-  await screen.getByLabel("초안 목 결과").selectOption("failure");
+  api.failDraft = true;
   await screen.getByRole("button", { name: "초안 만들기", exact: true }).click();
   await expect(screen.getByRole("alert")).toContainText("시간이 초과됐어요");
   await expect(screen.getByRole("list", { name: "초안 문장" })).toHaveCount(0);
-  await screen.getByLabel("초안 목 결과").selectOption("success");
+  api.failDraft = false;
   await screen.getByRole("button", { name: "다시 만들기", exact: true }).click();
   await expect(screen.getByRole("list", { name: "초안 문장" }).getByRole("listitem")).toHaveCount(2);
   await expect(screen.getByRole("alert")).toHaveCount(0);
+  expect(api.calls.filter(c => c.call.endsWith("/draft")).map(c => c.body)).toEqual([{ experienceIds: [101] }, { experienceIds: [101] }]);
 });
 
 test("missing evidence preserves the sentence and shows a careful notice", async ({ page }) => {
@@ -139,4 +141,128 @@ test("no recommended experiences cannot generate a draft", async ({ page }) => {
   await setup(page, q => { q.recommendations = []; q.clarifications = []; });
   await expect(draftScreen(page).getByRole("checkbox")).toHaveCount(0);
   await expect(draftScreen(page).getByRole("button", { name: "초안 만들기", exact: true })).toBeDisabled();
+});
+
+for (const [status, code, text] of [
+  [400, "INVALID_REQUEST", "추천 경험을 1 ~ 3개 다시"],
+  [404, "QUESTION_NOT_FOUND", "문항을 찾을 수 없어요"],
+  [409, "QUESTION_NOT_COMPLETED", "문항 분석이 아직"],
+  [429, "DAILY_LIMIT_EXCEEDED", "오늘 분석 횟수를"],
+] as const) {
+  test(`${status} ${code} is visible and preserves the previous completed draft`, async ({ page }) => {
+    const api = await setup(page, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
+    api.draftError = { status, code };
+    await draftScreen(page).getByRole("button", { name: "다시 만들기", exact: true }).click();
+    await expect(draftScreen(page).getByRole("alert")).toContainText(text);
+    await expect(draftScreen(page).getByRole("list", { name: "초안 문장" }).getByRole("listitem")).toHaveCount(2);
+    await expect(draftScreen(page).getByRole("checkbox")).toBeChecked();
+    await expect(draftScreen(page).getByRole("button", { name: "초안 상태 확인", exact: true })).toBeEnabled();
+  });
+}
+
+test("409 DRAFT_IN_PROGRESS re-reads current draft and continues polling without a retry POST", async ({ page }) => {
+  const api = await setup(page);
+  api.holdDraft = true;
+  api.edit(41, q => { q.draft = { ...structuredClone(DRAFT_EXAMPLE), status: "ANALYZING", sentences: [], omitted: [] }; });
+  const before = api.calls.filter(c => c.call === "GET /api/questions/41").length;
+  await draftScreen(page).getByRole("button", { name: "초안 만들기", exact: true }).click();
+  await expect(draftScreen(page).getByRole("alert")).toContainText("이미 초안을 만들고");
+  await expect(draftScreen(page).getByRole("button", { name: "초안 만드는 중…", exact: true })).toBeDisabled();
+  await expect.poll(() => api.calls.filter(c => c.call === "GET /api/questions/41").length).toBeGreaterThan(before);
+  api.edit(41, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
+  await expect(draftScreen(page).getByRole("list", { name: "초안 문장" })).toBeVisible();
+  expect(api.calls.filter(c => c.call.endsWith("/draft"))).toHaveLength(1);
+});
+
+test("analyzing draft survives reload, resumes GET polling and stops on completion", async ({ page }) => {
+  const api = await setup(page);
+  api.holdDraft = true;
+  await draftScreen(page).getByRole("button", { name: "초안 만들기", exact: true }).click();
+  await expect(draftScreen(page).getByRole("status")).toContainText("만드는 중");
+  await page.reload();
+  await expect(draftScreen(page).getByRole("status")).toContainText("만드는 중");
+  api.edit(41, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
+  await expect(draftScreen(page).getByRole("list", { name: "초안 문장" })).toBeVisible();
+  await page.clock.install();
+  const gets = api.calls.filter(c => c.call === "GET /api/questions/41").length;
+  await page.clock.runFor(6000);
+  expect(api.calls.filter(c => c.call === "GET /api/questions/41")).toHaveLength(gets);
+  expect(api.calls.filter(c => c.call.endsWith("/draft"))).toHaveLength(1);
+});
+
+test("regeneration hides old sentences and duplicate submissions are blocked", async ({ page }) => {
+  const api = await setup(page, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
+  api.holdDraft = true;
+  await draftScreen(page).getByRole("button", { name: "다시 만들기", exact: true }).click();
+  await expect(draftScreen(page).getByRole("button", { name: "초안 만드는 중…", exact: true })).toBeDisabled();
+  await expect(draftScreen(page).getByRole("list", { name: "초안 문장" })).toHaveCount(0);
+  await expect(draftScreen(page).getByRole("checkbox")).toBeDisabled();
+  expect(api.calls.filter(c => c.call.endsWith("/draft"))).toHaveLength(1);
+});
+
+test("three failed draft polls stop, manual reload recovers, and recommendations stay visible", async ({ page }) => {
+  const api = await setup(page, q => { q.draft = { ...structuredClone(DRAFT_EXAMPLE), status: "ANALYZING", sentences: [], omitted: [] }; });
+  api.holdDraft = true;
+  await page.clock.install({ time: new Date("2026-11-05T00:00:00Z") });
+  await page.clock.pauseAt(new Date("2026-11-05T00:00:01Z"));
+  api.questionFailures.set(41, 3);
+  for (let i = 0; i < 3; i++) {
+    await page.clock.runFor(2000);
+    await expect.poll(() => api.questionFailures.get(41)).toBe(2 - i);
+  }
+  await expect(page.getByRole("alert", { name: /문항 1/ })).toContainText("자동 확인을 멈췄어요");
+  await expect(page.getByRole("listitem", { name: "추천 경험 1", exact: true })).toContainText("WebSocket");
+  const gets = api.calls.filter(c => c.call === "GET /api/questions/41").length;
+  await page.clock.runFor(6000);
+  expect(api.calls.filter(c => c.call === "GET /api/questions/41")).toHaveLength(gets);
+  api.edit(41, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
+  await page.getByRole("button", { name: "다시 불러오기", exact: true }).click();
+  await page.clock.runFor(2000);
+  await expect(draftScreen(page).getByRole("list", { name: "초안 문장" })).toBeVisible();
+  await expect(page.getByRole("alert", { name: /문항 1/ })).toHaveCount(0);
+});
+
+test("an interrupted draft POST shows a network error and permits querying server state", async ({ page }) => {
+  await setup(page);
+  await page.route("**/api/questions/41/draft", route => route.abort("failed"));
+  await draftScreen(page).getByRole("button", { name: "초안 만들기", exact: true }).click();
+  await expect(draftScreen(page).getByRole("alert")).toContainText("서버에 연결하지 못했어요");
+  await expect(draftScreen(page).getByRole("list", { name: "초안 문장" })).toHaveCount(0);
+  await draftScreen(page).getByRole("button", { name: "초안 상태 확인", exact: true }).click();
+  await expect(draftScreen(page).getByRole("alert")).toHaveCount(0);
+  await expect(draftScreen(page).getByRole("button", { name: "초안 만들기", exact: true })).toBeEnabled();
+});
+
+test("a late POST updates its question only after switching tabs", async ({ page }) => {
+  const api = await setup(page);
+  api.holdDraft = true;
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route("**/api/questions/41/draft", async route => { await gate; await route.fallback(); });
+  await draftScreen(page).getByRole("button", { name: "초안 만들기", exact: true }).click();
+  const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab");
+  await tabs.nth(1).click();
+  release();
+  await expect.poll(() => api.questions.find(q => q.detail.id === 41)?.detail.draft?.status).toBe("ANALYZING");
+  await expect(tabs.nth(1)).toHaveAttribute("aria-selected", "true");
+  await expect(draftScreen(page).getByRole("button", { name: "초안 만들기", exact: true })).toBeEnabled();
+  await tabs.first().click();
+  await expect(draftScreen(page).getByRole("button", { name: "초안 만드는 중…", exact: true })).toBeDisabled();
+});
+
+test("retry uses server experienceIds and UNKNOWN sentences are shown verbatim without assigning an actor", async ({ page }) => {
+  const api = await setup(page, q => {
+    q.recommendations = structuredClone(QUESTION_EXAMPLES[1].recommendations);
+    q.draft = { ...structuredClone(DRAFT_EXAMPLE), status: "FAILED", experienceIds: [101], error: { code: "AI_FAILED", message: "실패" }, sentences: [], omitted: [] };
+  });
+  await draftScreen(page).getByRole("button", { name: "다시 만들기", exact: true }).click();
+  await expect.poll(() => api.calls.filter(c => c.call.endsWith("/draft")).length).toBe(1);
+  expect(api.calls.find(c => c.call.endsWith("/draft"))!.body).toEqual({ experienceIds: [101] });
+  api.holdDraft = true;
+  api.edit(41, q => {
+    q.recommendations.find(r => r.experience.id === 101)!.experience.actor = "UNKNOWN";
+    q.draft = { ...structuredClone(DRAFT_EXAMPLE), sentences: [{ text: "코드가 수정됐습니다.", evidence: [structuredClone(DRAFT_EXAMPLE.sentences[0].evidence[0])] }] };
+  });
+  await expect(draftScreen(page).getByRole("list", { name: "초안 문장" })).toContainText("코드가 수정됐습니다.");
+  await expect(draftScreen(page).getByRole("list", { name: "초안 문장" })).not.toContainText("팀은");
 });
