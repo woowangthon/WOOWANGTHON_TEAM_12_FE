@@ -344,7 +344,8 @@ test("링크만 넣은 홈 입력은 가르지 않고 링크로 칸을 채우고
   await expect(dialog.getByText("AI 가 채움", { exact: true })).toHaveCount(5);
   expect(calls.routes).toHaveLength(0);
   expect(calls.parses).toEqual([{ url: LINK }]);
-  await page.screenshot({ path: `artifacts/posting-link-filled-${test.info().project.name}.png` });
+  await page.getByLabel("문항 1", { exact: true }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `artifacts/posting-link-filled-${test.info().project.name}.png`, animations: "disabled", caret: "hide", style: "nextjs-portal { visibility: hidden; }" });
   await page.getByRole("button", { name: "문항 2개 넣고 경험 찾기", exact: true }).click();
   await expect(page).toHaveURL(/\/questions\?question=41/);
   expect(calls.applications).toEqual([{ organization: PARSED.organization, organizationType: "BOOTCAMP", jobRole: "BACKEND", postingUrl: LINK, questions: PARSED.questions.map(text => ({ text })) }]);
@@ -375,7 +376,10 @@ for (const code of ["URL_UNREADABLE", "URL_BLOCKED"]) {
     await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("");
     await expect(dialog.getByText("AI 가 채움", { exact: true })).toHaveCount(0);
     await expect(dialog.getByRole("button", { name: "다시 시도", exact: true })).toHaveCount(code === "URL_UNREADABLE" ? 1 : 0);
-    if (code === "URL_UNREADABLE") await page.screenshot({ path: `artifacts/posting-link-unreadable-${test.info().project.name}.png` });
+    if (code === "URL_UNREADABLE") {
+      await alert.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `artifacts/posting-link-unreadable-${test.info().project.name}.png`, animations: "disabled", caret: "hide", style: "nextjs-portal { visibility: hidden; }" });
+    }
     if (code === "URL_UNREADABLE") {
       await dialog.getByRole("button", { name: "다시 시도", exact: true }).click();
       await expect.poll(() => calls.parses.length).toBe(2);

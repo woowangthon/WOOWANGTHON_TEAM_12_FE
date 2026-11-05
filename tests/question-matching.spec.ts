@@ -696,7 +696,7 @@ test("the posting link is sent with the application and opens in a new tab from 
   await expect(link).toHaveAttribute("href", "https://www.example.com/recruit/1234");
   await expect(link).toHaveAttribute("target", "_blank");
   await expect(link).toContainText("example.com");
-  await page.screenshot({ path: `artifacts/posting-link-application-${test.info().project.name}.png` });
+  await page.screenshot({ path: `artifacts/posting-link-application-${test.info().project.name}.png`, animations: "disabled", caret: "hide", style: "nextjs-portal { visibility: hidden; }" });
   // 링크 없이 넣은 지원엔 줄이 없다
   await page.goto("/questions?question=41");
   await expect(page.getByLabel("직무", { exact: true })).toBeVisible();
