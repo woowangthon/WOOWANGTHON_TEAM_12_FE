@@ -47,7 +47,7 @@ async function setup(page: Page) {
 }
 
 async function open(page: Page) {
-  await page.goto("/");
+  await page.goto("/experience");
   await page.getByRole("button", { name: /실시간 알림 프로젝트/ }).click();
   await expect(page.getByText(ANSWER)).toBeVisible();
 }

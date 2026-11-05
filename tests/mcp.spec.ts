@@ -59,7 +59,7 @@ test("create, copy feedback, reload and route exit hide the address; confirm rep
   await page.getByRole("button", { name: "새 주소 만들기", exact: true }).click();
   await expect(page.getByLabel("연결 주소", { exact: true })).toHaveValue(`${URL}-2`);
   await page.getByRole("link", { name: "내 경험", exact: true }).filter({ visible: true }).click();
-  await expect(page).toHaveURL("http://localhost:3100/");
+  await expect(page).toHaveURL("http://localhost:3100/experience");
   await page.goBack();
   await expect(page).toHaveURL("http://localhost:3100/connections");
   await expect(page.getByText("Claude에서 아직 안 쓰임")).toBeVisible();

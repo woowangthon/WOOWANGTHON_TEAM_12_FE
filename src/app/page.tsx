@@ -1,11 +1,11 @@
 import { Suspense } from "react";
-import { TimelineScreen } from "@/components/experience/timeline-screen";
+import { HomeScreen } from "@/components/home/home-screen";
 
-// 첫 화면 — 연도별 타임라인(FE#5). 주소 쿼리(?mock=…)를 읽으므로 Suspense 로 감싼다
+// 시안 6 홈 — 내 경험 타임라인은 /experience에서 연다.
 export default function Home() {
   return (
     <Suspense>
-      <TimelineScreen />
+      <HomeScreen />
     </Suspense>
   );
 }

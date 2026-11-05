@@ -40,7 +40,7 @@ async function setup(page: Page) {
     }
     return route.fulfill({ json: path === "/api/activities" ? { activities: [{ id: 7, name: activity.name, period: activity.period, experienceCount: activity.experiences.length }] } : activity });
   });
-  await page.goto("/");
+  await page.goto("/experience");
   await openActivity(page);
   return state;
 }

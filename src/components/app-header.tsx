@@ -11,7 +11,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-type Page = "timeline" | "questions" | "connections";
+type Page = "home" | "timeline" | "questions" | "connections";
 type HeaderProps = {
   /** 1024 미만에서 세부를 전체 화면으로 열면 위 막대를 숨긴다 */
   hideOnMobile?: boolean; addSource?: AddSourceProps; activePage?: Page;
@@ -19,7 +19,7 @@ type HeaderProps = {
   sidebarExtra?: React.ReactNode;
 };
 const links = [
-  { page: "timeline", href: "/", label: "내 경험", icon: <StackIcon /> },
+  { page: "timeline", href: "/experience", label: "내 경험", icon: <StackIcon /> },
   { page: "questions", href: "/questions", label: "지원", icon: <FileTextIcon /> },
   { page: "connections", href: "/connections", label: "연결", icon: <PlugsConnectedIcon /> },
 ];
@@ -28,7 +28,7 @@ export function AppHeader({ hideOnMobile, ...props }: HeaderProps) {
   const { wide, desktop } = useSidebar();
   return <Tooltip.Provider delayDuration={200}>
     <header className={cn("flex h-14 items-center gap-4 border-b border-hairline bg-canvas px-4.5 lg:hidden", hideOnMobile && "max-lg:hidden")}>
-      <Logo className="h-5 w-auto" />
+      <Link href="/" aria-label="차곡 — 홈"><Logo className="h-5 w-auto" /></Link>
       <nav className="flex shrink-0 items-center gap-4 text-sm font-semibold" aria-label="주 메뉴">
         {links.map(l => <Link key={l.page} href={l.href} aria-current={(props.activePage ?? "timeline") === l.page ? "page" : undefined}
           className={cn("inline-flex h-14 items-center border-b-2", (props.activePage ?? "timeline") === l.page ? "border-ink" : "border-transparent text-muted")}>
@@ -120,7 +120,7 @@ function RailTip({ label, enabled, children }: { label: string; enabled: boolean
 
 function Brand({ collapsed, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {
   return <Link href="/" onClick={onNavigate} aria-hidden={collapsed || undefined} tabIndex={collapsed ? -1 : undefined}
-    className={cn("relative flex h-11 items-center", collapsed && "pointer-events-none w-11 justify-center group-hover/brand:invisible group-focus-within/brand:invisible")} aria-label="차곡 — 내 경험">
+    className={cn("relative flex h-11 items-center", collapsed && "pointer-events-none w-11 justify-center group-hover/brand:invisible group-focus-within/brand:invisible")} aria-label="차곡 — 홈">
     {collapsed ? <span className="block w-7 overflow-hidden"><Logo className="h-6.5 max-w-none" /></span> : <Logo className="h-6.5 w-auto" />}
   </Link>;
 }

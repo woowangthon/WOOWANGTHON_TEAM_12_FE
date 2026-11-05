@@ -38,7 +38,7 @@ async function setup(page: Page) {
     if (path === "/api/activities") return route.fulfill({ json: { activities: state.activities.map(({ experiences, ...x }) => ({ ...x, experienceCount: experiences.length })) } });
     return a ? route.fulfill({ json: a }) : route.fulfill({ status: 404, json: { error: { code: "ACTIVITY_NOT_FOUND", message: "없음" } } });
   });
-  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await page.goto("/experience", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("button", { name: /Swap app/ })).toBeVisible();
   return state;
 }

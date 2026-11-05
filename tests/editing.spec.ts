@@ -75,7 +75,7 @@ async function setup(page: Page) {
     }
     return route.fulfill({ json: path === "/api/activities" ? { activities: [{ id: activity.id, name: activity.name, period: activity.period, experienceCount: 1 }] } : activity });
   });
-  await page.goto("/");
+  await page.goto("/experience");
   await page.getByRole("button", { name: /API test activity/ }).click();
   await expect(page.getByText("Original experience", { exact: true })).toBeVisible();
   return state;
@@ -280,7 +280,7 @@ for (const kind of ["activity", "experience"] as const) {
 
 test("API list failure shows error and retry, without mock fallback", async ({ page }) => {
   await page.route("**/api/activities", (route) => route.fulfill({ status: 503, json: { error: { code: "UNAVAILABLE", message: "Backend unavailable" } } }));
-  await page.goto("/");
+  await page.goto("/experience");
   await expect(page.getByText("Backend unavailable", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "다시 시도" })).toBeVisible();
   await expect(page.getByRole("button", { name: /바꿔요/ })).toHaveCount(0);
