@@ -14,8 +14,6 @@ import { LoginScreen } from "./login-screen";
 
 type State =
   | { status: "mock" }
-  /** 서버가 로그인을 모른다(옛 BE — GET /api/auth/me 가 404). BE#33 서버 갱신 전 전환 기간에만 — 그 뒤엔 지운다 */
-  | { status: "noAuth" }
   | { status: "checking" }
   | { status: "error"; message: string; network: boolean }
   | { status: "signedOut"; notice?: string }
@@ -45,13 +43,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
           setState(
             e instanceof ApiError && e.status === 401
               ? { status: "signedOut" }
-              : e instanceof ApiError && e.status === 404
-                ? { status: "noAuth" }
-                : {
-                    status: "error",
-                    message: e instanceof Error ? e.message : "로그인 상태를 확인하지 못했어요.",
-                    network: e instanceof ApiError && e.code === "NETWORK_ERROR",
-                  },
+              : {
+                  status: "error",
+                  message: e instanceof Error ? e.message : "로그인 상태를 확인하지 못했어요.",
+                  network: e instanceof ApiError && e.code === "NETWORK_ERROR",
+                },
           ),
       ),
     [],
@@ -87,7 +83,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     },
   };
 
-  if (state.status === "mock" || state.status === "noAuth" || state.status === "signedIn") {
+  if (state.status === "mock" || state.status === "signedIn") {
     return <AuthContext.Provider value={auth}>{children}</AuthContext.Provider>;
   }
   if (state.status === "signedOut") {
