@@ -17,4 +17,3 @@ export function failureReason(error: Draft["error"]) {
     : error?.code === "AI_FAILED" ? "AI가 올바른 초안을 만들지 못했어요."
     : error?.message ?? "서버에서 초안을 만들지 못했어요.";
 }
-
