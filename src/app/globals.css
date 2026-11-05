@@ -30,6 +30,7 @@
   --application: #a1406f;
   --application-soft: #fffafd;
   --application-line: #efb8d3;
+  --application-tint: #fdeff6; /* 경험의 「지원서 N곳에 쓰임」 알약(S-38) — 시안 6 .used */
   --home-glow: radial-gradient(50% 42% at 50% 34%, rgb(65 161 245 / 0.13), transparent 70%);
   --home-input-shadow: 0 8px 30px rgb(30 60 100 / 0.07);
   --evidence: #1f6fb2;
@@ -88,6 +89,7 @@
   --color-application: var(--application);
   --color-application-soft: var(--application-soft);
   --color-application-line: var(--application-line);
+  --color-application-tint: var(--application-tint);
   --shadow-home-input: var(--home-input-shadow);
   --color-evidence: var(--evidence);
   --color-evidence-soft: var(--evidence-soft);

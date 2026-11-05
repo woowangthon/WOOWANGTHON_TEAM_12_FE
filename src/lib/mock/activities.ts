@@ -2,7 +2,8 @@
 // 바꿔요 · 알고리즘 스터디는 계약(experience-api.md) 예시와 같은 자료이고, 나머지는 화면 확인용으로 지어낸 것이다.
 // 일부러 섞은 것: 경험이 많은 활동 · 하나뿐인 활동 · 기간이 겹치는 활동 · 해를 넘는 활동 · 진행 중 · 한 달짜리 · 연도만 아는 활동 · 기간 모름 · 경험 0개(이름 · 기간만) · 확인 필요(근거 없음 · 원본에서 못 찾음 · 아직 대조 안 함) · 내가 입력
 
-import type { ActivityDetail, Actor, Citation, Competency, SourceStatus } from "@/lib/api/types";
+import type { ActivityDetail, Actor, Citation, Competency, SourceStatus, UsedIn } from "@/lib/api/types";
+import { MOCK_APPLICATIONS } from "./applications";
 
 const SOURCES = {
   bakkwo: { sourceId: 12, sourceName: "바꿔요-회고.md" },
@@ -41,6 +42,14 @@ function exp(
   return { id, activityId, content, competencies: [competency], competenciesBy, actor, sourceStatus, citations };
 }
 
+// MOCK(timeline-activities): 경험마다 쓰인 지원(S-38 usedIn)도 목 모드에선 가상 지원(applications.ts)에서 지어 붙인다 — 실제 추천 결과가 아니다
+function usedIn(...applicationIds: number[]): UsedIn[] {
+  return MOCK_APPLICATIONS.filter((a) => applicationIds.includes(a.id)).map((a) => ({
+    applicationId: a.id, organization: a.organization, applicationStatus: a.applicationStatus, submittedMonth: a.submittedMonth,
+    questions: a.questions.map((q) => ({ id: q.id, text: q.text })),
+  }));
+}
+
 export const MOCK_ACTIVITIES: ActivityDetail[] = [
   // MOCK(timeline-activities): 같은 활동 제안 표시용. AI 판단이 아니며 저장은 기존 목 모드처럼 실패를 알린다.
   {
@@ -65,9 +74,9 @@ export const MOCK_ACTIVITIES: ActivityDetail[] = [
     name: "바꿔요 — 캠퍼스 중고거래 앱",
     period: { start: "2025-03", end: "2025-06", ongoing: false },
     experiences: [
-      exp(101, 7, "PROBLEM_SOLVING", "ME", "SOURCE_CONFIRMED", "채팅 메시지가 늦게 도착하는 문제를 폴링에서 WebSocket 으로 바꿔 해결했다", [
+      { ...exp(101, 7, "PROBLEM_SOLVING", "ME", "SOURCE_CONFIRMED", "채팅 메시지가 늦게 도착하는 문제를 폴링에서 WebSocket 으로 바꿔 해결했다", [
         cite("bakkwo", "채팅 메시지가 늦게 도착하는 문제가 있었다. 내가 폴링을 WebSocket 으로 바꿔 해결했다.", 5),
-      ]),
+      ]), usedIn: usedIn(901, 905) },
       exp(102, 7, "COLLABORATION", "TEAM", "SOURCE_CONFIRMED", "매주 금요일 스프린트 회고를 했다", [
         cite("bakkwo", "팀은 매주 금요일 스프린트 회고를 했다.", 6),
       ]),
@@ -90,9 +99,9 @@ export const MOCK_ACTIVITIES: ActivityDetail[] = [
     name: "밴드 동아리 「소리결」 총무",
     period: { start: "2024-03", end: "2025-02", ongoing: false },
     experiences: [
-      exp(121, 10, "OPERATION", "ME", "SOURCE_CONFIRMED", "동아리 회비 장부를 스프레드시트로 옮겨 매달 공개했다", [
+      { ...exp(121, 10, "OPERATION", "ME", "SOURCE_CONFIRMED", "동아리 회비 장부를 스프레드시트로 옮겨 매달 공개했다", [
         cite("notes2024", "회비 장부 엑셀로 정리, 매달 단톡에 공개", 3),
-      ]),
+      ]), usedIn: usedIn(902) },
       exp(122, 10, "COLLABORATION", "TEAM", "SOURCE_CONFIRMED", "정기 공연 두 번을 준비했다", [
         cite("notes2024", "1학기 · 2학기 정기공연 준비(운영진 전체)", 5),
       ]),

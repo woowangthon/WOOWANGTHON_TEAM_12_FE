@@ -1,4 +1,5 @@
 // ETC docs/contracts/experience-api.md 의 응답 모양 그대로. 계약이 바뀌면 여기를 같이 고친다
+import type { ApplicationStatus } from "./question-types";
 
 /** 출처 상태 — 원문에서 확인 / 내가 입력 / 확인 필요 */
 export type SourceStatus = "SOURCE_CONFIRMED" | "USER_ENTERED" | "NEEDS_REVIEW";
@@ -107,6 +108,17 @@ export type Experience = {
   citations: Citation[];
   /** 되묻기에 답해 이 경험에 쌓인 보완(스프린트 2). 늘 「내가 입력」 — 본문 · 근거 · 출처 상태와 따로 보인다 */
   supplements?: Supplement[];
+  /** 이 경험이 지금 추천에 있는 지원(S-38). 활동 세부 응답에만 실린다 — 수정 · 추가 응답엔 없다 */
+  usedIn?: UsedIn[];
+};
+
+/** 쓰인 지원 하나 — 지원 하나 + 이 경험이 추천된 문항들(experience-api.md 「쓰인 지원 usedIn」) */
+export type UsedIn = {
+  applicationId: number;
+  organization: string | null;
+  applicationStatus: ApplicationStatus;
+  submittedMonth: string | null;
+  questions: { id: number; text: string }[];
 };
 
 /** 보완 — 되묻기 질문과 사용자의 답 한 쌍(experience-api.md 「Supplement」) */
