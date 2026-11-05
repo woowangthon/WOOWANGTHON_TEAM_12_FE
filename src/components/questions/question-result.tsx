@@ -43,8 +43,8 @@ const boxTitle = "m-0 text-xs font-semibold text-muted";
 
 /** 「참고 — 꺼내 쓸 경험」(시안 6 apply.html 의 접기 카드). 펼치기 전엔 활동 칩 · 경험 · 이유 한 줄, 펼치면 강조점 · 근거 · 빠진 것.
  *  요구사항 판정 · 되묻기는 차곡이 패널에 있다. elsewhere — 같은 지원의 다른 문항에도 추천된 같은 경험(FE#38 · S-21) */
-export function QuestionResult({ question, elsewhere, onGenerate, onRefresh, onAnswer }: { question: QuestionDetail; elsewhere?: (experienceId: number) => OverlapUse[] } & DraftActions) {
-  return <><AnswerDraft key={question.id} question={question} onGenerate={onGenerate} onRefresh={onRefresh} onAnswer={onAnswer} /><section aria-labelledby="refs-title">
+export function QuestionResult({ question, elsewhere, onGenerate, onRefresh, onOpenOmissions, savingAnswer, requestingDraft }: { question: QuestionDetail; elsewhere?: (experienceId: number) => OverlapUse[] } & DraftActions) {
+  return <><AnswerDraft key={question.id} question={question} onGenerate={onGenerate} onRefresh={onRefresh} onOpenOmissions={onOpenOmissions} savingAnswer={savingAnswer} requestingDraft={requestingDraft} /><section aria-labelledby="refs-title">
     <h3 id="refs-title" className="m-0 text-[17px] font-semibold">참고 — 꺼내 쓸 경험</h3>
     {question.recommendations.length === 0 ? <div className="mt-4 grid gap-2 rounded-sm bg-surface-soft p-5">
       <p className="m-0 font-medium">현재 자료에서 연결된 경험을 찾지 못했어요.</p>

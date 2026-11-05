@@ -3,47 +3,27 @@
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api/errors";
-import type { Draft, QuestionDetail } from "@/lib/api/question-types";
+import type { QuestionDetail } from "@/lib/api/question-types";
 import { AnswerEvidence } from "./answer-evidence";
-import { DraftOmissions } from "./draft-omissions";
-import type { AnswerHandler } from "./clarifications";
+import { requestError, failureReason } from "./draft-errors";
 import { ActivityChip } from "./question-result";
 
-export type DraftActions = { onGenerate: (experienceIds: number[]) => Promise<void>; onRefresh: () => Promise<void>; onAnswer: AnswerHandler };
+export type DraftActions = { onGenerate: (experienceIds: number[]) => Promise<void>; onRefresh: () => Promise<void>; onOpenOmissions: () => void; savingAnswer: boolean; requestingDraft: boolean };
 
-function requestError(e: unknown) {
-  const labels: Record<string, string> = {
-    INVALID_REQUEST: "이 문항의 추천 경험을 1 ~ 3개 다시 골라 주세요.",
-    QUESTION_NOT_FOUND: "이 문항을 찾을 수 없어요. 지원 목록에서 문항을 다시 확인해 주세요.",
-    QUESTION_NOT_COMPLETED: "문항 분석이 아직 끝나지 않았어요. 문항 상태를 다시 확인해 주세요.",
-    DRAFT_IN_PROGRESS: "이미 초안을 만들고 있어요. 서버의 현재 상태를 확인했어요.",
-    DAILY_LIMIT_EXCEEDED: "오늘 분석 횟수를 다 썼어요. 기존 초안은 그대로예요.",
-  };
-  return e instanceof ApiError ? labels[e.code] ?? e.message : e instanceof Error ? e.message : "초안 요청을 처리하지 못했어요. 상태를 확인하고 다시 시도해 주세요.";
-}
-function failureReason(error: Draft["error"]) {
-  return error?.code === "AI_TIMEOUT" ? "AI 응답 시간이 초과됐어요."
-    : error?.code === "AI_UNAVAILABLE" ? "AI 서버에 연결하지 못했어요."
-    : error?.code === "AI_FAILED" ? "AI가 올바른 초안을 만들지 못했어요."
-    : error?.message ?? "서버에서 초안을 만들지 못했어요.";
-}
-
-export function AnswerDraft({ question, onGenerate, onRefresh, onAnswer }: { question: QuestionDetail } & DraftActions) {
+export function AnswerDraft({ question, onGenerate, onRefresh, onOpenOmissions, savingAnswer, requestingDraft }: { question: QuestionDetail } & DraftActions) {
   const [selected, setSelected] = useState(() => question.draft ? question.draft.experienceIds : question.recommendations.slice(0, 3).map(r => r.experience.id));
   const [selectionChanged, setSelectionChanged] = useState(false);
   const draft = question.draft ?? null;
   const [busy, setBusy] = useState(false);
-  const [savingAnswer, setSavingAnswer] = useState(false);
-  const answering = useRef(false);
   const [error, setError] = useState<{ text: string; code?: string } | null>(null);
   const [copy, setCopy] = useState("");
   const pending = useRef(false);
 
-  const analyzing = busy || draft?.status === "ANALYZING";
+  const analyzing = busy || requestingDraft || draft?.status === "ANALYZING";
   const ids = draft && !selectionChanged ? draft.experienceIds : selected;
   const allowed = ids.length >= 1 && ids.length <= 3 && new Set(ids).size === ids.length && ids.every(id => question.recommendations.some(r => r.experience.id === id));
   const generate = async () => {
-    if (pending.current || answering.current || analyzing || !allowed) return;
+    if (pending.current || savingAnswer || analyzing || !allowed) return;
     pending.current = true; setBusy(true); setError(null); setCopy("");
     try {
       // 실패 재시도는 저장된 experienceIds로 같은 POST. 새 선택은 완료 뒤 재생성에 사용한다.
@@ -53,17 +33,11 @@ export function AnswerDraft({ question, onGenerate, onRefresh, onAnswer }: { que
     finally { pending.current = false; setBusy(false); }
   };
   const refresh = async () => {
-    if (pending.current || answering.current) return;
+    if (pending.current || savingAnswer) return;
     pending.current = true; setBusy(true); setError(null);
     try { await onRefresh(); }
     catch (e) { setError({ text: requestError(e) }); }
     finally { pending.current = false; setBusy(false); }
-  };
-  const answer: AnswerHandler = async (id, text) => {
-    if (pending.current || answering.current || draft?.status !== "COMPLETED") return;
-    answering.current = true; setSavingAnswer(true);
-    try { await onAnswer(id, text); }
-    finally { answering.current = false; setSavingAnswer(false); }
   };
   const copyText = async () => {
     if (!draft?.sentences.length) return;
@@ -97,8 +71,8 @@ export function AnswerDraft({ question, onGenerate, onRefresh, onAnswer }: { que
       <p role="alert" className="m-0 text-sm text-error">{error.text}</p>
       <Button variant="secondary" className="min-h-11" disabled={busy || savingAnswer} onClick={() => void refresh()}>초안 상태 확인</Button>
     </div>}
-    {draft?.status === "FAILED" && !busy && <p role="alert" className="m-0 text-sm text-error">{failureReason(draft.error)} 「다시 만들기」로 같은 경험을 다시 요청할 수 있어요.</p>}
-    {draft?.status === "COMPLETED" && !busy && <>
+    {draft?.status === "FAILED" && !analyzing && <p role="alert" className="m-0 text-sm text-error">{failureReason(draft.error)} 「다시 만들기」로 같은 경험을 다시 요청할 수 있어요.</p>}
+    {draft?.status === "COMPLETED" && !analyzing && <>
       <p role="status" className="m-0 text-sm font-medium">초안을 확인해 주세요. 최종 문장은 직접 정해요.</p>
       {draft.sentences.length ? <ol aria-label="초안 문장" className="m-0 grid list-none gap-4 p-0">{draft.sentences.map((sentence, i) => <li key={i} className="grid min-w-0 gap-2 border-t border-hairline-soft pt-4">
         <p className="m-0 break-words text-[15px] leading-relaxed"><span className="mr-2 text-xs text-muted">{i + 1}</span>{sentence.text}</p>
@@ -108,9 +82,9 @@ export function AnswerDraft({ question, onGenerate, onRefresh, onAnswer }: { que
       {draft.omitted.length > 0 && <div className="grid gap-2 rounded-sm bg-surface-soft p-3.5">
         <p className="m-0 text-sm font-semibold">자료에 없어 쓰지 않았어요</p>
         <p className="m-0 text-xs text-muted">AI 해석이에요. 현재 기록에서 확인하지 못한 내용은 지어내지 않았어요.</p>
-        <p className="m-0 text-sm leading-relaxed text-muted">답은 선택이에요. 건너뛰어도 초안을 복사할 수 있어요. 답은 경험의 보완으로 쌓이고, 「다시 만들기」를 눌러야 초안에 반영돼요.</p>
-        {savingAnswer && <p role="status" className="m-0 text-sm text-muted">보완으로 쌓는 중이에요…</p>}
-        <DraftOmissions question={question} onAnswer={answer} onRefresh={refresh} disabled={savingAnswer} />
+        <ul className="m-0 grid gap-1 pl-4 text-sm text-body">{draft.omitted.map((item, i) => <li key={i}>{item.text}</li>)}</ul>
+        <p className="m-0 text-xs leading-relaxed text-muted">기억나는 내용은 차곡이에게 알려 주세요. 답은 선택이고, 건너뛰어도 초안을 복사할 수 있어요.</p>
+        <Button variant="secondary" className="min-h-11 justify-self-start" onClick={onOpenOmissions}>차곡이에서 확인</Button>
       </div>}
       <Button variant="secondary" className="min-h-11 justify-self-start" disabled={!draft.sentences.length} onClick={() => void copyText()}>텍스트로 복사</Button>
       {copy && <p role="status" className="m-0 text-sm text-muted">{copy}</p>}

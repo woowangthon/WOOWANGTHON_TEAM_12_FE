@@ -15,6 +15,7 @@ import { MAX_QUESTIONS_PER_APPLICATION, type Application, type QuestionDetail, t
 import { AddQuestionForm, ApplicationForm } from "./application-form";
 import { overlapsOf, sameExperienceElsewhere, type Overlap } from "./overlap";
 import { AnswerInput } from "./answer-input";
+import type { DraftActions } from "./answer-draft";
 import { QuestionResult } from "./question-result";
 import { ChagokPanel, Mascot, type SupplementOrigin } from "./chagok-panel";
 import { useApplications } from "./use-applications";
@@ -57,10 +58,22 @@ export function ApplicationScreen() {
   const { wide, collapsed } = useSidebar();
   const [panelChoice, setPanelChoice] = useState<boolean | null>(null);
   const panelOpen = panelChoice ?? wide;
+  const [draftFocus, setDraftFocus] = useState<{ questionId: number; request: number } | null>(null);
   const selectedIndex = open?.application.questions.findIndex(q => q.id === matching.questionId) ?? -1;
   const summary = open?.application.questions[selectedIndex] ?? null;
   const selected = open?.details[selectedIndex] ?? null;
-  const unanswered = selected?.clarifications.filter(c => c.supplementId === null).length ?? 0;
+  const unanswered = (selected?.clarifications.filter(c => c.supplementId === null).length ?? 0)
+    + (selected?.draft?.status === "COMPLETED" ? selected.draft.omitted.filter(o => o.clarificationId !== null && o.supplementId === null).length : 0);
+  const draftActions = {
+    onGenerate: (ids: number[]) => selected ? matching.createDraft(selected, ids) : Promise.resolve(),
+    onRefresh: () => selected ? matching.refreshDraft(selected.id) : Promise.resolve(),
+    savingAnswer: matching.savingAnswer, requestingDraft: matching.requestingDraft,
+  };
+  const openDraftQuestions = () => {
+    if (!selected) return;
+    setPanelChoice(true);
+    setDraftFocus(previous => ({ questionId: selected.id, request: (previous?.request ?? 0) + 1 }));
+  };
   const originOf: SupplementOrigin = supplement => {
     const owner = matching.applications.find(a => a.questions.some(q => q.id === supplement.questionId));
     if (!owner) return "지난 문항";
@@ -69,6 +82,7 @@ export function ApplicationScreen() {
   };
   const panel = <ChagokPanel question={composing || adding ? null : selected} index={selectedIndex} originOf={originOf}
     onAnswer={(clarificationId, answer) => selected ? matching.answer(selected.id, clarificationId, answer) : Promise.resolve()}
+    draftActions={{ ...draftActions, focusRequest: draftFocus?.questionId === selected?.id ? draftFocus?.request ?? 0 : 0 }}
     onClose={() => setPanelChoice(false)} />;
   const pick = (a: Application) => { setComposing(false); setAdding(false); matching.selectApplication(a); scrollToDetail(); };
   const activeId = composing ? null : open?.application.id ?? null;
@@ -136,8 +150,7 @@ export function ApplicationScreen() {
               }} /> : <SelectedQuestion key={matching.questionId} summary={summary} question={selected} index={selectedIndex}
                 loadError={matching.detailError} onReload={matching.reloadQuestion}
                 overlaps={overlaps} onRetry={id => matching.retry(id)} onTypeChange={(id, type) => matching.updateQuestionType(id, type)}
-                onAnswer={(id, answer) => selected ? matching.answer(selected.id, id, answer) : Promise.resolve()}
-                onGenerate={ids => selected ? matching.createDraft(selected, ids) : Promise.resolve()} onRefresh={() => selected ? matching.refreshDraft(selected.id) : Promise.resolve()} />}
+                {...draftActions} onOpenOmissions={openDraftQuestions} />}
             </div>
           </> : null}
         </section>
@@ -243,11 +256,10 @@ function OverlapPanel({ overlaps, onPick }: { overlaps: Overlap[]; onPick: (ques
 }
 
 /** 고른 문항 — 받아 둔 내용이 있으면 바로, 처음 보는 문항이면 받는 동안 자리만(FE#60). 문항 글 · 상태는 지원 목록에 이미 있다 */
-function SelectedQuestion({ summary, question, index, loadError, onReload, overlaps, onRetry, onTypeChange, onGenerate, onRefresh, onAnswer }: {
+function SelectedQuestion({ summary, question, index, loadError, onReload, overlaps, onRetry, onTypeChange, onGenerate, onRefresh, onOpenOmissions, savingAnswer, requestingDraft }: {
   summary: QuestionSummary | null; question: QuestionDetail | null; index: number; loadError: string | null; onReload: (id: number) => void;
   overlaps: Overlap[]; onRetry: (id: number) => Promise<unknown>; onTypeChange: (id: number, type: QuestionType) => Promise<void>;
-  onGenerate: (ids: number[]) => Promise<void>; onRefresh: () => Promise<void>; onAnswer: (id: number, answer: string) => Promise<void>;
-}) {
+} & DraftActions) {
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
   const retryPending = useRef(false);
@@ -276,6 +288,6 @@ function SelectedQuestion({ summary, question, index, loadError, onReload, overl
           finally { retryPending.current = false; setRetrying(false); }
         }}><ArrowsClockwiseIcon aria-hidden="true" />{retrying ? "다시 시작하고 있어요…" : "다시 시도"}</Button>
         {retryError && <p role="alert" className="m-0 text-sm text-error">{retryError}</p>}
-      </CenterState> : <QuestionResult key={question.id} question={question} elsewhere={id => sameExperienceElsewhere(overlaps, question.id, id)} onGenerate={onGenerate} onRefresh={onRefresh} onAnswer={onAnswer} />}
+      </CenterState> : <QuestionResult key={question.id} question={question} elsewhere={id => sameExperienceElsewhere(overlaps, question.id, id)} onGenerate={onGenerate} onRefresh={onRefresh} onOpenOmissions={onOpenOmissions} savingAnswer={savingAnswer} requestingDraft={requestingDraft} />}
   </section>;
 }
