@@ -195,7 +195,8 @@ function SidebarFooter({ activePage = "timeline", collapsed = false, variant, on
   </div>;
 }
 
-function RailTip({ label, enabled, children }: { label: string; enabled: boolean; children: React.ReactElement }) {
+/** 레일 · 아이콘 버튼의 이름 말풍선 — 이 틀 밖에서 쓰면 Tooltip.Provider 로 감싼다 */
+export function RailTip({ label, enabled, children }: { label: string; enabled: boolean; children: React.ReactElement }) {
   return <Tooltip.Root>
     <Tooltip.Trigger asChild>{children}</Tooltip.Trigger>
     {enabled && <Tooltip.Portal><Tooltip.Content side="right" sideOffset={12} className="z-80 rounded-sm bg-ink px-3 py-2 text-xs text-on-primary shadow-float">
