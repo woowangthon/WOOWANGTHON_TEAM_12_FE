@@ -15,6 +15,7 @@ export type QuickFindActions = {
   openActivity?: (activityId: number) => void;
   search?: (search: ExperienceSearch) => void;
   addSource?: () => void;
+  addRecord?: () => void;
   addSourceBusy?: boolean;
   newApplication?: () => void;
 };
@@ -52,6 +53,7 @@ export function QuickFindProvider({ children }: { children: ReactNode }) {
       case "activity": return a.openActivity ? a.openActivity(target.id) : router.push(`/experience?activity=${target.id}`);
       case "search": return a.search ? a.search(target.search) : router.push(experienceSearchHref(target.search));
       case "source": return a.addSource ? a.addSource() : router.push("/experience?add=1");
+      case "record": return a.addRecord ? a.addRecord() : router.push("/experience?add=line");
       case "application": return a.newApplication ? a.newApplication() : router.push("/questions?new=1");
       case "experience": return router.push("/experience");
       case "home": return router.push("/");

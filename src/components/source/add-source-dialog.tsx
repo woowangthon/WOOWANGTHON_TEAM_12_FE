@@ -2,6 +2,7 @@
 
 // 자료 넣기 — 붙여넣기 또는 .md · .txt · .pdf · .pptx 파일 최대 10개 (SPEC S-01 · S-39 · S-59). 분석을 시작하기 전에 외부 AI 로 보내진다는 걸 보인다 (S-16)
 // target 을 주면 활동 세부의 「자료 더하기」(S-60) — 붙여넣기 또는 파일 하나
+// mode="line" 은 「직접 기록하기」(FE#179) — 같은 자료 넣기의 한 줄 입구. 안내만 다르고 파일은 받지 않는다
 // PC 는 가운데 대화창, 모바일은 아래에 붙는 시트(ui/dialog)
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { FileTextIcon, LockSimpleIcon, PaperclipIcon, XIcon } from "@phosphor-icons/react";
@@ -28,6 +29,8 @@ const SUBMIT_ERRORS: Record<string, string> = {
 
 const tooLong = (text: string) => text.length > MAX_TEXT_LENGTH;
 
+export type SourceMode = "material" | "line";
+
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -38,9 +41,12 @@ type Props = {
   onMoveToApplication?: (text: string) => void;
   /** 「자료 더하기」 대상 활동 (S-60) */
   target?: { id: number; name: string };
+  /** 「직접 기록하기」로 열었는가. target 과 같이 쓰지 않는다 */
+  mode?: SourceMode;
 };
 
-export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initialText = "", onMoveToApplication, target }: Props) {
+export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initialText = "", onMoveToApplication, target, mode = "material" }: Props) {
+  const line = mode === "line";
   const maxFiles = target ? 1 : MAX_BATCH_SOURCES;
   const [text, setText] = useState(initialText);
   const { picks, reading, pick, remove, clear } = useFilePicks(maxFiles);
@@ -76,7 +82,7 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
   const onDrop = (e: DragEvent) => {
     e.preventDefault();
     setDragging(false);
-    pickFiles([...e.dataTransfer.files]);
+    if (!line) pickFiles([...e.dataTransfer.files]);
   };
 
   const pasteError = tooLong(text) ? tooLongText(text) : null;
@@ -124,10 +130,11 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
     <Dialog open={open} onOpenChange={changeOpen}>
       <DialogContent>
         <DialogHeader className="pr-10">
-          <DialogTitle>{target ? `「${target.name}」에 자료 더하기` : "자료 넣기"}</DialogTitle>
+          <DialogTitle>{target ? `「${target.name}」에 자료 더하기` : line ? "직접 기록하기" : "자료 넣기"}</DialogTitle>
           <DialogDescription className="text-[15px] text-body">
             {target
               ? "이 활동에 대한 새 자료(회고 · 발표 자료 · README)를 넣으면, 이 활동의 경험으로 붙이고 근거를 더해요. 다른 활동 얘기가 섞여 있으면 새 활동으로 남기고 따로 알려 줄게요."
+              : line ? "오늘 한 일이나 든 생각을 한 줄로 적어 주세요. 활동과 그 안에서 한 일을 찾아 정리해 둘게요."
               : "README · 회고 · 활동 정리 노트를 그대로 넣어 주세요. 활동과 그 안에서 한 일을 찾아 연도별로 정리해 둘게요."}
           </DialogDescription>
         </DialogHeader>
@@ -136,7 +143,7 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
           className={cn("grid gap-2 rounded-sm", dragging && "outline-2 outline-offset-4 outline-ink")}
           onDragOver={(e) => {
             e.preventDefault();
-            setDragging(true);
+            if (!line) setDragging(true);
           }}
           onDragLeave={() => setDragging(false)}
           onDrop={onDrop}
@@ -149,10 +156,10 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
                 setText(e.target.value);
                 setSubmitError(null);
               }}
-              placeholder={"예) 바꿔요 — 캠퍼스 중고거래 앱 회고\n기간: 2025-03 ~ 2025-06, 4명 팀. 나는 백엔드를 맡았다.\n- 채팅이 늦게 오는 문제를 WebSocket 으로 바꿔 해결했다"}
-              aria-label="붙여넣을 자료"
+              placeholder={line ? "예) 오늘 스터디에서 처음 발표했다" : "예) 바꿔요 — 캠퍼스 중고거래 앱 회고\n기간: 2025-03 ~ 2025-06, 4명 팀. 나는 백엔드를 맡았다.\n- 채팅이 늦게 오는 문제를 WebSocket 으로 바꿔 해결했다"}
+              aria-label={line ? "기록할 내용" : "붙여넣을 자료"}
               aria-invalid={!!pasteError}
-              className="min-h-[150px] w-full resize-y rounded-sm border border-hairline px-3.5 py-3 text-base leading-relaxed outline-none placeholder:text-muted-soft focus:border-ink focus:shadow-[0_0_0_1px_var(--ink)] disabled:bg-surface-soft disabled:text-muted"
+              className={cn("w-full resize-y rounded-sm border border-hairline px-3.5 py-3 text-base leading-relaxed outline-none placeholder:text-muted-soft focus:border-ink focus:shadow-[0_0_0_1px_var(--ink)] disabled:bg-surface-soft disabled:text-muted", line ? "min-h-24" : "min-h-[150px]")}
             />
             {usingFiles ? (
               text.trim() && <p className="m-0 text-[13px] text-muted">파일을 빼면 적어 둔 글을 넣을 수 있어요.</p>
@@ -166,7 +173,7 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+          {!line && <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
             <label className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "cursor-pointer has-disabled:pointer-events-none has-disabled:opacity-50")}>
               <input
                 type="file"
@@ -191,7 +198,7 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
                 {SOURCE_FILE_LABEL} {maxFiles > 1 ? `${maxFiles}개까지` : "하나"} · 스캔한 PDF 는 읽지 못해요
               </span>
             )}
-          </div>
+          </div>}
 
           {picks.length > 0 && (
             <div className="grid max-h-44 gap-1.5 overflow-y-auto">

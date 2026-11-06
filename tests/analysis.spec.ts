@@ -241,3 +241,29 @@ test("PDF · PPTX 는 브라우저에서 글자를 뽑아 sections 와 함께 �
     ],
   }]);
 });
+
+// FE#179 — 「직접 기록하기」는 같은 자료 넣기의 한 줄 입구다. 파일을 받지 않고 같은 계약으로 보낸다
+test("direct record opens the one-line source dialog and submits like pasted text", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop");
+  const state = await setup(page);
+  await page.getByRole("complementary", { name: "사이드바", exact: true }).getByRole("button", { name: "추가", exact: true }).click();
+  await page.getByRole("menuitem", { name: /^직접 기록하기/ }).click();
+  const dialog = page.getByRole("dialog", { name: "직접 기록하기" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("파일 올리기")).toHaveCount(0);
+  await expect(dialog.getByText(/외부 AI 제공사/)).toBeVisible();
+  await dialog.getByLabel("기록할 내용").fill("오늘 스터디에서 처음 발표했다");
+  await dialog.getByRole("button", { name: "넣기", exact: true }).click();
+  await expect(page.getByRole("progressbar", { name: "분석 중" })).toBeVisible();
+  expect(state.sources).toEqual([{ kind: "TEXT", name: null, text: "오늘 스터디에서 처음 발표했다" }]);
+});
+
+test("direct record from another screen reopens on the experience screen once", async ({ page }) => {
+  await setup(page);
+  await page.goto("/?add=line");
+  await expect(page.getByRole("dialog", { name: "직접 기록하기" })).toBeVisible();
+  await expect(page).toHaveURL(/\/experience$/);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "어떤 일을 해 왔나요?" })).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});

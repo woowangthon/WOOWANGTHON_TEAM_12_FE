@@ -7,6 +7,6 @@ export async function openAddSource(page: Page) {
   await expect(add.or(direct).first()).toBeVisible();
   if (await add.isVisible()) {
     await add.click();
-    await page.getByRole("menuitem", { name: /^자료 넣기/ }).click();
+    await page.getByRole("menuitem", { name: /^자료 가져오기/ }).click();
   } else await direct.click();
 }
