@@ -1,5 +1,6 @@
 import { openAddSource } from "./add-source";
 import { test, expect } from "@playwright/test";
+import { pickOption } from "./pick-option";
 
 test("mock timeline, competency provenance edits, and source analysis remains mock", async ({ page }) => {
   await page.goto("/experience");
@@ -18,7 +19,7 @@ test("mock timeline, competency provenance edits, and source analysis remains mo
   const item = page.getByRole("complementary").locator("li").first();
   await expect(item.getByText("AI", { exact: true })).toBeVisible();
   await item.getByRole("button", { name: /^경험 수정:/ }).click();
-  await page.getByLabel("수행 주체").selectOption("TEAM");
+  await pickOption(page.getByLabel("수행 주체"), "팀");
   await page.getByRole("button", { name: "저장", exact: true }).click();
   await expect(page.getByLabel("수행 주체")).toHaveCount(0);
   await expect(item.getByText("AI", { exact: true })).toBeVisible();

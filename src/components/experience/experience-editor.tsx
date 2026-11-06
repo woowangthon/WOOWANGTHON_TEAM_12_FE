@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { createExperience, updateExperience } from "@/lib/api/experience";
 import type { Actor, Competency, Experience, UpdateExperienceRequest } from "@/lib/api/types";
 import { CompetencyPicker } from "./competency-picker";
@@ -45,7 +46,7 @@ export function ExperienceEditor({ experience, activityId, onSaved, onCancel }: 
       <fieldset disabled={saving} className="grid min-w-0 gap-3 border-0 p-0">
         <label className="grid gap-1">경험 내용<textarea autoFocus rows={5} className="w-full rounded-sm border border-hairline p-2 text-base" value={content} onChange={(e) => setContent(e.target.value)} /></label>
         <CompetencyPicker value={competencies} onChange={setCompetencies} />
-        <label className="grid gap-1">수행 주체<select className="min-h-11 w-full rounded-sm border border-hairline bg-canvas p-2" value={actor} onChange={(e) => setActor(e.target.value as Actor)}><option value="ME">나</option><option value="TEAM">팀</option><option value="UNKNOWN">알 수 없음</option></select></label>
+        <label className="grid gap-1">수행 주체<Select<Actor> aria-label="수행 주체" value={actor} onChange={(next) => { if (next) setActor(next); }} options={[{ value: "ME", label: "나" }, { value: "TEAM", label: "팀" }, { value: "UNKNOWN", label: "알 수 없음" }]} /></label>
       </fieldset>
       {error && <p role="alert" className="m-0 text-error">{error}</p>}
       <div className="flex gap-2"><Button type="submit" disabled={saving}>{saving ? "저장 중…" : "저장"}</Button><Button type="button" variant="ghost" disabled={saving} onClick={onCancel}>취소</Button></div>

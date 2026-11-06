@@ -2,6 +2,7 @@
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import type { ActivityCategory, CategoryBy, UpdateActivityRequest } from "../src/lib/api/types";
+import { pickOption } from "./pick-option";
 
 type Row = { id: number; name: string; start: string; category?: ActivityCategory | null; categoryBy?: CategoryBy | null };
 
@@ -74,20 +75,20 @@ test("칩으로 거른다 — 미분류는 전체에만 · 빈 해는 머리를 
 test("세부에서 고르면 저장되고 「AI 해석」이 사라지며 새로고침해도 남는다 · 비울 수 있다", async ({ page }) => {
   const state = await setup(page);
   await row(page, "바꿔요 앱").click();
-  await expect(field(page)).toHaveValue("PROJECT");
+  await expect(field(page)).toHaveText("프로젝트 · 일");
   await expect(page.getByLabel("활동 세부").getByText("AI 해석", { exact: true })).toBeVisible();
 
-  await field(page).selectOption("CLUB");
+  await pickOption(field(page), "동아리 · 대외활동");
   await expect(page.getByLabel("활동 세부").getByText("AI 해석", { exact: true })).toHaveCount(0);
-  await expect(field(page)).toHaveValue("CLUB");
+  await expect(field(page)).toHaveText("동아리 · 대외활동");
   expect(state.patches).toEqual([{ category: "CLUB" }]);
 
   await page.reload();
   await row(page, "바꿔요 앱").click();
-  await expect(field(page)).toHaveValue("CLUB");
+  await expect(field(page)).toHaveText("동아리 · 대외활동");
 
-  await field(page).selectOption("");
-  await expect(field(page)).toHaveValue("");
+  await pickOption(field(page), "미분류");
+  await expect(field(page)).toHaveText("미분류");
   expect(state.patches.at(-1)).toEqual({ category: null });
 });
 
@@ -95,13 +96,13 @@ test("저장 실패 — 원래 분류로 두고 오류 · 다시 시도", async 
   const state = await setup(page);
   await row(page, "바꿔요 앱").click();
   state.fail = true;
-  await field(page).selectOption("STUDY");
+  await pickOption(field(page), "공부 · 성장");
   await expect(page.getByRole("alert").filter({ hasText: "분류를 저장하지 못했어요." })).toBeVisible();
-  await expect(field(page)).toHaveValue("PROJECT");
+  await expect(field(page)).toHaveText("프로젝트 · 일");
 
   state.fail = false;
   await page.getByLabel("활동 세부").getByRole("button", { name: "다시 시도" }).click();
-  await expect(field(page)).toHaveValue("STUDY");
+  await expect(field(page)).toHaveText("공부 · 성장");
   await expect(page.getByRole("alert").filter({ hasText: "분류를 저장하지 못했어요." })).toHaveCount(0);
   if (page.viewportSize()!.width < 1024) await page.getByLabel("활동 세부").getByRole("button", { name: "타임라인" }).click(); // 모바일 세부는 전체 화면
   await expect(row(page, "바꿔요 앱")).toContainText("공부 · 성장");

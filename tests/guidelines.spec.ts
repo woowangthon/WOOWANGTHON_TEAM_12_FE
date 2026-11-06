@@ -4,8 +4,9 @@ import { test, expect } from './signed-in';
 import { FakeQuestionApi } from './fake-question-api';
 import { DRAFT_EXAMPLE } from './fixtures/draft-example';
 import type { Guideline } from '../src/lib/api/guidelines';
-import type { DraftFrame } from '../src/lib/draft-frames';
+import { DRAFT_FRAMES, type DraftFrame } from '../src/lib/draft-frames';
 import type { QuestionType } from '../src/lib/api/question-types';
+import { pickOption } from './pick-option';
 
 // 개발 서버 배지가 화면 하단의 계정 메뉴를 가로채지 않게 한다(기존 초안 시험과 같음).
 test.beforeEach(async ({ page }) => {
@@ -152,25 +153,25 @@ test('type suggestion table, explicit NONE and saved CARL survive panel regenera
     api.edit(41, q => { q.questionType = type; q.draft = null; });
     await page.goto('/questions?question=41');
     const controls = await openComposer(page);
-    await expect(controls.getByRole('combobox', { name: '구성 틀', exact: true })).toHaveValue(frame);
+    await expect(controls.getByRole('combobox', { name: '구성 틀', exact: true })).toHaveText(DRAFT_FRAMES[frame].name);
     await expect(controls.getByText('문항 유형에 맞춘 제안', { exact: false })).toBeVisible();
   }
   const screen = draftScreen(page), controls = composer(page);
-  await controls.getByRole('combobox', { name: '구성 틀', exact: true }).selectOption('NONE');
+  await pickOption(controls.getByRole('combobox', { name: '구성 틀', exact: true }), '틀 없이');
   await controls.getByRole('button', { name: '초안 만들기', exact: true }).click();
   await closePanel(page);
   await expect(screen.getByRole('list', { name: '초안 문장' })).toBeVisible();
   expect(api.calls.find(c => c.call.endsWith('/draft'))!.body).toEqual({ experienceIds: [101], frame: 'NONE' });
   api.edit(41, q => { q.draft = { ...structuredClone(DRAFT_EXAMPLE), frame: 'CARL', status: 'FAILED', sentences: [], omitted: [] }; });
   await page.reload(); await openComposer(page);
-  await expect(controls.getByRole('combobox', { name: '구성 틀', exact: true })).toHaveValue('CARL');
+  await expect(controls.getByRole('combobox', { name: '구성 틀', exact: true })).toHaveText(DRAFT_FRAMES.CARL.name);
   await expect(controls.getByText('문항 유형에 맞춘 제안', { exact: false })).toHaveCount(0);
   await controls.getByRole('button', { name: '다시 만들기', exact: true }).click();
   await closePanel(page);
   await expect(screen.getByRole('list', { name: '초안 문장' })).toBeVisible();
   expect(api.calls.filter(c => c.call.endsWith('/draft')).at(-1)!.body).toEqual({ experienceIds: [101], frame: 'CARL' });
   await page.reload(); await openComposer(page);
-  await expect(controls.getByRole('combobox', { name: '구성 틀', exact: true })).toHaveValue('CARL');
+  await expect(controls.getByRole('combobox', { name: '구성 틀', exact: true })).toHaveText(DRAFT_FRAMES.CARL.name);
   await controls.getByRole('button', { name: '다시 만들기', exact: true }).click();
   await expect.poll(() => api.calls.filter(c => c.call.endsWith('/draft')).length).toBe(3);
   expect(api.calls.filter(c => c.call.endsWith('/draft')).at(-1)!.body).toEqual({ experienceIds: [101], frame: 'CARL' });

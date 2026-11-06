@@ -4,6 +4,7 @@
 import { useRef, useState } from "react";
 import { ArrowsClockwiseIcon, FolderIcon, PlantIcon, UsersThreeIcon, type Icon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { Select, optionsOf } from "@/components/ui/select";
 import { updateActivity } from "@/lib/api/experience";
 import { ACTIVITY_CATEGORIES, type ActivityCategory, type ActivitySummary } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
@@ -58,12 +59,9 @@ export function ActivityCategoryField({ activity, onSaved, readOnly = false }: {
   return <div data-category={category ?? undefined} className="grid justify-items-start gap-1">
     <div className="flex flex-wrap items-center gap-2">
       {category && <CategoryIcon category={category} />}
-      <select aria-label="이 활동의 분류" value={(saving ? attempt : category) ?? ""} disabled={saving}
-        onChange={(e) => void save((e.target.value || null) as ActivityCategory | null)}
-        className="min-h-11 rounded-sm border border-hairline bg-canvas px-3 text-base text-ink disabled:opacity-60 sm:text-sm lg:min-h-9">
-        <option value="">미분류</option>
-        {CATEGORY_KEYS.map((c) => <option key={c} value={c}>{ACTIVITY_CATEGORIES[c]}</option>)}
-      </select>
+      <Select<ActivityCategory> aria-label="이 활동의 분류" value={(saving ? attempt : category) ?? ""} disabled={saving}
+        onChange={(next) => void save(next || null)} className="w-44 max-w-full lg:min-h-9"
+        options={[{ value: "", label: "미분류" }, ...optionsOf(ACTIVITY_CATEGORIES)]} />
       {saving ? <span role="status" className="text-xs text-muted">저장 중…</span>
         : category && activity.categoryBy === "AI" && <span className="text-xs text-muted">AI 해석</span>}
     </div>
