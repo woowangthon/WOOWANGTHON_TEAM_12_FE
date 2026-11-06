@@ -11,7 +11,7 @@ const item = (patch: Partial<WorkItem> = {}): WorkItem => ({
   sourceId: null, jobId: null, applicationId: 21, questionId: 41, runId: null, ...patch,
 });
 const trigger = (page: Page) => page.getByRole("button", { name: /^진행 중인 일 \d+개 · 안 읽은 소식/ }).first();
-const dialog = (page: Page) => page.getByRole("dialog", { name: "진행 중인 일 · 소식" });
+const dialog = (page: Page) => page.getByRole("dialog", { name: /^(알림|진행 중인 일 · 소식)$/ }); // PC 는 작은 창, 1024 미만은 패널
 // 나간 요청이 route 까지 닿을 시간을 준다. 바로 세면 요청이 나갔어도 놓친다(FE#167).
 const requestsArrive = (page: Page) => page.waitForTimeout(300);
 
@@ -56,12 +56,47 @@ test("읽음 경계·동일 key 재시도·종류별 실제 경로", () => {
 test("작업 없음 · 빈 소식은 읽음 POST 없음 · 키보드 초점 복귀", async ({ page }) => {
   const state = await setup(page);
   await page.goto("/questions");
-  await expect(page.getByText("진행 중인 일이 없어요", { exact: true })).toBeVisible();
+  await expect(trigger(page)).toBeVisible();
+  await expect(page.getByLabel("전역 작업 상태").getByRole("paragraph")).toHaveText(""); // 할 일이 없으면 자리를 차지하지 않는다
   await trigger(page).focus(); await page.keyboard.press("Enter");
   await expect(dialog(page).getByText("아직 도착한 소식이 없어요.")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(trigger(page)).toBeFocused();
   expect(state.posts).toEqual([]);
+});
+
+test("PC 는 종 아래 작은 창 · 빨간 점, 1024 미만은 패널", async ({ page }) => {
+  await setup(page, { seenAt: null, inProgress: [], recent: [item({ status: "COMPLETED", finishedAt: FINISHED })] });
+  await page.goto("/questions");
+  await expect(trigger(page)).toHaveAccessibleName("진행 중인 일 0개 · 안 읽은 소식 1개");
+  const dot = trigger(page).locator("[data-slot=unread-dot]");
+  if (page.viewportSize()!.width < 1024) {
+    await expect(trigger(page)).toContainText("소식 1");
+    await expect(dot).toHaveCount(0);
+    await trigger(page).click();
+    expect((await dialog(page).boundingBox())!.width).toBeCloseTo(390, 0);
+    await page.keyboard.press("Escape");
+    await expect(dialog(page)).toBeHidden();
+    return;
+  }
+  await expect(dot).toBeVisible();
+  await expect(trigger(page)).toHaveText("");
+  await trigger(page).click();
+  const bell = (await trigger(page).boundingBox())!;
+  const box = (await dialog(page).boundingBox())!;
+  expect(box.width).toBeCloseTo(340, 0);
+  expect(Math.abs(box.y - (bell.y + bell.height + 8))).toBeLessThanOrEqual(1);
+  expect(Math.abs(box.x + box.width - (bell.x + bell.width))).toBeLessThanOrEqual(1);
+  await expect(dialog(page).getByRole("heading", { name: "알림", exact: true })).toBeVisible();
+  await expect(dot).toHaveCount(0); // 열면 읽음
+  await expect(page.locator("[data-slot=sheet-overlay]")).toHaveCount(0); // 화면을 어둡게 하지 않는다
+  await page.mouse.click(300, 500);
+  await expect(dialog(page)).toBeHidden();
+  await trigger(page).click();
+  await expect(dialog(page)).toBeVisible();
+  await trigger(page).click(); // 종을 다시 누르면 닫힌다
+  await expect(dialog(page)).toBeHidden();
+  await expect(trigger(page)).toBeFocused();
 });
 
 test("모든 종류·진행 상태·긴 제목 · 실패와 DONE · 세 폭 스크린샷", async ({ page }, info) => {
@@ -258,7 +293,9 @@ test("느린 GET 중에는 중복 요청하지 않는다", async ({ page }) => {
   await page.clock.install();
   const state = await setup(page);
   await page.goto("/questions");
-  await expect(page.getByText("진행 중인 일이 없어요", { exact: true })).toBeVisible();
+  await expect.poll(() => state.reads).toBeGreaterThan(0);
+  await expect.poll(() => state.current).toBe(0); // 첫 응답까지 받아야 다음 주기가 잡힌다
+  await expect(trigger(page)).toBeVisible();
   const before = state.reads;
   state.max = 0;
   let release!: () => void;
@@ -268,7 +305,7 @@ test("느린 GET 중에는 중복 요청하지 않는다", async ({ page }) => {
   await page.clock.fastForward(90000);
   expect(state.reads).toBe(before + 1); expect(state.max).toBe(1);
   state.delay = null; release();
-  await expect(page.getByText("진행 중인 일이 없어요", { exact: true })).toBeVisible();
+  await expect.poll(() => state.current).toBe(0);
 });
 
 test("늦게 도착한 GET이 성공한 읽음 POST를 되돌리지 않는다", async ({ page }) => {
