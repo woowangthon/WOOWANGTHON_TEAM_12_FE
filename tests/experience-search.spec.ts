@@ -63,7 +63,7 @@ test("no input shows every experience; a word and all filters are sent together"
   await page.keyboard.press("Escape");
   await pickOption(page.getByLabel("연도"), "2025년");
   await pickOption(page.getByLabel("활동 분류"), "프로젝트 · 일");
-  await page.getByLabel("확인 필요만").check();
+  await page.getByRole("button", { name: "확인 필요만", exact: true }).click();
   await expect.poll(() => searches.at(-1)?.toString()).toBe(new URLSearchParams({
     query: "WebSocket 회고", competencies: "PROBLEM_SOLVING,COLLABORATION", year: "2025", sourceStatus: "NEEDS_REVIEW", category: "PROJECT",
   }).toString());

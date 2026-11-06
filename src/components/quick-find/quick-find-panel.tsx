@@ -25,7 +25,7 @@ type Tab = "find" | "ask" | "go";
 type Shortcut = { kind: "source" | "application" | "experience" | "home"; label: string; detail: string; icon: ComponentType<{ className?: string }> };
 
 const TABS: { value: Tab; label: string }[] = [{ value: "find", label: "찾기" }, { value: "ask", label: "차곡이에게" }, { value: "go", label: "바로가기" }];
-const PLACEHOLDER: Record<Tab, string> = { find: "경험 찾기 — ? 로 시작하면 차곡이에게, > 로 시작하면 바로가기", ask: "한 줄로 물어보세요", go: "어디로 갈까요?" };
+const PLACEHOLDER: Record<Tab, string> = { find: "경험 찾기", ask: "한 줄로 물어보세요", go: "어디로 갈까요?" };
 const SHORTCUTS: Shortcut[] = [
   { kind: "source", label: "자료 넣기", detail: "README · 회고 · 노트를 넣는 창을 열어요", icon: PlusIcon },
   { kind: "application", label: "새 지원", detail: "지원처와 문항을 넣는 화면으로 가요", icon: FileTextIcon },
@@ -104,13 +104,13 @@ export function QuickFindPanel({ addSourceBusy, onGo }: { addSourceBusy: boolean
 
   const hasList = tab !== "ask";
   return <>
-    <div className="flex items-center gap-2.5 px-4 pt-3 pb-2 lg:px-5.5 lg:pt-4.5">
+    <div className="flex items-center gap-2.5 px-4 pt-3 pb-2 lg:px-5.5 lg:pt-4.5 lg:pb-2.5">
       <MagnifyingGlassIcon className="size-5 shrink-0 text-muted" aria-hidden="true" />
       <input ref={input} type="text" value={word} onChange={e => type(e.target.value)} onKeyDown={onKeyDown} placeholder={PLACEHOLDER[tab]} aria-label="빠른 찾기 입력"
         autoComplete="off" role={hasList ? "combobox" : undefined} aria-expanded={hasList ? count > 0 : undefined} aria-controls={hasList ? LIST_ID : undefined}
         aria-autocomplete={hasList ? "list" : undefined} aria-activedescendant={hasList && count ? optionId(current) : undefined}
-        className="min-h-11 min-w-0 flex-1 bg-transparent text-[17px] text-ellipsis text-ink outline-none placeholder:text-muted-soft" />
-      {tab === "ask" && <Button type="button" size="icon" className="size-11 shrink-0" aria-label="보내기" disabled={!query || asked.asking} onClick={send}><ArrowUpIcon aria-hidden="true" /></Button>}
+        className="min-h-11 min-w-0 flex-1 bg-transparent lg:h-5.5 lg:min-h-0 text-[17px] text-ellipsis text-ink outline-none placeholder:text-muted-soft" />
+      {tab === "ask" && <Button type="button" size="icon" className="size-11 shrink-0 lg:size-8" aria-label="보내기" disabled={!query || asked.asking} onClick={send}><ArrowUpIcon aria-hidden="true" /></Button>}
     </div>
     <div role="group" aria-label="빠른 찾기 탭" className={cn("flex gap-1.5 px-3.5 lg:px-4.5", tab === "find" ? "pb-1.5" : "border-b border-hairline-soft pb-2.5")}>
       {TABS.map(t => <button key={t.value} type="button" aria-pressed={tab === t.value} onClick={() => moveTo(t.value)}
@@ -118,7 +118,7 @@ export function QuickFindPanel({ addSourceBusy, onGo }: { addSourceBusy: boolean
         {t.value === "ask" && <Mascot size={16} />}{t.label}
       </button>)}
     </div>
-    {tab === "find" && <ExperienceFilterBar compact value={filters} onChange={changeFilters} years={years} onDone={backToInput} className="border-b border-hairline-soft px-3.5 pb-2.5 lg:px-4.5" />}
+    {tab === "find" && <ExperienceFilterBar value={filters} onChange={changeFilters} years={years} onDone={backToInput} className="border-b border-hairline-soft px-3.5 py-2.5 lg:px-4.5" />}
 
     {tab === "ask" ? <div className="min-h-0 flex-1 overflow-y-auto p-4 [&>section]:mt-0">
       {!asked.asking && !asked.answer && !asked.failure && <div className="flex items-start gap-3 px-1 text-sm leading-relaxed">

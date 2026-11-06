@@ -11,6 +11,8 @@
     { "name": "입력칸", "design": ".pal__in input", "app": "input[aria-label='빠른 찾기 입력']" },
     { "name": "탭 줄", "design": ".pal__tabs", "app": "[aria-label='빠른 찾기 탭']" },
     { "name": "탭", "design": ".pal__tabs button", "app": "[aria-label='빠른 찾기 탭'] button" },
+    { "name": "거르기 줄", "design": ".pal__filters", "app": "[role=dialog] [aria-label='경험 거르기']" },
+    { "name": "거르기 칩", "design": ".pal__filters .chip", "app": "[role=dialog] [aria-label='경험 거르기'] button" },
     { "name": "미리보기", "design": ".pal__prev", "app": "[data-slot=quick-find-preview]" }
   ]
 }

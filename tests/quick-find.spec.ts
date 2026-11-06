@@ -242,7 +242,7 @@ test("find chips narrow the same search and more results carries them", async ({
   await expect(page).toHaveURL(/\/experience\?q=&competencies=COLLABORATION&year=2025&review=1&category=PROJECT/);
   await expect(page.getByRole("combobox", { name: "활동 분류", exact: true })).toHaveText("프로젝트 · 일");
   await expect(page.getByRole("combobox", { name: "연도", exact: true })).toHaveText("2025년");
-  await expect(page.getByRole("checkbox", { name: "확인 필요만", exact: true })).toBeChecked();
+  await expect(page.getByRole("button", { name: "확인 필요만", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: "역량 1", exact: true })).toBeVisible();
 
   // 내 경험 화면 안에서는 화면이 조건을 받는다
@@ -250,7 +250,30 @@ test("find chips narrow the same search and more results carries them", async ({
   await pickOption(dialog(page).getByRole("combobox", { name: "활동 분류", exact: true }), "공부 · 성장");
   await dialog(page).getByRole("option", { name: /검색에서 더 보기/ }).click();
   await expect(page.getByRole("combobox", { name: "활동 분류", exact: true })).toHaveText("공부 · 성장");
-  await expect(page.getByRole("checkbox", { name: "확인 필요만", exact: true })).not.toBeChecked();
+  await expect(page.getByRole("button", { name: "확인 필요만", exact: true })).toHaveAttribute("aria-pressed", "false");
+});
+
+test("filter chips are small on PC, 44 below it, and say when they are on without colour alone", async ({ page }, info) => {
+  await setup(page);
+  await page.goto("/guidelines");
+  await openByButton(page);
+  await expect(box(page)).toHaveAttribute("placeholder", "경험 찾기");
+  const review = dialog(page).getByRole("button", { name: "확인 필요만", exact: true });
+  const pc = info.project.name === "desktop";
+  for (const chip of [review, dialog(page).getByRole("button", { name: "역량", exact: true }), dialog(page).getByRole("combobox", { name: "활동 분류", exact: true })]) {
+    const height = (await chip.boundingBox())!.height;
+    if (pc) expect(height).toBeLessThan(32); else expect(height).toBeGreaterThanOrEqual(44);
+  }
+  if (pc) expect((await box(page).boundingBox())!.height).toBeLessThan(44);
+  await expect(dialog(page).getByRole("combobox", { name: "활동 분류", exact: true })).toHaveText("분류");
+  await expect(dialog(page).getByRole("combobox", { name: "연도", exact: true })).toHaveText("연도");
+  await expect(review).toHaveAttribute("aria-pressed", "false");
+  await expect(review.locator("svg")).toHaveCount(0);
+  await review.click();
+  await expect(review).toHaveAttribute("aria-pressed", "true");
+  await expect(review.locator("svg")).toHaveCount(1);
+  await review.click();
+  await expect(review).toHaveAttribute("aria-pressed", "false");
 });
 
 test("after a chip on PC the arrow keys and Enter still pick from the input", async ({ page }, info) => {

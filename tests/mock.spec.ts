@@ -68,6 +68,6 @@ test("mock save survives reload and the saved filter uses it", async ({ page }) 
 
   await page.reload();
   await page.getByRole("button", { name: "경험 찾기", exact: true }).click();
-  await page.getByRole("checkbox", { name: "저장한 것", exact: true }).check();
+  await page.getByRole("button", { name: "저장한 것", exact: true }).click();
   await expect(page.getByText("경험 1개", { exact: true })).toBeVisible();
 });

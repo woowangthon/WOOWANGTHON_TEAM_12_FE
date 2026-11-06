@@ -48,7 +48,7 @@ export function ExperienceSearch({ initial, years, mock, version, hiddenIds, onO
           className="h-11 w-full rounded-md border border-hairline bg-canvas px-3 pl-9.5 text-base text-ink"
         />
       </div>
-      <ExperienceFilterBar value={filters} onChange={setFilters} years={years} className="mt-2" />
+      <ExperienceFilterBar clearable value={filters} onChange={setFilters} years={years} className="mt-2" />
 
       {state.status === "loading" && <p className="py-10 text-center text-sm text-muted">경험을 찾고 있어요…</p>}
       {state.status === "error" && (
