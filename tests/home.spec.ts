@@ -85,7 +85,7 @@ test("빈 홈은 실제 입력으로 연결하고 조회 실패를 빈 데이터
   await page.goto("/");
   await page.getByRole("button", { name: /지원 시작하기/ }).click();
   await expect(page.getByRole("dialog", { name: "지원 넣기" })).toBeVisible();
-  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("");
+  await expect(page.getByLabel("공고 · 문항 글이나 공고 링크")).toHaveValue("");
   await page.getByRole("button", { name: "취소", exact: true }).click();
   state.failActivities = true; state.failApplications = true;
   await page.reload();
