@@ -4,6 +4,7 @@
 // 종류를 더할 때는 아래 표와 Body 에 한 줄씩 더한다(FE#118)
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { CaretRightIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { ApiError } from "@/lib/api/errors";
@@ -149,7 +150,8 @@ export function McpChangeCard({ change, onChange, onStale, inActivity = false }:
 
 type LogState = { status: "loading" } | { status: "error" } | { status: "ready"; changes: McpChange[] };
 
-export function McpChangeLog() {
+/** 쓰기를 켰거나 기록이 있을 때만 카드 아래에 접어 둔다 — 못 불러왔으면 있는지 모르니 오류를 그대로 보인다 */
+export function McpChangeLog({ writeEnabled }: { writeEnabled: boolean }) {
   const [state, setState] = useState<LogState>({ status: "loading" });
   const [outcomes, setOutcomes] = useState<Record<number, string>>({});
 
@@ -165,24 +167,33 @@ export function McpChangeLog() {
     setOutcomes((all) => ({ ...all, [next.id]: outcome }));
   }
 
-  return <section aria-labelledby="mcp-changes" className="mt-8 border-t border-hairline pt-6">
-    <div className="flex items-center justify-between gap-3">
-      <h2 id="mcp-changes" className="text-lg font-semibold">변경 기록</h2>
-      {state.status === "ready" && <Button className="min-h-11" variant="ghost" size="sm" onClick={() => void load()}>새로고침</Button>}
+  if (state.status === "error") return <div role="alert" className="mt-4 space-y-3 rounded-md border border-hairline-soft p-4 sm:px-5">
+    <p className="text-sm leading-relaxed text-error">변경 기록을 불러오지 못했어요.</p>
+    <Button className="min-h-11" onClick={() => { setState({ status: "loading" }); void load(); }}>다시 시도</Button>
+  </div>;
+  const changes = state.status === "ready" ? state.changes : [];
+  if (!writeEnabled && !changes.length) return null;
+
+  return <details className="group mt-4 rounded-md border border-hairline-soft px-4 sm:px-5">
+    <summary className="flex min-h-14 cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
+      <CaretRightIcon aria-hidden="true" className="size-4 text-muted transition-transform group-open:rotate-90" />
+      <h2 className="text-[15px] font-semibold">변경 기록</h2>
+      {changes.length > 0 && <span className="text-[13px] text-muted tabular-nums">{changes.length}건</span>}
+    </summary>
+    <div className="pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-x-3">
+        <p className="text-sm leading-relaxed text-muted">외부 AI가 바꾼 것을 건별로 확인하고 되돌려요. 웹에서 고친 것은 남지 않아요.</p>
+        {state.status === "ready" && <Button className="min-h-11" variant="ghost" size="sm" onClick={() => void load()}>새로고침</Button>}
+      </div>
+      {state.status === "loading" && <p role="status" className="mt-4 text-sm text-muted">변경 기록을 불러오고 있어요…</p>}
+      {state.status === "ready" && (changes.length === 0
+        ? <p className="mt-4 text-sm text-body">아직 외부 AI가 바꾼 것이 없어요.</p>
+        : <ul className="m-0 mt-2 list-none p-0">
+          {changes.map((change) => <li key={change.id} className="border-b border-hairline-soft py-4 last:border-b-0">
+            <McpChangeCard change={change} onStale={() => void load()} onChange={decided} />
+            {outcomes[change.id] && <p role="status" className="mt-2 text-sm leading-relaxed text-body">{outcomes[change.id]}</p>}
+          </li>)}
+        </ul>)}
     </div>
-    <p className="mt-2 text-sm leading-relaxed text-muted">외부 AI가 바꾼 것을 건별로 확인하고 되돌려요. 웹에서 고친 것은 남지 않아요.</p>
-    {state.status === "loading" && <p role="status" className="mt-4 text-sm text-muted">변경 기록을 불러오고 있어요…</p>}
-    {state.status === "error" && <div role="alert" className="mt-4 space-y-3">
-      <p className="text-sm leading-relaxed text-error">변경 기록을 불러오지 못했어요.</p>
-      <Button className="min-h-11" onClick={() => { setState({ status: "loading" }); void load(); }}>다시 시도</Button>
-    </div>}
-    {state.status === "ready" && (state.changes.length === 0
-      ? <p className="mt-4 text-sm text-body">아직 외부 AI가 바꾼 것이 없어요.</p>
-      : <ul className="m-0 mt-2 list-none p-0">
-        {state.changes.map((change) => <li key={change.id} className="border-b border-hairline py-4">
-          <McpChangeCard change={change} onStale={() => void load()} onChange={decided} />
-          {outcomes[change.id] && <p role="status" className="mt-2 text-sm leading-relaxed text-body">{outcomes[change.id]}</p>}
-        </li>)}
-      </ul>)}
-  </section>;
+  </details>;
 }

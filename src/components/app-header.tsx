@@ -40,7 +40,7 @@ const sideLinks = [
   { page: "home", href: "/", label: "홈", icon: <HouseIcon /> },
   { page: "timeline", href: "/experience", label: "내 경험", icon: <StackIcon /> },
 ];
-const PAGE_NAME: Record<Page, string> = { home: "홈", timeline: "내 경험", questions: "지원서", connections: "연결", guidelines: "작성 지침" };
+const PAGE_NAME: Record<Page, string> = { home: "홈", timeline: "내 경험", questions: "지원서", connections: "연결 · 내보내기", guidelines: "작성 지침" };
 const BUSY = "지금 넣은 자료의 분석이 끝나면 더 넣을 수 있어요";
 // 왼쪽 여백·아이콘 칸·줄 간격은 접어도 유지한다. 글자는 남겨 서랍의 폭으로 잘라 낸다(시안 6).
 const navItem = "flex h-11 w-full shrink-0 items-center gap-2.5 overflow-hidden rounded-full px-3 text-sm font-medium whitespace-nowrap text-ink transition-colors";
@@ -182,7 +182,7 @@ function AddMenu({ collapsed, busy, onAddSource, onNewApplication }: { collapsed
 /** 아래쪽 연결 · 계정 — 「내보내기」(S-33)는 기능이 들어올 때 붙인다 */
 function SidebarFooter({ activePage = "timeline", collapsed = false, variant, onNavigate }: SidebarProps & { collapsed?: boolean; variant: "rail" | "sidebar"; onNavigate?: () => void }) {
   return <div className="relative mt-auto flex shrink-0 flex-col gap-0.5">
-    <nav aria-label="연결"><SideLink href="/connections" label="연결" icon={<PlugsConnectedIcon />} active={activePage === "connections"} collapsed={collapsed} onNavigate={onNavigate} /></nav>
+    <nav aria-label="연결"><SideLink href="/connections" label="연결 · 내보내기" icon={<PlugsConnectedIcon />} active={activePage === "connections"} collapsed={collapsed} onNavigate={onNavigate} /></nav>
     <AccountMenu variant={variant} />
   </div>;
 }
