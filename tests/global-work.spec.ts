@@ -12,6 +12,8 @@ const item = (patch: Partial<WorkItem> = {}): WorkItem => ({
 });
 const trigger = (page: Page) => page.getByRole("button", { name: /^진행 중인 일 \d+개 · 안 읽은 소식/ }).first();
 const dialog = (page: Page) => page.getByRole("dialog", { name: "진행 중인 일 · 소식" });
+// 나간 요청이 route 까지 닿을 시간을 준다. 바로 세면 요청이 나갔어도 놓친다(FE#167).
+const requestsArrive = (page: Page) => page.waitForTimeout(300);
 
 async function setup(page: Page, snapshot: WorkSnapshot = { seenAt: null, inProgress: [], recent: [] }) {
   await new FakeQuestionApi().install(page);
@@ -144,8 +146,7 @@ test("3초 진행 폴링 · 완료 소식 · 30초 유휴 폴링 · 다른 기�
   await expect(trigger(page)).toHaveAccessibleName("진행 중인 일 0개 · 안 읽은 소식 1개");
   const reads = state.reads;
   await page.clock.fastForward(29999);
-  // 나간 요청이 route 까지 닿을 시간을 준다. 바로 세면 요청이 나갔어도 놓친다.
-  await page.waitForTimeout(300); expect(state.reads).toBe(reads);
+  await requestsArrive(page); expect(state.reads).toBe(reads);
   state.snapshot.seenAt = FINISHED;
   await page.clock.fastForward(1);
   await expect(trigger(page)).toHaveAccessibleName("진행 중인 일 0개 · 안 읽은 소식 0개");
@@ -221,8 +222,9 @@ test("탭 숨김은 폴링 중지 · 다시 보이면 즉시 갱신", async ({ p
   await page.goto("/questions"); await expect(trigger(page)).toBeVisible();
   await expect.poll(() => state.reads).toBeGreaterThan(0);
   await page.evaluate(() => { Object.defineProperty(document, "hidden", { configurable: true, value: true }); document.dispatchEvent(new Event("visibilitychange")); });
+  await requestsArrive(page);
   const before = state.reads;
-  await page.clock.fastForward(60000); expect(state.reads).toBe(before);
+  await page.clock.fastForward(60000); await requestsArrive(page); expect(state.reads).toBe(before);
   await page.evaluate(() => { Object.defineProperty(document, "hidden", { configurable: true, value: false }); document.dispatchEvent(new Event("visibilitychange")); });
   await expect.poll(() => state.reads).toBe(before + 1);
 });
@@ -238,7 +240,7 @@ test("서버 오류는 실제 오류 · 다시 불러오기 · 인증 만료는 
   await page.keyboard.press("Escape"); state.status = 401;
   await page.clock.fastForward(30000);
   await expect(page.getByRole("button", { name: "로그인", exact: true })).toBeVisible();
-  const before = state.reads; await page.clock.fastForward(60000); expect(state.reads).toBe(before);
+  const before = state.reads; await page.clock.fastForward(60000); await requestsArrive(page); expect(state.reads).toBe(before);
 });
 
 test("읽음 POST 실패는 안 읽음을 유지하고 표시 경계로 다시 시도", async ({ page }) => {
