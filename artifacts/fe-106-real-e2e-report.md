@@ -32,7 +32,6 @@
 
 - [수정 후 모바일 390px](fe-106-real/20261106063314_d250/mobile-real-waiting-confirm.png)
 - [수정 후 PC](fe-106-real/20261106063314_d250/desktop-real-waiting-confirm.png)
-- [모바일 소식](fe-106-real/20261106063314_d250/mobile-real-news.png)
 
 ## AI 호출 및 데이터
 
