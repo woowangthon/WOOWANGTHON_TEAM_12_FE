@@ -618,7 +618,7 @@ test("add source from the application screen opens the dialog on the timeline on
     await expect(dialog).toBeVisible();
     await expect(page).toHaveURL(/\/experience$/);
     await page.reload();
-    await expect(page.getByRole("note")).toContainText("실제 API 모드");
+    await expect(page.getByRole("heading", { name: "내 경험", exact: true })).toBeVisible();
     await expect(dialog).toHaveCount(0);
   }
 });
