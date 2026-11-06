@@ -90,8 +90,8 @@ test("지원 분류는 나눈 값으로 칸을 채우고, 고친 칸의 꼬리�
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(PARSED.questions[0]);
   await expect(page.getByLabel("문항 2", { exact: true })).toHaveValue(PARSED.questions[1]);
   await expect(page.getByLabel("지원처 이름 (선택)")).toHaveValue(PARSED.organization);
-  await expect(page.getByLabel("지원처 종류 (선택)")).toHaveValue("BOOTCAMP");
-  await expect(page.getByLabel("직무 (선택)")).toHaveValue("BACKEND");
+  await expect(page.getByLabel("지원처 종류 (선택)")).toHaveText("부트캠프 · 교육 과정");
+  await expect(page.getByLabel("직무 (선택)")).toHaveText("백엔드 · 서버");
   await expect(dialog.getByText("AI 가 채움", { exact: true })).toHaveCount(5);
   await expect(dialog.getByText("AI 가 나눠 채웠어요 · 고쳐도 돼요", { exact: true })).toBeVisible();
   expect(calls.parses).toEqual([{ text }]);
@@ -117,7 +117,7 @@ test("문항을 못 찾으면 입력 글을 문항으로 지어 넣지 않고 �
   await expect(dialog.getByText(/글에서 문항을 찾지 못했어요/)).toBeVisible();
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("");
   await expect(page.getByLabel("지원처 이름 (선택)")).toHaveValue("OO 동아리");
-  await expect(page.getByLabel("직무 (선택)")).toHaveValue("");
+  await expect(page.getByLabel("직무 (선택)")).toHaveText("고르지 않음");
   await expect(dialog.getByText("AI 가 채움", { exact: true })).toHaveCount(2);
   // 다른 쪽으로 보낼 땐 원문이 그대로 간다
   await page.getByRole("button", { name: "자료로 쌓기", exact: true }).click();
@@ -164,14 +164,14 @@ test("지원 넣기 화면에서 공고를 붙여 칸을 채우고, 직접 넣�
   await expect(page.getByLabel("문항 3", { exact: true })).toHaveValue(PARSED.questions[1]);
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("직접 넣은 문항");
   await expect(page.getByLabel("지원처 이름 (선택)")).toHaveValue("내가 쓴 이름");
-  await expect(page.getByLabel("지원처 종류 (선택)")).toHaveValue("BOOTCAMP");
+  await expect(page.getByLabel("지원처 종류 (선택)")).toHaveText("부트캠프 · 교육 과정");
   expect(calls.parses).toEqual([{ text: "붙인 공고" }]);
   // 다시 채우면 지난번 AI 값은 바뀌고 직접 넣은 칸은 남는다
   calls.parsed = { organization: null, organizationType: null, jobRole: null, questions: [] };
   await page.getByRole("button", { name: "칸 채우기", exact: true }).click();
   await expect(page.getByLabel("문항 2", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("직접 넣은 문항");
-  await expect(page.getByLabel("지원처 종류 (선택)")).toHaveValue("");
+  await expect(page.getByLabel("지원처 종류 (선택)")).toHaveText("고르지 않음");
   await expect(page.getByText(/글에서 문항을 찾지 못했어요/)).toHaveCount(0);
   // 실패면 그 글을 문항 칸으로 옮길 수 있다
   calls.parseStatus = 502;

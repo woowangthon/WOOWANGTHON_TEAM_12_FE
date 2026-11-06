@@ -15,7 +15,7 @@ type AnswerChange = (id: number, answer: Answer | null) => void;
 
 /** 내가 쓴 답(S-45 · S-48): 받아 둔 문항의 확정 답으로 시작하고, 근거 점검은 독립적으로 읽는다. 문항을 못 받았으면 화면의 「다시 불러오기」를 쓴다 */
 export function AnswerInput({ questionId, question, loadFailed, onAnswerChange, checks }: { questionId: number; question: QuestionDetail | null; loadFailed: boolean; onAnswerChange: AnswerChange; checks: GroundingChecks }) {
-  return <section aria-labelledby={`answer-title-${questionId}`} className="mb-8 grid min-w-0 gap-4 border-b border-hairline pb-6">
+  return <section aria-labelledby={`answer-title-${questionId}`} className="mb-8 grid min-w-0 gap-3">
     <h3 id={`answer-title-${questionId}`} className="m-0 text-[17px] font-semibold">내가 쓴 답</h3>
     {question ? <LoadedAnswer questionId={questionId} saved={question.answer ?? null} onAnswerChange={onAnswerChange} checks={checks} />
       : !loadFailed && <p role="status" className="m-0 text-sm text-muted">확정한 답을 불러오고 있어요…</p>}
@@ -38,14 +38,14 @@ function AnswerEditor({ questionId, confirmed: a, checks }: { questionId: number
   const valid = !!g.text.trim() && g.text.length <= MAX_GROUNDING_TEXT_LENGTH;
   const stale = g.check?.status === "COMPLETED" && g.text !== g.check.text;
   return <>
-    <p id={`answer-help-${questionId}`} className="m-0 text-sm leading-relaxed text-muted">답을 쓰거나 붙여 넣어 주세요. 내 경험 전체에서 문장을 받치는 근거를 찾아요. 근거 점검과 확정 뒤 새 경험 후보 찾기는 각각 분석 1회로 세어요. 답 확정 자체는 분석 횟수를 쓰지 않아요.</p>
     <label htmlFor={`answer-${questionId}`} className="sr-only">내가 쓴 답</label>
+    <div className="grid min-w-0 overflow-hidden rounded-[18px] border border-hairline bg-canvas has-[textarea:focus-visible]:outline-2 has-[textarea:focus-visible]:outline-offset-2 has-[textarea:focus-visible]:outline-ink">
     <textarea id={`answer-${questionId}`} aria-describedby={`answer-help-${questionId}`} rows={8}
       maxLength={MAX_GROUNDING_TEXT_LENGTH} value={g.text} disabled={g.loading || g.busy || analyzing || !g.initialized || locked}
       placeholder="지원 문항에 맞춰 내 답을 적어 주세요."
       onChange={e => g.setText(e.target.value)}
-      className="w-full min-w-0 resize-y rounded-sm border border-hairline bg-canvas p-4 text-[15px] leading-relaxed disabled:bg-surface-soft" />
-    <div className="flex flex-wrap items-center justify-between gap-3">
+      className="block w-full min-w-0 resize-y border-0 bg-transparent p-5 text-[15px] leading-relaxed outline-none focus-visible:outline-none disabled:bg-surface-soft" />
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-hairline-soft px-3.5 py-2.5">
       <span className="text-xs text-muted tabular-nums">{g.text.length.toLocaleString()} / 5,000자</span>
       <div className="flex flex-wrap gap-2">
       <Button variant="secondary" className="min-h-11" disabled={!valid || g.loading || g.busy || analyzing || !g.initialized} onClick={() => void g.submit(g.text)}>
@@ -54,6 +54,8 @@ function AnswerEditor({ questionId, confirmed: a, checks }: { questionId: number
       <Button disabled={!valid || g.loading || g.busy || analyzing || !g.initialized || locked} onClick={() => void a.confirm(g.text)}>{a.busy ? "처리 중…" : "확정"}</Button>
       </div>
     </div>
+    </div>
+    <p id={`answer-help-${questionId}`} className="m-0 text-xs leading-relaxed text-muted">근거 점검과 확정 뒤 새 경험 후보 찾기는 각각 분석 1회예요. 답 확정 자체는 횟수를 쓰지 않아요.</p>
     {a.answer && <p role="status" className="m-0 text-sm text-muted">{g.text === a.answer.text ? "답을 확정했어요" : "확정한 글과 달라요 · 다시 확정해 주세요"}</p>}
     {g.loading && <p role="status" className="m-0 text-sm text-muted">마지막 근거 점검을 불러오고 있어요…</p>}
     {analyzing && <p role="status" className="m-0 text-sm text-muted">문장을 근거와 대조하고 있어요. 새로고침해도 점검한 글과 진행 상태를 이어서 확인해요.</p>}

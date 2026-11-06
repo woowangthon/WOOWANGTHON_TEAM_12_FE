@@ -13,7 +13,7 @@ import {
   JOB_ROLE_LABEL, MAX_ORGANIZATION_LENGTH, MAX_QUESTION_LENGTH, MAX_QUESTIONS_PER_SUBMIT, ORGANIZATION_TYPE_LABEL,
   type CreateApplicationRequest, type JobRole, type OrganizationType,
 } from "@/lib/api/question-types";
-import { selectField } from "./type-fields";
+import { Select, optionsOf } from "@/components/ui/select";
 
 /** 입력을 돕는 예시 문항 — 칸만 채운다. 결과는 늘 실제 분석이다(question-api.md 문항 41 · 42 의 글) */
 const EXAMPLES = [
@@ -165,17 +165,11 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="grid gap-1.5 text-sm font-medium">
             <span className="flex flex-wrap items-center gap-2">지원처 종류 (선택){filled?.organizationType && organizationType === filled.organizationType && <FilledTag />}</span>
-            <select value={organizationType} onChange={e => setOrganizationType(e.target.value as OrganizationType | "")} className={selectField}>
-              <option value="">고르지 않음</option>
-              {(Object.keys(ORGANIZATION_TYPE_LABEL) as OrganizationType[]).map(v => <option key={v} value={v}>{ORGANIZATION_TYPE_LABEL[v]}</option>)}
-            </select>
+            <Select value={organizationType} onChange={setOrganizationType} options={[{ value: "", label: "고르지 않음" }, ...optionsOf(ORGANIZATION_TYPE_LABEL)]} />
           </label>
           <label className="grid gap-1.5 text-sm font-medium">
             <span className="flex flex-wrap items-center gap-2">직무 (선택){filled?.jobRole && jobRole === filled.jobRole && <FilledTag />}</span>
-            <select value={jobRole} onChange={e => setJobRole(e.target.value as JobRole | "")} className={selectField}>
-              <option value="">고르지 않음</option>
-              {(Object.keys(JOB_ROLE_LABEL) as JobRole[]).map(v => <option key={v} value={v}>{JOB_ROLE_LABEL[v]}</option>)}
-            </select>
+            <Select value={jobRole} onChange={setJobRole} options={[{ value: "", label: "고르지 않음" }, ...optionsOf(JOB_ROLE_LABEL)]} />
           </label>
         </div>
         <ol className="m-0 grid list-none gap-4 p-0" aria-label="문항">

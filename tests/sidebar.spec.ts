@@ -71,7 +71,7 @@ test("desktop collapse survives reload and navigation; the application list rema
   // 시안 6: 별도 버튼 줄 없이 로고와 펼침 버튼이 같은 자리를 쓴다.
   const brand = sidebar(page).locator('[data-slot="sidebar-brand"]');
   const expand = sidebar(page).getByRole("button", { name: "사이드바 펼치기", exact: true });
-  await page.getByRole("heading", { name: "지원", level: 1, exact: true }).click();
+  await page.locator("main").click({ position: { x: 4, y: 4 } });
   await expect(brand.getByAltText("차곡")).toBeVisible();
   await expect(expand.locator("svg")).toHaveCSS("opacity", "0");
   const logoBounds = (await brand.boundingBox())!;
@@ -88,7 +88,7 @@ test("desktop collapse survives reload and navigation; the application list rema
   await expand.press("Enter");
   await expect(sidebar(page)).toHaveCSS("width", "248px");
   await sidebar(page).getByRole("button", { name: "사이드바 접기", exact: true }).click();
-  await page.getByRole("heading", { name: "지원", level: 1, exact: true }).click();
+  await page.locator("main").click({ position: { x: 4, y: 4 } });
   const link = sidebar(page).getByRole("link", { name: "지원서", exact: true });
   await link.hover();
   await expect(page.getByRole("tooltip")).toHaveText("지원서");
