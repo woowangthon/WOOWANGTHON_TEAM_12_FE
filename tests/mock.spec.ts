@@ -47,3 +47,12 @@ test("empty and error mock routes remain available", async ({ page }) => {
   await page.goto("/experience?mock=error");
   await expect(page.getByText("타임라인을 불러오지 못했어요", { exact: true })).toBeVisible();
 });
+
+test("mock experience search finds mock experiences and says so when nothing matches", async ({ page }) => {
+  await page.goto("/experience");
+  await page.getByRole("button", { name: "경험 찾기", exact: true }).click();
+  await page.getByLabel("찾을 낱말").fill("WebSocket");
+  await expect(page.locator("li[id^=result-]").filter({ hasText: "WebSocket" }).first()).toBeVisible();
+  await page.getByLabel("찾을 낱말").fill("어디에도없는말");
+  await expect(page.getByText("쌓인 자료에서 찾지 못했어요")).toBeVisible();
+});

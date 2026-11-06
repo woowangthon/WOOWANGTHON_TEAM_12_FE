@@ -16,6 +16,10 @@ export const COMPETENCIES = {
 } as const;
 export type Competency = keyof typeof COMPETENCIES;
 
+/** ETC contracts README 「값 목록」 activityCategory — 활동 분류(S-57). 미분류면 null */
+export const ACTIVITY_CATEGORIES = { PROJECT: "프로젝트 · 일", STUDY: "공부 · 성장", CLUB: "동아리 · 대외활동" } as const;
+export type ActivityCategory = keyof typeof ACTIVITY_CATEGORIES;
+
 /** `start` · `end` 는 "YYYY" · "YYYY-MM" · "YYYY-MM-DD". 모르면 null */
 export type Period = {
   start: string | null;
@@ -111,6 +115,23 @@ export type Experience = {
   /** 이 경험이 지금 추천에 있는 지원(S-38). 활동 세부 응답에만 실린다 — 수정 · 추가 응답엔 없다 */
   usedIn?: UsedIn[];
 };
+
+/** GET /api/experiences 의 경험 — activityId 대신 activity, usedIn 은 없다(S-58) */
+export type ExperienceResult = Omit<Experience, "activityId" | "usedIn"> & {
+  activity: { id: number; name: string; period: Period; category: ActivityCategory | null };
+};
+
+/** GET /api/experiences 쿼리 — 전부 선택, 모두 그리고 */
+export type ExperienceSearch = {
+  query?: string;
+  competencies?: Competency[];
+  year?: number;
+  sourceStatus?: SourceStatus;
+  category?: ActivityCategory;
+};
+
+/** total 은 limit 적용 전 맞은 개수 */
+export type ExperienceSearchResult = { total: number; experiences: ExperienceResult[] };
 
 /** 쓰인 지원 하나 — 지원 하나 + 이 경험이 추천된 문항들(experience-api.md 「쓰인 지원 usedIn」) */
 export type UsedIn = {

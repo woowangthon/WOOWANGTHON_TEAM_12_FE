@@ -17,6 +17,7 @@ import { dismissMergeSuggestion, fetchActivities, fetchActivity, isMockMode, mer
 import type { ActivitySummary, Experience, Period } from "@/lib/api/types";
 import { monthNumber, periodText, spanOf, yearsOf, type Span } from "@/lib/period";
 import { ActivityDetailView, type DetailState } from "./activity-detail";
+import { ExperienceSearch } from "./experience-search";
 import { MergeActivityDialog, MoveExperienceDialog } from "./regroup-dialogs";
 import { Timeline } from "./timeline";
 import { useExperienceDeletion } from "./use-experience-deletion";
@@ -55,6 +56,12 @@ export function TimelineScreen() {
   const [dragging, setDragging] = useState<Experience | null>(null);
   const [moving, setMoving] = useState<Experience | null>(null);
   const [mergeOpen, setMergeOpen] = useState(false);
+  // 경험 찾기(S-58) — ?q=낱말 로 들어오면 찾기부터. 한 번 열면 낱말 · 거르기를 지키려고 숨기기만 한다
+  const linkedQuery = params.get("q");
+  const [listView, setListView] = useState<"timeline" | "search">(linkedQuery === null ? "timeline" : "search");
+  const [searchOpened, setSearchOpened] = useState(linkedQuery !== null);
+  const [searchVersion, setSearchVersion] = useState(0);
+  const refreshSearch = () => setSearchVersion((n) => n + 1);
   const detailRequest = useRef(0);
   const savedNotes = useRef(new Map<number, { note: string | null }>());
   const listRequest = useRef(0);
@@ -179,6 +186,7 @@ export function TimelineScreen() {
 
   const analysis = useAnalysisJob(async (job) => {
     const activities = await loadList(mock);
+    refreshSearch();
     if (!activities) {
       showToast("분석은 완료됐지만 활동을 불러오지 못했어요. 다시 시도해 주세요.");
       return;
@@ -220,6 +228,7 @@ export function TimelineScreen() {
       queued.confirmed = queued.latest = activity.period;
     }
     ++listRequest.current;
+    refreshSearch();
     setList((prev) => prev.status === "ready" ? { ...prev, activities: prev.activities.map((a) => a.id === activity.id ? activity : a) } : prev);
     setDetail((prev) => prev.status === "ready" && prev.activity.id === activity.id ? { ...prev, activity: { ...prev.activity, name: activity.name, period: activity.period } } : prev);
   };
@@ -275,10 +284,12 @@ export function TimelineScreen() {
   };
 
   const experienceSaved = (experience: Experience) => {
+    refreshSearch();
     setDetail((prev) => prev.status === "ready" && prev.activity.id === experience.activityId ? { ...prev, activity: { ...prev.activity, experiences: prev.activity.experiences.map((e) => e.id === experience.id ? experience : e) } } : prev);
   };
 
   const experienceAdded = (experience: Experience) => {
+    refreshSearch();
     if (selectedRef.current === experience.activityId) ++detailRequest.current;
     ++listRequest.current;
     setDetail((prev) => prev.status === "ready" && prev.activity.id === experience.activityId
@@ -304,6 +315,7 @@ export function TimelineScreen() {
     shiftCount({ [fromId]: -1, [toId]: 1 });
     moveExperience(experience.id, toId).then(
       (moved) => {
+        refreshSearch();
         // 그새 옮겨 간 활동을 열었으면 뒤에 붙인다(계약: 옮겨 온 경험은 뒤에)
         setDetail((prev) => prev.status === "ready" && prev.activity.id === moved.activityId && !prev.activity.experiences.some((e) => e.id === moved.id)
           ? { ...prev, activity: { ...prev.activity, experiences: [...prev.activity.experiences, moved] } } : prev);
@@ -326,6 +338,7 @@ export function TimelineScreen() {
   /** 활동 합치기(S-13) — 확인 창에서 응답을 기다린다. 실패하면 던져서 창에 이유를 남기고 화면은 그대로 둔다 */
   const merge = async (keepId: number, fromId: number) => {
     const kept = await mergeActivities(keepId, fromId);
+    refreshSearch();
     periodSaves.current.delete(keepId);
     periodSaves.current.delete(fromId);
     ++listRequest.current;
@@ -353,6 +366,7 @@ export function TimelineScreen() {
   };
 
   const deletion = useExperienceDeletion((experience) => {
+    refreshSearch();
     ++listRequest.current;
     if (selectedRef.current === experience.activityId) ++detailRequest.current;
     setDetail((prev) => prev.status === "ready" && prev.activity.id === experience.activityId
@@ -377,7 +391,7 @@ export function TimelineScreen() {
     }
     // 지원만 있는 해도 연도로 세운다 — 낸 지원이 사라져 보이지 않게
     const marks = (appItems ?? []).map((a) => ({ start: a.month, end: a.month }));
-    return { spans, years: yearsOf([...spans.values(), ...marks]) };
+    return { spans, years: yearsOf([...spans.values(), ...marks]), activityYears: yearsOf([...spans.values()]) };
   }, [ready, appItems]);
 
   const selected = ready?.activities.find((a) => a.id === selectedId) ?? null;
@@ -442,18 +456,28 @@ export function TimelineScreen() {
               {view && analysis.tracked && (
                 <AnalysisBanner view={view} tracked={analysis.tracked} {...analysisActions} />
               )}
-              <ApplicationsToggle shown={applications.shown} onChange={applications.setShown} state={applications.state} onRetry={applications.retry} />
-              <Timeline
-                applications={appItems ?? undefined}
-                activities={ready.activities}
-                spans={timeline.spans}
-                years={timeline.years}
-                selectedId={selectedId}
-                onSelect={select}
-                dragging={dragging}
-                onDropExperience={moveTo}
-                onPeriodChange={periodDragged}
-              />
+              <ViewSwitch view={listView} onChange={(next) => { setListView(next); if (next === "search") setSearchOpened(true); }} />
+              {searchOpened && (
+                <div hidden={listView !== "search"}>
+                  <ExperienceSearch initialQuery={linkedQuery ?? ""} years={timeline.activityYears} mock={mock} version={searchVersion} hiddenIds={hiddenIds} onOpen={select} />
+                </div>
+              )}
+              {listView === "timeline" && (
+                <>
+                  <ApplicationsToggle shown={applications.shown} onChange={applications.setShown} state={applications.state} onRetry={applications.retry} />
+                  <Timeline
+                    applications={appItems ?? undefined}
+                    activities={ready.activities}
+                    spans={timeline.spans}
+                    years={timeline.years}
+                    selectedId={selectedId}
+                    onSelect={select}
+                    dragging={dragging}
+                    onDropExperience={moveTo}
+                    onPeriodChange={periodDragged}
+                  />
+                </>
+              )}
             </>
           )}
         </main>
@@ -527,6 +551,26 @@ export function TimelineScreen() {
           {toast && <div role={toast.alert ? "alert" : "status"} className="rounded-sm bg-ink px-4 py-3 text-sm text-canvas shadow-float">{toast.text}</div>}
         </div>
       )}
+    </div>
+  );
+}
+
+/** 타임라인(활동 단위) · 경험 찾기(경험 단위) 전환 */
+function ViewSwitch({ view, onChange }: { view: "timeline" | "search"; onChange: (next: "timeline" | "search") => void }) {
+  const tab = (value: "timeline" | "search", label: string) => (
+    <button
+      type="button"
+      aria-pressed={view === value}
+      onClick={() => onChange(value)}
+      className={cn("min-h-11 rounded-sm px-3.5 text-sm font-medium text-muted", view === value && "bg-canvas font-semibold text-ink shadow-sm")}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div className="mt-4 inline-flex rounded-md bg-surface-soft p-1">
+      {tab("timeline", "타임라인")}
+      {tab("search", "경험 찾기")}
     </div>
   );
 }
