@@ -1,6 +1,6 @@
 // 지원 · 문항 · 추천 · 되묻기 — ETC docs/contracts/question-api.md. 실제 BE 만 부른다(FE#32).
 // API 주소가 없는 목 모드에선 request 가 API_NOT_CONFIGURED 로 실패한다 — 정해진 결과로 대신 채우지 않는다(대회 규칙 2).
-import type { Answer, SaveNewFactRequest } from "./question-types";
+import type { Answer, SaveNewFactRequest, SimilarAnswer } from "./question-types";
 import type { Experience } from "./types";
 import { ApiError } from "./errors";
 import { request } from "./http";
@@ -29,6 +29,11 @@ export async function fetchQuestions(): Promise<QuestionSummary[]> {
 /** GET /api/questions/{id} — 요구사항 · 추천 · 되묻기(분석 중 · 실패면 빈 배열) */
 export function fetchQuestion(id: number): Promise<QuestionDetail> {
   return request(`/questions/${id}`);
+}
+
+/** GET /api/questions/{id}/similar-answers — 가까운 것부터 최대 5개(S-43). AI · 분석 횟수를 쓰지 않는다 */
+export async function fetchSimilarAnswers(id: number): Promise<SimilarAnswer[]> {
+  return (await request<{ answers: SimilarAnswer[] }>(`/questions/${id}/similar-answers`)).answers;
 }
 
 /** POST /api/questions — 문항 하나짜리 지원 */

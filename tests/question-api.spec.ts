@@ -1,6 +1,6 @@
 // 지원 · 문항 · 되묻기 API — question-api.md 의 주소 · 메서드 · 본문 그대로 부르고, 실패를 그대로 던진다(FE#32)
 import { test, expect } from "@playwright/test";
-import { addApplicationQuestion, answerClarification, fetchApplication, fetchApplications, fetchQuestion, fetchQuestions, retryQuestion, submitApplication, submitQuestion, updateApplication, updateQuestionType } from "../src/lib/api/questions";
+import { addApplicationQuestion, answerClarification, fetchApplication, fetchApplications, fetchQuestion, fetchQuestions, fetchSimilarAnswers, retryQuestion, submitApplication, submitQuestion, updateApplication, updateQuestionType } from "../src/lib/api/questions";
 import { QUESTION_EXAMPLES } from "./fixtures/question-examples";
 
 const originalFetch = globalThis.fetch;
@@ -41,6 +41,14 @@ test("reads unwrap lists and keep the contract shapes", async () => {
     "GET https://backend.example/api/applications", "GET https://backend.example/api/applications/21",
     "GET https://backend.example/api/questions", "GET https://backend.example/api/questions/41", "GET https://backend.example/api/questions/42",
   ]);
+});
+
+test("similar answers unwrap the list and surface server errors", async () => {
+  serve(() => Response.json({ answers: [{ questionId: 45 }] }));
+  await expect(fetchSimilarAnswers(41)).resolves.toEqual([{ questionId: 45 }]);
+  expect(calls.map(c => [c.url.replace("https://backend.example/api", ""), c.method])).toEqual([["/questions/41/similar-answers", "GET"]]);
+  serve(() => Response.json({ error: { code: "QUESTION_NOT_FOUND", message: "없음" } }, { status: 404 }));
+  await expect(fetchSimilarAnswers(41)).rejects.toMatchObject({ code: "QUESTION_NOT_FOUND", status: 404 });
 });
 
 test("writes post the contract bodies", async () => {
