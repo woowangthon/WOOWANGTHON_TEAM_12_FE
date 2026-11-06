@@ -45,6 +45,7 @@
   --review-soft: #fff4e0;
   --review-line: #f0b25a;
   --error: #b4321f;
+  --unread: #ff5a3c; /* 안 읽은 소식의 빨간 점 — 시안 6 .bell i */
   --scrim: rgb(0 0 0 / 0.4);
   --float: 0 12px 40px rgb(0 0 0 / 0.16);
 
@@ -107,6 +108,7 @@
   --color-review-soft: var(--review-soft);
   --color-review-line: var(--review-line);
   --color-error: var(--error);
+  --color-unread: var(--unread);
   --color-scrim: var(--scrim);
   --shadow-float: var(--float);
 
