@@ -80,7 +80,7 @@ export function SidebarApplications({ applications, loading, error, onRetry, onN
         <PlusIcon className="size-3.5" aria-hidden="true" />
       </button>
     </div>
-    {isMockMode() ? <p role="note" className={note}>목 모드에서는 지원서를 불러올 수 없어요.</p>
+    {isMockMode() ? <p className={note}>목 모드에서는 지원서를 불러올 수 없어요.</p>
       : loading ? <div aria-busy="true" aria-label="지원서를 불러오고 있어요" className="grid gap-2 px-3.5 py-1"><Skeleton className="h-9 w-full" /><Skeleton className="h-9 w-full" /></div>
       : error ? <div role="alert" className="grid justify-items-start gap-1 px-3.5 py-1">
         <p className="m-0 text-[13px] leading-relaxed text-error">{LOAD_FAILED}</p>
