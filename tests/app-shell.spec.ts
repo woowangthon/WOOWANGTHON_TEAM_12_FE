@@ -140,6 +140,11 @@ test("the tab bar hides while scrolling down, returns on the way up, and stays o
   await expect(tabs).not.toBeInViewport();
   await page.evaluate(() => window.scrollTo(0, 200));
   await expect(tabs).toBeInViewport();
+  // 끝까지 내리면 더 내릴 곳이 없으니 탭바가 나온다
+  await page.evaluate(() => window.scrollTo(0, 500));
+  await expect(tabs).not.toBeInViewport();
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await expect(tabs).toBeInViewport();
   await page.goto("/");
   await expect(tabs).toBeVisible();
   await page.getByRole("textbox").first().focus();

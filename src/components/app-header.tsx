@@ -212,13 +212,15 @@ function TabBar({ page, busy, onAddSource, onRecord, onNewApplication }: { page:
   </nav>;
 }
 
-/** 아래로 내리면 숨고 위로 올리면 나온다 — 읽는 동안 본화면을 줄이지 않는다 */
+/** 아래로 내리면 숨고 위로 올리거나 끝에 닿으면 나온다 — 읽는 동안 본화면을 줄이지 않는다 */
 function useHideOnScrollDown() {
   const [hidden, setHidden] = useState(false);
   useEffect(() => {
     let last = window.scrollY;
     const onScroll = () => {
       const y = window.scrollY;
+      // 끝에서는 더 내릴 곳이 없다. 탭바를 찾으러 위로 올리게 두지 않는다
+      if (y + window.innerHeight >= document.documentElement.scrollHeight - 2) { setHidden(false); last = y; return; }
       if (Math.abs(y - last) < 8) return;
       setHidden(y > last && y > 56);
       last = y;
