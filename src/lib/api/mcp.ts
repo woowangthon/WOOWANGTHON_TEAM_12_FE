@@ -22,7 +22,7 @@ export type McpChange = {
   undoable: boolean;
   undoBlockedReason: "DECIDED" | "CHANGED_AFTER" | "ANALYZING" | "ANALYSIS_FAILED" | null;
   experience: { id: number; activityId: number; activityName: string; beforeContent: string; afterContent: string; beforeSourceStatus: SourceStatus } | null;
-  source: { id: number; name: string; jobId: number; jobStatus: JobStatus | "QUEUED"; experienceCount: number } | null;
+  source: { id: number; name: string; jobId: number; jobStatus: JobStatus; experienceCount: number } | null;
   application: { id: number; organization: string | null; questionCount: number; analyzingCount: number } | null;
   supplement: { id: number; experienceId: number; activityName: string; question: string; answer: string } | null;
 };

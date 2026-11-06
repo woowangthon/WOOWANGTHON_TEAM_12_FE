@@ -9,7 +9,7 @@ import { ArrowsClockwiseIcon, PlusIcon, WarningCircleIcon } from "@phosphor-icon
 import { AddSourceButton, AppHeader, type AddSourceProps } from "@/components/app-header";
 import { CenterState } from "@/components/center-state";
 import { AddSourceDialog } from "@/components/source/add-source-dialog";
-import { AnalysisBanner, AnalysisCenter, analysisView } from "@/components/source/analysis-status";
+import { AnalysisBanner, AnalysisBatch, AnalysisCenter, analysisView } from "@/components/source/analysis-status";
 import { hasPendingAnalysis, useAnalysisJob } from "@/components/source/use-analysis-job";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -38,7 +38,7 @@ function toMockMode(value: string | null): MockMode {
   return value === "empty" || value === "error" ? value : null;
 }
 function toMockAnalysis(value: string | null): MockAnalysis {
-  return value === "fail" || value === "empty" ? value : null;
+  return value === "fail" || value === "empty" || value === "miss" ? value : null;
 }
 
 export function TimelineScreen() {
@@ -52,6 +52,7 @@ export function TimelineScreen() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detail, setDetail] = useState<DetailState>({ status: "loading" });
   const [addOpen, setAddOpen] = useState(false);
+  const [addToActivity, setAddToActivity] = useState(false);
   const [toast, setToast] = useState<{ text: string; alert: boolean } | null>(null);
   const [dragging, setDragging] = useState<Experience | null>(null);
   const [moving, setMoving] = useState<Experience | null>(null);
@@ -184,11 +185,24 @@ export function TimelineScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const analysis = useAnalysisJob(async (job) => {
+  const analysis = useAnalysisJob(async (job, { batch }) => {
     const activities = await loadList(mock);
     refreshSearch();
     if (!activities) {
       showToast("분석은 완료됐지만 활동을 불러오지 못했어요. 다시 시도해 주세요.");
+      return;
+    }
+    // 묶음은 파일마다 상태 줄에 보인다 — 파일이 끝날 때마다 화면을 옮기지 않는다
+    if (batch) return;
+    const target = job.targetActivityId;
+    if (target != null) {
+      // 「자료 더하기」(S-60) — 붙었으면 그 활동 세부를 다시 읽는다. 못 찾았으면 상태 띠가 남아 새 활동으로 안내한다
+      if (!job.targetMatched) return;
+      const open = activities.find((a) => a.id === selectedRef.current)?.id ?? target;
+      selectedRef.current = open;
+      setSelectedId(open);
+      loadDetail(open);
+      showToast(`${isMockMode() ? "목 결과예요. " : ""}자료에서 찾은 내용을 활동에 더했어요.${job.activityIds.length ? ` 새 활동 ${job.activityIds.length}개도 생겼어요.` : ""}`);
       return;
     }
     const current = activities.find((a) => a.id === selectedRef.current);
@@ -396,7 +410,7 @@ export function TimelineScreen() {
 
   const selected = ready?.activities.find((a) => a.id === selectedId) ?? null;
   const hasActivities = !!ready && ready.activities.length > 0;
-  const addSource: AddSourceProps = { onClick: () => setAddOpen(true), busy: view === "analyzing" };
+  const addSource: AddSourceProps = { onClick: () => setAddOpen(true), busy: analysis.busy };
   const analysisActions = {
     onRetry: analysis.retry,
     onRecheck: analysis.recheck,
@@ -405,7 +419,14 @@ export function TimelineScreen() {
       analysis.dismiss();
       setAddOpen(true);
     },
+    onOpenActivity: select,
+    activities: ready?.activities,
   };
+  const batchStatus = analysis.jobs.length > 1 && (
+    <AnalysisBatch jobs={analysis.jobs} activities={ready?.activities} onRetry={analysis.retryJob} onRecheck={analysis.recheckJob} onDismiss={analysis.dismiss} onOpenActivity={select} />
+  );
+  // 「자료 더하기」의 상태는 그 활동 세부에 보인다. 세부를 닫았으면 평소처럼 목록 위에
+  const shownInDetail = selected != null && analysis.tracked?.targetActivityId === selected.id;
 
   return (
     <div className="flex min-h-dvh flex-1 flex-col bg-canvas lg:h-dvh">
@@ -436,11 +457,11 @@ export function TimelineScreen() {
             </CenterState>
           )}
           {ready && !hasActivities &&
-            (view && analysis.tracked ? (
+            (batchStatus || (view && analysis.tracked ? (
               <AnalysisCenter view={view} tracked={analysis.tracked} {...analysisActions} />
             ) : (
               <EmptyState addSource={addSource} />
-            ))}
+            )))}
           {ready && timeline && hasActivities && (
             <>
               <div className="flex items-baseline gap-3">
@@ -453,9 +474,10 @@ export function TimelineScreen() {
                   </span>
                 </span>
               </div>
-              {view && analysis.tracked && (
+              {view && analysis.tracked && !shownInDetail && (
                 <AnalysisBanner view={view} tracked={analysis.tracked} {...analysisActions} />
               )}
+              {batchStatus}
               <ViewSwitch view={listView} onChange={(next) => { setListView(next); if (next === "search") setSearchOpened(true); }} />
               {searchOpened && (
                 <div hidden={listView !== "search"}>
@@ -507,6 +529,9 @@ export function TimelineScreen() {
               onSuggestionDismiss={dismissSuggestion}
               onOpenActivity={select}
               onMergeRequest={ready.activities.length > 1 ? () => setMergeOpen(true) : undefined}
+              onAddSource={() => setAddToActivity(true)}
+              addSourceBusy={analysis.busy}
+              addSourceStatus={shownInDetail && view && analysis.tracked && <AnalysisBanner view={view} tracked={analysis.tracked} {...analysisActions} />}
             />
             </SupplementSourceContext>
           </aside>
@@ -530,8 +555,18 @@ export function TimelineScreen() {
         open={addOpen}
         onOpenChange={setAddOpen}
         mock={mockAnalysis}
-        onSubmitted={(pending) => analysis.start(pending)}
+        onSubmitted={(jobs) => analysis.start(jobs)}
       />
+      {selected && (
+        <AddSourceDialog
+          key={`add-to-${selected.id}`}
+          open={addToActivity}
+          onOpenChange={setAddToActivity}
+          mock={mockAnalysis}
+          target={selected}
+          onSubmitted={(jobs) => analysis.start(jobs)}
+        />
+      )}
 
       {/* 알림 — ink 면 · 흰 글 (DESIGN.md 「떠 있는 것」) */}
       {(deletion.pending.length > 0 || deletion.error || toast) && (

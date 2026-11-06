@@ -3,6 +3,7 @@
 // 분석 상태 — 분석 중 → 완료 / 실패 (SPEC S-02 · DESIGN.md 「상태 화면」)
 // 첫 사용(타임라인이 비었을 때)은 가운데 덩어리로, 이미 타임라인이 있으면 위에 얇은 띠로
 // 실패를 정해진 결과로 덮지 않는다 — 이유와 「다시 시도」를 보인다(AGENTS 대회 규칙 2)
+// 여러 파일을 같이 넣으면(S-59) 파일마다 한 줄 — AnalysisBatch
 import { useRef, useState } from "react";
 import type { Job } from "@/lib/api/types";
 import { ArrowsClockwiseIcon, CheckIcon, FileTextIcon, MagnifyingGlassIcon, WarningCircleIcon, XIcon } from "@phosphor-icons/react";
@@ -10,7 +11,7 @@ import { CenterState } from "@/components/center-state";
 import { Button } from "@/components/ui/button";
 import { dailyLimitMessage, isDailyLimit } from "@/lib/api/auth";
 import { cn } from "@/lib/utils";
-import type { TrackedJob } from "./use-analysis-job";
+import { isWaiting, type TrackedJob } from "./use-analysis-job";
 
 /** 작업 실패 이유(계약 error.code) → 화면 문구 */
 const FAIL_REASONS: Record<string, string> = {
@@ -21,15 +22,16 @@ const FAIL_REASONS: Record<string, string> = {
 const failReason = (error: Job["error"] | undefined) =>
   [error && FAIL_REASONS[error.code], error?.message].filter(Boolean).join(" ") || "서버에서 문제가 생겼어요.";
 
-export type AnalysisView = "analyzing" | "failed" | "check-failed" | "none-found" | null;
+export type AnalysisView = "analyzing" | "failed" | "check-failed" | "none-found" | "target-missed" | null;
 
 /** 지금 보여 줄 분석 상태. 활동이 생긴 완료는 알림으로 따로 알린다 */
 export function analysisView(tracked: TrackedJob | null): AnalysisView {
   if (!tracked) return null;
   if (tracked.checkFailed) return "check-failed";
   const job = tracked.job;
-  if (!job || job.status === "ANALYZING") return "analyzing";
+  if (!job || job.status === "ANALYZING" || job.status === "QUEUED") return "analyzing";
   if (job.status === "FAILED") return "failed";
+  if (job.targetActivityId != null) return job.targetMatched ? null : "target-missed";
   return job.activityIds.length === 0 ? "none-found" : null;
 }
 
@@ -38,7 +40,26 @@ type Actions = {
   onRecheck: () => void;
   onDismiss: () => void;
   onAddSource: () => void;
+  /** 새로 생긴 활동으로 가기 — 활동을 여는 화면만 준다 */
+  onOpenActivity?: (id: number) => void;
+  /** 새 활동의 이름을 보이려고 쓴다 */
+  activities?: ActivityBrief[];
 };
+
+type ActivityBrief = { id: number; name: string; mergeSuggestion?: unknown };
+
+/** 이 작업으로 새로 생긴 활동으로 가는 버튼 */
+function NewActivities({ ids, activities, onOpen }: { ids: number[]; activities?: ActivityBrief[]; onOpen?: (id: number) => void }) {
+  if (!onOpen) return null;
+  return ids.map((id) => {
+    const name = activities?.find((a) => a.id === id)?.name ?? "새 활동";
+    return (
+      <button key={id} type="button" aria-label={`${name} 보기`} onClick={() => onOpen(id)} className="min-h-8 max-w-full truncate rounded-full bg-surface-strong px-2.5 text-xs font-medium text-ink hover:bg-hairline">
+        {name}
+      </button>
+    );
+  });
+}
 
 function SourceName({ name }: { name: string }) {
   return (
@@ -171,7 +192,7 @@ export function AnalysisBanner({ view, tracked, ...a }: { view: Exclude<Analysis
         <>
           <MagnifyingGlassIcon className="size-[1.15em] shrink-0" aria-hidden="true" />
           <span className="min-w-0 flex-1">
-            새로 넣은 자료(<b className="font-semibold">{tracked.name}</b>)를 분석하고 있어요. 끝나면 활동이 더해져요.
+            새로 넣은 자료(<b className="font-semibold">{tracked.name}</b>)를 분석하고 있어요. 끝나면 {tracked.targetActivityId != null ? "찾은 경험이 이 활동에 붙어요" : "활동이 더해져요"}.
           </span>
           <Progress className="w-[120px]" />
         </>
@@ -213,6 +234,124 @@ export function AnalysisBanner({ view, tracked, ...a }: { view: Exclude<Analysis
           {close}
         </>
       )}
+      {view === "target-missed" && (
+        <>
+          <FileTextIcon className="size-[1.15em] shrink-0" aria-hidden="true" />
+          <span className="min-w-0 flex-1">
+            이 자료(<b className="font-semibold">{tracked.name}</b>)에서 이 활동 내용을 찾지 못했어요.
+            {!!tracked.job?.activityIds.length && ` 자료에서 찾은 활동 ${tracked.job.activityIds.length}개는 새 활동으로 남겨 뒀어요.`}
+          </span>
+          <NewActivities ids={tracked.job?.activityIds ?? []} activities={a.activities} onOpen={a.onOpenActivity} />
+          {close}
+        </>
+      )}
     </div>
+  );
+}
+
+/** 같이 넣은 파일들 (S-59) — 어디서 고른 파일이든 작업 목록만 넘기면 된다 */
+export function AnalysisBatch({ jobs, activities, onRetry, onRecheck, onDismiss, onOpenActivity }: {
+  jobs: TrackedJob[];
+  activities?: ActivityBrief[];
+  onRetry: (jobId: number) => Promise<void>;
+  onRecheck: (jobId: number) => void;
+  onDismiss: () => void;
+  onOpenActivity?: (id: number) => void;
+}) {
+  const running = jobs.some(isWaiting);
+  const done = jobs.filter((t) => t.job?.status === "COMPLETED").length;
+  return (
+    <section className="mt-4 mb-1 grid gap-2 rounded-sm bg-surface-soft px-4 py-3 text-sm" aria-label="자료 분석 상태">
+      <div className="flex items-center gap-3">
+        <p className="m-0 min-w-0 flex-1 font-semibold text-ink tabular-nums" role="status">
+          자료 {jobs.length}개 중 {done}개 분석 완료
+        </p>
+        {!running && (
+          <Button variant="ghost" size="icon" className="-my-1.5 size-8 shrink-0" onClick={onDismiss} aria-label="알림 닫기">
+            <XIcon />
+          </Button>
+        )}
+      </div>
+      {running && <p className="m-0 text-[13px] text-muted">앞 자료가 끝나면 다음 자료를 찾아요. 창을 닫아도 이어져요.</p>}
+      <ol className="m-0 grid list-none gap-2.5 py-1 pl-0">
+        {jobs.map((tracked) => (
+          <BatchRow key={tracked.jobId} tracked={tracked} activities={activities} onRetry={() => onRetry(tracked.jobId)} onRecheck={() => onRecheck(tracked.jobId)} onOpenActivity={onOpenActivity} />
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+/** 시안 6 .steps 의 동그라미 — 끝남 · 지금 · 기다림 · 실패 */
+function StepMark({ state }: { state: "done" | "now" | "wait" | "failed" }) {
+  return (
+    <i
+      aria-hidden="true"
+      className={cn(
+        "mt-px size-[22px] shrink-0 rounded-full border-2",
+        state === "done" && "border-ink bg-ink",
+        state === "now" && "animate-spin border-ink border-r-transparent",
+        state === "wait" && "border-hairline",
+        state === "failed" && "border-error",
+      )}
+    />
+  );
+}
+
+function BatchRow({ tracked, activities, onRetry, onRecheck, onOpenActivity }: {
+  tracked: TrackedJob;
+  activities?: ActivityBrief[];
+  onRetry: () => Promise<void>;
+  onRecheck: () => void;
+  onOpenActivity?: (id: number) => void;
+}) {
+  const retry = useRetry(onRetry);
+  const job = tracked.job;
+  const ids = job?.activityIds ?? [];
+  const suggested = ids.filter((id) => activities?.find((a) => a.id === id)?.mergeSuggestion).length;
+  const row = (state: Parameters<typeof StepMark>[0]["state"], status: React.ReactNode, actions?: React.ReactNode) => (
+    <li className="flex flex-wrap items-start gap-x-2.5 gap-y-1">
+      <StepMark state={state} />
+      <span className="grid min-w-0 flex-1 basis-40 gap-0.5">
+        <SourceName name={tracked.name} />
+        {status}
+      </span>
+      {actions}
+    </li>
+  );
+
+  if (tracked.checkFailed) {
+    return row(
+      "failed",
+      <span className="text-xs text-error">상태를 확인하지 못했어요. {tracked.checkError}</span>,
+      <Button variant="secondary" size="sm" onClick={onRecheck}><ArrowsClockwiseIcon />다시 확인</Button>,
+    );
+  }
+  if (!job || job.status === "ANALYZING") return row("now", <span className="text-xs font-semibold text-ink">분석 중</span>);
+  if (job.status === "QUEUED") return row("wait", <span className="text-xs text-muted">차례를 기다리는 중</span>);
+  if (job.status === "FAILED") {
+    return row(
+      "failed",
+      <>
+        <span className="text-xs text-error">실패 — {failReason(job.error)} 자료는 저장돼 있어요.</span>
+        {retry.error && <span role="alert" className="text-xs text-error">{retry.error}</span>}
+      </>,
+      <>
+        <Button variant="secondary" size="sm" onClick={retry.run} disabled={retry.busy}><ArrowsClockwiseIcon />다시 시도</Button>
+        {retry.error && <Button variant="ghost" size="sm" onClick={onRecheck}>상태 다시 확인</Button>}
+      </>,
+    );
+  }
+  return row(
+    "done",
+    <>
+      <span className="text-xs text-muted">
+        {ids.length ? `완료 — 활동 ${ids.length}개` : "완료 — 활동을 찾지 못했어요. 자료에 없다고 경험이 없는 건 아니에요."}
+        {suggested > 0 && ` · 기존 활동과 같아 보이는 활동 ${suggested}개`}
+      </span>
+      {ids.length > 0 && onOpenActivity && (
+        <span className="flex flex-wrap gap-1.5 pt-0.5"><NewActivities ids={ids} activities={activities} onOpen={onOpenActivity} /></span>
+      )}
+    </>,
   );
 }

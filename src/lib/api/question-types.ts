@@ -1,8 +1,11 @@
 // ETC docs/contracts/question-api.md · experience-api.md — 요청·응답 모양 그대로.
-import type { ActivitySummary, Experience, JobStatus, Job, Supplement, Actor } from "./types";
+import type { ActivitySummary, Experience, JobStatus as SourceJobStatus, Job, Supplement, Actor } from "./types";
 
 import type { DraftFrame } from '../draft-frames';
 import type { DraftGuideline } from './guidelines';
+
+/** 문항 작업에는 차례 기다림이 없다 — QUEUED 는 자료 묶음(S-59)만 */
+type JobStatus = Exclude<SourceJobStatus, "QUEUED">;
 export type { Supplement };
 
 export const MAX_ORGANIZATION_LENGTH = 100;

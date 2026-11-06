@@ -31,9 +31,16 @@ export type Period = {
 export const MAX_TEXT_LENGTH = 50000;
 
 /** 자료 넣기 요청 — POST /api/sources. 파일도 브라우저에서 읽어 text 로 보낸다 */
-export type SourceRequest =
+export type SourceRequest = (
   | { kind: "TEXT"; name: null; text: string }
-  | { kind: "FILE"; name: string; text: string; sections?: SourceSection[] | null };
+  | { kind: "FILE"; name: string; text: string; sections?: SourceSection[] | null }
+) & {
+  /** 활동 세부의 「자료 더하기」(S-60) — 그 활동 id. POST /api/sources/batch 에는 싣지 않는다 */
+  activityId?: number | null;
+};
+
+/** 한 번에 넣는 파일 수 — 계약 「POST /api/sources/batch」 (S-59) */
+export const MAX_BATCH_SOURCES = 10;
 
 /** 쪽(PDF) · 슬라이드(PPTX) — README 「값 목록」 sectionKind (S-39) */
 export type SectionKind = "PAGE" | "SLIDE";
@@ -42,10 +49,10 @@ export type SectionKind = "PAGE" | "SLIDE";
 export type SourceSection = { kind: SectionKind; number: number; startLine: number; endLine: number };
 
 /** POST /api/sources 응답(202) */
-export type SourceSubmitted = { sourceId: number; jobId: number; status: "ANALYZING" };
+export type SourceSubmitted = { sourceId: number; jobId: number; status: "ANALYZING" | "QUEUED" };
 
-/** 분석 작업 상태 — 분석 중 / 완료 / 실패 */
-export type JobStatus = "ANALYZING" | "COMPLETED" | "FAILED";
+/** 분석 작업 상태 — 차례 기다림(S-59) / 분석 중 / 완료 / 실패 */
+export type JobStatus = "QUEUED" | "ANALYZING" | "COMPLETED" | "FAILED";
 
 /** GET /api/jobs/{jobId} */
 export type Job = {
@@ -54,6 +61,10 @@ export type Job = {
   status: JobStatus;
   /** 이 작업으로 생긴 활동. 완료인데 [] 면 자료에서 활동을 찾지 못한 것 — 실패가 아니다 */
   activityIds: number[];
+  /** 「자료 더하기」(S-60)로 넣었으면 그 활동 id, 아니면 null */
+  targetActivityId: number | null;
+  /** 「자료 더하기」 결과 — 끝났을 때만 true · false, 그 밖엔 null */
+  targetMatched: boolean | null;
   /** code: AI_TIMEOUT · AI_UNAVAILABLE · AI_FAILED · INTERNAL_ERROR */
   error: { code: string; message: string } | null;
   createdAt: string;
