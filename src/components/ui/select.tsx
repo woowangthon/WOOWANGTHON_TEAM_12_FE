@@ -18,10 +18,12 @@ type SelectProps<T extends string> = {
   placeholder?: string;
   /** field — 폼 칸. chip — 머리의 작은 알약(눌리는 자리는 44) */
   variant?: "field" | "chip";
+  /** 닫힌 뒤 — 주면 포커스를 칸으로 돌리지 않고 이 함수에 맡긴다 */
+  onClosed?: () => void;
 } & Pick<ComponentProps<"button">, "id" | "className" | "disabled" | "aria-label" | "aria-describedby">;
 
 /** 앱의 고르기 칸 — 브라우저 기본 select 대신 쓴다(FE#148). 키보드 · 읽기 프로그램은 Radix 의 combobox 를 그대로 쓴다 */
-export function Select<T extends string>({ value, options, onChange, placeholder, variant = "field", disabled, className, ...trigger }: SelectProps<T>) {
+export function Select<T extends string>({ value, options, onChange, placeholder, variant = "field", onClosed, disabled, className, ...trigger }: SelectProps<T>) {
   const selected = options.find(o => o.value === value);
   const label = <SelectPrimitive.Value placeholder={placeholder}>{selected?.label}</SelectPrimitive.Value>;
   const caret = <SelectPrimitive.Icon className="shrink-0"><CaretDownIcon aria-hidden="true" className={variant === "chip" ? "size-3" : "size-3.5 text-muted"} /></SelectPrimitive.Icon>;
@@ -34,7 +36,7 @@ export function Select<T extends string>({ value, options, onChange, placeholder
         : <><span className="min-w-0 truncate">{label}</span>{caret}</>}
     </SelectPrimitive.Trigger>
     <SelectPrimitive.Portal>
-      <SelectPrimitive.Content position="popper" align="start" sideOffset={2}
+      <SelectPrimitive.Content position="popper" align="start" sideOffset={2} onCloseAutoFocus={onClosed && (e => { e.preventDefault(); onClosed(); })}
         className="z-60 max-h-[min(20rem,var(--radix-select-content-available-height))] max-w-[calc(100vw-2rem)] min-w-(--radix-select-trigger-width) rounded-md border border-hairline bg-canvas p-1 shadow-float">
         <SelectPrimitive.Viewport>{options.map(o => <SelectPrimitive.Item key={o.value || EMPTY} value={o.value || EMPTY}
           className="flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-sm px-2.5 text-sm outline-none select-none data-highlighted:bg-surface-soft lg:min-h-9">

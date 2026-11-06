@@ -9,6 +9,7 @@ import { AskAnswer, AskFailureNotice } from "./ask-answer";
 import { useAsk } from "./use-ask";
 import type { HomeOverview } from "./use-home-overview";
 import { ApplicationForm } from "@/components/questions/application-form";
+import { Select } from "@/components/ui/select";
 import { ParseFailureNotice, useApplicationParse, type ParseFailure } from "@/components/questions/application-parse";
 import { AddSourceDialog } from "@/components/source/add-source-dialog";
 import { Button } from "@/components/ui/button";
@@ -182,14 +183,12 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     {sourceSubmitting && <p role="status" className="mt-4 text-center text-sm text-muted">자료를 보내고 있어요…</p>}
     {sourceBusy && <p className="mt-3 text-center text-sm text-muted">자료 분석 중이에요. 분석이 끝나면 더 쌓을 수 있어요.</p>}
     {isMockMode() && showMockControls && <label className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs text-muted">목 분류 결과 (AI 호출 없음)
-      <select aria-label="목 분류 결과" value={mockKind} disabled={routing} onChange={e => setMockKind(e.target.value as EntranceKind)} className="min-h-11 rounded-sm border border-hairline bg-canvas px-3 text-ink">
-        {ENTRANCE_KINDS.map(kind => <option key={kind} value={kind}>{MOCK_LABEL[kind]}</option>)}
-      </select>
+      <Select<EntranceKind> aria-label="목 분류 결과" value={mockKind} disabled={routing} onChange={next => { if (next) setMockKind(next); }} className="w-auto min-w-32"
+        options={ENTRANCE_KINDS.map(kind => ({ value: kind, label: MOCK_LABEL[kind] }))} />
     </label>}
     {isMockMode() && showMockControls && mockKind === "ASK" && <label className="mt-2 flex flex-wrap items-center justify-center gap-2 text-xs text-muted">목 꺼내기 답 (AI 호출 없음)
-      <select aria-label="목 꺼내기 답" value={mockAsk} disabled={busy} onChange={e => setMockAsk(e.target.value as MockAskResult)} className="min-h-11 rounded-sm border border-hairline bg-canvas px-3 text-ink">
-        <option value="CARDS">경험 카드 있음</option><option value="EMPTY">0개</option>
-      </select>
+      <Select<MockAskResult> aria-label="목 꺼내기 답" value={mockAsk} disabled={busy} onChange={next => { if (next) setMockAsk(next); }} className="w-auto min-w-32"
+        options={[{ value: "CARDS", label: "경험 카드 있음" }, { value: "EMPTY", label: "0개" }]} />
     </label>}
     {asking && <p role="status" className="mt-4 text-center text-sm text-muted">쌓인 경험에서 찾고 있어요…</p>}
     {answer && <AskAnswer answer={answer} busy={busy} onMakeApplication={() => makeApplication(answer.text)} />}
