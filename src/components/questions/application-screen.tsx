@@ -38,7 +38,7 @@ function failureText(error: QuestionDetail["error"]) {
 /** 원문 링크의 사이트 이름만 — 긴 주소를 그대로 보이지 않는다 */
 const hostOf = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; } };
 
-/** 지원 화면(S-18 · S-21) — 지원 목록(xl 이상은 사이드바) · 상태 꼬리표(S-36), 고른 지원: 여러 문항에 추천된 활동 → 문항 탭 → 참고 경험(#30),
+/** 지원 화면(S-18 · S-21) — 지원 목록(xl 이상은 사이드바) · 상태 꼬리표(S-36), 고른 지원: 지원처 머리 → 문항 탭 → 문항 → 답 → 초안 → 참고 경험 → 여러 문항에 추천된 활동(FE#148),
  *  오른쪽 차곡이 패널: 요구사항 · 보완 재사용 · 되묻기(FE#51). 배치는 ETC 시안 6 apply.html. 답 입력 · 근거 점검(S-45)은 추천 상태와 따로 쓴다 */
 export function ApplicationScreen() {
   const params = useSearchParams();
@@ -120,6 +120,8 @@ export function ApplicationScreen() {
     onClose={() => setPanelChoice(false)} />;
   const startNew = () => { setComposing(true); setAdding(false); scrollToDetail(); };
   const pick = (a: Application) => { setComposing(false); setAdding(false); matching.selectApplication(a); scrollToDetail(); };
+  // 지원을 열면 첫 화면을 문항과 답칸에 내준다 — 화면 제목은 읽기 프로그램에만 남고 「지원 넣기」는 지원처 머리로 간다(FE#148)
+  const working = !composing && !matching.error && (matching.loading || !!open);
   const activeId = composing ? null : open?.application.id ?? null;
   const list = { applications: matching.applications, activeId, onPick: pick, onSave: matching.updateApplication };
 
@@ -128,12 +130,12 @@ export function ApplicationScreen() {
       applicationList={{ applications: matching.applications, loading: matching.loading, error: matching.error, onRetry: () => { void matching.refresh(); }, rows: <ApplicationList {...list} sidebar /> }} />
     <div className="flex-1 xl:flex xl:items-start">
     <div className="min-w-0 flex-1">
-    <main className="mx-auto max-w-[1280px] px-4.5 py-6 lg:px-8 lg:py-8">
-      <div className="mb-7 flex items-start justify-between gap-3">
+    <main className="mx-auto max-w-[1280px] px-4.5 py-5 lg:px-8 lg:py-6">
+      {working ? <h1 className="sr-only">지원</h1> : <div className="mb-7 flex items-start justify-between gap-3">
         <div><h1 className="m-0 text-[26px] leading-snug font-bold tracking-[-0.4px]">지원</h1><p className="mt-2 mb-0 text-sm text-muted">지원서의 문항마다 꺼내 볼 경험을 찾아요. 같은 경험도 문항마다 다른 점을 보여 줄 수 있어요.</p></div>
         {(empty || matching.error) && restoreRun !== null && <Button variant="secondary" onClick={() => setPanelChoice(!panelOpen)} aria-expanded={panelOpen}>차곡이</Button>}
-        {!empty && <Button disabled={composing || matching.loading || !!matching.error} onClick={startNew}><PlusIcon aria-hidden="true" />지원 넣기</Button>}
-      </div>
+        {!empty && <Button disabled={composing || !!matching.error} onClick={startNew}><PlusIcon aria-hidden="true" />지원 넣기</Button>}
+      </div>}
       {ready && matching.pollWarnings.map(warning => <div key={warning.id} role="alert" aria-label={warning.label}
         className="mb-4 flex flex-wrap items-center justify-between gap-3 border-y border-hairline py-3 text-sm">
         <div className="min-w-0 flex-1">
@@ -146,8 +148,8 @@ export function ApplicationScreen() {
         <p className="m-0 text-error">{matching.error}</p><Button variant="secondary" onClick={() => { void matching.refresh(); }}>다시 불러오기</Button>
       </div> : empty ? <section id="selected-application" className="max-w-2xl" aria-label="새 지원 입력">
         <ApplicationForm onSubmit={req => matching.submit(req)} />
-      </section> : <div className="grid items-start gap-7 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-10 xl:grid-cols-1">
-        {collapsed && <aside id="application-list" className="min-w-0 scroll-mt-4 lg:sticky lg:top-20 lg:scroll-mt-20 xl:static" aria-label="지원 목록">
+      </section> : <div className={cn("grid items-start gap-7 lg:gap-10", collapsed && "lg:grid-cols-[240px_minmax(0,1fr)]")}>
+        {collapsed && <aside id="application-list" className="min-w-0 scroll-mt-4 lg:sticky lg:top-20 lg:scroll-mt-20" aria-label="지원 목록">
           <ApplicationList {...list} />
         </aside>}
         <section id="selected-application" className="min-w-0 scroll-mt-5 lg:scroll-mt-20" aria-label={composing ? "새 지원 입력" : "선택한 지원"}>
@@ -156,36 +158,43 @@ export function ApplicationScreen() {
             if (saved) { setComposing(false); scrollToDetail(); }
           }} /> : open ? <>
             <a href="#application-list" className="mb-3 inline-flex min-h-11 items-center text-sm text-muted underline underline-offset-4 lg:hidden">지원 목록으로</a>
-            <header className="mb-5 flex items-start gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-x-2.5">
-                  <h2 className="m-0 min-w-0 text-[24px] leading-snug font-bold tracking-[-0.4px]">{open.application.organization || "지원처 이름 없음"}</h2>
-                  <ApplicationStatusTag key={open.application.id} application={open.application} onSave={req => matching.updateApplication(open.application.id, req)} />
+            {/* sm 미만은 버튼이 이름 줄만 쓰고 칩은 아래 줄 전체를 쓴다. sm 이상은 칩이 이름 옆으로 온다 */}
+            <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3">
+              <div className="contents sm:block sm:min-w-0">
+                <div className="contents sm:flex sm:flex-wrap sm:items-center sm:gap-x-2">
+                  <h2 className="m-0 min-w-0 text-[22px] leading-snug font-bold tracking-[-0.4px] sm:mr-1">{open.application.organization || "지원처 이름 없음"}</h2>
+                  <div className="col-span-2 flex flex-wrap items-center gap-x-2 sm:contents">
+                    <ApplicationStatusTag key={open.application.id} application={open.application} onSave={req => matching.updateApplication(open.application.id, req)} />
+                    <ApplicationTypeFields key={`type-${open.application.id}`} application={open.application}
+                      onSave={req => matching.updateApplication(open.application.id, req)} />
+                  </div>
                 </div>
-                <p className="mt-1 mb-0 text-[13px] text-muted tabular-nums">{progressText(open.application)} · {dateText(open.application.createdAt)}에 넣음</p>
-                {/* 공고 원문 링크(S-46) — 새 탭으로. http(s) 주소일 때만 링크로 만든다 */}
-                {open.application.postingUrl && isPostingUrl(open.application.postingUrl) && <a href={open.application.postingUrl} target="_blank" rel="noopener noreferrer"
-                  className="mt-1 inline-flex min-h-11 max-w-full items-center gap-1.5 text-[13px] text-body underline underline-offset-4 hover:text-ink">
-                  <ArrowSquareOutIcon aria-hidden="true" className="shrink-0" /><span className="truncate">공고 원문 열기 · {hostOf(open.application.postingUrl)}</span><span className="sr-only">(새 탭)</span>
-                </a>}
-                <div className="mt-3"><ApplicationTypeFields key={open.application.id} application={open.application}
-                  onSave={req => matching.updateApplication(open.application.id, req)} /></div>
+                <p className="col-span-2 m-0 flex flex-wrap items-center gap-x-2 text-[13px] text-muted tabular-nums">
+                  <span>{progressText(open.application)} · {dateText(open.application.createdAt)}에 넣음</span>
+                  {/* 공고 원문 링크(S-46) — 새 탭으로. http(s) 주소일 때만 링크로 만든다 */}
+                  {open.application.postingUrl && isPostingUrl(open.application.postingUrl) && <a href={open.application.postingUrl} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex min-h-11 max-w-full items-center gap-1.5 text-body underline underline-offset-4 hover:text-ink lg:min-h-0">
+                    <ArrowSquareOutIcon aria-hidden="true" className="shrink-0" /><span className="truncate">공고 원문 열기 · {hostOf(open.application.postingUrl)}</span><span className="sr-only">(새 탭)</span>
+                  </a>}
+                </p>
               </div>
-              <Button variant="secondary" aria-expanded={panelOpen} aria-controls="chagok-panel" onClick={() => setPanelChoice(!panelOpen)}>
-                <Mascot size={20} />차곡이{unanswered > 0 && !panelOpen && <span className="rounded-full bg-primary px-1.5 text-xs leading-5 text-on-primary tabular-nums">질문 {unanswered}</span>}
-              </Button>
+              <div className="col-start-2 row-start-1 flex gap-2">
+                <Button variant="secondary" aria-label="지원 넣기" onClick={startNew}><PlusIcon aria-hidden="true" /><span className="hidden sm:inline">지원 넣기</span></Button>
+                <Button variant="secondary" aria-expanded={panelOpen} aria-controls="chagok-panel" onClick={() => setPanelChoice(!panelOpen)}>
+                  <Mascot size={20} />차곡이{unanswered > 0 && !panelOpen && <span className="rounded-full bg-primary px-1.5 text-xs leading-5 text-on-primary tabular-nums">질문 {unanswered}</span>}
+                </Button>
+              </div>
             </header>
-            {overlaps.length > 0 && <OverlapPanel overlaps={overlaps} onPick={id => { setAdding(false); matching.selectQuestion(id); }} />}
             <QuestionTabs questions={open.application.questions} selectedId={adding ? null : matching.questionId} adding={adding}
               canAdd={open.application.questions.length < MAX_QUESTIONS_PER_APPLICATION}
               onPick={id => { setAdding(false); matching.selectQuestion(id); }} onAdd={() => setAdding(true)} />
-            <div className="pt-6">
+            <div className="pt-5">
               {adding ? <AddQuestionForm onCancel={() => setAdding(false)} onSubmit={async text => {
                 const saved = await matching.addQuestion(open.application.id, text);
                 if (saved) setAdding(false);
               }} /> : <SelectedQuestion key={matching.questionId} summary={summary} question={selected} index={selectedIndex}
                 loadError={matching.detailError} onReload={matching.reloadQuestion}
-                overlaps={overlaps} onRetry={id => matching.retry(id)} onTypeChange={(id, type) => matching.updateQuestionType(id, type)} onAnswerChange={matching.keepAnswer} groundingChecks={groundingChecks}
+                overlaps={overlaps} onPickOverlap={id => { matching.selectQuestion(id); scrollToDetail(); }} onRetry={id => matching.retry(id)} onTypeChange={(id, type) => matching.updateQuestionType(id, type)} onAnswerChange={matching.keepAnswer} groundingChecks={groundingChecks}
                 {...draftActions} onOpenOmissions={openDraftQuestions} />}
             </div>
           </> : null}
@@ -254,7 +263,7 @@ function ApplicationList({ applications, activeId, onPick, onSave, sidebar = fal
 function QuestionTabs({ questions, selectedId, adding, canAdd, onPick, onAdd }: {
   questions: QuestionSummary[]; selectedId: number | null; adding: boolean; canAdd: boolean; onPick: (id: number) => void; onAdd: () => void;
 }) {
-  return <div className="-mx-4.5 overflow-x-auto border-b border-hairline px-4.5 lg:mx-0 lg:px-0">
+  return <div className="-mx-4.5 mt-1 overflow-x-auto border-b border-hairline px-4.5 lg:mx-0 lg:px-0">
     <div role="tablist" aria-label="문항" className="flex w-max items-end gap-1">
       {questions.map((q, i) => {
         const active = q.id === selectedId;
@@ -272,9 +281,9 @@ function QuestionTabs({ questions, selectedId, adding, canAdd, onPick, onAdd }: 
   </div>;
 }
 
-/** 여러 문항에 추천된 활동 — 문항별로 어떤 경험 · 강조점인지 나란히. 경고가 아니라 정보 */
+/** 여러 문항에 추천된 활동(S-21) — 참고 경험 뒤에 둔다(FE#148). 문항별로 어떤 경험 · 강조점인지 나란히. 경고가 아니라 정보 */
 function OverlapPanel({ overlaps, onPick }: { overlaps: Overlap[]; onPick: (questionId: number) => void }) {
-  return <section aria-labelledby="overlap-title" className="mb-6 grid gap-3 rounded-md bg-surface-soft p-4.5">
+  return <section aria-labelledby="overlap-title" className="mt-8 grid gap-3 rounded-md bg-surface-soft p-4.5">
     <div>
       <h3 id="overlap-title" className="m-0 text-[15px] font-semibold">여러 문항에 추천된 활동</h3>
       <p className="mt-1 mb-0 text-[13px] text-muted">같은 활동이라도 문항마다 강조하는 점이 달라요. 겹쳐 보이면 문항마다 다른 경험을 골라도 돼요. 강조점은 AI 해석이에요.</p>
@@ -295,9 +304,9 @@ function OverlapPanel({ overlaps, onPick }: { overlaps: Overlap[]; onPick: (ques
 }
 
 /** 고른 문항 — 받아 둔 내용이 있으면 바로, 처음 보는 문항이면 받는 동안 자리만(FE#60). 문항 글 · 상태는 지원 목록에 이미 있다 */
-function SelectedQuestion({ summary, question, index, loadError, onReload, overlaps, onRetry, onTypeChange, onAnswerChange, groundingChecks, onGenerate, onRefresh, onOpenOmissions, savingAnswer, requestingDraft }: {
+function SelectedQuestion({ summary, question, index, loadError, onReload, overlaps, onPickOverlap, onRetry, onTypeChange, onAnswerChange, groundingChecks, onGenerate, onRefresh, onOpenOmissions, savingAnswer, requestingDraft }: {
   summary: QuestionSummary | null; question: QuestionDetail | null; index: number; loadError: string | null; onReload: (id: number) => void;
-  overlaps: Overlap[]; onRetry: (id: number) => Promise<unknown>; onTypeChange: (id: number, type: QuestionType) => Promise<void>; onAnswerChange: (id: number, answer: Answer | null) => void; groundingChecks: GroundingChecks;
+  overlaps: Overlap[]; onPickOverlap: (questionId: number) => void; onRetry: (id: number) => Promise<unknown>; onTypeChange: (id: number, type: QuestionType) => Promise<void>; onAnswerChange: (id: number, answer: Answer | null) => void; groundingChecks: GroundingChecks;
 } & DraftActions) {
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
@@ -305,10 +314,12 @@ function SelectedQuestion({ summary, question, index, loadError, onReload, overl
   if (!summary) return null;
   const status = question?.status ?? summary.status;
   return <section id="question-panel" role="tabpanel" aria-label="선택한 문항" className="min-w-0">
-    <header className="mb-6 border-b border-hairline pb-5">
-      <p className="mt-0 mb-2 text-[13px] font-medium text-muted">문항 {index + 1} · {STATUS[status]}</p>
-      <h3 className="m-0 max-h-52 overflow-y-auto whitespace-pre-wrap text-[20px] leading-relaxed font-[650] tracking-[-0.3px]">{summary.text}</h3>
-      <div className="mt-3"><QuestionTypeField question={question ?? summary} onSave={type => onTypeChange(summary.id, type)} /></div>
+    <header className="mb-5">
+      <div className="flex flex-wrap items-center gap-x-2">
+        <p className="m-0 text-[13px] font-medium text-muted">문항 {index + 1} · {STATUS[status]}</p>
+        <QuestionTypeField question={question ?? summary} onSave={type => onTypeChange(summary.id, type)} />
+      </div>
+      <h3 className="m-0 max-h-36 overflow-y-auto whitespace-pre-wrap text-[20px] leading-relaxed font-[650] tracking-[-0.3px]">{summary.text}</h3>
     </header>
     <AnswerInput key={`answer-${summary.id}`} questionId={summary.id} question={question} loadFailed={!!loadError} onAnswerChange={onAnswerChange} checks={groundingChecks} />
     {!question ? loadError ? <div role="alert" className="grid justify-items-start gap-3 py-8">
@@ -328,5 +339,6 @@ function SelectedQuestion({ summary, question, index, loadError, onReload, overl
         }}><ArrowsClockwiseIcon aria-hidden="true" />{retrying ? "다시 시작하고 있어요…" : "다시 시도"}</Button>
         {retryError && <p role="alert" className="m-0 text-sm text-error">{retryError}</p>}
       </CenterState> : <QuestionResult key={question.id} question={question} elsewhere={id => sameExperienceElsewhere(overlaps, question.id, id)} onGenerate={onGenerate} onRefresh={onRefresh} onOpenOmissions={onOpenOmissions} savingAnswer={savingAnswer} requestingDraft={requestingDraft} />}
+    {overlaps.length > 0 && <OverlapPanel overlaps={overlaps} onPick={onPickOverlap} />}
   </section>;
 }

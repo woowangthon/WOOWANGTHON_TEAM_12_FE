@@ -1,4 +1,5 @@
 // 시험 전용 HTTP 응답으로 S-48 흐름을 검증한다. 실제 BE/AI 판단 검증은 아니다.
+import { pickOption } from "./pick-option";
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import { FakeQuestionApi } from "./fake-question-api";
@@ -12,6 +13,7 @@ const candidates = (): NewFactCandidate[] => [
 ];
 const facts = (status: "ANALYZING" | "COMPLETED" | "FAILED", items = candidates()): NonNullable<Answer["newFacts"]> => ({ status, candidates: status === "COMPLETED" ? items : [], error: status === "FAILED" ? { code: "AI_TIMEOUT", message: "AI 응답 시간이 초과됐어요." } : null, createdAt: "2026-11-05T10:00:00Z", updatedAt: "2026-11-05T10:00:00Z" });
 const answer = (newFacts: Answer["newFacts"] = null): Answer => ({ questionId: 41, text: TEXT, confirmedAt: "2026-11-05T10:00:00Z", newFacts });
+const ACTIVITY_7 = "바꿔요 — 캠퍼스 중고거래 앱";
 const screen = (page: Page) => page.getByRole("region", { name: "내가 쓴 답", exact: true });
 async function setup(page: Page, initial: Answer | null = null) {
   const api = new FakeQuestionApi({ sameApplication: true });
@@ -71,7 +73,7 @@ test("confirms before finding; edits, saves and dismisses; restores and opens ac
   await expect(input).toHaveValue(TEXT);
   expect(state.decisions).toHaveLength(0);
   const cards = s.getByRole("region", { name: "새 경험 후보" }).getByRole("listitem");
-  await expect(cards.first().getByRole("combobox", { name: "붙일 활동" })).toHaveValue("7");
+  await expect(cards.first().getByRole("combobox", { name: "붙일 활동" })).toHaveText(ACTIVITY_7);
   await expect(cards.nth(1).getByRole("button", { name: "경험으로 저장" })).toBeDisabled();
   await expect(cards.first().getByText("AI 제안", { exact: true })).toBeVisible();
   if (info.project.name === "grounding-rail") {
@@ -86,7 +88,7 @@ test("confirms before finding; edits, saves and dismisses; restores and opens ac
   await s.screenshot({ path: `docs/fe-108/candidates-${info.project.name}.png` });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await cards.first().getByRole("textbox", { name: "경험 문장" }).fill("두 기기로 메시지를 보내 팀과 함께 확인했다");
-  await cards.first().getByRole("combobox", { name: "수행 주체" }).selectOption("TEAM");
+  await pickOption(cards.first().getByRole("combobox", { name: "수행 주체" }), "팀");
   await cards.first().getByRole("button", { name: "경험으로 저장" }).click();
   await expect(cards.first().getByText("경험으로 저장했어요")).toBeVisible();
   expect(state.decisions[0]).toEqual({ activityId: 7, content: "두 기기로 메시지를 보내 팀과 함께 확인했다", actor: "TEAM" });
@@ -210,9 +212,9 @@ test("null activity requires explicit selection; failed save preserves edits for
   const card = screen(page).getByRole("region", { name: "새 경험 후보" }).getByRole("listitem").nth(1);
   const save = card.getByRole("button", { name: "경험으로 저장" });
   await expect(save).toBeDisabled();
-  await card.getByRole("combobox", { name: "붙일 활동" }).selectOption("7");
+  await pickOption(card.getByRole("combobox", { name: "붙일 활동" }), ACTIVITY_7);
   await card.getByRole("textbox", { name: "경험 문장" }).fill("직접 고친 경험");
-  await card.getByRole("combobox", { name: "수행 주체" }).selectOption("TEAM");
+  await pickOption(card.getByRole("combobox", { name: "수행 주체" }), "팀");
   state.decisionError = "INTERNAL_ERROR";
   await save.click(); await expect(card.getByRole("alert")).toBeVisible();
   await expect(card.getByRole("textbox", { name: "경험 문장" })).toHaveValue("직접 고친 경험");

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { fetchActivities } from "@/lib/api/experience";
 import type { NewFactCandidate, SaveNewFactRequest } from "@/lib/api/question-types";
 import type { ActivitySummary, Actor } from "@/lib/api/types";
@@ -70,8 +71,8 @@ function CandidateCard({ candidate: c, activities, unavailable, busy, decide, qu
     {c.status === "PENDING" ? <>
       <label className="grid min-w-0 gap-1 text-xs text-muted">경험 문장<textarea rows={3} className={field} value={content} disabled={busy} onChange={e => setContent(e.target.value)} /></label>
       <div className="grid min-w-0 gap-3 sm:grid-cols-[1fr_2fr]">
-        <label className="grid min-w-0 gap-1 text-xs text-muted">수행 주체<select className={field} value={actor} disabled={busy} onChange={e => setActor(e.target.value as Actor)}><option value="ME">나</option><option value="TEAM">팀</option><option value="UNKNOWN">알 수 없음</option></select></label>
-        <label className="grid min-w-0 gap-1 text-xs text-muted">붙일 활동<select className={field} value={validActivity ? activity : ""} disabled={busy || unavailable} onChange={e => setActivity(e.target.value)}><option value="">활동을 골라 주세요</option>{activities.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
+        <label className="grid min-w-0 gap-1 text-xs text-muted">수행 주체<Select<Actor> value={actor} disabled={busy} onChange={next => { if (next) setActor(next); }} className="min-h-10" options={[{ value: "ME", label: "나" }, { value: "TEAM", label: "팀" }, { value: "UNKNOWN", label: "알 수 없음" }]} /></label>
+        <label className="grid min-w-0 gap-1 text-xs text-muted">붙일 활동<Select value={validActivity ? activity : ""} disabled={busy || unavailable} onChange={setActivity} className="min-h-10" placeholder="활동을 골라 주세요" options={activities.map(a => ({ value: String(a.id), label: a.name }))} /></label>
       </div>
       {!unavailable && !activities.length && <p className="m-0 text-sm text-muted">저장할 활동이 없어요. 내 경험에서 활동을 준비한 뒤 다시 열어 주세요.</p>}
       {c.activityName && <p className="m-0 break-words text-xs text-muted">AI가 제안한 활동 — {c.activityName}</p>}

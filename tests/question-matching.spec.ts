@@ -1,6 +1,7 @@
 // 지원 · 문항 · 추천 · 되묻기 화면 — 실제 API 모드에서 가짜 BE(fake-question-api.ts)를 상대로 (FE#30 · #38 · #31 · #51 → FE#32)
+import { pickOption } from "./pick-option";
 import { openAddSource } from "./add-source";
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import { FakeQuestionApi, type FakeOptions } from "./fake-question-api";
 import { QUESTION_EXAMPLES } from "./fixtures/question-examples";
@@ -321,7 +322,7 @@ test("application form sends only the chosen kind and role; the header changes a
   const api = await fake(page);
   await page.goto("/questions");
   await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
-  await page.getByLabel("지원처 종류 (선택)").selectOption("BOOTCAMP");
+  await pickOption(page.getByLabel("지원처 종류 (선택)"), "부트캠프 · 교육 과정");
   await page.getByLabel("문항 1", { exact: true }).fill("지원 동기를 적어 주세요.");
   await page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true }).click();
   await expect.poll(() => posts(api).length).toBe(1);
@@ -329,31 +330,31 @@ test("application form sends only the chosen kind and role; the header changes a
 
   const kind = page.getByLabel("지원처 종류", { exact: true });
   const role = page.getByLabel("직무", { exact: true });
-  await expect(kind).toHaveValue("BOOTCAMP");
-  await expect(role).toHaveValue("");
-  await role.selectOption("BACKEND");
+  await expect(kind).toHaveText("부트캠프 · 교육 과정");
+  await expect(role).toHaveText("직무 고르기");
+  await pickOption(role, "백엔드 · 서버");
   await expect(role).toBeEnabled();
-  await kind.selectOption("");
+  await pickOption(kind, "고르지 않음");
   await expect(kind).toBeEnabled();
   const id = 23; // 가짜 BE 가 새 지원에 주는 ID
   expect(patches(api)).toEqual([[`PATCH /api/applications/${id}`, { jobRole: "BACKEND" }], [`PATCH /api/applications/${id}`, { organizationType: null }]]);
   await page.reload();
-  await expect(page.getByLabel("직무", { exact: true })).toHaveValue("BACKEND");
-  await expect(page.getByLabel("지원처 종류", { exact: true })).toHaveValue("");
+  await expect(page.getByLabel("직무", { exact: true })).toHaveText("백엔드 · 서버");
+  await expect(page.getByLabel("지원처 종류", { exact: true })).toHaveText("종류 고르기");
 });
 
 test("a failed type save goes back to the saved value, says why and retries the same choice", async ({ page }) => {
   const api = await fake(page);
   await page.goto("/questions?question=41");
   const role = page.getByLabel("직무", { exact: true });
-  await expect(role).toHaveValue("");
+  await expect(role).toHaveText("직무 고르기");
   api.patchDown = true;
-  await role.selectOption("FRONTEND");
+  await pickOption(role, "프론트엔드 · 웹");
   await expect(page.getByRole("alert").filter({ hasText: "직무을(를) 저장하지 못했어요" })).toContainText("잠시 뒤 다시 시도해 주세요");
-  await expect(role).toHaveValue("");
+  await expect(role).toHaveText("직무 고르기");
   api.patchDown = false;
   await page.getByRole("button", { name: "다시 시도", exact: true }).click();
-  await expect(role).toHaveValue("FRONTEND");
+  await expect(role).toHaveText("프론트엔드 · 웹");
   await expect(page.getByRole("alert").filter({ hasText: "저장하지 못했어요" })).toHaveCount(0);
   expect(patches(api)).toEqual([["PATCH /api/applications/21", { jobRole: "FRONTEND" }], ["PATCH /api/applications/21", { jobRole: "FRONTEND" }]]);
 });
@@ -363,24 +364,24 @@ test("status tag changes with one choice, the month appears and can be corrected
   await page.goto("/questions?question=41");
   const organization = QUESTION_EXAMPLES[0].organization;
   const tag = page.locator("#selected-application").getByLabel(`${organization} 지원 상태`);
-  await expect(tag).toHaveValue("WRITING");
+  await expect(tag).toHaveText("작성 중");
   await expect(page.getByLabel("낸 달 연도")).toHaveCount(0);
-  await tag.selectOption("SUBMITTED");
+  await pickOption(tag, "냈음");
   const [year, month] = new Date().toISOString().slice(0, 7).split("-");
-  await expect(page.getByLabel("낸 달 연도")).toHaveValue(year);
-  await expect(page.getByLabel("낸 달 월")).toHaveValue(month);
-  await page.getByLabel("낸 달 연도").selectOption("2025");
-  await expect(page.getByLabel("낸 달 연도")).toHaveValue("2025");
-  await page.getByLabel("낸 달 월").selectOption("02");
-  await expect(page.getByLabel("낸 달 월")).toHaveValue("02");
-  await tag.selectOption("PASSED");
-  await expect(tag).toHaveValue("PASSED");
+  await expect(page.getByLabel("낸 달 연도")).toHaveText(`${year}년`);
+  await expect(page.getByLabel("낸 달 월")).toHaveText(`${Number(month)}월`);
+  await pickOption(page.getByLabel("낸 달 연도"), "2025년");
+  await expect(page.getByLabel("낸 달 연도")).toHaveText("2025년");
+  await pickOption(page.getByLabel("낸 달 월"), "2월");
+  await expect(page.getByLabel("낸 달 월")).toHaveText("2월");
+  await pickOption(tag, "합격");
+  await expect(tag).toHaveText("합격");
   await page.reload();
-  await expect(tag).toHaveValue("PASSED");
-  await expect(page.getByLabel("낸 달 연도")).toHaveValue("2025");
-  await expect(page.getByLabel("낸 달 월")).toHaveValue("02");
+  await expect(tag).toHaveText("합격");
+  await expect(page.getByLabel("낸 달 연도")).toHaveText("2025년");
+  await expect(page.getByLabel("낸 달 월")).toHaveText("2월");
   await expect(page.getByText("2025년 2월 냄").first()).toBeAttached();
-  await tag.selectOption("WRITING");
+  await pickOption(tag, "작성 중");
   await expect(page.getByLabel("낸 달 연도")).toHaveCount(0);
   expect(patches(api).map(([, body]) => body)).toEqual([
     { applicationStatus: "SUBMITTED" }, { submittedMonth: `2025-${month}` }, { submittedMonth: "2025-02" }, { applicationStatus: "PASSED" }, { applicationStatus: "WRITING" },
@@ -393,16 +394,16 @@ test("status can be changed from the list without opening that application, and 
   await page.goto("/questions?question=41");
   const otherOrganization = QUESTION_EXAMPLES[1].organization!;
   const other = page.getByLabel(`${otherOrganization} 지원 상태`).filter({ visible: true });
-  await expect(other).toHaveValue("WRITING");
+  await expect(other).toHaveText("작성 중");
   const url = page.url();
   api.patchDown = true;
-  await other.selectOption("UNKNOWN");
+  await pickOption(other, "모름");
   const failure = page.getByRole("alert").filter({ hasText: "지원 상태를 저장하지 못했어요" });
   await expect(failure).toContainText("잠시 뒤 다시 시도해 주세요");
-  await expect(other).toHaveValue("WRITING");
+  await expect(other).toHaveText("작성 중");
   api.patchDown = false;
   await failure.getByRole("button", { name: "다시 시도" }).click();
-  await expect(other).toHaveValue("UNKNOWN");
+  await expect(other).toHaveText("모름");
   await expect(failure).toHaveCount(0);
   expect(page.url()).toBe(url);
   expect(patches(api)).toEqual([["PATCH /api/applications/22", { applicationStatus: "UNKNOWN" }], ["PATCH /api/applications/22", { applicationStatus: "UNKNOWN" }]]);
@@ -420,7 +421,7 @@ test("status tags fit every width: 44 touch target, same look for passed and not
     await expect(tags.first()).toBeVisible();
     await expect(page.getByText("2025년 2월 냄").filter({ visible: true }).first()).toBeVisible();
     for (const tag of await tags.all()) expect((await tag.boundingBox())!.height).toBeGreaterThanOrEqual(44);
-    const look = (label: string) => page.getByLabel(label).filter({ visible: true }).first().locator("xpath=preceding-sibling::span").evaluate(el => {
+    const look = (label: string) => page.getByLabel(label).filter({ visible: true }).first().locator("span").first().evaluate(el => {
       const { backgroundColor, color } = getComputedStyle(el);
       return { backgroundColor, color };
     });
@@ -434,22 +435,22 @@ test("question type shows the AI reading, can be corrected, and a choice made wh
   const api = await fake(page);
   await page.goto("/questions?question=41");
   const type = result(page).getByLabel("문항 유형", { exact: true });
-  await expect(type).toHaveValue("PROBLEM_SOLVING");
+  await expect(type).toHaveText("문제 해결 · 기술적 어려움");
   // 「AI 해석」 · 「내가 고름」은 칸의 설명으로 붙는다 — 추천 카드의 「AI 해석」과 섞이지 않게 칸으로 확인
   await expect(type).toHaveAccessibleDescription("AI 해석");
-  await type.selectOption("CONFLICT");
+  await pickOption(type, "갈등 · 의견 조율");
   await expect(type).toHaveAccessibleDescription("내가 고름");
   await page.reload();
-  await expect(result(page).getByLabel("문항 유형", { exact: true })).toHaveValue("CONFLICT");
+  await expect(result(page).getByLabel("문항 유형", { exact: true })).toHaveText("갈등 · 의견 조율");
 
   // 분석 중인 새 문항 — 유형이 아직 없어도 고르고, 분석이 끝나도 AI 가 덮어쓰지 않는다
   await compose(page, "갈등을 해결한 경험을 적어 주세요.");
   await expect(result(page).getByRole("status").filter({ hasText: "찾고 있어요" })).toBeVisible();
-  await expect(result(page).getByLabel("문항 유형", { exact: true })).toHaveValue("");
-  await result(page).getByLabel("문항 유형", { exact: true }).selectOption("MOTIVATION");
+  await expect(result(page).getByLabel("문항 유형", { exact: true })).toHaveText("유형 고르기");
+  await pickOption(result(page).getByLabel("문항 유형", { exact: true }), "지원 동기 · 포부 · 목표");
   await expect(result(page).getByLabel("문항 유형", { exact: true })).toHaveAccessibleDescription("내가 고름");
   await expect(recommendation(page, 1)).toBeVisible({ timeout: 10000 });
-  await expect(result(page).getByLabel("문항 유형", { exact: true })).toHaveValue("MOTIVATION");
+  await expect(result(page).getByLabel("문항 유형", { exact: true })).toHaveText("지원 동기 · 포부 · 목표");
   expect(patches(api).map(([call]) => call)).toEqual(["PATCH /api/questions/41", "PATCH /api/questions/43"]);
 });
 
@@ -779,4 +780,45 @@ test("the posting link is sent with the application and opens in a new tab from 
   await page.goto("/questions?question=41");
   await expect(page.getByLabel("직무", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: /공고 원문 열기/ })).toHaveCount(0);
+});
+
+// FE#148 — 지원을 열면 첫 화면에 지원처 · 문항 탭 · 문항 · 답칸 윗부분이 보인다. 순서는 시안 6(문항 → 답 → 초안 → 참고 → 겹침)
+test("opening an application shows the question and answer box on the first screen, in the design order", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "폭을 직접 바꾼다");
+  await fake(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/questions");
+  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await page.getByRole("button", { name: "기술 문제 해결 예시", exact: true }).click();
+  await page.getByRole("button", { name: "팀 역할·협업 예시", exact: true }).click();
+  await page.getByLabel("지원처 이름 (선택)").fill("OO 백엔드 부트캠프 · 2기");
+  await page.getByRole("button", { name: "문항 2개 넣고 경험 찾기", exact: true }).click();
+  for (const width of [1440, 1024, 390]) {
+    await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
+    await page.reload();
+    const answer = page.getByRole("textbox", { name: "내가 쓴 답", exact: true });
+    await expect(answer).toBeVisible();
+    await expect(page.getByRole("region", { name: "여러 문항에 추천된 활동" })).toBeVisible({ timeout: 10000 });
+    if (process.env.UPDATE_QUESTION_SCREENSHOTS === "1") await page.screenshot({ path: `docs/fe-148/apply-${width}.png`, style: "nextjs-portal { display: none !important; }" });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    if (width !== 1440) continue;
+    if (process.env.UPDATE_QUESTION_SCREENSHOTS === "1") {
+      await page.getByLabel("직무", { exact: true }).click();
+      await expect(page.getByRole("option").first()).toBeVisible();
+      await page.screenshot({ path: "docs/fe-148/apply-select.png", style: "nextjs-portal { display: none !important; }" });
+      await page.keyboard.press("Escape");
+    }
+    const top = async (locator: Locator) => (await locator.boundingBox())!.y;
+    expect(await top(answer) + 80).toBeLessThan(900);
+    const order = await Promise.all([
+      page.locator("#selected-application").getByRole("heading", { level: 2 }),
+      page.getByRole("tablist", { name: "문항" }),
+      result(page).getByRole("heading", { level: 3 }).first(),
+      answer,
+      page.getByRole("heading", { name: "답변 초안", exact: true }),
+      page.getByRole("heading", { name: "참고 — 꺼내 쓸 경험", exact: true }),
+      page.getByRole("heading", { name: "여러 문항에 추천된 활동", exact: true }),
+    ].map(top));
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+  }
 });
