@@ -187,7 +187,7 @@ test("ask failures and the daily limit are not filled with an answer, and the te
 
   await dialog(page).getByRole("button", { name: "지원으로 만들기", exact: true }).click();
   await expect(page).toHaveURL(/\/questions/);
-  await expect(page.getByRole("textbox", { name: "공고 · 문항 글로 칸 채우기", exact: true })).toHaveValue("동아리에서 의견 모은 적");
+  await expect(page.getByRole("textbox", { name: "공고 · 문항 글이나 공고 링크", exact: true })).toHaveValue("동아리에서 의견 모은 적");
   expect(api.asks).toHaveLength(3);
 });
 

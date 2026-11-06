@@ -57,6 +57,7 @@ async function expand(page: Page, n: number) {
 }
 async function compose(page: Page, text: string) {
   await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await page.getByRole("button", { name: "문항 직접 쓰기", exact: true }).click();
   await page.getByLabel("문항 1", { exact: true }).fill(text);
   await page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true }).click();
 }
@@ -110,6 +111,7 @@ test("question input validates whitespace before calling the server and sends li
   const api = await fake(page);
   await page.goto("/questions");
   await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await page.getByRole("button", { name: "문항 직접 쓰기", exact: true }).click();
   await page.getByLabel("문항 1", { exact: true }).fill(" \n ");
   await page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true }).click();
   await expect(page.locator("form").getByRole("alert")).toHaveText("지원 문항을 입력해 주세요.");
@@ -239,6 +241,7 @@ test("common questions fill blank slots first, stay editable and stop at the sub
   const api = await fake(page);
   await page.goto("/questions");
   await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await page.getByRole("button", { name: "문항 직접 쓰기", exact: true }).click();
   await page.getByRole("button", { name: "문항 칸 더하기", exact: true }).click();
   await page.getByLabel("문항 2", { exact: true }).fill("직접 쓴 문항");
   await page.getByRole("button", { name: "넣었던 · 자주 나오는 문항에서 고르기", exact: true }).click();
@@ -329,6 +332,7 @@ test("application form sends only the chosen kind and role; the header changes a
   const api = await fake(page);
   await page.goto("/questions");
   await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await page.getByRole("button", { name: "문항 직접 쓰기", exact: true }).click();
   await pickOption(page.getByLabel("지원처 종류 (선택)"), "부트캠프 · 교육 과정");
   await page.getByLabel("문항 1", { exact: true }).fill("지원 동기를 적어 주세요.");
   await page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true }).click();
@@ -467,6 +471,7 @@ test("a question can be added to an existing application and blank slots are nam
   const api = await fake(page);
   await page.goto("/questions");
   await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await page.getByRole("button", { name: "문항 직접 쓰기", exact: true }).click();
   await page.getByRole("button", { name: "문항 칸 더하기", exact: true }).click();
   await page.getByLabel("문항 1", { exact: true }).fill("첫 문항");
   await page.getByRole("button", { name: "문항 2개 넣고 경험 찾기", exact: true }).click();
@@ -773,11 +778,61 @@ test("a successful analyzing poll resets consecutive failures and another questi
   expect(gets(api).filter(c => c === "GET /api/questions/43")).toHaveLength(1);
 });
 
+// FE#180 — 처음엔 입력칸 하나, 나눈 뒤에야 칸을 펼친다
+test("a new application starts with one input and opens the fields only after splitting; a link goes to the original link field", async ({ page }) => {
+  await fake(page);
+  const parses: unknown[] = [];
+  await page.route("**/api/entrance/parse-application", r => {
+    parses.push(r.request().postDataJSON());
+    return r.fulfill({ json: { organization: "OO 연합 동아리", organizationType: "CLUB", jobRole: null, questions: ["지원 동기를 적어 주세요."] } });
+  });
+  await page.goto("/questions");
+  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  const input = page.getByLabel("공고 · 문항 글이나 공고 링크");
+  await expect(input).toBeFocused();
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("지원처 이름 (선택)")).toHaveCount(0);
+  await expect(page.getByLabel("원문 링크 (선택)")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true })).toHaveCount(0);
+  await expect(page.getByText("넣은 뒤엔 문항을 고치지 않아요")).toHaveCount(0);
+  const example = page.getByRole("button", { name: "기술 문제 해결 예시", exact: true });
+  await expect(example).toBeVisible();
+
+  await input.fill("OO 연합 동아리 지원서 — 지원 동기");
+  await expect(example).toHaveCount(0);
+  await page.getByRole("button", { name: "AI 로 나누기", exact: true }).click();
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("지원 동기를 적어 주세요.");
+  await expect(page.getByLabel("지원처 이름 (선택)")).toHaveValue("OO 연합 동아리");
+  await expect(page.getByText("넣은 뒤엔 문항을 고치지 않아요")).toBeVisible();
+  expect(parses).toEqual([{ text: "OO 연합 동아리 지원서 — 지원 동기" }]);
+
+  await input.fill("https://www.example.com/recruit/1234");
+  await page.getByRole("button", { name: "AI 로 나누기", exact: true }).click();
+  await expect(page.getByLabel("원문 링크 (선택)")).toHaveValue("https://www.example.com/recruit/1234");
+  await expect(input).toHaveValue("");
+  expect(parses.at(-1)).toEqual({ url: "https://www.example.com/recruit/1234" });
+});
+
+test("write questions opens the fields at once, keeping a pasted link as the original link", async ({ page }) => {
+  await fake(page);
+  await page.goto("/questions");
+  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await page.getByRole("button", { name: "공고 링크로 가져오기", exact: true }).click();
+  const input = page.getByLabel("공고 · 문항 글이나 공고 링크");
+  await expect(input).toBeFocused();
+  await input.fill("https://www.example.com/recruit/1234");
+  await page.getByRole("button", { name: "문항 직접 쓰기", exact: true }).click();
+  await expect(page.getByLabel("문항 1", { exact: true })).toBeFocused();
+  await expect(page.getByLabel("원문 링크 (선택)")).toHaveValue("https://www.example.com/recruit/1234");
+  await expect(input).toHaveValue("");
+});
+
 // FE#95 — 공고 원문 링크(S-46)
 test("the posting link is sent with the application and opens in a new tab from the header; no link, no row", async ({ page }) => {
   const api = await fake(page);
   await page.goto("/questions");
   await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await page.getByRole("button", { name: "문항 직접 쓰기", exact: true }).click();
   await page.getByLabel("원문 링크 (선택)").fill("javascript:alert(1)");
   await page.getByLabel("문항 1", { exact: true }).fill("지원 동기를 적어 주세요.");
   await page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true }).click();

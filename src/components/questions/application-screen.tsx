@@ -50,7 +50,7 @@ export function ApplicationScreen() {
   const [groundingChecks] = useState(createGroundingChecks);
   // 사이드바 「+ 추가」 → 새 지원서(FE#147). 새로고침하면 다시 뜨지 않게 주소에서 지운다
   const [composing, setComposing] = useState(useSearchParams().get("new") === "1");
-  // 빠른 찾기의 「지원으로 만들기」(S-61)가 넘긴 글 — 「공고 · 문항 글로 칸 채우기」에 넣어 둔다
+  // 빠른 찾기의 「지원으로 만들기」(S-61)가 넘긴 글 — 지원 넣기 입력칸에 넣어 둔다
   const [pasted, setPasted] = useState(peekApplicationText);
   useEffect(() => {
     takeApplicationText();
