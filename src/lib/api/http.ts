@@ -13,6 +13,18 @@ export function onUnauthenticated(listener: () => void) {
   return () => void unauthenticatedListeners.delete(listener);
 }
 
+// 사람이 읽을 문구가 없는 실패의 한국어 문구 — 서버의 영어 원문을 화면에 내보내지 않는다(FE#184)
+function statusMessage(status: number) {
+  if (status === 404 || status === 405) return "이 기능을 아직 서버에서 쓸 수 없어요. 잠시 뒤 다시 시도해 주세요.";
+  if (status >= 500) return "서버에서 처리하지 못했어요. 잠시 뒤 다시 시도해 주세요.";
+  return "요청을 처리하지 못했어요. 다시 시도해 주세요.";
+}
+
+// Spring 기본 오류는 code 가 상태 이름, message 가 그 영어 원문이다(NOT_FOUND · Not Found — BE GlobalExceptionHandler). 계약의 오류 코드가 아니다
+function isFrameworkError(code: unknown, message: unknown) {
+  return typeof message === "string" && message.toUpperCase().replaceAll(" ", "_") === code;
+}
+
 export async function request<T>(path: string, data?: unknown, method = data === undefined ? "GET" : "PATCH", credentials: RequestCredentials = "include", signal?: AbortSignal): Promise<T> {
   const base = process.env.NEXT_PUBLIC_API_BASE_URL?.trim().replace(/\/+$/, "");
   if (!base) throw new ApiError("API_NOT_CONFIGURED", "목 모드에서는 서버에 저장할 수 없어요. API 주소 설정이 필요해요.");
@@ -34,12 +46,15 @@ export async function request<T>(path: string, data?: unknown, method = data ===
   if (response.status === 204 && response.ok) return undefined as T;
   let body;
   try { body = await response.json(); } catch {
-    throw new ApiError(response.ok ? "INVALID_RESPONSE" : `HTTP_${response.status}`, "서버 응답을 읽지 못했어요.", response.status);
+    throw response.ok
+      ? new ApiError("INVALID_RESPONSE", "서버 응답을 읽지 못했어요.", response.status)
+      : new ApiError(`HTTP_${response.status}`, statusMessage(response.status), response.status);
   }
   if (!response.ok) {
+    const contract = body?.error?.code && !isFrameworkError(body.error.code, body.error.message);
     const code = body?.error?.code ?? `HTTP_${response.status}`;
     if (response.status === 401 && code === "UNAUTHENTICATED") unauthenticatedListeners.forEach((listener) => listener());
-    throw new ApiError(code, body?.error?.message ?? "요청을 처리하지 못했어요.", response.status);
+    throw new ApiError(code, (contract && body.error.message) || statusMessage(response.status), response.status);
   }
   return body as T;
 }
