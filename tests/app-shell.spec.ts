@@ -95,7 +95,7 @@ test("rail keeps the menu reachable: applications icon, add menu and overlay lis
   await expect(sidebar(page).getByRole("region", { name: "지원서", exact: true })).toHaveCount(0);
   await capture(page, "experience-1024");
   await sidebar(page).getByRole("button", { name: "추가", exact: true }).click();
-  await expect(page.getByRole("menuitem", { name: /^자료 가져오기/ })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: /^자료 쌓기/ })).toBeVisible();
   await page.keyboard.press("Escape");
   await sidebar(page).getByRole("button", { name: "사이드바 펼치기", exact: true }).click();
   const overlay = page.getByRole("dialog", { name: "사이드바", exact: true });
