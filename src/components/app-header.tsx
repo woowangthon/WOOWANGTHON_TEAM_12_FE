@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { ArchiveIcon, FileTextIcon, HouseIcon, PlusIcon, StackIcon, PlugsConnectedIcon, SidebarSimpleIcon } from "@phosphor-icons/react";
 import { DropdownMenu, Tooltip } from "radix-ui";
 import { AccountMenu } from "@/components/auth/account-menu";
+import { QuickFindButton, useQuickFindActions, type QuickFindActions } from "@/components/quick-find/quick-find";
 import { useSidebar } from "@/components/sidebar-layout";
 import { SidebarApplications, useExperienceCount, useSidebarApplications, type ApplicationsLoad } from "@/components/sidebar-applications";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -24,6 +25,8 @@ type HeaderProps = {
   onNewApplication?: () => void;
   /** 활동을 이미 받는 화면이 넘긴다(받는 중이면 null). 없으면 사이드바가 직접 받는다 */
   experienceCount?: number | null;
+  /** 빠른 찾기(S-61)의 활동 열기 · 찾기를 이 화면에서 받는다. 없으면 내 경험 화면으로 옮겨 간다 */
+  quickFind?: Pick<QuickFindActions, "openActivity" | "search">;
 };
 type SidebarProps = Pick<HeaderProps, "activePage" | "experienceCount"> & {
   list: React.ReactNode; onAddSource: () => void; addSourceBusy?: boolean; onNewApplication: () => void;
@@ -42,13 +45,14 @@ const BUSY = "지금 넣은 자료의 분석이 끝나면 더 넣을 수 있어�
 // 왼쪽 여백·아이콘 칸·줄 간격은 접어도 유지한다. 글자는 남겨 서랍의 폭으로 잘라 낸다(시안 6).
 const navItem = "flex h-11 w-full shrink-0 items-center gap-2.5 overflow-hidden rounded-full px-3 text-sm font-medium whitespace-nowrap text-ink transition-colors";
 
-export function AppHeader({ hideOnMobile, addSource, applicationList, onNewApplication, experienceCount, activePage }: HeaderProps) {
+export function AppHeader({ hideOnMobile, addSource, applicationList, onNewApplication, experienceCount, activePage, quickFind }: HeaderProps) {
   const { wide, desktop } = useSidebar();
   const router = useRouter();
   const ownList = useSidebarApplications(desktop && !applicationList);
   const ownCount = useExperienceCount(desktop && experienceCount === undefined);
   const page = activePage ?? "timeline";
   const newApplication = onNewApplication ?? (() => router.push("/questions?new=1"));
+  useQuickFindActions({ ...quickFind, addSource: addSource?.onClick, addSourceBusy: addSource?.busy, newApplication: onNewApplication });
   return <Tooltip.Provider delayDuration={200}>
     <header className={cn("flex h-14 items-center gap-4 border-b border-hairline bg-canvas px-4.5 lg:sticky lg:top-0 lg:z-20 lg:px-6", hideOnMobile && "max-lg:hidden")}>
       <div className="contents lg:hidden">
@@ -67,8 +71,8 @@ export function AppHeader({ hideOnMobile, addSource, applicationList, onNewAppli
           <span>내 서랍</span><span className="text-hairline" aria-hidden="true">/</span>
           <strong aria-current="page" className="truncate font-medium text-ink">{PAGE_NAME[page]}</strong>
         </nav>
-        {/* 찾기(FE#126) 자리도 여기. 기능이 없는 버튼은 두지 않는다 */}
-        <div data-slot="header-actions" className="ml-auto flex min-w-0 items-center gap-2">{desktop && <WorkStatus />}</div>
+        {/* 기능이 없는 버튼은 두지 않는다 */}
+        <div data-slot="header-actions" className="ml-auto flex min-w-0 items-center gap-2">{desktop && <WorkStatus><QuickFindButton /></WorkStatus>}</div>
       </div>
     </header>
     <DesktopSidebar key={wide ? "wide" : desktop ? "rail" : "mobile"} activePage={page} experienceCount={experienceCount === undefined ? ownCount : experienceCount}

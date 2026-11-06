@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { AuthGate } from "@/components/auth/auth-gate";
+import { QuickFindProvider } from "@/components/quick-find/quick-find";
 import { SidebarLayout } from "@/components/sidebar-layout";
 import { WorkProvider } from "@/components/work/work-provider";
 
@@ -10,7 +11,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     <SidebarLayout>
       <div className="relative flex flex-1 flex-col overflow-clip bg-canvas lg:rounded-l-lg lg:shadow-[0_0_0_1px_var(--hairline-soft)]">
         {/* 실제 API 모드면 로그인부터(FE#37). 목 모드는 그대로 */}
-        <AuthGate><WorkProvider>{children}</WorkProvider></AuthGate>
+        <AuthGate><QuickFindProvider><WorkProvider>{children}</WorkProvider></QuickFindProvider></AuthGate>
       </div>
     </SidebarLayout>
   );
