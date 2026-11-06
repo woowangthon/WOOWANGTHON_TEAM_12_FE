@@ -1,13 +1,15 @@
 // 자료 넣기 · 분석 작업 · 활동 · 경험 — ETC docs/contracts/experience-api.md
 // MOCK(timeline-activities): API 주소가 없을 때만 src/lib/mock/activities.ts 로 화면을 확인한다. 실제 API 실패 시 사용하지 않는다.
 // MOCK(source-analysis): API 주소가 없는 목 모드에서만 자료 넣기 · 작업 조회 · 재시도를 모의한다.
+// MOCK(experience-search): API 주소가 없는 목 모드에서만 경험 찾기를 브라우저에서 흉내 낸다. 실제 API 실패 시 사용하지 않는다.
 
 import { MOCK_ACTIVITIES } from "../mock/activities";
 import { mockAddedActivities, mockFetchJob, mockRetryJob, mockSubmitSource } from "../mock/analysis";
+import { mockSearchExperiences } from "../mock/experience-search";
 import { ApiError } from "./errors";
 import { isMockMode, request } from "./http";
 import { activityNoteError } from "./editing";
-import type { ActivityDetail, ActivityLink, ActivitySummary, Job, SourceRequest, Experience, Supplement, UpdateActivityRequest, UpdateExperienceRequest, CreateExperienceRequest } from "./types";
+import type { ActivityDetail, ActivityLink, ActivitySummary, Job, SourceRequest, Experience, ExperienceSearch, ExperienceSearchResult, Supplement, UpdateActivityRequest, UpdateExperienceRequest, CreateExperienceRequest } from "./types";
 import { COMPETENCIES, MAX_TEXT_LENGTH, type SourceSubmitted } from "./types";
 
 export { ApiError, isMockMode };
@@ -87,12 +89,31 @@ export async function updateActivity(id: number, data: UpdateActivityRequest): P
   return activity;
 }
 
-function checkCompetencies(experience: Experience): Experience {
+function checkCompetencies<T extends Pick<Experience, "competencies">>(experience: T): T {
   const values = experience.competencies;
   if (!Array.isArray(values) || values.length > 3 || new Set(values).size !== values.length || values.some((value) => !Object.hasOwn(COMPETENCIES, value))) {
     throw new ApiError("INVALID_RESPONSE", "서버의 경험 역량 응답이 최신 API 계약과 달라요. BE 버전을 확인해 주세요.");
   }
   return experience;
+}
+
+/** GET /api/experiences — 낱말 · 거르기(S-58). AI 를 부르지 않는다. 맞은 게 없어도 오류가 아니다(total 0) */
+export async function searchExperiences(search: ExperienceSearch, mock: MockMode = null): Promise<ExperienceSearchResult> {
+  if (isMockMode()) {
+    if (mock === "error") throw new ApiError("MOCK_ERROR", "불러오기 실패 화면 확인용");
+    return mockSearchExperiences(allActivities(), search);
+  }
+  const { query, competencies, year, sourceStatus, category } = search;
+  const params = new URLSearchParams();
+  if (query) params.set("query", query);
+  if (competencies?.length) params.set("competencies", competencies.join(","));
+  if (year) params.set("year", String(year));
+  if (sourceStatus) params.set("sourceStatus", sourceStatus);
+  if (category) params.set("category", category);
+  const qs = params.toString();
+  const found = await request<ExperienceSearchResult>(`/experiences${qs ? `?${qs}` : ""}`);
+  found.experiences.forEach(checkCompetencies);
+  return found;
 }
 
 export async function updateExperience(id: number, data: UpdateExperienceRequest): Promise<Experience> {
@@ -114,7 +135,7 @@ export async function updateExperience(id: number, data: UpdateExperienceRequest
     mockExperiences.set(activity.id, activity.experiences.map((e) => e.id === id ? updated : e));
     return structuredClone(updated);
   }
-  return checkCompetencies(await request(`/experiences/${id}`, data));
+  return checkCompetencies<Experience>(await request(`/experiences/${id}`, data));
 }
 
 export async function createExperience(activityId: number, data: CreateExperienceRequest): Promise<Experience> {
@@ -130,7 +151,7 @@ export async function createExperience(activityId: number, data: CreateExperienc
     mockExperiences.set(activityId, [...activity.experiences, created]);
     return structuredClone(created);
   }
-  return checkCompetencies(await request(`/activities/${activityId}/experiences`, data, "POST"));
+  return checkCompetencies<Experience>(await request(`/activities/${activityId}/experiences`, data, "POST"));
 }
 
 export function deleteExperience(id: number): Promise<void> {
@@ -139,7 +160,7 @@ export function deleteExperience(id: number): Promise<void> {
 
 /** POST /api/experiences/{id}/move — 묶음만 바뀐다. 내용 · 근거 · 출처 상태는 그대로 (S-12) */
 export async function moveExperience(id: number, toActivityId: number): Promise<Experience> {
-  return checkCompetencies(await request(`/experiences/${id}/move`, { toActivityId }, "POST"));
+  return checkCompetencies<Experience>(await request(`/experiences/${id}/move`, { toActivityId }, "POST"));
 }
 
 /** POST /api/activities/{keepId}/merge — fromId 의 경험을 keepId 로 옮기고 fromId 를 지운다. 응답은 남은 활동의 세부 (S-13) */
