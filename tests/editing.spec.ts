@@ -331,7 +331,7 @@ test("source HTTP failure keeps the text and never shows mock analysis success",
   if (page.viewportSize()!.width < 1024) await page.getByRole("button", { name: "타임라인", exact: true }).click();
   await page.getByRole("button", { name: "자료 넣기", exact: true }).filter({ visible: true }).first().click();
   await page.getByRole("dialog").getByRole("textbox").fill("Mock source text");
-  await page.getByRole("button", { name: "분석 시작", exact: true }).click();
+  await page.getByRole("button", { name: "넣기", exact: true }).click();
   await expect(page.getByRole("dialog").getByRole("alert")).toHaveText("Source unavailable");
   await expect(page.getByRole("dialog").getByRole("textbox")).toHaveValue("Mock source text");
   await expect(page.getByText(/목 분석 결과/)).toHaveCount(0);

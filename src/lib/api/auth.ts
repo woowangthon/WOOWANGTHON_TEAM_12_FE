@@ -42,7 +42,8 @@ export function isDailyLimit(e: unknown): boolean {
 }
 
 /** 새로 넣을 때는 저장도 안 됐고, 다시 시도할 때는 자료가 이미 저장돼 있다 */
-export function dailyLimitMessage(kind: "new" | "retry"): string {
+export function dailyLimitMessage(kind: "new" | "retry" | "batch"): string {
+  if (kind === "batch") return "오늘 남은 분석 횟수가 파일 수보다 적어서 하나도 넣지 않았어요. 파일을 줄이거나 한국 시간 자정에 다시 채워지면 넣어 주세요.";
   return kind === "new"
     ? "오늘 분석 횟수를 다 썼어요. 넣은 자료는 저장하지 않았어요 — 한국 시간 자정에 다시 채워지면 넣어 주세요."
     : "오늘 분석 횟수를 다 써서 다시 시도하지 못했어요. 자료는 저장돼 있으니 한국 시간 자정 뒤에 다시 시도해 주세요.";

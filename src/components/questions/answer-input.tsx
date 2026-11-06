@@ -4,22 +4,30 @@ import { useState } from "react";
 import { useConfirmedAnswer } from "./use-confirmed-answer";
 import { NewFactCandidates } from "./new-fact-candidates";
 import { Button } from "@/components/ui/button";
-import { MAX_GROUNDING_TEXT_LENGTH, type GroundingStatus } from "@/lib/api/question-types";
+import { MAX_GROUNDING_TEXT_LENGTH, type Answer, type GroundingStatus, type QuestionDetail } from "@/lib/api/question-types";
 import { AnswerEvidence } from "./answer-evidence";
 import { useGroundingCheck } from "./use-grounding-check";
 
 const LABEL: Record<GroundingStatus, string> = { SOURCE: "원문", USER_INPUT: "내가 입력", UNSUPPORTED: "근거 없음", OPINION: "생각 · AI 해석" };
 const TINT: Record<GroundingStatus, string> = { SOURCE: "bg-evidence-soft", USER_INPUT: "bg-primary-soft", UNSUPPORTED: "bg-review-soft", OPINION: "" };
 
-/** 내가 쓴 답(S-45 · S-48): 확정 답 복원 뒤 근거 점검을 독립적으로 읽는다. */
-export function AnswerInput({ questionId }: { questionId: number }) {
-  const confirmed = useConfirmedAnswer(questionId);
+type AnswerChange = (id: number, answer: Answer | null) => void;
+
+/** 내가 쓴 답(S-45 · S-48): 받아 둔 문항의 확정 답으로 시작하고, 근거 점검은 독립적으로 읽는다. 문항을 못 받았으면 화면의 「다시 불러오기」를 쓴다 */
+export function AnswerInput({ questionId, question, loadFailed, onAnswerChange }: { questionId: number; question: QuestionDetail | null; loadFailed: boolean; onAnswerChange: AnswerChange }) {
   return <section aria-labelledby={`answer-title-${questionId}`} className="mb-8 grid min-w-0 gap-4 border-b border-hairline pb-6">
     <h3 id={`answer-title-${questionId}`} className="m-0 text-[17px] font-semibold">내가 쓴 답</h3>
-    {!confirmed.ready && !confirmed.failure && <p role="status" className="m-0 text-sm text-muted">확정한 답을 불러오고 있어요…</p>}
-    {confirmed.ready && <AnswerEditor questionId={questionId} confirmed={confirmed} />}
-    <NewFactCandidates confirmed={confirmed} />
+    {question ? <LoadedAnswer questionId={questionId} saved={question.answer ?? null} onAnswerChange={onAnswerChange} />
+      : !loadFailed && <p role="status" className="m-0 text-sm text-muted">확정한 답을 불러오고 있어요…</p>}
   </section>;
+}
+
+function LoadedAnswer({ questionId, saved, onAnswerChange }: { questionId: number; saved: Answer | null; onAnswerChange: AnswerChange }) {
+  const confirmed = useConfirmedAnswer(questionId, saved, onAnswerChange);
+  return <>
+    <AnswerEditor questionId={questionId} confirmed={confirmed} />
+    <NewFactCandidates confirmed={confirmed} />
+  </>;
 }
 
 function AnswerEditor({ questionId, confirmed: a }: { questionId: number; confirmed: ReturnType<typeof useConfirmedAnswer> }) {

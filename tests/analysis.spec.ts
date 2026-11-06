@@ -11,7 +11,7 @@ async function setup(page: Page) {
     sources: [] as SourceRequest[], gets: 0, lists: 0, details: 0, retries: 0,
     getError: 0, retryError: false, refreshError: false, suggestion: false,
   };
-  const job = (): Job => ({ jobId: 34, sourceId: 12, status: state.status, activityIds: state.status === "COMPLETED" && !state.empty ? [70] : [], error: state.error, createdAt: "2026-11-02T21:00:00+09:00", updatedAt: "2026-11-02T21:00:10+09:00" });
+  const job = (): Job => ({ jobId: 34, sourceId: 12, status: state.status, activityIds: state.status === "COMPLETED" && !state.empty ? [70] : [], targetActivityId: null, targetMatched: null, error: state.error, createdAt: "2026-11-02T21:00:00+09:00", updatedAt: "2026-11-02T21:00:10+09:00" });
   await page.route("**/api/**", async (route) => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
@@ -53,7 +53,7 @@ async function setup(page: Page) {
 async function submit(page: Page, text = "Original source") {
   await page.getByRole("button", { name: "자료 넣기", exact: true }).filter({ visible: true }).first().click();
   await page.getByLabel("붙여넣을 자료").fill(text);
-  await page.getByRole("button", { name: "분석 시작", exact: true }).click();
+  await page.getByRole("button", { name: "넣기", exact: true }).click();
 }
 
 test("polling survives reload, does not resubmit, then refreshes actual list and detail", async ({ page }) => {
@@ -148,7 +148,7 @@ test("text.length blocks 50001 UTF-16 units, accepts 50000 and prevents duplicat
   const state = await setup(page);
   await page.getByRole("button", { name: "자료 넣기", exact: true }).filter({ visible: true }).first().click();
   const input = page.getByLabel("붙여넣을 자료");
-  const button = page.getByRole("button", { name: "분석 시작", exact: true });
+  const button = page.getByRole("button", { name: "넣기", exact: true });
   await input.fill(" \n ");
   await expect(button).toBeDisabled();
   await input.fill("😀".repeat(25000) + "a");
@@ -166,9 +166,8 @@ test("text.length blocks 50001 UTF-16 units, accepts 50000 and prevents duplicat
 test("file validation and JSON upload keep original name and text", async ({ page }) => {
   const state = await setup(page);
   await page.getByRole("button", { name: "자료 넣기", exact: true }).filter({ visible: true }).first().click();
-  await page.getByRole("tab", { name: "파일", exact: true }).click();
   const input = page.locator('input[type="file"]');
-  const button = page.getByRole("button", { name: "분석 시작", exact: true });
+  const button = page.getByRole("button", { name: "넣기", exact: true });
   await input.setInputFiles({ name: "bad.pdf", mimeType: "application/pdf", buffer: Buffer.from("invalid") });
   await expect(button).toBeDisabled();
   await input.setInputFiles({ name: "long.txt", mimeType: "text/plain", buffer: Buffer.from("😀".repeat(25000) + "a") });
@@ -208,9 +207,8 @@ test("restore validates storage, separates mock jobs and shows a missing job err
 test("PDF · PPTX 는 브라우저에서 글자를 뽑아 sections 와 함께 보내고, 못 읽는 파일은 보내지 않는다 (FE#79)", async ({ page }) => {
   const state = await setup(page);
   await page.getByRole("button", { name: "자료 넣기", exact: true }).filter({ visible: true }).first().click();
-  await page.getByRole("tab", { name: "파일", exact: true }).click();
   const input = page.locator('input[type="file"]');
-  const button = page.getByRole("button", { name: "분석 시작", exact: true });
+  const button = page.getByRole("button", { name: "넣기", exact: true });
   const dialog = page.getByRole("dialog");
 
   // 스캔 PDF 흉내 — 글자 층이 없다

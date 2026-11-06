@@ -73,7 +73,7 @@ test("자료 분류는 확인 전 저장하지 않고 양쪽 전환에서도 수
   await page.getByRole("button", { name: "자료로 쌓기", exact: true }).click();
   await expect(page.getByLabel("붙여넣을 자료")).toHaveValue(edited);
   expect(calls.applications).toHaveLength(0);
-  await page.getByRole("button", { name: "분석 시작", exact: true }).click();
+  await page.getByRole("button", { name: "넣기", exact: true }).click();
   await expect.poll(() => calls.sources.length).toBe(1);
   expect(calls.sources[0]).toEqual({ kind: "TEXT", name: null, text: edited });
   expect(calls.routes).toEqual([{ text }]);

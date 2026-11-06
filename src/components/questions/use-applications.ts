@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { addApplicationQuestion, answerClarification, createQuestionDraft, fetchApplications, fetchQuestion, retryQuestion, submitApplication, updateApplication, updateQuestionType } from "@/lib/api/questions";
 import { ApiError } from "@/lib/api/errors";
 import type { DraftFrame } from "@/lib/draft-frames";
-import type { Application, CreateApplicationRequest, QuestionDetail, QuestionSummary, QuestionType, UpdateApplicationRequest } from "@/lib/api/question-types";
+import type { Answer, Application, CreateApplicationRequest, QuestionDetail, QuestionSummary, QuestionType, UpdateApplicationRequest } from "@/lib/api/question-types";
 
 /** 고른 지원 하나 — 문항마다 추천 결과(넣은 순서, `application.questions` 와 같은 자리). 아직 못 받은 문항은 null(FE#60).
  *  같은 경험이 여러 문항에 추천됐는지는 details 로 계산한다(S-21) */
@@ -81,6 +81,15 @@ export function useApplications() {
       const pollFailures = { ...prev.pollFailures };
       for (const d of fresh) { details[d.id] = d; delete detailErrors[d.id]; delete pollFailures[d.id]; }
       return { ...prev, details, detailErrors, pollFailures, applications: patch(next.applications ?? prev.applications, fresh), questionId: next.questionId ?? prev.questionId };
+    });
+  }, []);
+
+  /** 답 칸이 바꾼 확정 답을 받아 둔 문항에 옮긴다 — 탭을 돌아와도 요청 없이 맞게. 먼저 출발한 폴링 응답(옛 답)은 번호표로 버린다 */
+  const keepAnswer = useCallback((id: number, answer: Answer | null) => {
+    ++generation.current;
+    setState(prev => {
+      const kept = prev.details[id];
+      return kept ? { ...prev, details: { ...prev.details, [id]: { ...kept, answer } } } : prev;
     });
   }, []);
 
@@ -204,6 +213,7 @@ export function useApplications() {
     refresh: () => { setState(prev => ({ ...prev, loading: true, error: null })); return load(); },
     /** 못 받은 문항 하나 다시 받기 — 오류를 지우면 위 효과가 다시 받는다 */
     reloadQuestion: (id: number) => setState(prev => { const detailErrors = { ...prev.detailErrors }; delete detailErrors[id]; return { ...prev, detailErrors }; }),
+    keepAnswer,
     selectQuestion,
     /** S-47: work.applicationId가 null이어도 questionId로 문항을 찾는다. */
     openLinkedQuestion: async (id: number) => {

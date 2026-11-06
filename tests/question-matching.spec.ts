@@ -24,6 +24,8 @@ test.afterEach(async ({ page }) => { expect(pageErrors.get(page)).toEqual([]); }
 const fake = (page: Page, options?: FakeOptions) => new FakeQuestionApi(options).install(page);
 const posts = (api: FakeQuestionApi) => api.calls.filter(c => c.call.startsWith("POST "));
 const result = (page: Page) => page.getByRole("tabpanel", { name: "선택한 문항", exact: true });
+// 분석 중에도 답 칸이 같이 보여 그쪽 로딩 status 가 함께 있을 수 있다 — 분석 안내만 고른다
+const analyzingNotice = (page: Page) => result(page).getByRole("status").filter({ hasText: "찾고 있어요" });
 // 지원 목록 — 1280 이상은 사이드바 안(FE#51), 그보다 좁으면 화면 안
 const list = (page: Page) => page.getByRole("complementary", { name: /^(지원 목록|사이드바)$/ });
 // 지원 목록의 첫 지원 — 사이드바엔 「자료 넣기」 같은 메뉴 버튼도 있어 지원 버튼(aria-pressed)만 센다
@@ -110,7 +112,7 @@ test("question input validates whitespace before calling the server and sends li
   await page.getByLabel("지원처 이름 (선택)").fill("o".repeat(100));
   await page.getByLabel("문항 1", { exact: true }).fill("x".repeat(5000));
   await page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true }).click();
-  await expect(result(page).getByRole("status")).toContainText("찾고 있어요");
+  await expect(analyzingNotice(page)).toBeVisible();
   expect(posts(api)).toEqual([{ call: "POST /api/applications", body: { organization: "o".repeat(100), questions: [{ text: "x".repeat(5000) }] } }]);
 });
 
@@ -122,7 +124,7 @@ test("analysis is polled until done, survives reload and keeps the new applicati
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(QUESTION_EXAMPLES[1].text);
   await page.getByLabel("지원처 이름 (선택)").fill("");
   await page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true }).click();
-  await expect(result(page).getByRole("status")).toContainText("찾고 있어요");
+  await expect(analyzingNotice(page)).toBeVisible();
   await expect(page).toHaveURL(/question=43/);
   await page.reload();
   await expect(result(page).getByRole("heading", { name: QUESTION_EXAMPLES[1].text, exact: true })).toBeVisible();
@@ -135,11 +137,11 @@ test("failed analysis shows the reason and retries the same saved question", asy
   const api = await fake(page, { fail: true });
   await page.goto("/questions");
   await compose(page, "실패 흐름 문항");
-  await expect(result(page).getByRole("status")).toContainText("찾고 있어요");
+  await expect(analyzingNotice(page)).toBeVisible();
   await expect(result(page).getByRole("heading", { name: "문항을 분석하지 못했어요" })).toBeVisible({ timeout: 10000 });
   await expect(result(page)).toContainText("AI 응답이 너무 오래 걸렸어요. 문항은 저장돼 있으니 다시 시도해 주세요.");
   await result(page).getByRole("button", { name: "다시 시도", exact: true }).click();
-  await expect(result(page).getByRole("status")).toContainText("찾고 있어요");
+  await expect(analyzingNotice(page)).toBeVisible();
   await expect(recommendation(page, 1)).toContainText("WebSocket", { timeout: 10000 });
   expect(posts(api).map(c => c.call)).toEqual(["POST /api/applications", "POST /api/questions/43/retry"]);
 });
@@ -207,7 +209,7 @@ test("application with several questions keeps order, analyzes each and shows th
   const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab");
   await expect(tabs).toHaveCount(2);
   await expect(tabs.first()).toHaveAttribute("aria-selected", "true");
-  await expect(result(page).getByRole("status")).toContainText("찾고 있어요");
+  await expect(analyzingNotice(page)).toBeVisible();
   expect(posts(api)).toEqual([{ call: "POST /api/applications", body: { organization: "OO 백엔드 부트캠프 · 2기", questions: [{ text: QUESTION_EXAMPLES[1].text }, { text: QUESTION_EXAMPLES[0].text }] } }]);
 
   const overlap = page.getByRole("region", { name: "여러 문항에 추천된 활동" });
@@ -602,7 +604,8 @@ test("add source from the application screen opens the dialog on the timeline on
 });
 
 // FE#60 — 탭 · 지원 고르기는 받아 둔 문항으로 바로. 지원 목록은 처음 · 넣을 때만, 처음 보는 문항만 그것만 받는다
-const gets = (api: FakeQuestionApi) => api.calls.filter(c => c.call.startsWith("GET /api/applications") || c.call.startsWith("GET /api/questions")).map(c => c.call);
+// 지원 목록 · 문항만 센다. 근거 점검 조회(S-45)는 문항과 별도로 답 칸이 읽는다
+const gets = (api: FakeQuestionApi) => api.calls.map(c => c.call).filter(c => /^GET \/api\/(applications|questions\/\d+)$/.test(c));
 const pollWarning = (page: Page) => page.getByRole("main").getByRole("alert");
 test("switching tabs and applications uses questions already loaded; only unseen ones are fetched", async ({ page }) => {
   const api = await fake(page);
@@ -637,7 +640,7 @@ test("while one question is analyzing only that question is polled and the chose
   await page.getByRole("button", { name: "팀 역할·협업 예시", exact: true }).click();
   await page.getByRole("button", { name: "문항 2개 넣고 경험 찾기", exact: true }).click();
   const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab");
-  await expect(result(page).getByRole("status")).toContainText("찾고 있어요");
+  await expect(analyzingNotice(page)).toBeVisible();
   await tabs.nth(1).click();
   await expect(tabs.nth(1)).toHaveAttribute("aria-selected", "true");
   await expect(recommendation(page, 1)).toBeVisible({ timeout: 10000 });
