@@ -1,7 +1,7 @@
 "use client";
 
-// 경험 거르기 — 역량 · 연도 · 분류 · 확인 필요만 (SPEC S-58). 경험 찾기 화면과 빠른 찾기 창(S-61)이 같이 쓴다
-import { CaretDownIcon } from "@phosphor-icons/react";
+// 경험 거르기 — 역량 · 연도 · 분류 · 확인 필요만 (SPEC S-58) · 저장한 것 (S-71). 경험 찾기 화면과 빠른 찾기 창(S-61)이 같이 쓴다
+import { BookmarkSimpleIcon, CaretDownIcon } from "@phosphor-icons/react";
 import { DropdownMenu } from "radix-ui";
 import { Button } from "@/components/ui/button";
 import { Select, optionsOf } from "@/components/ui/select";
@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 
 export type ExperienceFilters = Omit<ExperienceSearch, "query">;
 
-export const isFiltered = ({ competencies, year, sourceStatus, category }: ExperienceFilters) => !!(competencies?.length || year != null || sourceStatus || category);
+export const isFiltered = ({ competencies, year, sourceStatus, category, saved }: ExperienceFilters) => !!(competencies?.length || year != null || sourceStatus || category || saved);
 
 type Props = {
   value: ExperienceFilters;
@@ -28,6 +28,7 @@ export function ExperienceFilterBar({ value, onChange, years, compact, onDone, c
   const control = compact
     ? "min-h-11 rounded-full border border-hairline bg-canvas px-3 text-xs text-ink lg:min-h-8"
     : "h-11 rounded-md border border-hairline bg-canvas px-3 text-sm text-ink";
+  const check = cn("inline-flex min-h-11 cursor-pointer items-center gap-2 px-1 text-sm text-body", compact && "gap-1.5 text-xs lg:min-h-8");
   const competencies = value.competencies ?? [];
   const change = (patch: ExperienceFilters) => onChange({ ...value, ...patch });
 
@@ -67,7 +68,12 @@ export function ExperienceFilterBar({ value, onChange, years, compact, onDone, c
       </DropdownMenu.Root>
       <Select aria-label="연도" value={value.year == null ? "" : String(value.year)} onChange={(next) => change({ year: next ? Number(next) : undefined })} onClosed={onDone} className={`${control} w-auto`}
         options={[{ value: "", label: "모든 연도" }, ...years.map((y) => ({ value: String(y), label: `${y}년` }))]} />
-      <label className={cn("inline-flex min-h-11 cursor-pointer items-center gap-2 px-1 text-sm text-body", compact && "gap-1.5 text-xs lg:min-h-8")}>
+      <label className={check}>
+        <input type="checkbox" checked={value.saved === true} onChange={(e) => { change({ saved: e.target.checked ? true : undefined }); onDone?.(); }} className="size-4 accent-primary" />
+        <BookmarkSimpleIcon className="size-[1.15em] text-muted" aria-hidden="true" />
+        저장한 것
+      </label>
+      <label className={check}>
         <input type="checkbox" checked={value.sourceStatus === "NEEDS_REVIEW"} onChange={(e) => { change({ sourceStatus: e.target.checked ? "NEEDS_REVIEW" : undefined }); onDone?.(); }} className="size-4 accent-review" />
         확인 필요만
       </label>

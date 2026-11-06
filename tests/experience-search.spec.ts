@@ -103,7 +103,7 @@ test("a result shows the experience in one line, unfolds citations and opens the
   }
   expect(await noOverflow(page)).toBe(true);
 
-  await row.getByRole("button", { name: new RegExp(WEBSOCKET.content) }).click();
+  await row.getByRole("button", { name: new RegExp(`^${WEBSOCKET.content}`) }).click();
   await expect(page.getByRole("complementary", { name: "활동 세부" })).toBeVisible();
 });
 
