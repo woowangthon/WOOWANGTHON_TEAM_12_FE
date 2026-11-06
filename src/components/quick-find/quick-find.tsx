@@ -6,12 +6,14 @@ import { useRouter } from "next/navigation";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react";
 import { Dialog, DialogOverlay, DialogPortal, DialogTitle } from "@/components/ui/dialog";
+import type { ExperienceSearch } from "@/lib/api/types";
+import { experienceSearchHref } from "@/lib/experience-search-link";
 import { QuickFindPanel, type QuickFindTarget } from "./quick-find-panel";
 
 /** 지금 화면이 직접 처리하는 이동. 없으면 주소로 옮겨 간다 — 같은 화면 안에선 주소만 바뀌어 화면이 받아 처리해야 한다 */
 export type QuickFindActions = {
   openActivity?: (activityId: number) => void;
-  search?: (query: string) => void;
+  search?: (search: ExperienceSearch) => void;
   addSource?: () => void;
   addSourceBusy?: boolean;
   newApplication?: () => void;
@@ -48,7 +50,7 @@ export function QuickFindProvider({ children }: { children: ReactNode }) {
     setOpened(null);
     switch (target.kind) {
       case "activity": return a.openActivity ? a.openActivity(target.id) : router.push(`/experience?activity=${target.id}`);
-      case "search": return a.search ? a.search(target.query) : router.push(`/experience?q=${encodeURIComponent(target.query)}`);
+      case "search": return a.search ? a.search(target.search) : router.push(experienceSearchHref(target.search));
       case "source": return a.addSource ? a.addSource() : router.push("/experience?add=1");
       case "application": return a.newApplication ? a.newApplication() : router.push("/questions?new=1");
       case "experience": return router.push("/experience");
