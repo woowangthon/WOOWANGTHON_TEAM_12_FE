@@ -11,6 +11,7 @@ test.beforeEach(async ({ page }) => {
 async function setup(page: Page, connected = false) {
   const state = { connected, lastUsedAt: null as string | null, fail: "", invalid: false, lostResponse: false, sequence: 0, bodies: [] as (string | null)[] };
   await page.route("**/api/activities", r => r.fulfill({ json: { activities: [] } }));
+  await page.route("**/api/mcp/changes", r => r.fulfill({ json: { changes: [] } }));
   await page.route("**/api/mcp/connection", r => {
     const method = r.request().method();
     if (method !== "GET") state.bodies.push(r.request().postData());

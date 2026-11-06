@@ -10,6 +10,7 @@ import { CitationList } from "./citation-list";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ExperienceEditor } from "./experience-editor";
+import { ExperienceMcpChange } from "./experience-mcp-change";
 import { SupplementList } from "./supplement-list";
 import { UsedInChip, UsedInList } from "./used-in";
 
@@ -165,6 +166,7 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
           </>
         )}
       </div>
+      {!editing && <ExperienceMcpChange experience={e} readOnly={readOnly} onSaved={onSaved} />}
       {usedInOpen && usedIn.length > 0 && <UsedInList usedIn={usedIn} id={`used-in-${e.id}`} />}
       {citationsOpen && (
         <div className="mt-1.5 hidden lg:block">
