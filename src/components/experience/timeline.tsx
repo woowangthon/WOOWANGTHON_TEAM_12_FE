@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import type { ActivitySummary, Experience, Period } from "@/lib/api/types";
 import { APPLICATION_STATUS_LABEL } from "@/lib/api/question-types";
 import { groupYear, periodText, type Span } from "@/lib/period";
+import { CategoryIcon, categoryOf, categoryText } from "./activity-category";
 import type { TimelineApplication } from "./use-timeline-applications";
 
 type Edge = "start" | "end";
@@ -190,6 +191,8 @@ function Row({
 }) {
   const droppable = drop.dragging != null && drop.dragging.activityId !== activity.id;
   const over = droppable && drop.overId === activity.id;
+  const category = categoryOf(activity);
+  const label = categoryText(activity);
   const dragOver = (e: DragEvent) => {
     if (!droppable) return;
     e.preventDefault();
@@ -210,6 +213,7 @@ function Row({
         drop.onDrop(drop.dragging, activity.id);
       }}
       data-drop-target={droppable || undefined}
+      data-category={category ?? undefined}
     >
       <button
         type="button"
@@ -221,23 +225,24 @@ function Row({
           continuing ? "py-2" : "py-3.5",
           over
             ? "bg-surface-strong outline-2 -outline-offset-2 outline-ink outline-dashed"
-            : selected ? "bg-mark-soft" : "hover:bg-surface-soft",
+            : selected ? "bg-category-soft" : "hover:bg-surface-soft",
           droppable && !over && "outline-1 -outline-offset-1 outline-hairline outline-dashed",
         )}
       >
         <span className="grid min-w-0 gap-0.5">
           <span
             className={cn(
-              "leading-snug",
+              "flex items-start gap-1.5 leading-snug",
               continuing ? "text-sm font-medium text-muted lg:text-[15px]" : "text-base font-semibold lg:text-[17px]",
               selected && "text-ink",
             )}
           >
-            {activity.name}
+            {category && <CategoryIcon category={category} className="mt-[0.3em]" />}
+            <span className="min-w-0">{activity.name}{continuing && label && <span className="sr-only"> {label}</span>}</span>
           </span>
           {activity.mergeSuggestion && !continuing && <span className="text-xs font-medium text-muted">AI 제안 · 기존 활동과 같아 보여요</span>}
           <span className={cn("text-muted tabular-nums", continuing ? "text-[13px]" : "text-[13px] lg:text-sm")}>
-            {over ? <span className="font-medium text-ink">여기에 놓으면 이 활동으로 옮겨요</span> : sub}
+            {over ? <span className="font-medium text-ink">여기에 놓으면 이 활동으로 옮겨요</span> : <>{sub}{!continuing && label && <span className="ml-2.5 inline-block whitespace-nowrap">{label}</span>}</>}
           </span>
         </span>
         {band}
@@ -288,17 +293,18 @@ function PeriodLabel({ period }: { period: Period }) {
     <>
       {periodText({ start: period.start, end: null, ongoing: false })} –{" "}
       <span className="ml-0.5 inline-flex items-center gap-1.5 font-semibold text-ink">
-        <span className="size-1.5 rounded-full bg-mark" aria-hidden="true" />
+        <span className="size-1.5 rounded-full bg-category" aria-hidden="true" />
         진행 중
       </span>
     </>
   );
 }
 
-const ON = "color-mix(in srgb, var(--mark) 90%, var(--mark-soft))";
-const ON_FAINT = "color-mix(in srgb, var(--mark) 35%, var(--mark-soft))";
+// 색은 줄의 data-category 를 물려받는다
+const ON = "color-mix(in srgb, var(--category) 90%, var(--category-soft))";
+const ON_FAINT = "color-mix(in srgb, var(--category) 35%, var(--category-soft))";
 
-/** 그해 1–12월 12칸. 활동한 달은 산호, 진행 중이면 마지막 칸을 흐리게 (DESIGN.md 「기간 띠」)
+/** 그해 1–12월 12칸. 활동한 달은 분류 색(미분류는 회색), 진행 중이면 마지막 칸을 흐리게 (DESIGN.md 「기간 띠」)
  *  PC 는 줄에 마우스를 올리면 그해 안에 있는 시작 · 종료 끝에 손잡이가 나와 끌 수 있다 (S-17) */
 function PeriodBand({
   id,
@@ -369,7 +375,7 @@ function PeriodBand({
         const month = first + i;
         const active = month >= span.start && month <= span.end;
         const fade = active && ongoing && month === span.end;
-        const background = !active ? off : fade ? `linear-gradient(to right, ${on}, var(--mark-soft))` : on;
+        const background = !active ? off : fade ? `linear-gradient(to right, ${on}, var(--category-soft))` : on;
         return <i key={i} className="h-1.5 rounded-[2px]" style={{ background }} aria-hidden="true" />;
       })}
       {onEdge && inYear(span.start) && handle("start")}

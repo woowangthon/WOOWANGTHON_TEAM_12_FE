@@ -11,6 +11,7 @@ import type { ActivityDetail, ActivitySummary, Experience } from "@/lib/api/type
 import { durationText, periodText } from "@/lib/period";
 import { CitationList, SourceFile } from "./citation-list";
 import { ExperienceItem, ExperienceMeta } from "./experience-item";
+import { ActivityCategoryField } from "./activity-category";
 import { ActivityEditor } from "./activity-editor";
 import { ActivityNote } from "./activity-note";
 import { ActivityLinks } from "./activity-links";
@@ -33,6 +34,7 @@ type Props = {
   onRetry: () => void;
   onActivitySaved: (activity: ActivitySummary) => void;
   onNoteSaved: (activity: ActivitySummary) => void;
+  onCategorySaved: (activity: ActivitySummary) => void;
   onExperienceSaved: (experience: Experience) => void;
   onExperienceAdded: (experience: Experience) => void;
   onExperienceDelete: (experience: Experience) => void;
@@ -53,7 +55,7 @@ type Props = {
   addSourceStatus?: ReactNode;
 };
 
-export function ActivityDetailView({ summary, state, now, onClose, onRetry, onActivitySaved, onNoteSaved, onExperienceSaved, onExperienceAdded, onExperienceDelete, onExperienceMove, onDragChange, draggingId, onMergeRequest, onSuggestedMerge, onSuggestionDismiss, onOpenActivity, onAddSource, addSourceBusy, addSourceStatus, readOnly = false }: Props) {
+export function ActivityDetailView({ summary, state, now, onClose, onRetry, onActivitySaved, onNoteSaved, onCategorySaved, onExperienceSaved, onExperienceAdded, onExperienceDelete, onExperienceMove, onDragChange, draggingId, onMergeRequest, onSuggestedMerge, onSuggestionDismiss, onOpenActivity, onAddSource, addSourceBusy, addSourceStatus, readOnly = false }: Props) {
   const [editing, setEditing] = useState(false);
   const activity = state.status === "ready" ? state.activity : null;
   const current = activity ?? summary;
@@ -101,6 +103,7 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
         </div>
         {activity && !editing && !readOnly && <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>활동 수정</Button>}
         {editing && <ActivityEditor activity={{ ...summary, name: current.name, period }} onCancel={() => setEditing(false)} onSaved={(result) => { onActivitySaved(result); setEditing(false); }} />}
+        <ActivityCategoryField activity={summary} onSaved={onCategorySaved} readOnly={readOnly} />
         <p className="m-0 flex flex-wrap items-center gap-2.5 text-sm text-body tabular-nums">
           {periodText(period)}
           <span className="text-muted">{durationText(period, now)}</span>
