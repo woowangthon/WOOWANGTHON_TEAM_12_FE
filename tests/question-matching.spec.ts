@@ -614,7 +614,7 @@ test("add source from the application screen opens the dialog on the timeline on
     await expect(result(page)).toBeVisible();
     if (process.env.UPDATE_QUESTION_SCREENSHOTS === "1") await page.screenshot({ path: `docs/fe-64/apply-${width}.png`, style: "nextjs-portal { display: none !important; }" });
     await openAddSource(page);
-    const dialog = page.getByRole("dialog", { name: "자료 넣기" });
+    const dialog = page.getByRole("dialog", { name: "자료 가져오기" });
     await expect(dialog).toBeVisible();
     await expect(page).toHaveURL(/\/experience$/);
     await page.reload();

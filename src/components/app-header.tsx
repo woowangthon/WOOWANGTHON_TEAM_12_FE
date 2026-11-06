@@ -225,6 +225,6 @@ export type AddSourceProps = { onClick: () => void; onRecord: () => void; busy?:
 
 export function AddSourceButton({ onClick, busy, className }: Omit<AddSourceProps, "onRecord"> & { className?: string }) {
   return <Button onClick={onClick} disabled={busy} title={busy ? BUSY : undefined} className={className}>
-    <PlusIcon />자료 넣기
+    <PlusIcon />자료 가져오기
   </Button>;
 }

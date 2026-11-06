@@ -27,7 +27,7 @@ type Shortcut = { kind: "source" | "record" | "application" | "experience" | "ho
 const TABS: { value: Tab; label: string }[] = [{ value: "find", label: "찾기" }, { value: "ask", label: "차곡이에게" }, { value: "go", label: "바로가기" }];
 const PLACEHOLDER: Record<Tab, string> = { find: "경험 찾기", ask: "한 줄로 물어보세요", go: "어디로 갈까요?" };
 const SHORTCUTS: Shortcut[] = [
-  { kind: "source", label: "자료 넣기", detail: "README · 회고 · 노트를 넣는 창을 열어요", icon: PlusIcon },
+  { kind: "source", label: "자료 가져오기", detail: "README · 회고 · 노트를 넣는 창을 열어요", icon: PlusIcon },
   { kind: "record", label: "직접 기록하기", detail: "오늘 한 일이나 든 생각을 한 줄로 적어요", icon: PencilSimpleIcon },
   { kind: "application", label: "새 지원", detail: "지원처와 문항을 넣는 화면으로 가요", icon: FileTextIcon },
   { kind: "experience", label: "내 경험", detail: "타임라인으로 가요", icon: StackIcon },

@@ -173,7 +173,7 @@ test("auth check 404 does not pass without login — it is an error with retry",
   await expect(page.getByRole("heading", { name: "로그인 상태를 확인하지 못했어요" })).toBeVisible();
   await expect(page.getByText("Auth check failed")).toBeVisible();
   await expect(page.getByRole("heading", { name: "로그인", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "자료 넣기", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "자료 가져오기", exact: true })).toHaveCount(0);
   state.meError = 0;
   await page.getByRole("button", { name: "다시 시도" }).click();
   await timelineReady(page);
