@@ -8,29 +8,29 @@ import type { Answer, SaveNewFactRequest } from "@/lib/api/question-types";
 type Failure = { message: string; action: "read" | "confirm" | "find"; text?: string };
 const message = (e: unknown) => e instanceof Error ? e.message : "처리하지 못했어요. 다시 시도해 주세요.";
 
-/** 문항별로 마운트한다. 조회 재시도는 분석을 다시 시작하지 않는다. */
-export function useConfirmedAnswer(questionId: number) {
-  const [answer, setAnswer] = useState<Answer | null>(null);
-  const [initialText, setInitialText] = useState<string>();
-  const [ready, setReady] = useState(false);
+/** 문항별로 마운트한다. 조회 재시도는 분석을 다시 시작하지 않는다.
+ *  saved 는 화면이 받아 둔 문항의 답이다 — 탭 전환에 요청을 더 보내지 않는다(FE#60). 바뀐 답은 onChange 로 돌려줘 다시 올 때도 맞게 한다 */
+export function useConfirmedAnswer(questionId: number, saved: Answer | null, onChange: (id: number, answer: Answer | null) => void) {
+  const [answer, setAnswer] = useState(saved);
+  const [initialText] = useState(saved?.text);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<Failure | null>(null);
   const [pollFailures, setPollFailures] = useState(0);
-  const mounted = useRef(false), pending = useRef(false), initialized = useRef(false);
+  const mounted = useRef(false), pending = useRef(false), latest = useRef(saved);
+  const keep = useCallback((next: Answer | null) => {
+    latest.current = next;
+    onChange(questionId, next);
+    if (mounted.current) setAnswer(next);
+  }, [onChange, questionId]);
   const read = useCallback(async () => {
     const question = await fetchQuestion(questionId);
-    if (!mounted.current) return;
-    const saved = question.answer ?? null;
-    setAnswer(saved); setFailure(null); setPollFailures(0);
-    if (!initialized.current) {
-      setInitialText(saved?.text); setReady(true); initialized.current = true;
-    }
-  }, [questionId]);
+    keep(question.answer ?? null);
+    if (mounted.current) { setFailure(null); setPollFailures(0); }
+  }, [questionId, keep]);
   useEffect(() => {
     mounted.current = true;
-    void read().catch(e => { if (mounted.current) setFailure({ message: message(e), action: "read" }); });
     return () => { mounted.current = false; };
-  }, [read]);
+  }, []);
 
   useEffect(() => {
     if (answer?.newFacts?.status !== "ANALYZING" || busy || pollFailures >= 3) return;
@@ -38,13 +38,13 @@ export function useConfirmedAnswer(questionId: number) {
     const timer = setTimeout(async () => {
       try {
         const q = await fetchQuestion(questionId);
-        if (!disposed) { setAnswer(q.answer ?? null); setFailure(null); setPollFailures(0); }
+        if (!disposed) { keep(q.answer ?? null); setFailure(null); setPollFailures(0); }
       } catch (e) {
         if (!disposed) { setFailure({ message: message(e), action: "read" }); setPollFailures(n => n + 1); }
       }
     }, 2000);
     return () => { disposed = true; clearTimeout(timer); };
-  }, [answer, busy, pollFailures, questionId]);
+  }, [answer, busy, pollFailures, questionId, keep]);
 
   const run = async (action: () => Promise<void>) => {
     if (pending.current) return;
@@ -54,8 +54,8 @@ export function useConfirmedAnswer(questionId: number) {
   };
   const find = async () => {
     try {
-      const saved = await findNewFacts(questionId);
-      if (mounted.current) { setAnswer(saved); setPollFailures(0); }
+      keep(await findNewFacts(questionId));
+      if (mounted.current) setPollFailures(0);
     } catch (e) {
       if (!mounted.current) return;
       if (e instanceof ApiError && e.code === "NEW_FACTS_IN_PROGRESS") {
@@ -69,8 +69,7 @@ export function useConfirmedAnswer(questionId: number) {
   };
   const confirm = (text: string) => run(async () => {
     try {
-      const saved = await confirmAnswer(questionId, text);
-      if (mounted.current) setAnswer(saved);
+      keep(await confirmAnswer(questionId, text));
       // 문항을 떠났어도 확정 한 번의 후보 찾기는 끝까지 시작한다.
       await find();
     } catch (e) {
@@ -89,9 +88,9 @@ export function useConfirmedAnswer(questionId: number) {
   const decide = (id: number, data?: SaveNewFactRequest) => run(async () => {
     try {
       const experience = data ? await saveNewFact(id, data) : (await dismissNewFact(id), null);
-      if (!mounted.current) return;
-      setAnswer(prev => prev?.newFacts ? { ...prev, newFacts: { ...prev.newFacts, candidates: prev.newFacts.candidates.map(c => c.id === id
-        ? { ...c, status: experience ? "SAVED" : "DISMISSED", experienceId: experience?.id ?? null, activityId: experience?.activityId ?? c.activityId, ...(data ? { content: data.content, actor: data.actor } : {}) } : c) } } : prev);
+      const prev = latest.current;
+      if (prev?.newFacts) keep({ ...prev, newFacts: { ...prev.newFacts, candidates: prev.newFacts.candidates.map(c => c.id === id
+        ? { ...c, status: experience ? "SAVED" : "DISMISSED", experienceId: experience?.id ?? null, activityId: experience?.activityId ?? c.activityId, ...(data ? { content: data.content, actor: data.actor } : {}) } : c) } });
     } catch (e) {
       // 다른 탭에서 결정했거나 다시 확정해 사라진 후보는 최신 상태를 읽는다.
       if (e instanceof ApiError && ["NEW_FACT_ALREADY_DECIDED", "NEW_FACT_NOT_FOUND"].includes(e.code)) {
@@ -100,5 +99,5 @@ export function useConfirmedAnswer(questionId: number) {
       throw e;
     }
   });
-  return { answer, initialText, ready, busy, failure, pollFailures, confirm, refresh, retryFind, decide };
+  return { answer, initialText, busy, failure, pollFailures, confirm, refresh, retryFind, decide };
 }

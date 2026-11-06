@@ -178,11 +178,30 @@ test("409 finds existing job without reposting; initial read failure recovers wi
   await expect(s.getByRole("textbox", { name: "경험 문장" })).toHaveCount(2);
   expect(state.finds).toBe(1); expect(state.puts).toHaveLength(0);
   state.readError = true; await page.reload();
-  await expect(s.getByRole("alert")).toContainText("후보 상태 연결 실패");
+  // 답은 받아 둔 문항에서 읽으므로(FE#143) 첫 조회 실패는 화면의 「다시 불러오기」로 복구한다
+  const panel = page.getByRole("tabpanel", { name: "선택한 문항", exact: true });
+  await expect(panel.getByRole("alert")).toContainText("후보 상태 연결 실패");
+  await expect(s.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toHaveCount(0);
   state.readError = false;
-  await s.getByRole("button", { name: "확정 상태 다시 확인" }).click();
+  await panel.getByRole("button", { name: "다시 불러오기", exact: true }).click();
   await expect(s.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toHaveValue(TEXT);
   expect(state.finds).toBe(1);
+});
+
+test("confirmed answer and its candidates survive leaving the tab without reading the question again", async ({ page }) => {
+  const { state } = await setup(page); const s = screen(page);
+  await s.getByRole("textbox", { name: "내가 쓴 답", exact: true }).fill(TEXT);
+  await s.getByRole("button", { name: "확정", exact: true }).click();
+  await expect(s.getByRole("textbox", { name: "경험 문장" })).toHaveCount(2);
+  const reads = state.reads;
+  const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab");
+  await tabs.nth(1).click();
+  await expect(tabs.nth(1)).toHaveAttribute("aria-selected", "true");
+  await tabs.first().click();
+  await expect(s.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toHaveValue(TEXT);
+  await expect(s.getByText("답을 확정했어요", { exact: true })).toBeVisible();
+  await expect(s.getByRole("textbox", { name: "경험 문장" })).toHaveCount(2);
+  expect(state.reads).toBe(reads);
 });
 
 
