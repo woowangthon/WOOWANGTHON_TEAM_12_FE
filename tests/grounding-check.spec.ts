@@ -147,6 +147,39 @@ test("409 reads the in-progress check and never reposts automatically; refresh c
   expect(state.posts).toHaveLength(1);
 });
 
+test("settled checks are not read again on tab return; analyzing checks are, and their result shows", async ({ page }) => {
+  const { state } = await setup(page, structuredClone(GROUNDING_EXAMPLE));
+  const s = screen(page), input = s.getByRole("textbox");
+  const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab");
+  await expect(input).toBeEnabled();
+  const gets = state.gets;
+  await tabs.nth(1).click();
+  await expect(input).toHaveValue("");
+  await tabs.first().click();
+  await expect(input).toBeEnabled();
+  await expect(s.getByRole("heading", { name: "문장별 근거 점검" })).toBeVisible();
+  expect(state.gets).toBe(gets);
+
+  // 점검 중에 떠났다 돌아오면 GET 으로 이어 가고, 끝난 결과는 다시 받지 않는다
+  state.hold = true;
+  await input.fill("떠났다 돌아올 글");
+  await s.getByRole("button", { name: "근거 점검", exact: true }).click();
+  await expect(s.getByRole("button", { name: "근거 점검 중…" })).toBeDisabled();
+  await tabs.nth(1).click();
+  await expect(input).toHaveValue("");
+  state.hold = false;
+  await tabs.first().click();
+  await expect(input).toHaveValue("떠났다 돌아올 글");
+  await expect(s.getByRole("heading", { name: "문장별 근거 점검" })).toBeVisible();
+  expect(state.posts).toHaveLength(1);
+  const settled = state.gets;
+  await tabs.nth(1).click();
+  await expect(input).toHaveValue("");
+  await tabs.first().click();
+  await expect(input).toHaveValue("떠났다 돌아올 글");
+  expect(state.gets).toBe(settled);
+});
+
 test("failed recommendation does not block answer checks, and late POST cannot overwrite another question", async ({ page }) => {
   const { state, api } = await setup(page);
   api.edit(41, q => { q.status = "FAILED"; q.error = { code: "AI_FAILED", message: "추천 실패" }; q.recommendations = []; });
