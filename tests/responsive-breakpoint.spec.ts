@@ -36,8 +36,12 @@ test("responsive breakpoint: JS and CSS agree at the browser default font size",
     if (wide) {
       await expect(page.locator("#application-list")).toHaveCount(0);
       await expect(sidebar.getByRole("button", { name: /OO 연합 동아리/ })).toBeVisible();
-    } else {
+    } else if (desktop) {
       await expect(page.locator("#application-list")).toBeVisible();
+    } else {
+      // 좁으면 지원을 연 동안 목록은 「지원 목록으로」 뒤에 있다(FE#159)
+      await expect(page.locator("#application-list")).toBeHidden();
+      await expect(page.getByRole("button", { name: "지원 목록으로", exact: true })).toBeVisible();
     }
     // 작업 면이 비워 둔 자리도 CSS lg / xl 전환과 같아야 한다(FE#53).
     const padding = await page.locator(".app-shell").evaluate(el => parseFloat(getComputedStyle(el).paddingLeft));
