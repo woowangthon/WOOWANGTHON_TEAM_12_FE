@@ -138,7 +138,8 @@ test("polling stops after repeated read failures and recovers with GET only", as
   await expect(s.getByText(/새 경험 후보를 찾고 있어요/)).toBeVisible(); state.readError = true;
   await expect(s.getByRole("alert")).toContainText("자동 확인을 멈췄어요", { timeout: 12000 });
   const reads = state.reads;
-  await page.clock.install(); await page.clock.runFor(5000); expect(state.reads).toBe(reads); await page.clock.resume();
+  // 타이머가 이미 걸린 뒤라 가짜 시계로는 못 돌린다. 폴링 간격 2초를 넘겨 실제로 기다린다(FE#170).
+  await page.waitForTimeout(2500); expect(state.reads).toBe(reads);
   state.readError = false; state.hold = false;
   await s.getByRole("button", { name: "확정 상태 다시 확인" }).click();
   await expect(s.getByRole("textbox", { name: "경험 문장" })).toHaveCount(2);
