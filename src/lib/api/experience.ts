@@ -5,13 +5,13 @@
 
 import { MOCK_ACTIVITIES } from "../mock/activities";
 import { mockAddedActivities, mockFetchJob, mockRetryJob, mockSubmitBatch, mockSubmitSource, mockTargetExperiences } from "../mock/analysis";
-import { mockSearchExperiences } from "../mock/experience-search";
+import { MOCK_CATEGORY, mockSearchExperiences } from "../mock/experience-search";
 import { mockSharedIds } from "../mock/share";
 import { ApiError } from "./errors";
 import { isMockMode, request } from "./http";
 import { activityNoteError } from "./editing";
-import type { ActivityDetail, ActivityLink, ActivitySummary, Job, SourceRequest, Experience, ExperienceSearch, ExperienceSearchResult, Supplement, UpdateActivityRequest, UpdateExperienceRequest, CreateExperienceRequest } from "./types";
-import { COMPETENCIES, MAX_TEXT_LENGTH, type SourceSubmitted } from "./types";
+import type { ActivityCategory, ActivityDetail, ActivityLink, ActivitySummary, Job, SourceRequest, Experience, ExperienceSearch, ExperienceSearchResult, Supplement, UpdateActivityRequest, UpdateExperienceRequest, CreateExperienceRequest } from "./types";
+import { ACTIVITY_CATEGORIES, COMPETENCIES, MAX_TEXT_LENGTH, type SourceSubmitted } from "./types";
 
 export { ApiError, isMockMode };
 
@@ -23,13 +23,23 @@ export type MockAnalysis = "fail" | "empty" | "miss" | null;
 
 // MOCK(timeline-activities): 목 경험 수정·추가는 현재 페이지 실행 중에만 유지한다.
 const mockExperiences = new Map<number, Experience[]>();
+// MOCK(timeline-activities): 목 분류의 「AI」는 표시 확인용이고 AI 판단이 아니다. 고른 분류도 이 페이지 메모리에만 남는다(S-57).
+const mockCategories = new Map<number, ActivityCategory | null>();
+const mockCategory = (id: number) => {
+  if (mockCategories.has(id)) {
+    const category = mockCategories.get(id) ?? null;
+    return { category, categoryBy: category && ("USER" as const) };
+  }
+  const category = MOCK_CATEGORY[id] ?? null;
+  return { category, categoryBy: category && ("AI" as const) };
+};
 export const allActivities = () => {
   const shared = mockSharedIds();
   const attached = mockTargetExperiences();
   return [...MOCK_ACTIVITIES, ...mockAddedActivities()].map((activity) => {
     const base = mockExperiences.get(activity.id) ?? activity.experiences;
     const added = (attached[activity.id] ?? []).filter((e) => !base.some((b) => b.id === e.id));
-    return { ...activity, experiences: [...base, ...added].map((e) => ({ ...e, shared: shared.has(e.id) })) };
+    return { ...activity, ...mockCategory(activity.id), experiences: [...base, ...added].map((e) => ({ ...e, shared: shared.has(e.id) })) };
   });
 };
 
@@ -95,7 +105,17 @@ export async function updateActivity(id: number, data: UpdateActivityRequest): P
     if (invalid) throw new ApiError("INVALID_REQUEST", invalid);
     data = { ...data, note: data.note?.trim() || null };
   }
+  if (isMockMode() && data.category !== undefined) {
+    const found = allActivities().find((a) => a.id === id);
+    if (!found) throw new ApiError("ACTIVITY_NOT_FOUND", `활동 ${id} 이 없습니다`);
+    mockCategories.set(id, data.category);
+    const { experiences, ...rest } = found;
+    return { ...rest, ...mockCategory(id), experienceCount: experiences.length };
+  }
   const activity = await request<ActivitySummary>(`/activities/${id}`, data);
+  if (data.category !== undefined && activity.category !== null && !(typeof activity.category === "string" && Object.hasOwn(ACTIVITY_CATEGORIES, activity.category))) {
+    throw new ApiError("INVALID_RESPONSE", "저장 응답에 분류가 없어요. 서버 버전을 확인하고 다시 시도해 주세요.");
+  }
   if (data.note !== undefined && activity.note !== null && typeof activity.note !== "string") {
     throw new ApiError("INVALID_RESPONSE", "저장 응답에 계기가 없어요. 서버 버전을 확인하고 다시 시도해 주세요.");
   }
