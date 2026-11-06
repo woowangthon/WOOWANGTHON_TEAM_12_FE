@@ -1,6 +1,7 @@
 "use client";
 
-// 지금 돌고 있는 분석 작업 하나를 따라간다 — 2초마다 상태를 묻고, jobId 를 브라우저 저장소에 둬서 새로고침해도 이어진다 (SPEC S-02)
+// 지금 돌고 있는 분석 작업들을 따라간다 — 2초마다 상태를 묻고, jobId 를 브라우저 저장소에 둬서 새로고침해도 이어진다 (SPEC S-02 · S-59)
+// 작업 하나면 끝날 때 사라지고, 묶음(여러 파일)이면 파일마다 상태가 보이도록 사용자가 닫을 때까지 남는다
 import { useEffect, useRef, useState } from "react";
 import { ApiError, fetchJob, retryJob, isMockMode } from "@/lib/api/experience";
 import type { Job } from "@/lib/api/types";
@@ -9,129 +10,170 @@ const POLL_MS = 2000;
 // 목 작업과 다른 서버의 작업 ID 를 현재 서버에 보내지 않는다.
 const storageKey = () => `analysis:pending-job:${isMockMode() ? "mock" : process.env.NEXT_PUBLIC_API_BASE_URL!.trim().replace(/\/+$/, "")}`;
 
-type Pending = { jobId: number; name: string };
+export type PendingJob = {
+  jobId: number;
+  name: string;
+  /** 「자료 더하기」(S-60)로 넣은 활동 */
+  targetActivityId?: number;
+};
+type Stored = PendingJob & {
+  /** 완료를 이미 알렸다 — 새로고침 뒤 다시 알리지 않는다 */
+  notified?: boolean;
+};
 
-export type TrackedJob = Pending & {
+export type TrackedJob = Stored & {
   /** 마지막으로 받은 상태. 아직 한 번도 못 받았으면 null */
   job: Job | null;
   /** 상태 조회 자체가 실패했다(네트워크 등) — 분석이 실패한 것과 다르다 */
   checkFailed: boolean;
   checkError?: string;
+  /** 서버에 없는 작업 — 저장소에 다시 남기지 않는다 */
+  gone?: boolean;
 };
 
-function loadPending(): Pending | null {
+const isStored = (value: Stored | null): value is Stored =>
+  !!value && Number.isSafeInteger(value.jobId) && value.jobId > 0 && typeof value.name === "string";
+const stored = ({ jobId, name, targetActivityId, notified }: Stored): Stored => ({ jobId, name, targetActivityId, notified });
+
+function loadPending(): Stored[] {
   try {
     const raw = typeof window === "undefined" ? null : localStorage.getItem(storageKey());
-    const value = raw ? JSON.parse(raw) : null;
-    return value && Number.isSafeInteger(value.jobId) && value.jobId > 0 && typeof value.name === "string"
-      ? { jobId: value.jobId, name: value.name }
-      : null;
+    const value = raw ? JSON.parse(raw) : [];
+    return (Array.isArray(value) ? value : [value]).filter(isStored).map(stored);
   } catch {
-    return null;
+    return [];
   }
 }
 
 /** 넣은 자료의 분석을 아직 따라가는 중인가 — 다른 화면에서 「자료 넣기」로 넘어올 때(FE#64) */
-export const hasPendingAnalysis = () => loadPending() !== null;
+export const hasPendingAnalysis = () => loadPending().some((p) => !p.notified);
 
-function savePending(pending: Pending | null) {
+function savePending(pending: Stored[]) {
   try {
-    if (pending) localStorage.setItem(storageKey(), JSON.stringify(pending));
+    if (pending.length) localStorage.setItem(storageKey(), JSON.stringify(pending));
     else localStorage.removeItem(storageKey());
   } catch {
     // 저장소를 못 쓰면 새로고침 뒤 이어지지 않을 뿐이다
   }
 }
 
-/** onCompleted — 분석이 끝났을 때 한 번(활동이 0개여도) */
-export function useAnalysisJob(onCompleted: (job: Job) => void | Promise<void>) {
-  const [tracked, setTracked] = useState<TrackedJob | null>(null);
+export const isWaiting = (t: TrackedJob) => !t.checkFailed && (t.job == null || t.job.status === "ANALYZING" || t.job.status === "QUEUED");
+
+/** 하나만 넣은 작업이 끝났을 때 더 보일 게 없나. 활동이 생긴 완료는 알림으로 끝, 0개 · 대상 못 찾음은 상태 화면에 남긴다 */
+const nothingToShow = (job: Job) => (job.targetActivityId == null ? job.activityIds.length > 0 : job.targetMatched === true);
+
+/** onCompleted — 작업마다 분석이 끝났을 때 한 번(활동이 0개여도). batch 면 묶음 안의 파일이다 */
+export function useAnalysisJob(onCompleted: (job: Job, context: { batch: boolean }) => void | Promise<void>) {
+  const [jobs, setJobs] = useState<TrackedJob[]>([]);
+  const [tick, setTick] = useState(0);
+  const jobsRef = useRef<TrackedJob[]>([]);
   const generation = useRef(0);
-  const retrying = useRef(false);
+  const retrying = useRef(new Set<number>());
   const onCompletedRef = useRef(onCompleted);
   useEffect(() => {
     onCompletedRef.current = onCompleted;
   });
 
-  const jobId = tracked?.jobId;
   useEffect(() => {
     // 서버 렌더링과 첫 클라이언트 렌더링을 같게 두고 저장소를 복원한다.
     const timer = setTimeout(() => {
       if (generation.current !== 0) return;
       const pending = loadPending();
-      if (pending) setTracked({ ...pending, job: null, checkFailed: false });
+      if (!pending.length) return;
+      jobsRef.current = pending.map((p) => ({ ...p, job: null, checkFailed: false }));
+      setJobs(jobsRef.current);
     }, 0);
     return () => clearTimeout(timer);
   }, []);
-  const waiting = !!tracked && !tracked.checkFailed && (tracked.job == null || tracked.job.status === "ANALYZING");
+
+  const waitingIds = jobs.filter(isWaiting).map((t) => t.jobId).join(",");
+  // 새로고침 직후 · 다시 확인 뒤 첫 조회는 바로
+  const unknown = jobs.some((t) => isWaiting(t) && t.job == null);
 
   useEffect(() => {
-    if (jobId == null || !waiting) return;
+    if (!waitingIds) return;
+    const ids = waitingIds.split(",").map(Number);
     let cancelled = false;
     const version = generation.current;
-    const timer = setTimeout(
-      () => {
-        fetchJob(jobId).then(
-          (job) => {
-            if (cancelled || version !== generation.current) return;
-            // 활동이 생긴 완료는 알림으로 끝 — 더 들고 있지 않는다. 0개 · 실패는 상태 화면에 남겨 둔다
-            const done = job.status === "COMPLETED" && job.activityIds.length > 0;
-            setTracked((prev) => (prev?.jobId !== jobId ? prev : done ? null : { ...prev, job }));
-            if (job.status === "COMPLETED") {
-              savePending(null);
-              void onCompletedRef.current(job);
-            }
-          },
-          (e) => {
-            if (cancelled || version !== generation.current) return;
-            // 저장해 둔 작업이 서버에 없다(지워졌거나 다른 브라우저 저장소) — 더 따라갈 게 없다
-            if (e instanceof ApiError && e.code === "JOB_NOT_FOUND") {
-              savePending(null);
-            }
-            setTracked((prev) => (prev?.jobId === jobId ? {
-              ...prev, checkFailed: true,
-              checkError: e instanceof Error ? e.message : "분석 상태를 확인하지 못했어요.",
-            } : prev));
-          },
-        );
-      },
-      // 새로고침 직후 첫 조회는 바로
-      tracked?.job == null ? 0 : POLL_MS,
-    );
+    const timer = setTimeout(async () => {
+      const results = await Promise.allSettled(ids.map((id) => fetchJob(id)));
+      if (cancelled) return;
+      // 그새 다시 시도 · 다시 확인을 눌렀다 — 이 응답은 버리고 다음 차례에 다시 묻는다
+      if (version !== generation.current) return setTick((n) => n + 1);
+      const current = jobsRef.current;
+      const batch = current.length > 1;
+      const completed: Job[] = [];
+      commit(current.flatMap((t): TrackedJob[] => {
+        const index = ids.indexOf(t.jobId);
+        if (index < 0) return [t];
+        const result = results[index];
+        if (result.status === "rejected") {
+          const e = result.reason;
+          // 저장해 둔 작업이 서버에 없다(지워졌거나 다른 브라우저 저장소) — 더 따라갈 게 없다
+          const gone = e instanceof ApiError && e.code === "JOB_NOT_FOUND";
+          return [{ ...t, gone, checkFailed: true, checkError: e instanceof Error ? e.message : "분석 상태를 확인하지 못했어요." }];
+        }
+        const job = result.value;
+        if (job.status !== "COMPLETED") return [{ ...t, job }];
+        if (!t.notified) completed.push(job);
+        return !batch && nothingToShow(job) ? [] : [{ ...t, job, notified: true }];
+      }));
+      setTick((n) => n + 1);
+      completed.forEach((job) => void onCompletedRef.current(job, { batch }));
+    }, unknown ? 0 : POLL_MS);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [jobId, waiting, tracked?.job]);
+  }, [waitingIds, unknown, tick]);
+
+  function commit(next: TrackedJob[]) {
+    jobsRef.current = next;
+    setJobs(next);
+    // 하나만 넣은 작업이 끝나면 다시 볼 게 없다. 「찾지 못했어요」는 새로고침해도 남긴다
+    const finished = (t: TrackedJob) => next.length === 1 && t.job?.status === "COMPLETED" && t.targetActivityId == null;
+    savePending(next.filter((t) => !t.gone && !finished(t)).map(stored));
+  }
+
+  /** 분석 실패 → 같은 원본으로 다시. 묶음의 작업도 차례를 기다리지 않고 바로 돈다 */
+  const retryOne = async (jobId: number) => {
+    if (retrying.current.has(jobId)) return;
+    retrying.current.add(jobId);
+    ++generation.current;
+    try {
+      const job = await retryJob(jobId);
+      ++generation.current;
+      commit(jobsRef.current.map((t) => (t.jobId === jobId ? { ...t, job, gone: false, checkFailed: false, checkError: undefined } : t)));
+    } finally {
+      retrying.current.delete(jobId);
+    }
+  };
+
+  /** 상태 조회 실패 → 다시 묻기 */
+  const recheckOne = (jobId: number) => {
+    ++generation.current;
+    commit(jobsRef.current.map((t) => (t.jobId === jobId ? { ...t, job: null, checkFailed: false, checkError: undefined } : t)));
+  };
 
   return {
-    tracked,
-    start(pending: Pending) {
+    /** 작업이 하나일 때 그 작업. 묶음이면 null — jobs 로 그린다 */
+    tracked: jobs.length === 1 ? jobs[0] : null,
+    jobs,
+    /** 아직 끝나지 않은 작업이 있다 — 더 넣기를 막는다 */
+    busy: jobs.some(isWaiting),
+    start(pending: PendingJob[]) {
       ++generation.current;
-      savePending(pending);
-      setTracked({ ...pending, job: null, checkFailed: false });
+      commit(pending.map((p) => ({ ...p, job: null, checkFailed: false })));
     },
-    /** 분석 실패 → 같은 원본으로 다시 */
     async retry() {
-      if (!tracked || retrying.current) return;
-      retrying.current = true;
-      const version = ++generation.current;
-      try {
-        const job = await retryJob(tracked.jobId);
-        if (version !== generation.current) return;
-        savePending({ jobId: tracked.jobId, name: tracked.name });
-        setTracked({ ...tracked, job, checkFailed: false, checkError: undefined });
-      } finally {
-        retrying.current = false;
-      }
+      if (jobsRef.current.length === 1) await retryOne(jobsRef.current[0].jobId);
     },
-    /** 상태 조회 실패 → 다시 묻기 */
     recheck() {
-      ++generation.current;
-      if (tracked) setTracked({ ...tracked, job: null, checkFailed: false, checkError: undefined });
+      if (jobsRef.current.length === 1) recheckOne(jobsRef.current[0].jobId);
     },
+    retryJob: retryOne,
+    recheckJob: recheckOne,
     /** 알림을 닫는다 — 실패한 작업도 더 따라가지 않는다(자료는 BE 에 남아 있다) */
     dismiss() {
       ++generation.current;
-      savePending(null);
-      setTracked(null);
+      commit([]);
     },
   };
 }

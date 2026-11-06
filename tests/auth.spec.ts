@@ -149,7 +149,7 @@ test("daily limit: remaining count in the dialog, and a 429 keeps the text with 
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("오늘 남은 분석 0회 — 한국 시간 자정에 다시 채워져요");
   await dialog.getByRole("textbox").fill("오늘 넣어 보는 자료");
-  await page.getByRole("button", { name: "분석 시작", exact: true }).click();
+  await page.getByRole("button", { name: "넣기", exact: true }).click();
   await expect(dialog.getByRole("alert")).toContainText("오늘 분석 횟수를 다 썼어요");
   await expect(dialog.getByRole("alert")).toContainText("저장하지 않았어요");
   await expect(dialog.getByRole("textbox")).toHaveValue("오늘 넣어 보는 자료");

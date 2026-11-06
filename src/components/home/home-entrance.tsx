@@ -44,7 +44,7 @@ const EXAMPLES = {
 /** 시안 6 홈 — S-28 가르기 → S-29 꺼내기 답 · S-30 지원 나누기로 잇는다(entrance-api 「흐름」). */
 export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, overview, onRefresh, showMockControls = false }: {
   sourceBusy: boolean; mockAnalysis: MockAnalysis;
-  onSourceSubmitted: (job: { jobId: number; name: string }) => void;
+  onSourceSubmitted: (jobs: { jobId: number; name: string }[]) => void;
   overview: HomeOverview; onRefresh: () => void;
   showMockControls?: boolean;
 }) {
@@ -136,7 +136,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
       pending.current = true; setSourceSubmitting(true); setError(null); setChoosing(false);
       try {
         const result = await submitSource(file ? { kind: "FILE", name: file.name, text: file.text, ...(file.sections && { sections: file.sections }) } : { kind: "TEXT", name: null, text }, mockAnalysis);
-        onSourceSubmitted({ jobId: result.jobId, name: file?.name ?? "붙여넣은 텍스트" });
+        onSourceSubmitted([{ jobId: result.jobId, name: file?.name ?? "붙여넣은 텍스트" }]);
         refreshAccount();
         setText(""); setFile(null);
       } catch (e) { setError(e instanceof ApiError && e.code === "DAILY_LIMIT_EXCEEDED" ? dailyLimitMessage("new") : e instanceof Error ? e.message : "자료를 보내지 못했어요. 다시 시도해 주세요."); }
@@ -229,7 +229,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     {destination?.kind === "source" && <AddSourceDialog open onOpenChange={open => { if (!open) setDestination(null); }} mock={mockAnalysis}
       initialText={destination.text}
       onMoveToApplication={value => openDestination("application", value)}
-      onSubmitted={job => { onSourceSubmitted(job); setText(""); setDestination(null); }} />}
+      onSubmitted={jobs => { onSourceSubmitted(jobs); setText(""); setDestination(null); }} />}
     <Dialog open={destination?.kind === "application"} onOpenChange={open => { if (!open && !saving) setDestination(null); }}>
       <DialogContent>
         <DialogHeader className="pr-10"><DialogTitle>지원 넣기</DialogTitle><DialogDescription>{destination?.url ? (destination.prefill ? "링크에서 나눈 내용으로 칸을 채웠어요. 고친 뒤 넣어 주세요." : destination.failure ? "링크를 읽지 못했어요. 공고 본문을 붙여 넣으면 칸을 채워요." : "원문 링크를 남겨 뒀어요. 지원처와 문항을 넣어 주세요.") : destination?.prefill ? "글에서 나눈 내용으로 칸을 채웠어요. 고친 뒤 넣어 주세요." : destination?.text ? "입력한 글을 문항 하나로 옮겼어요. 지원처와 문항을 확인하고 넣어 주세요." : "지원처와 문항을 넣어 주세요."}</DialogDescription></DialogHeader>

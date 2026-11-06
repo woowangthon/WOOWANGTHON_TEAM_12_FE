@@ -36,7 +36,7 @@ test("mock timeline, competency provenance edits, and source analysis remains mo
   if (page.viewportSize()!.width < 1024) await page.getByRole("button", { name: "타임라인", exact: true }).click();
   await page.getByRole("button", { name: "자료 넣기", exact: true }).filter({ visible: true }).first().click();
   await page.getByRole("dialog").getByRole("textbox").fill("Test source text");
-  await page.getByRole("button", { name: /분석 시작/ }).click();
+  await page.getByRole("button", { name: "넣기", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("목 분석 결과", { timeout: 15000 });
   await expect(page.getByRole("button", { name: /목 결과/ }).first()).toBeVisible();
 });

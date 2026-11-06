@@ -2,7 +2,7 @@
 
 // 활동 세부 — 이름 · 기간 · 이 활동을 만든 자료 · 경험들 (SPEC S-08 · S-09 · DESIGN.md 「활동 세부」)
 // PC 는 타임라인 옆 패널, 모바일은 전체 화면 + 근거는 하단 시트
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { ArrowsClockwiseIcon, CaretLeftIcon, DotsThreeIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { DropdownMenu } from "radix-ui";
 import { Button } from "@/components/ui/button";
@@ -45,13 +45,20 @@ type Props = {
   onSuggestionDismiss?: (id: number) => Promise<void>;
   /** 이어진 활동(S-35)을 누르면 그 활동 세부로 간다 */
   onOpenActivity: (id: number) => void;
+  /** 「자료 더하기」(S-60) — 없으면 버튼을 숨긴다 */
+  onAddSource?: () => void;
+  /** 다른 자료를 분석하는 동안은 막는다 */
+  addSourceBusy?: boolean;
+  /** 이 활동에 더한 자료의 분석 상태 */
+  addSourceStatus?: ReactNode;
 };
 
-export function ActivityDetailView({ summary, state, now, onClose, onRetry, onActivitySaved, onNoteSaved, onExperienceSaved, onExperienceAdded, onExperienceDelete, onExperienceMove, onDragChange, draggingId, onMergeRequest, onSuggestedMerge, onSuggestionDismiss, onOpenActivity, readOnly = false }: Props) {
+export function ActivityDetailView({ summary, state, now, onClose, onRetry, onActivitySaved, onNoteSaved, onExperienceSaved, onExperienceAdded, onExperienceDelete, onExperienceMove, onDragChange, draggingId, onMergeRequest, onSuggestedMerge, onSuggestionDismiss, onOpenActivity, onAddSource, addSourceBusy, addSourceStatus, readOnly = false }: Props) {
   const [editing, setEditing] = useState(false);
   const activity = state.status === "ready" ? state.activity : null;
   const current = activity ?? summary;
   const period = current.period;
+  const canAddSource = !!activity && !readOnly && !!onAddSource;
   const sources = activity
     ? [...new Set(activity.experiences.flatMap((e) => e.citations.map((c) => c.sourceName)))]
     : [];
@@ -98,15 +105,28 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
           {periodText(period)}
           <span className="text-muted">{durationText(period, now)}</span>
         </p>
-        {sources.length > 0 && (
+        {(sources.length > 0 || canAddSource) && (
           <p className="m-0 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px] text-muted">
-            이 활동을 만든 자료
+            {sources.length > 0 && "이 활동을 만든 자료"}
             {sources.map((s) => (
               <SourceFile key={s} name={s} />
             ))}
+            {canAddSource && (
+              <button
+                type="button"
+                onClick={onAddSource}
+                disabled={addSourceBusy}
+                title={addSourceBusy ? "지금 넣은 자료의 분석이 끝나면 더 넣을 수 있어요" : undefined}
+                className="min-h-8 rounded-full px-2 text-xs font-semibold text-muted hover:bg-surface-soft hover:text-ink disabled:pointer-events-none disabled:opacity-50"
+              >
+                + 자료 더하기
+              </button>
+            )}
           </p>
         )}
       </header>
+
+      {addSourceStatus && <div className="px-4.5 lg:px-7">{addSourceStatus}</div>}
 
       {activity && <ActivityNote key={activity.id} activity={activity} readOnly={readOnly} onSaved={onNoteSaved} />}
       {activity && <ActivityLinks key={`links-${activity.id}`} activity={activity} readOnly={readOnly} onOpenActivity={onOpenActivity} />}

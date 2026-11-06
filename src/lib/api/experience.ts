@@ -4,7 +4,7 @@
 // MOCK(experience-search): API 주소가 없는 목 모드에서만 경험 찾기를 브라우저에서 흉내 낸다. 실제 API 실패 시 사용하지 않는다.
 
 import { MOCK_ACTIVITIES } from "../mock/activities";
-import { mockAddedActivities, mockFetchJob, mockRetryJob, mockSubmitSource } from "../mock/analysis";
+import { mockAddedActivities, mockFetchJob, mockRetryJob, mockSubmitBatch, mockSubmitSource, mockTargetExperiences } from "../mock/analysis";
 import { mockSearchExperiences } from "../mock/experience-search";
 import { mockSharedIds } from "../mock/share";
 import { ApiError } from "./errors";
@@ -18,17 +18,19 @@ export { ApiError, isMockMode };
 /** 화면 확인용 — 주소에 `?mock=empty` · `?mock=error` 를 붙이면 빈 타임라인(목 분석으로 더한 활동만) · 불러오기 실패를 본다 */
 export type MockMode = "empty" | "error" | null;
 
-/** 화면 확인용 — 주소에 `?analysis=fail` · `?analysis=empty` 를 붙이면 자료를 넣었을 때 분석 실패 · 활동 0개로 끝난다 */
-export type MockAnalysis = "fail" | "empty" | null;
+/** 화면 확인용 — 주소에 `?analysis=fail` · `?analysis=empty` · `?analysis=miss` 를 붙이면 자료를 넣었을 때 분석 실패 · 활동 0개 · 「자료 더하기」 대상 못 찾음으로 끝난다 */
+export type MockAnalysis = "fail" | "empty" | "miss" | null;
 
 // MOCK(timeline-activities): 목 경험 수정·추가는 현재 페이지 실행 중에만 유지한다.
 const mockExperiences = new Map<number, Experience[]>();
 export const allActivities = () => {
   const shared = mockSharedIds();
-  return [...MOCK_ACTIVITIES, ...mockAddedActivities()].map((activity) => ({
-    ...activity,
-    experiences: (mockExperiences.get(activity.id) ?? activity.experiences).map((e) => ({ ...e, shared: shared.has(e.id) })),
-  }));
+  const attached = mockTargetExperiences();
+  return [...MOCK_ACTIVITIES, ...mockAddedActivities()].map((activity) => {
+    const base = mockExperiences.get(activity.id) ?? activity.experiences;
+    const added = (attached[activity.id] ?? []).filter((e) => !base.some((b) => b.id === e.id));
+    return { ...activity, experiences: [...base, ...added].map((e) => ({ ...e, shared: shared.has(e.id) })) };
+  });
 };
 
 /** GET /api/activities — period.start 오름차순, start 가 null 이면 맨 뒤 */
@@ -37,7 +39,7 @@ export async function fetchActivities(mock: MockMode = null): Promise<ActivitySu
   if (mock === "error") throw new ApiError("MOCK_ERROR", "불러오기 실패 화면 확인용");
   const source = mock === "empty" ? mockAddedActivities() : allActivities();
   return source
-    .map(({ experiences, ...a }) => ({ ...a, experienceCount: (mockExperiences.get(a.id) ?? experiences).length }))
+    .map(({ experiences, ...a }) => ({ ...a, experienceCount: experiences.length }))
     .sort((a, b) => {
       if (a.period.start == null) return b.period.start == null ? 0 : 1;
       if (b.period.start == null) return -1;
@@ -66,6 +68,12 @@ export async function submitSource(
   if (req.text.length > MAX_TEXT_LENGTH) throw new ApiError("TEXT_TOO_LONG", "한 번에 50,000자까지 넣을 수 있어요.");
   if (!isMockMode()) return request("/sources", req, "POST");
   return mockSubmitSource(req, mock ?? "ok");
+}
+
+/** POST /api/sources/batch — 파일마다 원본 · 작업을 만들고 차례로 돌린다(202). 결과는 요청 순서 그대로 (S-59) */
+export async function submitSources(sources: SourceRequest[], mock: MockAnalysis = null): Promise<SourceSubmitted[]> {
+  if (!isMockMode()) return (await request<{ items: SourceSubmitted[] }>("/sources/batch", { sources }, "POST")).items;
+  return mockSubmitBatch(sources, mock ?? "ok");
 }
 
 /** GET /api/jobs/{jobId} */
