@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { createMcpConnection, deleteMcpConnection, fetchMcpConnection, setMcpWrite, type McpConnection } from "@/lib/api/mcp";
 import { isMockMode } from "@/lib/api/http";
 import { McpChangeLog, timestamp } from "./mcp-changes";
+import { PublicProfileSection } from "./public-profile-section";
 
 type Action = "replace" | "disconnect";
 const CONFIRM = {
@@ -201,6 +202,7 @@ export function ConnectionScreen() {
         <code className="mt-2 block break-all rounded-sm bg-surface-soft p-3 text-sm">claude mcp add --transport http woowang &lt;주소&gt;</code>
         <p className="mt-2 text-sm text-muted">&lt;주소&gt; 자리에 복사한 연결 주소를 넣으세요.</p>
       </section>
+      <PublicProfileSection />
     </main>
     <Dialog open={confirm !== null} onOpenChange={(open) => { if (!open) setConfirm(null); }}>
       <DialogContent>

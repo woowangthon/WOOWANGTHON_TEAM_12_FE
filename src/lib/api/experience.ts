@@ -6,6 +6,7 @@
 import { MOCK_ACTIVITIES } from "../mock/activities";
 import { mockAddedActivities, mockFetchJob, mockRetryJob, mockSubmitSource } from "../mock/analysis";
 import { mockSearchExperiences } from "../mock/experience-search";
+import { mockSharedIds } from "../mock/share";
 import { ApiError } from "./errors";
 import { isMockMode, request } from "./http";
 import { activityNoteError } from "./editing";
@@ -22,9 +23,13 @@ export type MockAnalysis = "fail" | "empty" | null;
 
 // MOCK(timeline-activities): 목 경험 수정·추가는 현재 페이지 실행 중에만 유지한다.
 const mockExperiences = new Map<number, Experience[]>();
-const allActivities = () => [...MOCK_ACTIVITIES, ...mockAddedActivities()].map((activity) => ({
-  ...activity, experiences: mockExperiences.get(activity.id) ?? activity.experiences,
-}));
+export const allActivities = () => {
+  const shared = mockSharedIds();
+  return [...MOCK_ACTIVITIES, ...mockAddedActivities()].map((activity) => ({
+    ...activity,
+    experiences: (mockExperiences.get(activity.id) ?? activity.experiences).map((e) => ({ ...e, shared: shared.has(e.id) })),
+  }));
+};
 
 /** GET /api/activities — period.start 오름차순, start 가 null 이면 맨 뒤 */
 export async function fetchActivities(mock: MockMode = null): Promise<ActivitySummary[]> {
@@ -89,7 +94,7 @@ export async function updateActivity(id: number, data: UpdateActivityRequest): P
   return activity;
 }
 
-function checkCompetencies<T extends Pick<Experience, "competencies">>(experience: T): T {
+export function checkCompetencies<T extends Pick<Experience, "competencies">>(experience: T): T {
   const values = experience.competencies;
   if (!Array.isArray(values) || values.length > 3 || new Set(values).size !== values.length || values.some((value) => !Object.hasOwn(COMPETENCIES, value))) {
     throw new ApiError("INVALID_RESPONSE", "서버의 경험 역량 응답이 최신 API 계약과 달라요. BE 버전을 확인해 주세요.");
@@ -145,7 +150,7 @@ export async function createExperience(activityId: number, data: CreateExperienc
     const created: Experience = {
       id: Math.max(0, ...allActivities().flatMap((a) => a.experiences.map((e) => e.id))) + 1,
       activityId, ...data, competencies: data.competencies ?? [],
-      competenciesBy: "USER", sourceStatus: "USER_ENTERED", citations: [],
+      competenciesBy: "USER", sourceStatus: "USER_ENTERED", citations: [], shared: false,
     };
     checkCompetencies(created);
     mockExperiences.set(activityId, [...activity.experiences, created]);

@@ -4,7 +4,7 @@ import type { ActivityCategory, ActivityDetail, ExperienceSearch, ExperienceSear
 import { monthNumber, spanOf } from "@/lib/period";
 
 // MOCK(experience-search): 목 활동엔 분류가 없어 거르기 확인용으로 여기서만 붙인다. AI 판단이 아니다.
-const CATEGORY: Record<number, ActivityCategory> = {
+export const MOCK_CATEGORY: Record<number, ActivityCategory> = {
   7: "PROJECT", 18: "PROJECT", 9: "PROJECT", 11: "PROJECT", 13: "PROJECT", 14: "PROJECT",
   8: "STUDY", 15: "STUDY", 17: "STUDY",
   10: "CLUB", 12: "CLUB", 16: "CLUB",
@@ -20,7 +20,7 @@ export function mockSearchExperiences(activities: ActivityDetail[], search: Expe
     return !!span && Math.floor(span.start / 12) <= search.year && search.year <= Math.floor(span.end / 12);
   };
   const found = activities.filter(inYear).flatMap((activity) => {
-    const category = CATEGORY[activity.id] ?? null;
+    const category = MOCK_CATEGORY[activity.id] ?? null;
     if (search.category && category !== search.category) return [];
     const { id: activityId, name, period } = activity;
     return activity.experiences.flatMap((experience) => {
