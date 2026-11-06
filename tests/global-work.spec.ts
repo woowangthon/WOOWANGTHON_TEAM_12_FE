@@ -128,15 +128,24 @@ test("자료 분석 10개 · 기다림 개수 · 긴 제목 · 끝까지 스크�
 });
 
 test("3초 진행 폴링 · 완료 소식 · 30초 유휴 폴링 · 다른 기기 읽음 반영", async ({ page }) => {
-  await page.clock.install();
+  // install 뒤 시계는 실제 시간으로 계속 흐른다. 간격을 1ms 까지 재려면 첫 응답을 붙잡아 둔 채 시계를 멈춘다(FE#167).
+  const start = Date.parse(FINISHED);
+  await page.clock.install({ time: start });
   const state = await setup(page, { seenAt: null, inProgress: [item()], recent: [] });
+  let release = () => {};
+  state.delay = new Promise<void>(resolve => { release = resolve; });
   await page.goto("/questions");
+  await expect.poll(() => state.current).toBeGreaterThan(0);
+  await page.clock.pauseAt(start + 60000);
+  state.delay = null; release();
   await expect(trigger(page)).toHaveAccessibleName("진행 중인 일 1개 · 안 읽은 소식 0개");
   state.snapshot = { seenAt: null, inProgress: [], recent: [item({ status: "COMPLETED", finishedAt: FINISHED })] };
   await page.clock.fastForward(3000);
   await expect(trigger(page)).toHaveAccessibleName("진행 중인 일 0개 · 안 읽은 소식 1개");
   const reads = state.reads;
-  await page.clock.fastForward(29999); expect(state.reads).toBe(reads);
+  await page.clock.fastForward(29999);
+  // 나간 요청이 route 까지 닿을 시간을 준다. 바로 세면 요청이 나갔어도 놓친다.
+  await page.waitForTimeout(300); expect(state.reads).toBe(reads);
   state.snapshot.seenAt = FINISHED;
   await page.clock.fastForward(1);
   await expect(trigger(page)).toHaveAccessibleName("진행 중인 일 0개 · 안 읽은 소식 0개");
