@@ -151,7 +151,7 @@ function SideLink({ href, label, icon, active, collapsed, count, railOnly, onNav
   </RailTip>;
 }
 
-/** 「+ 추가」 — 쌓기(자료 가져오기 · 직접 기록하기) · 꺼내기(새 지원서). 직접 기록하기는 같은 자료 넣기(S-01)의 한 줄 입구다(FE#179) */
+/** 「+ 추가」 — 쌓기(자료 쌓기 · 직접 기록하기) · 꺼내기(새 지원서). 직접 기록하기는 같은 자료 넣기(S-01)의 한 줄 입구다(FE#179) */
 function AddMenu({ collapsed, busy, onAddSource, onRecord, onNewApplication }: { collapsed: boolean; busy?: boolean; onAddSource: () => void; onRecord: () => void; onNewApplication: () => void }) {
   const item = "flex cursor-pointer gap-3 rounded-sm px-3 py-2.5 outline-none focus:bg-surface-soft data-disabled:cursor-default data-disabled:opacity-60";
   const text = (title: string, detail: string) => <span className="grid"><span className="text-sm leading-4 font-semibold text-ink">{title}</span><span className="text-[11px] leading-normal text-muted">{detail}</span></span>;
@@ -170,7 +170,7 @@ function AddMenu({ collapsed, busy, onAddSource, onRecord, onNewApplication }: {
         <DropdownMenu.Label className={label}>쌓기</DropdownMenu.Label>
         <DropdownMenu.Item disabled={busy} onSelect={onAddSource} className={item}>
           <PaperclipIcon className="mt-px size-5 shrink-0" aria-hidden="true" />
-          {text("자료 가져오기", busy ? BUSY : "README · 회고 · 노트 · .md 파일 — AI 가 활동과 경험을 찾아요")}
+          {text("자료 쌓기", busy ? BUSY : "README · 회고 · 노트 · .md 파일 — AI 가 활동과 경험을 찾아요")}
         </DropdownMenu.Item>
         <DropdownMenu.Item disabled={busy} onSelect={onRecord} className={item}>
           <PencilSimpleIcon className="mt-px size-5 shrink-0" aria-hidden="true" />
@@ -225,6 +225,6 @@ export type AddSourceProps = { onClick: () => void; onRecord: () => void; busy?:
 
 export function AddSourceButton({ onClick, busy, className }: Omit<AddSourceProps, "onRecord"> & { className?: string }) {
   return <Button onClick={onClick} disabled={busy} title={busy ? BUSY : undefined} className={className}>
-    <PlusIcon />자료 가져오기
+    <PlusIcon />자료 쌓기
   </Button>;
 }

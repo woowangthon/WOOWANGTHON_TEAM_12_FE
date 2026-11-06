@@ -138,7 +138,7 @@ export function AnalysisCenter({ view, tracked, ...a }: { view: Exclude<Analysis
           </Button>
           {retry.error && <Button variant="ghost" onClick={a.onRecheck}>상태 다시 확인</Button>}
           <Button variant="secondary" onClick={a.onAddSource}>
-            다른 자료 가져오기
+            다른 자료 쌓기
           </Button>
         </div>
       </CenterState>
@@ -166,7 +166,7 @@ export function AnalysisCenter({ view, tracked, ...a }: { view: Exclude<Analysis
       body="분석은 끝났지만 활동이라고 볼 만한 내용이 없었어요. 자료에 없다고 경험이 없는 건 아니에요. 활동 이름 · 기간 · 한 일이 적힌 자료를 넣어 보세요."
     >
       <SourceName name={tracked.name} />
-      <Button onClick={a.onAddSource}>다른 자료 가져오기</Button>
+      <Button onClick={a.onAddSource}>다른 자료 쌓기</Button>
     </CenterState>
   );
 }

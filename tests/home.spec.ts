@@ -104,8 +104,8 @@ test("기존 홈의 활동·자료 넣기 링크는 내 경험으로 이어진�
   await expect(page).toHaveURL(/\/experience\?activity=7/);
   await expect(page.getByRole("complementary", { name: "활동 세부" })).toBeVisible();
   await page.goto("/?add=1");
-  await expect(page.getByRole("dialog", { name: "자료 가져오기" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "자료 쌓기" })).toBeVisible();
   await expect(page).toHaveURL(/\/experience$/);
   await page.reload();
-  await expect(page.getByRole("dialog", { name: "자료 가져오기" })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "자료 쌓기" })).toHaveCount(0);
 });

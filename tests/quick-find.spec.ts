@@ -197,7 +197,7 @@ test("> lists shortcuts that only move between screens", async ({ page }) => {
   await openByButton(page);
   await box(page).fill(">");
   await expect(box(page)).toHaveValue("");
-  await expect(rows(page)).toHaveText([/자료 가져오기/, /직접 기록하기/, /새 지원/, /내 경험/, /홈/]);
+  await expect(rows(page)).toHaveText([/자료 쌓기/, /직접 기록하기/, /새 지원/, /내 경험/, /홈/]);
   await capture(page, `go-${page.viewportSize()!.width}`);
   await box(page).fill("내 경");
   await page.keyboard.press("Enter");
@@ -206,7 +206,7 @@ test("> lists shortcuts that only move between screens", async ({ page }) => {
 
   await openByButton(page);
   await box(page).fill(">");
-  await dialog(page).getByRole("option", { name: /자료 가져오기/ }).click();
+  await dialog(page).getByRole("option", { name: /자료 쌓기/ }).click();
   await expect(page.getByRole("dialog", { name: /자료/ })).toBeVisible(); // 이 화면의 자료 넣기 창
   await page.keyboard.press("Escape");
 
