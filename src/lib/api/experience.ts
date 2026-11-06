@@ -2,10 +2,12 @@
 // MOCK(timeline-activities): API 주소가 없을 때만 src/lib/mock/activities.ts 로 화면을 확인한다. 실제 API 실패 시 사용하지 않는다.
 // MOCK(source-analysis): API 주소가 없는 목 모드에서만 자료 넣기 · 작업 조회 · 재시도를 모의한다.
 // MOCK(experience-search): API 주소가 없는 목 모드에서만 경험 찾기를 브라우저에서 흉내 낸다. 실제 API 실패 시 사용하지 않는다.
+// MOCK(experience-saved): API 주소가 없는 목 모드에서만 경험 저장을 브라우저 저장소로 흉내 낸다. 실제 API 실패 시 사용하지 않는다.
 
 import { MOCK_ACTIVITIES } from "../mock/activities";
 import { mockAddedActivities, mockFetchJob, mockRetryJob, mockSubmitBatch, mockSubmitSource, mockTargetExperiences } from "../mock/analysis";
 import { MOCK_CATEGORY, mockSearchExperiences } from "../mock/experience-search";
+import { mockSavedIds, mockWriteSaved } from "../mock/saved";
 import { mockSharedIds } from "../mock/share";
 import { ApiError } from "./errors";
 import { isMockMode, request } from "./http";
@@ -35,11 +37,12 @@ const mockCategory = (id: number) => {
 };
 export const allActivities = () => {
   const shared = mockSharedIds();
+  const saved = mockSavedIds();
   const attached = mockTargetExperiences();
   return [...MOCK_ACTIVITIES, ...mockAddedActivities()].map((activity) => {
     const base = mockExperiences.get(activity.id) ?? activity.experiences;
     const added = (attached[activity.id] ?? []).filter((e) => !base.some((b) => b.id === e.id));
-    return { ...activity, ...mockCategory(activity.id), experiences: [...base, ...added].map((e) => ({ ...e, shared: shared.has(e.id) })) };
+    return { ...activity, ...mockCategory(activity.id), experiences: [...base, ...added].map((e) => ({ ...e, shared: shared.has(e.id), saved: saved.has(e.id) })) };
   });
 };
 
@@ -136,13 +139,14 @@ export async function searchExperiences(search: ExperienceSearch, mock: MockMode
     if (mock === "error") throw new ApiError("MOCK_ERROR", "불러오기 실패 화면 확인용");
     return mockSearchExperiences(allActivities(), search);
   }
-  const { query, competencies, year, sourceStatus, category } = search;
+  const { query, competencies, year, sourceStatus, category, saved } = search;
   const params = new URLSearchParams();
   if (query) params.set("query", query);
   if (competencies?.length) params.set("competencies", competencies.join(","));
   if (year) params.set("year", String(year));
   if (sourceStatus) params.set("sourceStatus", sourceStatus);
   if (category) params.set("category", category);
+  if (saved) params.set("saved", "true");
   const qs = params.toString();
   const found = await request<ExperienceSearchResult>(`/experiences${qs ? `?${qs}` : ""}`);
   found.experiences.forEach(checkCompetencies);
@@ -178,13 +182,24 @@ export async function createExperience(activityId: number, data: CreateExperienc
     const created: Experience = {
       id: Math.max(0, ...allActivities().flatMap((a) => a.experiences.map((e) => e.id))) + 1,
       activityId, ...data, competencies: data.competencies ?? [],
-      competenciesBy: "USER", sourceStatus: "USER_ENTERED", citations: [], shared: false,
+      competenciesBy: "USER", sourceStatus: "USER_ENTERED", citations: [], shared: false, saved: false,
     };
     checkCompetencies(created);
     mockExperiences.set(activityId, [...activity.experiences, created]);
     return structuredClone(created);
   }
   return checkCompetencies<Experience>(await request(`/activities/${activityId}/experiences`, data, "POST"));
+}
+
+/** PUT /api/experiences/{id}/saved — 내용을 고친 게 아니라 출처 상태는 그대로다 (S-71) */
+export async function setExperienceSaved(id: number, saved: boolean): Promise<Experience> {
+  if (isMockMode()) {
+    const found = allActivities().flatMap((a) => a.experiences).find((e) => e.id === id);
+    if (!found) throw new ApiError("EXPERIENCE_NOT_FOUND", `경험 ${id} 이 없습니다`, 404);
+    mockWriteSaved(id, saved);
+    return { ...structuredClone(found), saved };
+  }
+  return checkCompetencies<Experience>(await request(`/experiences/${id}/saved`, { saved }, "PUT"));
 }
 
 export function deleteExperience(id: number): Promise<void> {

@@ -325,6 +325,11 @@ export function TimelineScreen() {
     setDetail((prev) => prev.status === "ready" && prev.activity.id === experience.activityId ? { ...prev, activity: { ...prev.activity, experiences: prev.activity.experiences.map((e) => e.id === experience.id ? experience : e) } } : prev);
   };
 
+  const savedChanged = (id: number, saved: boolean) => {
+    refreshSearch();
+    setDetail((prev) => prev.status === "ready" ? { ...prev, activity: { ...prev.activity, experiences: prev.activity.experiences.map((e) => e.id === id ? { ...e, saved } : e) } } : prev);
+  };
+
   const experienceAdded = (experience: Experience) => {
     refreshSearch();
     if (selectedRef.current === experience.activityId) ++detailRequest.current;
@@ -509,7 +514,7 @@ export function TimelineScreen() {
               <ViewSwitch view={listView} onChange={(next) => { setListView(next); if (next === "search") setSearchOpened(true); }} />
               {searchOpened && (
                 <div hidden={listView !== "search"}>
-                  <ExperienceSearch key={searchStart.version} initial={searchStart.search} years={timeline.activityYears} mock={mock} version={searchVersion} hiddenIds={hiddenIds} onOpen={select} />
+                  <ExperienceSearch key={searchStart.version} initial={searchStart.search} years={timeline.activityYears} mock={mock} version={searchVersion} hiddenIds={hiddenIds} onOpen={select} onSavedChange={savedChanged} />
                 </div>
               )}
               {listView === "timeline" && (

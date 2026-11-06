@@ -58,3 +58,16 @@ test("mock experience search finds mock experiences and says so when nothing mat
   await page.getByLabel("찾을 낱말").fill("어디에도없는말");
   await expect(page.getByText("쌓인 자료에서 찾지 못했어요")).toBeVisible();
 });
+
+test("mock save survives reload and the saved filter uses it", async ({ page }) => {
+  await page.goto("/experience");
+  await page.getByRole("button", { name: /바꿔요 — 캠퍼스/ }).first().click();
+  const item = page.getByRole("complementary").locator("li").first();
+  await item.getByRole("button", { name: /^저장: / }).click();
+  await expect(item.getByRole("button", { name: /^저장함: / })).toHaveAttribute("aria-pressed", "true");
+
+  await page.reload();
+  await page.getByRole("button", { name: "경험 찾기", exact: true }).click();
+  await page.getByRole("checkbox", { name: "저장한 것", exact: true }).check();
+  await expect(page.getByText("경험 1개", { exact: true })).toBeVisible();
+});

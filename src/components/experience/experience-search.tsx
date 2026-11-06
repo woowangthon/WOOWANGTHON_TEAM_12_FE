@@ -1,6 +1,6 @@
 "use client";
 
-// 경험 찾기 — 낱말 · 역량 · 연도 · 확인 필요 · 분류로 경험을 한 줄씩 훑는다 (SPEC S-58). AI 를 부르지 않는다
+// 경험 찾기 — 낱말 · 역량 · 연도 · 확인 필요 · 분류 · 저장으로 경험을 한 줄씩 훑는다 (SPEC S-58). AI 를 부르지 않는다
 import { ArrowsClockwiseIcon, MagnifyingGlassIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
 import { CenterState } from "@/components/center-state";
@@ -21,14 +21,16 @@ type Props = {
   /** 지우기를 되돌릴 수 있는 동안 숨겨 둘 경험 */
   hiddenIds: Set<number>;
   onOpen: (activityId: number) => void;
+  /** 결과 줄에서 저장을 바꾼 뒤 — 열린 활동 세부도 같은 값을 보이게 */
+  onSavedChange: (experienceId: number, saved: boolean) => void;
 };
 
-export function ExperienceSearch({ initial, years, mock, version, hiddenIds, onOpen }: Props) {
+export function ExperienceSearch({ initial, years, mock, version, hiddenIds, onOpen, onSavedChange }: Props) {
   const [query, setQuery] = useState(initial.query ?? "");
   const [filters, setFilters] = useState<ExperienceFilters>(() => { const { query: _word, ...rest } = initial; void _word; return rest; });
 
   const search = useMemo<Search>(() => ({ query: query.trim() || undefined, ...filters }), [query, filters]);
-  const { state, retry } = useExperienceSearch(search, { mock, version });
+  const { state, retry, patch } = useExperienceSearch(search, { mock, version });
 
   const shown = state.status === "ready" ? state.experiences.filter((e) => !hiddenIds.has(e.id)) : [];
   const total = state.status === "ready" ? state.total - (state.experiences.length - shown.length) : 0;
@@ -65,7 +67,7 @@ export function ExperienceSearch({ initial, years, mock, version, hiddenIds, onO
             {total > shown.length ? `${total}개 중 ${shown.length}개를 보여 드려요. 낱말이나 거르기로 더 좁혀 보세요.` : `경험 ${total}개`}
           </p>
           <ul className="m-0 list-none p-0">
-            {shown.map((e) => <ExperienceResultRow key={e.id} experience={e} onOpen={onOpen} />)}
+            {shown.map((e) => <ExperienceResultRow key={e.id} experience={e} onOpen={onOpen} onSavedChange={(saved) => { patch(e.id, { saved }); onSavedChange(e.id, saved); }} />)}
           </ul>
         </div>
       )}

@@ -8,9 +8,10 @@ import { periodText } from "@/lib/period";
 import { cn } from "@/lib/utils";
 import { CitationList } from "./citation-list";
 import { ExperienceMeta } from "./experience-item";
+import { ExperienceSave } from "./experience-save";
 
 /** 누르면 `onOpen(activity.id)` — 그 활동의 세부(S-08)를 여는 건 부르는 쪽이다 */
-export function ExperienceResultRow({ experience: e, onOpen }: { experience: ExperienceResult; onOpen: (activityId: number) => void }) {
+export function ExperienceResultRow({ experience: e, onOpen, onSavedChange }: { experience: ExperienceResult; onOpen: (activityId: number) => void; onSavedChange: (saved: boolean) => void }) {
   const [citationsOpen, setCitationsOpen] = useState(false);
   const n = e.citations.length;
   return (
@@ -23,18 +24,22 @@ export function ExperienceResultRow({ experience: e, onOpen }: { experience: Exp
       </button>
       <div className="flex flex-wrap items-center gap-1.5 text-[13px] font-medium text-muted">
         <ExperienceMeta experience={e} aiLabel="AI 해석" />
-        {n === 0 ? <span className="ml-auto text-muted-soft">근거 없음</span> : (
-          <button
-            type="button"
-            className="ml-auto inline-flex min-h-11 items-center gap-1 rounded-md px-1 text-[13px] font-semibold text-evidence hover:bg-evidence-soft"
-            aria-expanded={citationsOpen}
-            onClick={() => setCitationsOpen((open) => !open)}
-          >
-            <QuotesIcon className="size-[1.15em]" aria-hidden="true" />
-            근거 {n}
-            <CaretDownIcon className={cn("size-[1.15em] transition-transform", citationsOpen && "rotate-180")} aria-hidden="true" />
-          </button>
-        )}
+        {/* 좁은 폭에서 줄이 나뉘어도 저장 · 근거는 오른쪽에 같이 있게 묶는다 */}
+        <span className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
+          <ExperienceSave experience={e} onChange={onSavedChange} />
+          {n === 0 ? <span className="text-muted-soft">근거 없음</span> : (
+            <button
+              type="button"
+              className="inline-flex min-h-11 items-center gap-1 rounded-md px-1 text-[13px] font-semibold text-evidence hover:bg-evidence-soft"
+              aria-expanded={citationsOpen}
+              onClick={() => setCitationsOpen((open) => !open)}
+            >
+              <QuotesIcon className="size-[1.15em]" aria-hidden="true" />
+              근거 {n}
+              <CaretDownIcon className={cn("size-[1.15em] transition-transform", citationsOpen && "rotate-180")} aria-hidden="true" />
+            </button>
+          )}
+        </span>
       </div>
       {citationsOpen && <CitationList citations={e.citations} />}
     </li>

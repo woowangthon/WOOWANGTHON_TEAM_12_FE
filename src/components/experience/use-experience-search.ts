@@ -31,5 +31,9 @@ export function useExperienceSearch(search: ExperienceSearch, { mock = null, ver
     return () => { stale = true; clearTimeout(timer); };
   }, [key, mock, version, attempt, enabled]);
 
-  return { state, retry: () => setAttempt((n) => n + 1) };
+  /** 다시 불러오는 동안에도 저장 표시가 앞 값으로 돌아가지 않게 받은 줄을 바로 고친다 */
+  const patch = (id: number, change: Partial<ExperienceResult>) =>
+    setState((prev) => prev.status === "ready" ? { ...prev, experiences: prev.experiences.map((e) => e.id === id ? { ...e, ...change } : e) } : prev);
+
+  return { state, retry: () => setAttempt((n) => n + 1), patch };
 }

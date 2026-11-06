@@ -134,6 +134,8 @@ export type Experience = {
   mcpChange?: { changeId: number; client: string } | null;
   /** 공개 프로필에 넣었나(S-65). 바꾸는 곳은 PUT /api/experiences/{id}/shared 하나 */
   shared?: boolean;
+  /** 사용자가 저장했나(S-71). 바꾸는 곳은 PUT /api/experiences/{id}/saved 하나 */
+  saved?: boolean;
 };
 
 /** GET /api/experiences 의 경험 — activityId 대신 activity, usedIn 은 없다(S-58) */
@@ -148,6 +150,8 @@ export type ExperienceSearch = {
   year?: number;
   sourceStatus?: SourceStatus;
   category?: ActivityCategory;
+  /** 저장한 경험만(S-71). 빼면 거르지 않는다 */
+  saved?: true;
 };
 
 /** total 은 limit 적용 전 맞은 개수 */

@@ -26,6 +26,7 @@ export function mockSearchExperiences(activities: ActivityDetail[], search: Expe
     return activity.experiences.flatMap((experience) => {
       if (search.competencies?.length && !experience.competencies.some((c) => search.competencies?.includes(c))) return [];
       if (search.sourceStatus && experience.sourceStatus !== search.sourceStatus) return [];
+      if (search.saved && !experience.saved) return [];
       const text = [
         experience.content, name,
         ...experience.citations.map((c) => c.quote),
