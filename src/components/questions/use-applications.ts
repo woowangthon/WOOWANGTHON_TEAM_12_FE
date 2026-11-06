@@ -101,6 +101,7 @@ export function useApplications() {
       const [applications, first] = await Promise.all([fetchApplications(), wanted ? fetchQuestion(wanted).catch(() => null) : null]);
       if (version !== generation.current) return;
       const application = ownerOf(applications, wanted) ?? applications[0] ?? null;
+      if (wanted && !first && !ownerOf(applications, wanted)) throw new ApiError("QUESTION_NOT_FOUND", "알림의 문항을 불러오지 못했어요. 다시 불러와 주세요.");
       const questionId = application ? (application.questions.find(q => q.id === wanted) ?? application.questions[0]).id : null;
       if (questionId !== null) keepInUrl(questionId);
       const details = first && first.id === questionId ? { [first.id]: first } : {};
@@ -214,6 +215,11 @@ export function useApplications() {
     reloadQuestion: (id: number) => setState(prev => { const detailErrors = { ...prev.detailErrors }; delete detailErrors[id]; return { ...prev, detailErrors }; }),
     keepAnswer,
     selectQuestion,
+    /** S-47: work.applicationId가 null이어도 questionId로 문항을 찾는다. */
+    openLinkedQuestion: async (id: number) => {
+      if (state.applications.some(a => a.questions.some(q => q.id === id))) { selectQuestion(id); return; }
+      await load();
+    },
     selectApplication: (application: Application) => selectQuestion(application.questions[0].id),
     /** 문항 응답만 다시 읽는다. 초안 전용 GET/재시도 API나 별도 저장소는 없다. */
     refreshDraft: async (id: number) => {

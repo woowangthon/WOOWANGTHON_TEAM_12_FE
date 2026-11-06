@@ -33,7 +33,10 @@ export function ChagokPanel({ question, index, originOf, onAnswer, onClose, draf
   // 단계가 쌓이면 맨 아래를 보인다
   const body = useRef<HTMLDivElement>(null);
   const progress = control.run && `${control.run.runId}:${control.run.status}:${control.run.steps.length}`;
-  useEffect(() => { if (progress && body.current) body.current.scrollTop = body.current.scrollHeight; }, [progress]);
+  const restoredQuestionId = control.restoreRunId !== null ? question?.id : null;
+  const restoredQuestionStatus = control.restoreRunId !== null ? question?.status : null;
+  // S-47: 복원한 일이 먼저 도착하고 문항 Feed가 늦게 붙어도 확인 카드가 아래로 밀리지 않게 한다.
+  useEffect(() => { if (progress && body.current) body.current.scrollTop = body.current.scrollHeight; }, [progress, restoredQuestionId, restoredQuestionStatus]);
   return <div className="flex h-full min-h-0 flex-col bg-surface-soft">
     <header className="flex items-center gap-2 border-b border-hairline bg-canvas px-4 py-3">
       <Mascot />
@@ -42,8 +45,10 @@ export function ChagokPanel({ question, index, originOf, onAnswer, onClose, draf
       <Button variant="ghost" size="icon" className={question ? "" : "ml-auto"} onClick={onClose} aria-label="차곡이 닫기"><XIcon /></Button>
     </header>
     <div ref={body} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+      {control.restoring && <p role="status" className={bubble}>차곡이 일을 다시 열고 있어요…</p>}
+      {control.restoreError && <div role="alert" className={bubble}><p>{control.restoreError}</p><Button variant="secondary" onClick={control.restore}>일 다시 불러오기</Button></div>}
       {question ? <Feed key={question.id} question={question} originOf={originOf} onAnswer={onAnswer} draftActions={draftActions} /> : <p className={bubble}>문항을 고르면 읽어 보고 맞는 경험을 찾아 둘게요.</p>}
-      <ChagokRunFeed control={control} currentQuestionId={question?.id ?? null} />
+      {!control.restoring && !control.restoreError && <ChagokRunFeed control={control} currentQuestionId={question?.id ?? null} />}
     </div>
     <ChagokComposer control={control} hasQuestion={!!question} />
   </div>;

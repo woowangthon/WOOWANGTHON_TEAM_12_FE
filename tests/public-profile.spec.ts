@@ -37,7 +37,7 @@ async function detail(page: Page, respond: (shared: boolean) => { status?: numbe
   const bodies: unknown[] = [];
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path.startsWith("/api/auth/")) return route.fallback();
+    if (path.startsWith("/api/auth/") || path === "/api/work") return route.fallback();
     if (path === "/api/activities") return route.fulfill({ json: { activities: [{ id: 7, name: ACTIVITY.name, period: ACTIVITY.period, note: null, experienceCount: 3 }] } });
     if (path === "/api/activities/7") return route.fulfill({ json: ACTIVITY });
     if (path === "/api/applications") return route.fulfill({ json: { applications: [] } });
@@ -93,7 +93,7 @@ async function connections(page: Page, initial: Partial<PublicProfileSettings>) 
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     const method = route.request().method();
-    if (path.startsWith("/api/auth/")) return route.fallback();
+    if (path.startsWith("/api/auth/") || path === "/api/work") return route.fallback();
     if (path === "/api/mcp/changes") return route.fulfill({ json: { changes: [] } });
     if (path === "/api/mcp/connection") return route.fulfill({ json: { connected: false, writeEnabled: false, createdAt: null, lastUsedAt: null } });
     if (state.fail === method) return route.abort();

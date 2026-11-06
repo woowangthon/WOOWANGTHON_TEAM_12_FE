@@ -160,7 +160,7 @@ export class FakeQuestionApi {
   private async handle(route: Route) {
     const req = route.request();
     const path = new URL(req.url()).pathname;
-    if (path.startsWith("/api/auth/")) return route.fallback(); // 로그인 확인은 signed-in 픽스처
+    if (path.startsWith("/api/auth/") || path === "/api/work") return route.fallback(); // 로그인 확인은 signed-in 픽스처
     const method = req.method();
     const body = req.postData() ? req.postDataJSON() : undefined;
     this.calls.push({ call: `${method} ${path}`, body });

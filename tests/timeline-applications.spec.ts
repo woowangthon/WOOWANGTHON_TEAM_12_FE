@@ -13,7 +13,7 @@ async function setup(page: Page) {
   const state = { calls: 0, fail: false };
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path.startsWith("/api/auth/")) return route.fallback();
+    if (path.startsWith("/api/auth/") || path === "/api/work") return route.fallback();
     if (path === "/api/activities") return route.fulfill({ json: { activities: [
       { id: 7, name: "바꿔요 — 캠퍼스 중고거래 앱", period: { start: "2025-03", end: "2025-06", ongoing: false }, note: null, experienceCount: 1 },
     ] } });

@@ -18,7 +18,7 @@ async function setup(page: Page) {
   await page.route("**/api/**", async (route) => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
-    if (path.startsWith("/api/auth/")) return route.fallback(); // 로그인 확인은 signed-in 픽스처가 받는다
+    if (path.startsWith("/api/auth/") || path === "/api/work") return route.fallback(); // 로그인 확인은 signed-in 픽스처가 받는다
     const m = path.match(/^\/api\/activities\/(\d+)$/);
     const a = m && state.activities.find((x) => x.id === Number(m[1]));
     if (req.method() === "PATCH" && a) {

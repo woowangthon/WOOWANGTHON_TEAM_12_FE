@@ -58,7 +58,7 @@ async function setup(page: Page) {
   await page.route("**/api/**", async (route) => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
-    if (path.startsWith("/api/auth/")) return route.fallback(); // 로그인 확인은 signed-in 픽스처가 받는다
+    if (path.startsWith("/api/auth/") || path === "/api/work") return route.fallback(); // 로그인 확인은 signed-in 픽스처가 받는다
     if (req.method() === "PATCH") {
       state.patches.push({ url: path, body: req.postDataJSON() });
       if (state.delay) await new Promise((resolve) => setTimeout(resolve, state.delay));
@@ -281,6 +281,7 @@ for (const kind of ["activity", "experience"] as const) {
 
 test("API list failure shows error and retry, without mock fallback", async ({ page }) => {
   await page.route("**/api/activities", (route) => route.fulfill({ status: 503, json: { error: { code: "UNAVAILABLE", message: "Backend unavailable" } } }));
+  await page.route("**/api/applications", (route) => route.fulfill({ json: { applications: [] } })); // 사이드바 지원서(FE#147)가 먼저 실패하면 다시 시도가 둘이 된다
   await page.goto("/experience");
   await expect(page.getByText("Backend unavailable", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "다시 시도" })).toBeVisible();

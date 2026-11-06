@@ -12,6 +12,7 @@ import { SidebarApplications, useExperienceCount, useSidebarApplications, type A
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { WorkStatus } from "@/components/work/work-provider";
 
 type Page = "home" | "timeline" | "questions" | "connections" | "guidelines";
 type HeaderProps = {
@@ -66,8 +67,8 @@ export function AppHeader({ hideOnMobile, addSource, applicationList, onNewAppli
           <span>내 서랍</span><span className="text-hairline" aria-hidden="true">/</span>
           <strong aria-current="page" className="truncate font-medium text-ink">{PAGE_NAME[page]}</strong>
         </nav>
-        {/* 찾기(FE#126) · 알림(FE#106) 자리. 기능이 없는 버튼은 두지 않는다 */}
-        <div data-slot="header-actions" className="ml-auto flex items-center gap-2" />
+        {/* 찾기(FE#126) 자리도 여기. 기능이 없는 버튼은 두지 않는다 */}
+        <div data-slot="header-actions" className="ml-auto flex min-w-0 items-center gap-2">{desktop && <WorkStatus />}</div>
       </div>
     </header>
     <DesktopSidebar key={wide ? "wide" : desktop ? "rail" : "mobile"} activePage={page} experienceCount={experienceCount === undefined ? ownCount : experienceCount}

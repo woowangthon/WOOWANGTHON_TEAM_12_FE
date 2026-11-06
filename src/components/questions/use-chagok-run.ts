@@ -25,7 +25,7 @@ export const whyFailed = (error: Failure | null) => (error && WHY[error.code]) ?
 const errorOf = (e: unknown): Failure => e instanceof ApiError ? { code: e.code, message: e.message } : { code: "UNKNOWN", message: "요청을 처리하지 못했어요." };
 
 /** 차곡이 일 하나(S-31) — 시트를 닫아도 이어지게 패널 밖(지원 화면)에 둔다. 쓴 글도 여기 있어 패널을 닫았다 열어도 남는다 */
-export function useChagokRun(questionId: number | null) {
+export function useChagokRun(questionId: number | null, restoreId: number | null = null) {
   const [run, setRun] = useState<ChagokRun | null>(null);
   const [draft, setDraft] = useState("");
   const [starting, setStarting] = useState(false);
@@ -38,6 +38,20 @@ export function useChagokRun(questionId: number | null) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [poll, setPoll] = useState<{ state: "ok" | "retrying" | "stopped"; round: number }>({ state: "ok", round: 0 });
   const pending = useRef(false);
+  const [restoreFailure, setRestoreFailure] = useState<{ id: number; message: string } | null>(null);
+  const [restoredFor, setRestoredFor] = useState<number | null>(null);
+  const restoreError = restoreFailure?.id === restoreId ? restoreFailure.message : null;
+  const [restoreRound, setRestoreRound] = useState(0);
+  useEffect(() => {
+    if (restoreId === null) return;
+    let alive = true;
+    // S-47: ID로 읽기만 한다. WAITING_CONFIRM도 자동 승인하지 않는다.
+    fetchChagokRun(restoreId).then(next => {
+      if (alive) { setRun(next); setRestoredFor(restoreId); setRestoreFailure(null); }
+    }, e => { if (alive) setRestoreFailure({ id: restoreId, message: errorOf(e).message }); });
+    return () => { alive = false; };
+  }, [restoreId, restoreRound]);
+  const restoring = restoreId !== null && restoredFor !== restoreId && restoreError === null;
 
   const runId = run?.runId;
   const running = run?.status === "RUNNING";
@@ -89,7 +103,7 @@ export function useChagokRun(questionId: number | null) {
   };
   const send = async (text: string) => {
     const value = text.trim();
-    if (value) await guarded(() => begin({ text: value, questionId }));
+    if (value && !restoring && !restoreError) await guarded(() => begin({ text: value, questionId }));
   };
   const retry = async () => {
     const ask = failure?.ask ?? (run ? { text: run.text, questionId: run.questionId } : null);
@@ -119,7 +133,7 @@ export function useChagokRun(questionId: number | null) {
     });
   };
   const act = async (kind: "confirm" | "cancel") => {
-    if (!run || pending.current) return;
+    if (!run || pending.current || restoring || restoreError) return;
     pending.current = true;
     setActing(kind);
     setActionError(null);
@@ -134,7 +148,8 @@ export function useChagokRun(questionId: number | null) {
   };
 
   return {
-    run, draft, setDraft, starting, failure, conflict, conflictError, acting, actionError, pollState: poll.state,
+    run, draft, setDraft, starting: starting || restoring, failure, conflict, conflictError, acting, actionError, pollState: poll.state,
+    restoreRunId: restoreId, restoring, restoreError, restore: () => { setRestoreFailure(null); setRestoredFor(null); setRestoreRound(n => n + 1); },
     send, retry, restart, wait,
     confirm: () => act("confirm"), cancel: () => act("cancel"),
     resumePolling: () => setPoll(p => ({ state: "ok", round: p.round + 1 })),

@@ -25,7 +25,7 @@ async function setup(page: Page) {
   await page.route("**/api/**", async (route) => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
-    if (path.startsWith("/api/auth/")) return route.fallback();
+    if (path.startsWith("/api/auth/") || path === "/api/work") return route.fallback();
     if (path === "/api/questions") return route.fulfill({ json: { questions: [{ id: 41, organization: "우왕 부트캠프" }] } });
     const match = path.match(/^\/api\/supplements\/(\d+)$/);
     if (match) {

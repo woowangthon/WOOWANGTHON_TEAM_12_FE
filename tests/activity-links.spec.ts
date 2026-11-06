@@ -24,7 +24,7 @@ async function setup(page: Page) {
     suggestResponse: { status: 200, json: { links: [SUGGESTION] } as unknown } };
   await page.route("**/api/**", async (route) => {
     const request = route.request(), path = new URL(request.url()).pathname;
-    if (path.startsWith("/api/auth/")) return route.fallback();
+    if (path.startsWith("/api/auth/") || path === "/api/work") return route.fallback();
     if (path === "/api/activities") return route.fulfill({ json: { activities: activities.map(summary) } });
     const suggest = path.match(/^\/api\/activities\/(\d+)\/link-suggestions$/);
     if (suggest && request.method() === "POST") {
