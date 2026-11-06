@@ -1,0 +1,13 @@
+{
+  "design": "index.html",
+  "app": "/",
+  "open": {
+    "design": [{ "click": "[data-menu=plus]" }],
+    "app": [{ "click": "aside[aria-label='사이드바'] button[aria-label='추가']" }]
+  },
+  "pairs": [
+    { "name": "추가 버튼", "design": ".btn-add", "app": "aside[aria-label='사이드바'] button[aria-label='추가']" },
+    { "name": "메뉴", "design": "#menu-plus", "app": "[role=menu]" },
+    { "name": "메뉴 항목", "design": "#menu-plus .menu__item", "app": "[role=menuitem]" }
+  ]
+}

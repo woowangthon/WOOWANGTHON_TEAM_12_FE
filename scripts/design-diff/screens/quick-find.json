@@ -1,0 +1,16 @@
+{
+  "design": "index.html",
+  "app": "/",
+  "open": {
+    "design": [{ "click": "[data-palette]" }],
+    "app": [{ "click": "button[aria-label^='찾기'], button[aria-label^='빠른 찾기']" }]
+  },
+  "pairs": [
+    { "name": "창", "design": ".pal", "app": "[role=dialog]" },
+    { "name": "입력 줄", "design": ".pal__in", "app": "[role=dialog] div:has(> input[aria-label='빠른 찾기 입력'])" },
+    { "name": "입력칸", "design": ".pal__in input", "app": "input[aria-label='빠른 찾기 입력']" },
+    { "name": "탭 줄", "design": ".pal__tabs", "app": "[aria-label='빠른 찾기 탭']" },
+    { "name": "탭", "design": ".pal__tabs button", "app": "[aria-label='빠른 찾기 탭'] button" },
+    { "name": "미리보기", "design": ".pal__prev", "app": "[data-slot=quick-find-preview]" }
+  ]
+}

@@ -37,6 +37,7 @@ description: GitHub Issue 하나를 SPEC 기준으로 구현 · 검증하고 PR 
 ## 4. 검증
 
 7. `AGENTS.md` 「이 레포」의 검증 명령을 돌린다. 비어 있으면 무엇으로 확인할지 묻는다.
+7-1. UI 가 바뀌는 FE PR 은 `npm run design:diff -- <화면>` 의 차이 표를 PR 본문에 붙인다(FE#185 — 쓰는 법은 FE README). 표에 없는 화면이면 `scripts/design-diff/screens/` 에 선택자 짝을 더한다.
 8. 실패하면 바로 고치지 말고 로그로 원인부터. 2회 넘게 안 되면 보고한다.
 9. 계약이 바뀌어야 하면 ETC 에 계약 PR 을 따로 내고, 반대편 레포의 열린 이슈에 알린 뒤 머지한다(ADR-006) — 코드 PR 본문에 링크. PR 전에 계약을 다시 읽어 그새 바뀐 게 없는지 본다.
 10. 사용자 동작이 바뀌면 `sync-spec`.
