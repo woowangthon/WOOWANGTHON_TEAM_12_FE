@@ -86,6 +86,29 @@ test("PATCH distinguishes empty competencies from an omitted field", async () =>
   expect(bodies).toEqual([{ competencies: [] }, { actor: "TEAM" }]);
 });
 
+test("failures without a contract code show Korean text instead of the server's English", async () => {
+  process.env.NEXT_PUBLIC_API_BASE_URL = "https://backend.example/api";
+  const unavailable = "이 기능을 아직 서버에서 쓸 수 없어요. 잠시 뒤 다시 시도해 주세요.";
+  const failed = "서버에서 처리하지 못했어요. 잠시 뒤 다시 시도해 주세요.";
+  // BE GlobalExceptionHandler 가 없는 주소에 돌려주는 모양
+  globalThis.fetch = async () => Response.json({ error: { code: "NOT_FOUND", message: "Not Found" } }, { status: 404 });
+  await expect(fetchActivity(7)).rejects.toMatchObject({ code: "NOT_FOUND", message: unavailable, status: 404 });
+  globalThis.fetch = async () => Response.json({ error: { code: "METHOD_NOT_ALLOWED", message: "Method Not Allowed" } }, { status: 405 });
+  await expect(fetchActivity(7)).rejects.toMatchObject({ message: unavailable, status: 405 });
+  // Spring 기본 오류 본문 · 프록시의 글자 응답
+  globalThis.fetch = async () => Response.json({ status: 404, error: "Not Found" }, { status: 404 });
+  await expect(fetchActivity(7)).rejects.toMatchObject({ code: "HTTP_404", message: unavailable });
+  globalThis.fetch = async () => new Response("Not Found", { status: 404 });
+  await expect(fetchActivity(7)).rejects.toMatchObject({ code: "HTTP_404", message: unavailable });
+  globalThis.fetch = async () => new Response("<html>Bad Gateway</html>", { status: 502 });
+  await expect(fetchActivity(7)).rejects.toMatchObject({ code: "HTTP_502", message: failed, status: 502 });
+  // 계약의 오류 코드는 그 문구 그대로
+  globalThis.fetch = async () => Response.json({ error: { code: "AI_FAILED", message: "AI 호출 실패" } }, { status: 502 });
+  await expect(fetchActivity(7)).rejects.toMatchObject({ code: "AI_FAILED", message: "AI 호출 실패", status: 502 });
+  globalThis.fetch = async () => Response.json({ error: { code: "ACTIVITY_NOT_FOUND", message: "활동이 없습니다" } }, { status: 404 });
+  await expect(fetchActivity(7)).rejects.toMatchObject({ code: "ACTIVITY_NOT_FOUND", message: "활동이 없습니다" });
+});
+
 test("HTTP, network and invalid JSON errors remain distinguishable; never fallback", async () => {
   process.env.NEXT_PUBLIC_API_BASE_URL = "https://backend.example/api";
   globalThis.fetch = async () => Response.json({ error: { code: "INVALID_PERIOD", message: "period rejected" } }, { status: 400 });
