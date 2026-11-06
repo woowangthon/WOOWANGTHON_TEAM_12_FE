@@ -115,7 +115,7 @@ test("a result row saves, and the saved filter narrows with the word and clears"
   expect(api.puts).toEqual([{ id: String(CHAT.id), body: { saved: true } }]);
 
   await page.getByLabel("찾을 낱말").fill("WebSocket");
-  await page.getByRole("checkbox", { name: "저장한 것", exact: true }).check();
+  await page.getByRole("button", { name: "저장한 것", exact: true }).click();
   await expect.poll(() => Object.fromEntries(api.searches.at(-1)!)).toEqual({ query: "WebSocket", saved: "true" });
   await expect(page.locator(`#result-${DEPLOY.id}`)).toHaveCount(0);
   await expect(row).toBeVisible();
@@ -126,7 +126,7 @@ test("a result row saves, and the saved filter narrows with the word and clears"
   await expect(page.getByText("쌓인 자료에서 찾지 못했어요")).toBeVisible();
 
   await page.getByRole("button", { name: "거르기 지우기" }).click();
-  await expect(page.getByRole("checkbox", { name: "저장한 것", exact: true })).not.toBeChecked();
+  await expect(page.getByRole("button", { name: "저장한 것", exact: true })).toHaveAttribute("aria-pressed", "false");
   await expect(row).toBeVisible();
 });
 
@@ -147,20 +147,20 @@ test("quick find filters by saved, hands it to the search screen and has no save
 
   await page.getByRole("button", { name: "빠른 찾기", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "빠른 찾기", exact: true });
-  await dialog.getByRole("checkbox", { name: "저장한 것", exact: true }).check();
+  await dialog.getByRole("button", { name: "저장한 것", exact: true }).click();
   await expect.poll(() => api.searches.at(-1)?.get("saved")).toBe("true");
   await expect(dialog.getByRole("listbox").getByRole("option")).toHaveCount(2); // 경험 하나 + 더 보기
-  await expect(dialog.getByRole("button", { name: /^저장/ })).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: /^저장(함)?: / })).toHaveCount(0);
   await capture(page, `quick-find-${page.viewportSize()!.width}`);
   expect(await noOverflow(page)).toBe(true);
 
   await dialog.getByRole("option", { name: /검색에서 더 보기/ }).click();
-  await expect(page.getByRole("checkbox", { name: "저장한 것", exact: true })).toBeChecked();
+  await expect(page.getByRole("button", { name: "저장한 것", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(`#result-${CHAT.id}`)).toBeVisible();
   await expect(page.locator(`#result-${DEPLOY.id}`)).toHaveCount(0);
 
   await page.goto("/experience?q=&saved=1");
-  await expect(page.getByRole("checkbox", { name: "저장한 것", exact: true })).toBeChecked();
+  await expect(page.getByRole("button", { name: "저장한 것", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect.poll(() => api.searches.at(-1)?.get("saved")).toBe("true");
 });
 
