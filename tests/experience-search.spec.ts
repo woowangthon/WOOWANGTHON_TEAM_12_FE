@@ -144,3 +144,22 @@ test("switching views keeps the word", async ({ page }) => {
   await page.getByRole("button", { name: "경험 찾기", exact: true }).click();
   await expect(page.getByLabel("찾을 낱말")).toHaveValue("WebSocket");
 });
+
+// FE#200 — 시안 6 아이콘 전환. 1024 미만은 말풍선이 없어 글자를 같이 보인다
+test("the view switch is icons with a tip on PC and icon with text below it", async ({ page }, info) => {
+  await setup(page, () => ({ json: { total: 0, experiences: [] } }));
+  const search = page.getByRole("button", { name: "경험 찾기", exact: true });
+  await expect(search).toHaveAttribute("aria-pressed", "false");
+  const box = (await search.boundingBox())!;
+  if (info.project.name === "desktop") {
+    expect([box.width, box.height]).toEqual([38, 32]);
+    await search.hover();
+    await expect(page.getByRole("tooltip")).toHaveText("경험 찾기");
+  } else {
+    await expect(search.getByText("경험 찾기")).toBeVisible();
+    expect(box.height).toBeGreaterThanOrEqual(44);
+  }
+  await search.click();
+  await expect(search).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "타임라인", exact: true })).toHaveAttribute("aria-pressed", "false");
+});

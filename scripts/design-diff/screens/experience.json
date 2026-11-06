@@ -1,0 +1,8 @@
+{
+  "design": "experience.html",
+  "app": "/experience",
+  "pairs": [
+    { "name": "보기 전환", "design": ".vt", "app": "[data-slot=view-switch]" },
+    { "name": "보기 전환 버튼", "design": ".vt button", "app": "[data-slot=view-switch] button" }
+  ]
+}

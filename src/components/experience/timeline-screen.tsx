@@ -5,8 +5,10 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowsClockwiseIcon, PlusIcon, WarningCircleIcon } from "@phosphor-icons/react";
-import { AddSourceButton, AppHeader, type AddSourceProps } from "@/components/app-header";
+import { ArrowsClockwiseIcon, ChartBarHorizontalIcon, MagnifyingGlassIcon, PlusIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { Tooltip } from "radix-ui";
+import { AddSourceButton, AppHeader, RailTip, type AddSourceProps } from "@/components/app-header";
+import { useSidebar } from "@/components/sidebar-layout";
 import { countExperiences } from "@/components/sidebar-applications";
 import { CenterState } from "@/components/center-state";
 import { AddSourceDialog, type SourceMode } from "@/components/source/add-source-dialog";
@@ -67,7 +69,7 @@ export function TimelineScreen() {
   const [categoryFilter, setCategoryFilter] = useState<ActivityCategory | null>(null);
   // 경험 찾기(S-58) — ?q=낱말 로 들어오면 찾기부터. 한 번 열면 낱말 · 거르기를 지키려고 숨기기만 한다
   const linkedQuery = params.get("q");
-  const [listView, setListView] = useState<"timeline" | "search">(linkedQuery === null ? "timeline" : "search");
+  const [listView, setListView] = useState<ExperienceView>(linkedQuery === null ? "timeline" : "search");
   const [searchOpened, setSearchOpened] = useState(linkedQuery !== null);
   // 빠른 찾기(S-61)가 넘긴 조건 — 바뀌면 찾기를 그 조건으로 새로 연다
   const [searchStart, setSearchStart] = useState(() => ({ search: experienceSearchFromParams(params), version: 0 }));
@@ -505,21 +507,23 @@ export function TimelineScreen() {
             )))}
           {ready && timeline && hasActivities && (
             <>
-              <div className="flex items-baseline gap-3">
-                <h1 className="m-0 text-2xl font-bold tracking-[-0.4px] lg:text-[26px]">내 경험</h1>
-                <span className="text-sm text-muted tabular-nums">
-                  활동 {ready.activities.length}
-                  <span className="hidden lg:inline">
-                    {" "}
-                    · 경험 {ready.activities.reduce((n, a) => n + a.experienceCount, 0)}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <div className="flex items-baseline gap-3">
+                  <h1 className="m-0 text-2xl font-bold tracking-[-0.4px] lg:text-[26px]">내 경험</h1>
+                  <span className="text-sm text-muted tabular-nums">
+                    활동 {ready.activities.length}
+                    <span className="hidden lg:inline">
+                      {" "}
+                      · 경험 {ready.activities.reduce((n, a) => n + a.experienceCount, 0)}
+                    </span>
                   </span>
-                </span>
+                </div>
+                <ViewSwitch view={listView} onChange={(next) => { setListView(next); if (next === "search") setSearchOpened(true); }} />
               </div>
               {view && analysis.tracked && !shownInDetail && (
                 <AnalysisBanner view={view} tracked={analysis.tracked} {...analysisActions} />
               )}
               {batchStatus}
-              <ViewSwitch view={listView} onChange={(next) => { setListView(next); if (next === "search") setSearchOpened(true); }} />
               {searchOpened && (
                 <div hidden={listView !== "search"}>
                   <ExperienceSearch key={searchStart.version} initial={searchStart.search} years={timeline.activityYears} mock={mock} version={searchVersion} hiddenIds={hiddenIds} onOpen={select} onSavedChange={savedChanged} />
@@ -643,23 +647,34 @@ export function TimelineScreen() {
   );
 }
 
-/** 타임라인(활동 단위) · 경험 찾기(경험 단위) 전환 */
-function ViewSwitch({ view, onChange }: { view: "timeline" | "search"; onChange: (next: "timeline" | "search") => void }) {
-  const tab = (value: "timeline" | "search", label: string) => (
-    <button
-      type="button"
-      aria-pressed={view === value}
-      onClick={() => onChange(value)}
-      className={cn("min-h-11 rounded-sm px-3.5 text-sm font-medium text-muted", view === value && "bg-canvas font-semibold text-ink shadow-sm")}
-    >
-      {label}
-    </button>
+type ExperienceView = "timeline" | "search";
+
+/** 타임라인(활동 단위) · 경험 찾기(경험 단위) 전환 — 시안 6 .vt. 1024 미만은 말풍선이 없어 글자를 같이 보인다 */
+function ViewSwitch({ view, onChange }: { view: ExperienceView; onChange: (next: ExperienceView) => void }) {
+  const { desktop } = useSidebar();
+  const tab = (value: ExperienceView, label: string, Icon: typeof MagnifyingGlassIcon) => (
+    <RailTip label={label} enabled={desktop}>
+      <button
+        type="button"
+        aria-pressed={view === value}
+        onClick={() => onChange(value)}
+        className={cn(
+          "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full px-3.5 text-sm font-medium text-muted lg:h-8 lg:min-h-0 lg:w-[38px] lg:px-0",
+          view === value && "bg-canvas font-bold text-ink shadow-sm",
+        )}
+      >
+        <Icon className="size-[17px] shrink-0" aria-hidden="true" />
+        <span className="lg:sr-only">{label}</span>
+      </button>
+    </RailTip>
   );
   return (
-    <div className="mt-4 inline-flex rounded-md bg-surface-soft p-1">
-      {tab("timeline", "타임라인")}
-      {tab("search", "경험 찾기")}
-    </div>
+    <Tooltip.Provider delayDuration={200}>
+      <div data-slot="view-switch" className="ml-auto inline-flex gap-0.5 rounded-full bg-surface-soft p-[3px]">
+        {tab("timeline", "타임라인", ChartBarHorizontalIcon)}
+        {tab("search", "경험 찾기", MagnifyingGlassIcon)}
+      </div>
+    </Tooltip.Provider>
   );
 }
 
