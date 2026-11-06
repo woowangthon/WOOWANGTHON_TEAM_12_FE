@@ -180,11 +180,11 @@ test("auth check 404 does not pass without login — it is an error with retry",
   await expect(page.getByRole("button", { name: /계정 메뉴/ }).first()).toBeAttached();
 });
 
-test("connection failure (Cloudflare Access not signed in) links to the API address before retrying", async ({ page }) => {
+test("connection failure (Cloudflare Access not signed in) links to the API address before retrying", async ({ page, baseURL }) => {
   const state = await setup(page, { signedIn: true, meOffline: true });
   await expect(page.getByRole("heading", { name: "로그인 상태를 확인하지 못했어요" })).toBeVisible();
   await expect(page.getByText("서버에 연결하지 못했어요", { exact: false })).toBeVisible();
-  await expect(page.getByRole("link", { name: "API 주소 열어 로그인하기" })).toHaveAttribute("href", "http://localhost:3100");
+  await expect(page.getByRole("link", { name: "API 주소 열어 로그인하기" })).toHaveAttribute("href", baseURL!);
   state.meOffline = false;
   await page.getByRole("button", { name: "다시 시도" }).click();
   await timelineReady(page);

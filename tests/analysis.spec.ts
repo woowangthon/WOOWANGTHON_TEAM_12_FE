@@ -184,9 +184,9 @@ test("file validation and JSON upload keep original name and text", async ({ pag
   expect(state.sources).toEqual([{ kind: "FILE", name: "notes.md", text }]);
 });
 
-test("restore validates storage, separates mock jobs and shows a missing job error", async ({ page }) => {
+test("restore validates storage, separates mock jobs and shows a missing job error", async ({ page, baseURL }) => {
   const state = await setup(page);
-  const key = "analysis:pending-job:http://localhost:3100/api";
+  const key = `analysis:pending-job:${baseURL}/api`;
   await page.evaluate((key) => {
     localStorage.setItem(key, JSON.stringify({ jobId: 34, name: "Restored source" }));
     localStorage.setItem("analysis:pending-job:mock", JSON.stringify({ jobId: 999, name: "Mock source" }));

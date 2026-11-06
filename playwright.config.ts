@@ -1,6 +1,8 @@
 import { defineConfig } from "@playwright/test";
 
 const mock = process.env.TEST_MOCK === "1";
+const port = process.env.PW_PORT ?? "3100";
+const origin = `http://localhost:${port}`;
 
 export default defineConfig({
   testDir: "./tests",
@@ -8,7 +10,7 @@ export default defineConfig({
   workers: 1,
   timeout: 30000,
   use: {
-    baseURL: "http://localhost:3100",
+    baseURL: origin,
     channel: process.env.PW_CHANNEL,
     trace: "retain-on-failure",
   },
@@ -30,9 +32,9 @@ export default defineConfig({
     { name: "mobile", testMatch: mock ? ["mock.spec.ts"] : ["sidebar.spec.ts", "app-shell.spec.ts", "responsive-breakpoint.spec.ts", "editing.spec.ts", "activity-note.spec.ts", "activity-links.spec.ts", "experience-used-in.spec.ts", "experience-search.spec.ts", "timeline-applications.spec.ts","analysis.spec.ts", "source-batch.spec.ts", "experience-management.spec.ts", "regroup.spec.ts", "period-drag.spec.ts", "question-matching.spec.ts", "answer-draft.spec.ts", "grounding-check.spec.ts", "answer-confirmation.spec.ts", "auth.spec.ts", "supplement-editing.spec.ts", "guidelines.spec.ts", "chagok-run.spec.ts"], use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
   ],
   webServer: {
-    command: "node node_modules/next/dist/bin/next dev --port 3100",
-    url: "http://localhost:3100",
-    env: { NEXT_PUBLIC_API_BASE_URL: mock ? "" : "http://localhost:3100/api" },
+    command: `node node_modules/next/dist/bin/next dev --port ${port}`,
+    url: origin,
+    env: { NEXT_PUBLIC_API_BASE_URL: mock ? "" : `${origin}/api` },
     timeout: 120000,
     reuseExistingServer: false,
   },
