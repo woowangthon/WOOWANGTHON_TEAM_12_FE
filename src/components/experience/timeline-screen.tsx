@@ -66,6 +66,8 @@ export function TimelineScreen() {
   const linkedQuery = params.get("q");
   const [listView, setListView] = useState<"timeline" | "search">(linkedQuery === null ? "timeline" : "search");
   const [searchOpened, setSearchOpened] = useState(linkedQuery !== null);
+  // 빠른 찾기(S-61)가 넘긴 낱말 — 바뀌면 찾기를 그 낱말로 새로 연다
+  const [searchStart, setSearchStart] = useState({ query: linkedQuery ?? "", version: 0 });
   const [searchVersion, setSearchVersion] = useState(0);
   const refreshSearch = () => setSearchVersion((n) => n + 1);
   const detailRequest = useRef(0);
@@ -239,6 +241,13 @@ export function TimelineScreen() {
     ++detailRequest.current;
     setSelectedId(null);
     requestAnimationFrame(() => window.scrollTo(0, listScrollY.current));
+  };
+
+  const searchFor = (query: string) => {
+    if (selectedRef.current != null) close(); // 모바일 — 세부가 목록을 가린다
+    setListView("search");
+    setSearchOpened(true);
+    setSearchStart((prev) => ({ query, version: prev.version + 1 }));
   };
 
   const activitySaved = (activity: ActivitySummary) => {
@@ -446,7 +455,7 @@ export function TimelineScreen() {
 
   return (
     <div className="flex min-h-dvh flex-1 flex-col bg-canvas lg:h-dvh">
-      <AppHeader hideOnMobile={!!selected} addSource={addSource} experienceCount={ready ? countExperiences(ready.activities) : null} />
+      <AppHeader hideOnMobile={!!selected} addSource={addSource} experienceCount={ready ? countExperiences(ready.activities) : null} quickFind={{ openActivity: select, search: searchFor }} />
       {Number(params.get("workJob")) > 0 && !isMockMode() && <SourceWorkDetail key={params.get("workJob")} jobId={Number(params.get("workJob"))} />}
       <p className="m-0 border-b border-hairline px-4 py-2 text-xs text-muted" role="note">
         {isMockMode() ? "목 모드 · 예시 데이터이며 서버에 저장할 수 없어요." : "실제 API 모드 · 활동과 경험 수정은 서버에 저장해요."}
@@ -498,7 +507,7 @@ export function TimelineScreen() {
               <ViewSwitch view={listView} onChange={(next) => { setListView(next); if (next === "search") setSearchOpened(true); }} />
               {searchOpened && (
                 <div hidden={listView !== "search"}>
-                  <ExperienceSearch initialQuery={linkedQuery ?? ""} years={timeline.activityYears} mock={mock} version={searchVersion} hiddenIds={hiddenIds} onOpen={select} />
+                  <ExperienceSearch key={searchStart.version} initialQuery={searchStart.query} years={timeline.activityYears} mock={mock} version={searchVersion} hiddenIds={hiddenIds} onOpen={select} />
                 </div>
               )}
               {listView === "timeline" && (

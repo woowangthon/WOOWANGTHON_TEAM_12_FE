@@ -10,6 +10,7 @@ import { isMockMode } from "@/lib/api/http";
 import { cn } from "@/lib/utils";
 import { isUnread, latestFinished, workHref, WORK_KIND, WORK_STATUS, type WorkItem } from "@/lib/api/work";
 import { useWork } from "./use-work";
+import { QuickFindButton } from "@/components/quick-find/quick-find";
 
 const WorkContext = createContext<{ open: (trigger: HTMLButtonElement) => void; count: number; unread: number; status: string } | null>(null);
 
@@ -39,7 +40,7 @@ export function WorkProvider({ children }: { children: ReactNode }) {
   const status = work.error ? "작업 상태를 확인하지 못했어요" : summary || (snapshot ? "진행 중인 일이 없어요" : isMockMode() ? "작업 소식은 서버 연결 후 확인할 수 있어요" : "작업 상태 확인 중…");
   return <WorkContext value={{ open, count: inProgress.length, unread, status }}>
     {/* PC 는 상단 바 오른쪽(app-header), 좁은 화면은 맨 위 막대 — 둘이 겹치면 상단 바가 가려진다 */}
-    {!desktop && <WorkStatus className="sticky top-0 z-40 min-h-11 justify-between border-b border-hairline bg-canvas px-4" />}
+    {!desktop && <WorkStatus className="sticky top-0 z-40 min-h-11 justify-between border-b border-hairline bg-canvas px-4"><QuickFindButton /></WorkStatus>}
     {children}
     <Sheet open={opened} onOpenChange={setOpened}>
       <SheetContent aria-describedby={undefined} onCloseAutoFocus={event => { event.preventDefault(); if (!navigating.current) trigger.current?.focus(); }} className="w-full! gap-0 sm:max-w-[420px]!">
@@ -59,12 +60,13 @@ export function WorkProvider({ children }: { children: ReactNode }) {
   </WorkContext>;
 }
 
-export function WorkStatus({ className }: { className?: string }) {
+/** children: 소식 버튼 옆에 나란히 둘 버튼 */
+export function WorkStatus({ className, children }: { className?: string; children?: React.ReactNode }) {
   const work = useContext(WorkContext);
   if (!work) return null;
   return <div aria-label="전역 작업 상태" className={cn("flex min-w-0 shrink-0 items-center gap-2 text-xs", className)}>
     <p aria-live="polite" aria-atomic="true" className="my-2 min-w-0 break-words text-muted">{work.status}</p>
-    <WorkButton />
+    <div className="flex shrink-0 items-center gap-1">{children}<WorkButton /></div>
   </div>;
 }
 

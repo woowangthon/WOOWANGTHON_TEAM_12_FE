@@ -20,7 +20,8 @@ function MakeApplication({ onMakeApplication, disabled }: { onMakeApplication: (
 }
 
 /** S-29 꺼내기 답 — 한 번 묻고 경험 카드 0 ~ 3개로 답한다. 대화 · 저장 없음 */
-export function AskAnswer({ answer, onMakeApplication, busy }: { answer: AskAnswerState; onMakeApplication: () => void; busy: boolean }) {
+/** onOpenActivity: 주소로 옮겨 가지 않고 부르는 쪽이 그 활동을 연다(빠른 찾기 창) */
+export function AskAnswer({ answer, onMakeApplication, busy, onOpenActivity }: { answer: AskAnswerState; onMakeApplication: () => void; busy: boolean; onOpenActivity?: (activityId: number) => void }) {
   const { recommendations: list } = answer;
   return <section aria-label="꺼내기 답" className="mt-6 rounded-lg border border-hairline bg-canvas p-4 sm:p-5">
     <p className="m-0 text-xs text-muted">물어본 것</p>
@@ -46,7 +47,7 @@ export function AskAnswer({ answer, onMakeApplication, busy }: { answer: AskAnsw
           <p className={boxTitle}>근거 — 기록 그대로</p>
           <RecommendationEvidence recommendation={r} />
         </section>
-        <Link href={`/experience?activity=${r.activity.id}`} className="inline-flex min-h-11 items-center justify-self-start text-sm font-medium text-ink underline-offset-3 hover:underline">활동 세부 보기 →</Link>
+        <Link href={`/experience?activity=${r.activity.id}`} onClick={onOpenActivity && (event => { event.preventDefault(); onOpenActivity(r.activity.id); })} className="inline-flex min-h-11 items-center justify-self-start text-sm font-medium text-ink underline-offset-3 hover:underline">활동 세부 보기 →</Link>
       </li>)}</ol>
     </>}
     <MakeApplication onMakeApplication={onMakeApplication} disabled={busy} />
