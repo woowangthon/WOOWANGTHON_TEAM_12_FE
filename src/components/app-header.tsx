@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArchiveIcon, FileTextIcon, HouseIcon, PlusIcon, StackIcon, PlugsConnectedIcon, SidebarSimpleIcon } from "@phosphor-icons/react";
+import { ArchiveIcon, FileTextIcon, HouseIcon, PaperclipIcon, PencilSimpleIcon, PlusIcon, StackIcon, PlugsConnectedIcon, SidebarSimpleIcon } from "@phosphor-icons/react";
 import { DropdownMenu, Tooltip } from "radix-ui";
 import { AccountMenu } from "@/components/auth/account-menu";
 import { QuickFindButton, useQuickFindActions, type QuickFindActions } from "@/components/quick-find/quick-find";
@@ -29,7 +29,7 @@ type HeaderProps = {
   quickFind?: Pick<QuickFindActions, "openActivity" | "search">;
 };
 type SidebarProps = Pick<HeaderProps, "activePage" | "experienceCount"> & {
-  list: React.ReactNode; onAddSource: () => void; addSourceBusy?: boolean; onNewApplication: () => void;
+  list: React.ReactNode; onAddSource: () => void; onRecord: () => void; addSourceBusy?: boolean; onNewApplication: () => void;
 };
 const links = [
   { page: "timeline", href: "/experience", label: "내 경험" },
@@ -52,7 +52,7 @@ export function AppHeader({ hideOnMobile, addSource, applicationList, onNewAppli
   const ownCount = useExperienceCount(desktop && experienceCount === undefined);
   const page = activePage ?? "timeline";
   const newApplication = onNewApplication ?? (() => router.push("/questions?new=1"));
-  useQuickFindActions({ ...quickFind, addSource: addSource?.onClick, addSourceBusy: addSource?.busy, newApplication: onNewApplication });
+  useQuickFindActions({ ...quickFind, addSource: addSource?.onClick, addRecord: addSource?.onRecord, addSourceBusy: addSource?.busy, newApplication: onNewApplication });
   return <Tooltip.Provider delayDuration={200}>
     <header className={cn("flex h-14 items-center gap-4 border-b border-hairline bg-canvas px-4.5 lg:sticky lg:top-0 lg:z-20 lg:px-6", hideOnMobile && "max-lg:hidden")}>
       <div className="contents lg:hidden">
@@ -76,7 +76,7 @@ export function AppHeader({ hideOnMobile, addSource, applicationList, onNewAppli
       </div>
     </header>
     <DesktopSidebar key={wide ? "wide" : desktop ? "rail" : "mobile"} activePage={page} experienceCount={experienceCount === undefined ? ownCount : experienceCount}
-      onAddSource={addSource?.onClick ?? (() => router.push("/experience?add=1"))} addSourceBusy={addSource?.busy} onNewApplication={newApplication}
+      onAddSource={addSource?.onClick ?? (() => router.push("/experience?add=1"))} onRecord={addSource?.onRecord ?? (() => router.push("/experience?add=line"))} addSourceBusy={addSource?.busy} onNewApplication={newApplication}
       list={<SidebarApplications {...(applicationList ?? ownList)} onNew={newApplication} showAll={page !== "questions"} />} />
   </Tooltip.Provider>;
 }
@@ -128,9 +128,9 @@ function DesktopSidebar(props: SidebarProps) {
   </>;
 }
 
-function SidebarNavigation({ collapsed = false, activePage = "timeline", experienceCount, onAddSource, addSourceBusy, onNewApplication, onNavigate, id }: SidebarProps & { collapsed?: boolean; onNavigate?: () => void; id?: string }) {
+function SidebarNavigation({ collapsed = false, activePage = "timeline", experienceCount, onAddSource, onRecord, addSourceBusy, onNewApplication, onNavigate, id }: SidebarProps & { collapsed?: boolean; onNavigate?: () => void; id?: string }) {
   return <nav id={id} className="relative flex shrink-0 flex-col gap-0.5" aria-label="주 메뉴">
-    <AddMenu collapsed={collapsed} busy={addSourceBusy} onAddSource={() => { onNavigate?.(); onAddSource(); }} onNewApplication={() => { onNavigate?.(); onNewApplication(); }} />
+    <AddMenu collapsed={collapsed} busy={addSourceBusy} onAddSource={() => { onNavigate?.(); onAddSource(); }} onRecord={() => { onNavigate?.(); onRecord(); }} onNewApplication={() => { onNavigate?.(); onNewApplication(); }} />
     {sideLinks.map(l => <SideLink key={l.page} {...l} active={activePage === l.page} collapsed={collapsed} onNavigate={onNavigate}
       count={l.page === "timeline" ? experienceCount : null} />)}
     {/* 펼치면 아래 「지원서」 목록이 이 메뉴를 대신한다(시안 6) */}
@@ -151,10 +151,11 @@ function SideLink({ href, label, icon, active, collapsed, count, railOnly, onNav
   </RailTip>;
 }
 
-/** 「+ 추가」 — 자료 넣기 · 새 지원서. 「직접 기록하기」는 SPEC 에 없어 뺐다(FE#147) */
-function AddMenu({ collapsed, busy, onAddSource, onNewApplication }: { collapsed: boolean; busy?: boolean; onAddSource: () => void; onNewApplication: () => void }) {
+/** 「+ 추가」 — 쌓기(자료 가져오기 · 직접 기록하기) · 꺼내기(새 지원서). 직접 기록하기는 같은 자료 넣기(S-01)의 한 줄 입구다(FE#179) */
+function AddMenu({ collapsed, busy, onAddSource, onRecord, onNewApplication }: { collapsed: boolean; busy?: boolean; onAddSource: () => void; onRecord: () => void; onNewApplication: () => void }) {
   const item = "flex cursor-pointer gap-3 rounded-sm px-3 py-2.5 outline-none focus:bg-surface-soft data-disabled:cursor-default data-disabled:opacity-60";
-  const text = (title: string, detail: string) => <span className="grid gap-0.5"><span className="text-sm font-semibold text-ink">{title}</span><span className="text-xs leading-normal text-muted">{detail}</span></span>;
+  const text = (title: string, detail: string) => <span className="grid"><span className="text-sm leading-4 font-semibold text-ink">{title}</span><span className="text-[11px] leading-normal text-muted">{detail}</span></span>;
+  const label = "px-3 pt-2 pb-1 text-[11px] font-medium text-muted";
   return <DropdownMenu.Root modal={false}>
     <RailTip label="추가" enabled={collapsed}>
       <DropdownMenu.Trigger asChild>
@@ -165,13 +166,20 @@ function AddMenu({ collapsed, busy, onAddSource, onNewApplication }: { collapsed
       </DropdownMenu.Trigger>
     </RailTip>
     <DropdownMenu.Portal>
-      <DropdownMenu.Content align="start" side={collapsed ? "right" : "bottom"} sideOffset={6} className="z-60 grid w-70 gap-0.5 rounded-md border border-hairline bg-canvas p-1.5 shadow-float">
+      <DropdownMenu.Content align="start" side={collapsed ? "right" : "bottom"} sideOffset={6} className="z-60 grid w-70 gap-0.5 rounded-md border border-hairline bg-canvas p-2 shadow-float">
+        <DropdownMenu.Label className={label}>쌓기</DropdownMenu.Label>
         <DropdownMenu.Item disabled={busy} onSelect={onAddSource} className={item}>
-          <PlusIcon className="mt-0.5 size-4.5 shrink-0" aria-hidden="true" />
-          {text("자료 넣기", busy ? BUSY : "README · 회고 · 노트 · .md 파일에서 활동과 경험을 찾아요")}
+          <PaperclipIcon className="mt-px size-5 shrink-0" aria-hidden="true" />
+          {text("자료 가져오기", busy ? BUSY : "README · 회고 · 노트 · .md 파일 — AI 가 활동과 경험을 찾아요")}
         </DropdownMenu.Item>
+        <DropdownMenu.Item disabled={busy} onSelect={onRecord} className={item}>
+          <PencilSimpleIcon className="mt-px size-5 shrink-0" aria-hidden="true" />
+          {text("직접 기록하기", busy ? BUSY : "오늘 한 일 · 든 생각 한 줄 — AI 가 활동과 경험을 찾아요")}
+        </DropdownMenu.Item>
+        <DropdownMenu.Separator className="my-1 h-px bg-hairline" />
+        <DropdownMenu.Label className={label}>꺼내기</DropdownMenu.Label>
         <DropdownMenu.Item onSelect={onNewApplication} className={item}>
-          <FileTextIcon className="mt-0.5 size-4.5 shrink-0" aria-hidden="true" />
+          <FileTextIcon className="mt-px size-5 shrink-0" aria-hidden="true" />
           {text("새 지원서", "지원처와 문항을 넣으면 맞는 경험을 근거와 함께 찾아요")}
         </DropdownMenu.Item>
       </DropdownMenu.Content>
@@ -213,9 +221,9 @@ export function Logo({ className }: { className?: string }) {
   return <Image src="/brand/logo.svg" alt="차곡" width={93} height={26} className={className} style={{ width: "auto" }} priority />;
 }
 
-export type AddSourceProps = { onClick: () => void; busy?: boolean };
+export type AddSourceProps = { onClick: () => void; onRecord: () => void; busy?: boolean };
 
-export function AddSourceButton({ onClick, busy, className }: AddSourceProps & { className?: string }) {
+export function AddSourceButton({ onClick, busy, className }: Omit<AddSourceProps, "onRecord"> & { className?: string }) {
   return <Button onClick={onClick} disabled={busy} title={busy ? BUSY : undefined} className={className}>
     <PlusIcon />자료 넣기
   </Button>;
