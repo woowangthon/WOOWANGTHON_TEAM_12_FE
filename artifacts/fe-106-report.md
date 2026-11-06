@@ -35,7 +35,7 @@
 - `tests/signed-in.ts`: 자동화 전용 기본 빈 작업 응답.
 - 기존 테스트 15개 파일의 API 처리기는 `/api/work`를 공통 픽스처로 전달하도록 한 줄씩 보완했습니다: `activity-links.spec.ts`, `activity-note.spec.ts`, `analysis.spec.ts`, `editing.spec.ts`, `entrance.spec.ts`, `experience-management.spec.ts`, `experience-search.spec.ts`, `experience-used-in.spec.ts`, `fake-question-api.ts`, `home.spec.ts`, `period-drag.spec.ts`, `public-profile.spec.ts`, `regroup.spec.ts`, `supplement-editing.spec.ts`, `timeline-applications.spec.ts`.
 - `.gitignore`: 검토용 세 스크린샷만 보존하도록 예외 추가.
-- `artifacts/fe-106-*.md`, `artifacts/fe-106-test-results.json`, `artifacts/work-work-*-test-api.png`: 보고서·PR 본문·검증 집계·화면.
+- `artifacts/fe-106-*.md`, `artifacts/work-work-*-test-api.png`: 보고서·PR 본문·화면. 기계 판독용 검증 집계 JSON은 로컬에만 보관하고 커밋하지 않습니다.
 
 테스트가 다시 생성한 다른 기능의 기존 스크린샷은 원래대로 복원했습니다. 의존성·잠금 파일과 `.env`, API 키, 서버 설정은 변경하지 않았습니다.
 
@@ -63,7 +63,15 @@
 - `answer-draft.spec.ts`: saving an omitted answer uses its server ID, persists after reload and regenerates only on click
 - `editing.spec.ts`: AI marker: undefined, SOURCE_CONFIRMED, 1 competencies
 
-검증 환경은 Windows의 설치된 Chrome입니다. 전체 실행은 `npm test -- --workers=2`에 기록용 reporter를 붙였고, 재실행은 worker 1개와 별도 `.cache/retry-results`를 사용했습니다. [기계 판독용 집계](fe-106-test-results.json)에 실패별 main 재현 여부가 있습니다.
+검증 환경은 Windows의 설치된 Chrome입니다. 전체 실행은 `npm test -- --workers=2`에 기록용 reporter를 붙였고, 재실행은 worker 1개와 별도 `.cache/retry-results`를 사용했습니다.
+
+실패별 main 재현 여부 요약:
+
+| 실패 묶음 | 개수 | main 재현 |
+| --- | --- | --- |
+| `question-matching.spec.ts` 상태 선택자·요청 횟수 검증 (PC·모바일 각 8개) | 16 | 재현됨 |
+| `sidebar.spec.ts` 애니메이션 중간 프레임 검증 | 1 | 재현됨 |
+| `answer-draft.spec.ts`, `editing.spec.ts` 추적 출력 폴더 충돌(ENOENT) | 2 | 재현 안 됨 — 격리 재실행에서 통과 |
 
 로컬 원문 로그: `.cache/check-final-state.log`, `.cache/all-tests-final.log`, `.cache/main-comparison.log`, `.cache/artifact-retry.log`, `.cache/precision-tests.log`.
 

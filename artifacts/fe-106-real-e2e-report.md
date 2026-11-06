@@ -30,7 +30,6 @@
 
 실제 서버 응답 스크린샷:
 
-- [PC 완료 소식](fe-106-real/20261106060532_fa2d/desktop-real-news.png)
 - [수정 후 모바일 390px](fe-106-real/20261106063314_d250/mobile-real-waiting-confirm.png)
 - [수정 후 PC](fe-106-real/20261106063314_d250/desktop-real-waiting-confirm.png)
 - [모바일 소식](fe-106-real/20261106063314_d250/mobile-real-news.png)
