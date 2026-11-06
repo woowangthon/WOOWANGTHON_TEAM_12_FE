@@ -32,6 +32,10 @@ const analyzingNotice = (page: Page) => result(page).getByRole("status").filter(
 const list = (page: Page) => page.getByRole("complementary", { name: /^(지원 목록|사이드바)$/ });
 // 지원 목록의 첫 지원 — 사이드바엔 「자료 넣기」 같은 메뉴 버튼도 있어 지원 버튼(aria-pressed)만 센다
 const firstApplication = (page: Page) => list(page).locator("button[aria-pressed]").first();
+/** 1024 미만은 지원을 열면 세부만 보인다(FE#159) — 목록을 보려면 먼저 「지원 목록으로」 */
+async function openList(page: Page) {
+  if (page.viewportSize()!.width < 1024) await page.getByRole("button", { name: "지원 목록으로", exact: true }).click();
+}
 const recommendation = (page: Page, n: number) => result(page).getByRole("listitem", { name: `추천 경험 ${n}`, exact: true });
 // 차곡이 패널(FE#51) — 1280 이상은 옆에 붙어 기본으로 열리고, 좁으면 버튼으로 여는 시트
 const chagokPanel = (page: Page) => page.locator("#chagok-panel");
@@ -88,6 +92,7 @@ test("question 41/42 switch shows contract judgments, actors and supplemental ev
   if (process.env.UPDATE_QUESTION_SCREENSHOTS === "1") {
     await page.screenshot({ path: `docs/fe-30/questions-${info.project.name}.png`, fullPage: true, style: "nextjs-portal { display: none !important; }" });
   }
+  await openList(page);
   await list(page).getByRole("button", { name: /OO 백엔드 부트캠프/ }).click();
   await expect(recommendation(page, 1)).toContainText("WebSocket");
   await expect(recommendation(page, 1).getByText("나", { exact: true })).toBeVisible();
@@ -131,6 +136,7 @@ test("analysis is polled until done, survives reload and keeps the new applicati
   await page.reload();
   await expect(result(page).getByRole("heading", { name: QUESTION_EXAMPLES[1].text, exact: true })).toBeVisible();
   await expect(recommendation(page, 1)).toContainText("매주 금요일", { timeout: 10000 });
+  await openList(page);
   await expect(firstApplication(page)).toHaveAttribute("aria-pressed", "true");
   await expect(firstApplication(page)).toContainText("지원처 이름 없음");
 });
@@ -224,6 +230,7 @@ test("application with several questions keeps order, analyzes each and shows th
   await expect(result(page).getByRole("heading", { name: QUESTION_EXAMPLES[0].text, exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByRole("tablist", { name: "문항" }).getByRole("tab").nth(1)).toHaveAttribute("aria-selected", "true");
+  await openList(page);
   await expect(firstApplication(page)).toContainText("OO 백엔드 부트캠프 · 2기");
 });
 
@@ -392,6 +399,7 @@ test("status tag changes with one choice, the month appears and can be corrected
 test("status can be changed from the list without opening that application, and a failed save reverts and retries", async ({ page }) => {
   const api = await fake(page);
   await page.goto("/questions?question=41");
+  await openList(page);
   const otherOrganization = QUESTION_EXAMPLES[1].organization!;
   const other = page.getByLabel(`${otherOrganization} 지원 상태`).filter({ visible: true });
   await expect(other).toHaveText("작성 중");
@@ -417,6 +425,7 @@ test("status tags fit every width: 44 touch target, same look for passed and not
   for (const width of [1440, 1024, 390]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/questions?question=41");
+    await openList(page);
     const tags = page.getByLabel("지원 상태").filter({ visible: true });
     await expect(tags.first()).toBeVisible();
     await expect(page.getByText("2025년 2월 냄").filter({ visible: true }).first()).toBeVisible();
@@ -484,6 +493,9 @@ test("daily limit (429) keeps the draft and says nothing was saved", async ({ pa
   await page.getByRole("button", { name: "문항 2개 넣고 경험 찾기", exact: true }).click();
   await expect(page.locator("form").getByRole("alert")).toContainText("오늘 분석 횟수를 다 썼어요");
   await expect(page.getByLabel("문항 2", { exact: true })).toHaveValue(QUESTION_EXAMPLES[1].text);
+  // 좁은 폭은 넣는 동안 목록이 없다 — 취소하면 지원으로 돌아가고 거기서 목록을 연다(FE#159)
+  if (page.viewportSize()!.width < 1024) await page.getByRole("button", { name: "취소", exact: true }).click();
+  await openList(page);
   await expect(list(page).getByRole("button", { name: /지원처 이름 없음|OO/ })).toHaveCount(2);
 });
 
@@ -508,6 +520,7 @@ test("answering a clarification posts it and shows it on the experience as user-
   await closeChagokSheet(page);
 
   // 문항 41 — 61 은 이미 답함(보완 301), 62 에 답한다
+  await openList(page);
   await list(page).getByRole("button", { name: /OO 백엔드 부트캠프/ }).click();
   await expect(result(page).getByRole("heading", { name: QUESTION_EXAMPLES[0].text, exact: true })).toBeVisible();
   await openChagok(page);
@@ -617,13 +630,16 @@ test("switching tabs and applications uses questions already loaded; only unseen
   expect([...new Set(gets(api))].sort()).toEqual(["GET /api/applications", "GET /api/questions/42"]);
 
   api.calls = [];
+  await openList(page);
   await list(page).getByRole("button", { name: /OO 백엔드 부트캠프/ }).click();
   await expect(recommendation(page, 1)).toContainText("WebSocket");
   expect(gets(api)).toEqual(["GET /api/questions/41"]);
 
   api.calls = [];
+  await openList(page);
   await firstApplication(page).click();
   await expect(recommendation(page, 1)).toContainText("매주 금요일");
+  await openList(page);
   await firstApplication(page).click();
   const tab = page.getByRole("tablist", { name: "문항" }).getByRole("tab").first();
   await tab.click();
@@ -821,4 +837,23 @@ test("opening an application shows the question and answer box on the first scre
     ].map(top));
     expect(order).toEqual([...order].sort((a, b) => a - b));
   }
+});
+
+// FE#159 — 390 폭은 지원을 열면 문항과 답칸이 첫 화면에 있고, 목록은 「지원 목록으로」 뒤에 있다
+test("390 first screen shows the question and answer; the application list stays one tap away", async ({ page }) => {
+  test.skip(page.viewportSize()!.width >= 1024);
+  await fake(page);
+  await page.goto("/questions");
+  await expect(page.getByRole("tabpanel", { name: "선택한 문항", exact: true })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "지원 목록", exact: true })).toBeHidden();
+  const answer = page.locator('textarea[id^="answer-"]');
+  await expect(answer).toBeVisible();
+  expect((await answer.boundingBox())!.y).toBeLessThan(page.viewportSize()!.height - 80);
+
+  await openList(page);
+  await expect(page.getByRole("tabpanel", { name: "선택한 문항", exact: true })).toBeHidden();
+  await expect(page.locator("#application-list")).toBeFocused();
+  await list(page).locator("button[aria-pressed]").last().click();
+  await expect(page.getByRole("tabpanel", { name: "선택한 문항", exact: true })).toBeVisible();
+  await expect(page.locator("#application-list")).toBeHidden();
 });

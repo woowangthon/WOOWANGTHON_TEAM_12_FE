@@ -39,7 +39,7 @@ function failureText(error: QuestionDetail["error"]) {
 /** 원문 링크의 사이트 이름만 — 긴 주소를 그대로 보이지 않는다 */
 const hostOf = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; } };
 
-/** 지원 화면(S-18 · S-21) — 지원 목록(xl 이상은 사이드바) · 상태 꼬리표(S-36), 고른 지원: 지원처 머리 → 문항 탭 → 문항 → 답 → 초안 → 참고 경험 → 여러 문항에 추천된 활동(FE#148),
+/** 지원 화면(S-18 · S-21) — 지원 목록(xl 이상은 사이드바, lg 미만은 「지원 목록으로」 뒤) · 상태 꼬리표(S-36), 고른 지원: 지원처 머리 → 문항 탭 → 문항 → 답 → 초안 → 참고 경험 → 여러 문항에 추천된 활동(FE#148),
  *  오른쪽 차곡이 패널: 요구사항 · 보완 재사용 · 되묻기(FE#51). 배치는 ETC 시안 6 apply.html. 답 입력 · 근거 점검(S-45)은 추천 상태와 따로 쓴다 */
 export function ApplicationScreen() {
   const params = useSearchParams();
@@ -59,9 +59,17 @@ export function ApplicationScreen() {
     window.history.replaceState(window.history.state, "", url);
   }, []);
   const [adding, setAdding] = useState(false);
+  // 좁은 화면은 목록과 세부를 나눠 보인다 — 지원을 열면 세부부터, 「지원 목록으로」를 누르면 목록(FE#159)
+  const [listShown, setListShown] = useState(false);
   const open = matching.open;
   const overlaps = useMemo(() => (open ? overlapsOf(open.details) : []), [open]);
   const scrollToDetail = () => requestAnimationFrame(() => document.getElementById("selected-application")?.scrollIntoView({ block: "start" }));
+  // 누른 버튼이 사라지므로 포커스를 새로 보이는 쪽으로 옮긴다
+  const revealPane = (id: string) => requestAnimationFrame(() => {
+    const pane = document.getElementById(id);
+    window.scrollTo({ top: 0 });
+    pane?.setAttribute("tabindex", "-1"); pane?.focus({ preventScroll: true });
+  });
   const empty = !matching.loading && !matching.error && matching.applications.length === 0;
   const ready = !empty && !matching.loading && !matching.error;
   const { wide, collapsed } = useSidebar();
@@ -80,12 +88,12 @@ export function ApplicationScreen() {
     if (matching.loading || !linkedQuestion) return;
     if (linkedQuestion === matching.questionId) { openedWorkQuestion.current = linkedQuestion; return; }
     if (openedWorkQuestion.current === linkedQuestion) return;
-    const timer = setTimeout(() => { openedWorkQuestion.current = linkedQuestion; void matching.openLinkedQuestion(linkedQuestion); setComposing(false); setAdding(false); }, 0);
+    const timer = setTimeout(() => { openedWorkQuestion.current = linkedQuestion; void matching.openLinkedQuestion(linkedQuestion); setComposing(false); setAdding(false); setListShown(false); }, 0);
     return () => clearTimeout(timer);
   }, [linkedQuestion, matching]);
   useEffect(() => {
     if (restoreRun === null) return;
-    const timer = setTimeout(() => { setPanelChoice(true); setComposing(false); setAdding(false); }, 0);
+    const timer = setTimeout(() => { setPanelChoice(true); setComposing(false); setAdding(false); setListShown(false); }, 0);
     return () => clearTimeout(timer);
   }, [restoreRun]);
   useEffect(() => {
@@ -122,8 +130,13 @@ export function ApplicationScreen() {
     onAnswer={(clarificationId, answer) => selected ? matching.answer(selected.id, clarificationId, answer) : Promise.resolve()}
     draftActions={{ ...draftActions, focusRequest: draftFocus?.questionId === selected?.id ? draftFocus?.request ?? 0 : 0 }}
     onClose={() => setPanelChoice(false)} />;
-  const startNew = () => { setPasted(takeApplicationText()); setComposing(true); setAdding(false); scrollToDetail(); };
-  const pick = (a: Application) => { setComposing(false); setAdding(false); matching.selectApplication(a); scrollToDetail(); };
+  const startNew = () => { setPasted(takeApplicationText()); setComposing(true); setAdding(false); setListShown(false); scrollToDetail(); };
+  const pick = (a: Application) => {
+    setComposing(false); setAdding(false); setListShown(false); matching.selectApplication(a);
+    if (listShown) revealPane("selected-application"); else scrollToDetail();
+  };
+  const showList = () => { setListShown(true); revealPane("application-list"); };
+  const listFirst = !composing && (listShown || !open);
   // 지원을 열면 첫 화면을 문항과 답칸에 내준다 — 화면 제목은 읽기 프로그램에만 남고 「지원 넣기」는 지원처 머리로 간다(FE#148)
   const working = !composing && !matching.error && (matching.loading || !!open);
   const activeId = composing ? null : open?.application.id ?? null;
@@ -153,15 +166,15 @@ export function ApplicationScreen() {
       </div> : empty ? <section id="selected-application" className="max-w-2xl" aria-label="새 지원 입력">
         <ApplicationForm key={pasted} pastedText={pasted} onSubmit={req => matching.submit(req)} />
       </section> : <div className={cn("grid items-start gap-7 lg:gap-10", collapsed && "lg:grid-cols-[240px_minmax(0,1fr)]")}>
-        {collapsed && <aside id="application-list" className="min-w-0 scroll-mt-4 lg:sticky lg:top-20 lg:scroll-mt-20" aria-label="지원 목록">
+        {collapsed && <aside id="application-list" className={cn("min-w-0 scroll-mt-4 lg:sticky lg:top-20 lg:scroll-mt-20", !listFirst && "max-lg:hidden")} aria-label="지원 목록">
           <ApplicationList {...list} />
         </aside>}
-        <section id="selected-application" className="min-w-0 scroll-mt-5 lg:scroll-mt-20" aria-label={composing ? "새 지원 입력" : "선택한 지원"}>
+        <section id="selected-application" className={cn("min-w-0 scroll-mt-5 lg:scroll-mt-20", listFirst && "max-lg:hidden")} aria-label={composing ? "새 지원 입력" : "선택한 지원"}>
           {composing ? <ApplicationForm key={pasted} pastedText={pasted} onCancel={() => setComposing(false)} onSubmit={async req => {
             const saved = await matching.submit(req);
             if (saved) { setComposing(false); scrollToDetail(); }
           }} /> : open ? <>
-            <a href="#application-list" className="mb-3 inline-flex min-h-11 items-center text-sm text-muted underline underline-offset-4 lg:hidden">지원 목록으로</a>
+            <button type="button" onClick={showList} className="mb-1 inline-flex min-h-11 items-center text-sm text-muted underline underline-offset-4 lg:hidden">지원 목록으로</button>
             {/* sm 미만은 버튼이 이름 줄만 쓰고 칩은 아래 줄 전체를 쓴다. sm 이상은 칩이 이름 옆으로 온다 */}
             <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3">
               <div className="contents sm:block sm:min-w-0">
@@ -234,7 +247,7 @@ function AnswerSkeleton() {
   </div>)}</div>;
 }
 
-/** 지원 목록 — 펼친 사이드바 안(머리 · 상태는 SidebarApplications), 접었거나 좁으면 화면 안 왼쪽 · 위 */
+/** 지원 목록 — 펼친 사이드바 안(머리 · 상태는 SidebarApplications), 접으면 화면 안 왼쪽, 좁으면 세부와 나눠서 한 번에 하나만 */
 function ApplicationList({ applications, activeId, onPick, onSave, sidebar = false }: {
   applications: Application[]; activeId: number | null; onPick: (application: Application) => void;
   onSave: (applicationId: number, req: UpdateApplicationRequest) => Promise<void>; sidebar?: boolean;
