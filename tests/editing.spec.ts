@@ -1,3 +1,4 @@
+import { openAddSource } from "./add-source";
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import type { ActivityDetail, UpdateActivityRequest, UpdateExperienceRequest } from "../src/lib/api/types";
@@ -280,6 +281,7 @@ for (const kind of ["activity", "experience"] as const) {
 
 test("API list failure shows error and retry, without mock fallback", async ({ page }) => {
   await page.route("**/api/activities", (route) => route.fulfill({ status: 503, json: { error: { code: "UNAVAILABLE", message: "Backend unavailable" } } }));
+  await page.route("**/api/applications", (route) => route.fulfill({ json: { applications: [] } })); // 사이드바 지원서(FE#147)가 먼저 실패하면 다시 시도가 둘이 된다
   await page.goto("/experience");
   await expect(page.getByText("Backend unavailable", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "다시 시도" })).toBeVisible();
@@ -329,7 +331,7 @@ test("source HTTP failure keeps the text and never shows mock analysis success",
   await setup(page);
   await page.route("**/api/sources", (route) => route.fulfill({ status: 503, json: { error: { code: "INTERNAL_ERROR", message: "Source unavailable" } } }));
   if (page.viewportSize()!.width < 1024) await page.getByRole("button", { name: "타임라인", exact: true }).click();
-  await page.getByRole("button", { name: "자료 넣기", exact: true }).filter({ visible: true }).first().click();
+  await openAddSource(page);
   await page.getByRole("dialog").getByRole("textbox").fill("Mock source text");
   await page.getByRole("button", { name: "넣기", exact: true }).click();
   await expect(page.getByRole("dialog").getByRole("alert")).toHaveText("Source unavailable");

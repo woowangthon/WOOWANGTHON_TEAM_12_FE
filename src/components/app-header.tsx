@@ -3,52 +3,87 @@
 import { useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { FileTextIcon, PlusIcon, StackIcon, PlugsConnectedIcon, SidebarSimpleIcon } from "@phosphor-icons/react";
-import { Tooltip } from "radix-ui";
+import { useRouter } from "next/navigation";
+import { ArchiveIcon, FileTextIcon, HouseIcon, PlusIcon, StackIcon, PlugsConnectedIcon, SidebarSimpleIcon } from "@phosphor-icons/react";
+import { DropdownMenu, Tooltip } from "radix-ui";
 import { AccountMenu } from "@/components/auth/account-menu";
 import { useSidebar } from "@/components/sidebar-layout";
+import { SidebarApplications, useExperienceCount, useSidebarApplications, type ApplicationsLoad } from "@/components/sidebar-applications";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { WorkButton } from "@/components/work/work-provider";
+import { WorkStatus } from "@/components/work/work-provider";
 
 type Page = "home" | "timeline" | "questions" | "connections" | "guidelines";
 type HeaderProps = {
   /** 1024 미만에서 세부를 전체 화면으로 열면 위 막대를 숨긴다 */
   hideOnMobile?: boolean; addSource?: AddSourceProps; activePage?: Page;
-  /** 펼친 사이드바 메뉴 아래 — 지원 화면의 지원 목록 */
-  sidebarExtra?: React.ReactNode;
+  /** 지원 화면이 받아 둔 목록과 그 줄. 없으면 사이드바가 직접 받는다 */
+  applicationList?: ApplicationsLoad & { rows?: React.ReactNode };
+  /** 지원 화면 안에서 새 지원을 연다. 없으면 지원 화면으로 가서 연다 */
+  onNewApplication?: () => void;
+  /** 활동을 이미 받는 화면이 넘긴다(받는 중이면 null). 없으면 사이드바가 직접 받는다 */
+  experienceCount?: number | null;
+};
+type SidebarProps = Pick<HeaderProps, "activePage" | "experienceCount"> & {
+  list: React.ReactNode; onAddSource: () => void; addSourceBusy?: boolean; onNewApplication: () => void;
 };
 const links = [
-  { page: "timeline", href: "/experience", label: "내 경험", icon: <StackIcon /> },
-  { page: "questions", href: "/questions", label: "지원", icon: <FileTextIcon /> },
-  { page: "connections", href: "/connections", label: "연결", icon: <PlugsConnectedIcon /> },
+  { page: "timeline", href: "/experience", label: "내 경험" },
+  { page: "questions", href: "/questions", label: "지원" },
+  { page: "connections", href: "/connections", label: "연결" },
 ];
+const sideLinks = [
+  { page: "home", href: "/", label: "홈", icon: <HouseIcon /> },
+  { page: "timeline", href: "/experience", label: "내 경험", icon: <StackIcon /> },
+];
+const PAGE_NAME: Record<Page, string> = { home: "홈", timeline: "내 경험", questions: "지원서", connections: "연결", guidelines: "작성 지침" };
+const BUSY = "지금 넣은 자료의 분석이 끝나면 더 넣을 수 있어요";
+// 왼쪽 여백·아이콘 칸·줄 간격은 접어도 유지한다. 글자는 남겨 서랍의 폭으로 잘라 낸다(시안 6).
+const navItem = "flex h-11 w-full shrink-0 items-center gap-2.5 overflow-hidden rounded-full px-3 text-sm font-medium whitespace-nowrap text-ink transition-colors";
 
-export function AppHeader({ hideOnMobile, ...props }: HeaderProps) {
+export function AppHeader({ hideOnMobile, addSource, applicationList, onNewApplication, experienceCount, activePage }: HeaderProps) {
   const { wide, desktop } = useSidebar();
+  const router = useRouter();
+  const ownList = useSidebarApplications(desktop && !applicationList);
+  const ownCount = useExperienceCount(desktop && experienceCount === undefined);
+  const page = activePage ?? "timeline";
+  const newApplication = onNewApplication ?? (() => router.push("/questions?new=1"));
   return <Tooltip.Provider delayDuration={200}>
-    <header className={cn("flex h-14 items-center gap-4 border-b border-hairline bg-canvas px-4.5 lg:hidden", hideOnMobile && "max-lg:hidden")}>
-      <Link href="/" aria-label="차곡 — 홈"><Logo className="h-5 w-auto" /></Link>
-      <nav className="flex shrink-0 items-center gap-4 text-sm font-semibold" aria-label="주 메뉴">
-        {links.map(l => <Link key={l.page} href={l.href} aria-current={(props.activePage ?? "timeline") === l.page ? "page" : undefined}
-          className={cn("inline-flex h-14 items-center border-b-2", (props.activePage ?? "timeline") === l.page ? "border-ink" : "border-transparent text-muted")}>
-          {l.label}
-        </Link>)}
-      </nav>
-      <div className="ml-auto flex items-center gap-2"><AccountMenu /></div>
+    <header className={cn("flex h-14 items-center gap-4 border-b border-hairline bg-canvas px-4.5 lg:sticky lg:top-0 lg:z-20 lg:px-6", hideOnMobile && "max-lg:hidden")}>
+      <div className="contents lg:hidden">
+        <Link href="/" aria-label="차곡 — 홈"><Logo className="h-5 w-auto" /></Link>
+        <nav className="flex shrink-0 items-center gap-4 text-sm font-semibold" aria-label="주 메뉴">
+          {links.map(l => <Link key={l.page} href={l.href} aria-current={page === l.page ? "page" : undefined}
+            className={cn("inline-flex h-14 items-center border-b-2", page === l.page ? "border-ink" : "border-transparent text-muted")}>
+            {l.label}
+          </Link>)}
+        </nav>
+        <div className="ml-auto flex items-center gap-2"><AccountMenu /></div>
+      </div>
+      <div className="hidden lg:contents">
+        <nav aria-label="현재 위치" className="flex min-w-0 items-center gap-2.5 text-xs text-muted">
+          <ArchiveIcon className="size-4 shrink-0" aria-hidden="true" />
+          <span>내 서랍</span><span className="text-hairline" aria-hidden="true">/</span>
+          <strong aria-current="page" className="truncate font-medium text-ink">{PAGE_NAME[page]}</strong>
+        </nav>
+        {/* 찾기(FE#126) 자리도 여기. 기능이 없는 버튼은 두지 않는다 */}
+        <div data-slot="header-actions" className="ml-auto flex min-w-0 items-center gap-2">{desktop && <WorkStatus />}</div>
+      </div>
     </header>
-    <DesktopSidebar key={wide ? "wide" : desktop ? "rail" : "mobile"} {...props} />
+    <DesktopSidebar key={wide ? "wide" : desktop ? "rail" : "mobile"} activePage={page} experienceCount={experienceCount === undefined ? ownCount : experienceCount}
+      onAddSource={addSource?.onClick ?? (() => router.push("/experience?add=1"))} addSourceBusy={addSource?.busy} onNewApplication={newApplication}
+      list={<SidebarApplications {...(applicationList ?? ownList)} onNew={newApplication} showAll={page !== "questions"} />} />
   </Tooltip.Provider>;
 }
 
-function DesktopSidebar(props: HeaderProps) {
+function DesktopSidebar(props: SidebarProps) {
   const { collapsed, wide, desktop, toggle } = useSidebar();
   const [overlayOpen, setOverlayOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const toggleLabel = collapsed ? "사이드바 펼치기" : "사이드바 접기";
   return <>
-    <aside data-collapsed={collapsed} className="sidebar-drawer fixed inset-y-0 left-0 z-30 hidden flex-col gap-5.5 overflow-clip px-3.5 pt-6.5 pb-4.5 lg:flex" aria-label="사이드바">
+    <aside data-collapsed={collapsed} className="sidebar-drawer fixed inset-y-0 left-0 z-30 hidden flex-col gap-3 overflow-clip px-3.5 pt-6.5 pb-4.5 lg:flex" aria-label="사이드바">
       <SidebarBackground />
       {/* 시안 6: 레일은 같은 로고 자리에서 펼침 아이콘으로 바뀐다. 높이를 고정해 메뉴가 밀리지 않게 한다. */}
       <div data-slot="sidebar-brand" className={cn("group/brand relative flex h-11 shrink-0 items-center", collapsed ? "w-11 justify-center" : "justify-between pl-2")}>
@@ -62,16 +97,17 @@ function DesktopSidebar(props: HeaderProps) {
         </RailTip>
       </div>
       <SidebarNavigation {...props} collapsed={collapsed} id="sidebar-navigation" />
-      {props.sidebarExtra && <div inert={collapsed} aria-hidden={collapsed || undefined}
+      {/* 레일엔 목록 대신 「지원서」 아이콘이 있다. 자리는 그대로 두어 아래 메뉴가 움직이지 않는다 */}
+      <div inert={collapsed} aria-hidden={collapsed || undefined}
         className={cn("relative flex min-h-0 w-55 flex-1 flex-col transition-opacity duration-150", collapsed && "pointer-events-none opacity-0")}>
-        {props.sidebarExtra}
-      </div>}
-      <div className="relative mt-auto"><WorkButton collapsed={collapsed} /><AccountMenu variant={collapsed ? "rail" : "sidebar"} /></div>
+        {props.list}
+      </div>
+      <SidebarFooter {...props} collapsed={collapsed} variant={collapsed ? "rail" : "sidebar"} />
     </aside>
     <Sheet open={overlayOpen && desktop && !wide} onOpenChange={setOverlayOpen}>
       <SheetContent side="left" id="sidebar-overlay" aria-describedby={undefined} showCloseButton={false}
         onCloseAutoFocus={event => { event.preventDefault(); trigger.current?.focus(); }}
-        className="sidebar-overlay w-62! gap-5.5 overflow-clip bg-page px-3.5 pt-6.5 pb-4.5">
+        className="sidebar-overlay w-62! gap-3 overflow-clip bg-page px-3.5 pt-6.5 pb-4.5">
         <SheetTitle className="sr-only">사이드바</SheetTitle>
         <SidebarBackground />
         <div className="relative flex h-11 shrink-0 items-center justify-between pl-2">
@@ -81,33 +117,70 @@ function DesktopSidebar(props: HeaderProps) {
           </button>
         </div>
         <SidebarNavigation {...props} onNavigate={() => setOverlayOpen(false)} />
-        {props.sidebarExtra && <div className="relative flex min-h-0 flex-1 flex-col" onClick={event => { if ((event.target as HTMLElement).closest("button")) setOverlayOpen(false); }}>{props.sidebarExtra}</div>}
-        <div className="relative mt-auto"><AccountMenu variant="sidebar" /></div>
+        <div className="relative flex min-h-0 flex-1 flex-col" onClick={event => { if ((event.target as HTMLElement).closest("a, button")) setOverlayOpen(false); }}>{props.list}</div>
+        <SidebarFooter {...props} variant="sidebar" onNavigate={() => setOverlayOpen(false)} />
       </SheetContent>
     </Sheet>
   </>;
 }
 
-function SidebarNavigation({ collapsed = false, activePage = "timeline", addSource, onNavigate, id }: HeaderProps & { collapsed?: boolean; onNavigate?: () => void; id?: string }) {
-  // 왼쪽 여백·아이콘 칸·줄 간격은 접어도 유지한다. 글자는 남겨 서랍의 폭으로 잘라 낸다(시안 6).
-  const navItem = "flex h-11 w-full shrink-0 items-center gap-2.5 overflow-hidden rounded-full px-3 text-sm font-medium whitespace-nowrap text-ink transition-colors";
+function SidebarNavigation({ collapsed = false, activePage = "timeline", experienceCount, onAddSource, addSourceBusy, onNewApplication, onNavigate, id }: SidebarProps & { collapsed?: boolean; onNavigate?: () => void; id?: string }) {
   return <nav id={id} className="relative flex shrink-0 flex-col gap-0.5" aria-label="주 메뉴">
-    {addSource && <RailTip label="자료 넣기" enabled={collapsed}>
-      <button type="button" aria-label="자료 넣기" onClick={() => { onNavigate?.(); addSource.onClick(); }} disabled={addSource.busy}
-        title={addSource.busy ? "지금 넣은 자료의 분석이 끝나면 더 넣을 수 있어요" : undefined}
-        className={cn(navItem, "hover:bg-canvas/60 disabled:cursor-default disabled:opacity-50")}>
-        <span className="flex size-5 shrink-0 items-center justify-center" aria-hidden="true"><PlusIcon className="size-4.5" /></span>
-        <span className="sidebar-label shrink-0" aria-hidden={collapsed || undefined}>자료 넣기</span>
-      </button>
-    </RailTip>}
-    {links.map(l => <RailTip key={l.page} label={l.label} enabled={collapsed}>
-      <Link href={l.href} onClick={onNavigate} aria-label={l.label} aria-current={activePage === l.page ? "page" : undefined}
-        className={cn(navItem, activePage === l.page ? "bg-canvas font-bold" : "hover:bg-canvas/60")}>
-        <span className="flex size-5 shrink-0 items-center justify-center text-[19px]" aria-hidden="true">{l.icon}</span>
-        <span className="sidebar-label shrink-0" aria-hidden={collapsed || undefined}>{l.label}</span>
-      </Link>
-    </RailTip>)}
+    <AddMenu collapsed={collapsed} busy={addSourceBusy} onAddSource={() => { onNavigate?.(); onAddSource(); }} onNewApplication={() => { onNavigate?.(); onNewApplication(); }} />
+    {sideLinks.map(l => <SideLink key={l.page} {...l} active={activePage === l.page} collapsed={collapsed} onNavigate={onNavigate}
+      count={l.page === "timeline" ? experienceCount : null} />)}
+    {/* 펼치면 아래 「지원서」 목록이 이 메뉴를 대신한다(시안 6) */}
+    {collapsed && <SideLink href="/questions" label="지원서" icon={<FileTextIcon />} active={activePage === "questions"} collapsed railOnly />}
   </nav>;
+}
+
+function SideLink({ href, label, icon, active, collapsed, count, railOnly, onNavigate }: {
+  href: string; label: string; icon: React.ReactNode; active: boolean; collapsed: boolean; count?: number | null; railOnly?: boolean; onNavigate?: () => void;
+}) {
+  return <RailTip label={label} enabled={collapsed}>
+    <Link href={href} onClick={onNavigate} aria-label={label} aria-current={active ? "page" : undefined} data-rail-only={railOnly || undefined}
+      className={cn(navItem, active ? "bg-canvas font-bold" : "hover:bg-canvas/60")}>
+      <span className="flex size-5 shrink-0 items-center justify-center text-[19px]" aria-hidden="true">{icon}</span>
+      <span className="sidebar-label shrink-0" aria-hidden={collapsed || undefined}>{label}</span>
+      {count != null && <span className="sidebar-label ml-auto text-xs font-medium text-muted tabular-nums" aria-hidden={collapsed || undefined}>{count}</span>}
+    </Link>
+  </RailTip>;
+}
+
+/** 「+ 추가」 — 자료 넣기 · 새 지원서. 「직접 기록하기」는 SPEC 에 없어 뺐다(FE#147) */
+function AddMenu({ collapsed, busy, onAddSource, onNewApplication }: { collapsed: boolean; busy?: boolean; onAddSource: () => void; onNewApplication: () => void }) {
+  const item = "flex cursor-pointer gap-3 rounded-sm px-3 py-2.5 outline-none focus:bg-surface-soft data-disabled:cursor-default data-disabled:opacity-60";
+  const text = (title: string, detail: string) => <span className="grid gap-0.5"><span className="text-sm font-semibold text-ink">{title}</span><span className="text-xs leading-normal text-muted">{detail}</span></span>;
+  return <DropdownMenu.Root modal={false}>
+    <RailTip label="추가" enabled={collapsed}>
+      <DropdownMenu.Trigger asChild>
+        <button type="button" aria-label="추가" className={cn(navItem, "hover:bg-canvas/60 data-[state=open]:bg-canvas/60")}>
+          <span className="flex size-5 shrink-0 items-center justify-center" aria-hidden="true"><PlusIcon className="size-4.5" /></span>
+          <span className="sidebar-label shrink-0" aria-hidden={collapsed || undefined}>추가</span>
+        </button>
+      </DropdownMenu.Trigger>
+    </RailTip>
+    <DropdownMenu.Portal>
+      <DropdownMenu.Content align="start" side={collapsed ? "right" : "bottom"} sideOffset={6} className="z-60 grid w-70 gap-0.5 rounded-md border border-hairline bg-canvas p-1.5 shadow-float">
+        <DropdownMenu.Item disabled={busy} onSelect={onAddSource} className={item}>
+          <PlusIcon className="mt-0.5 size-4.5 shrink-0" aria-hidden="true" />
+          {text("자료 넣기", busy ? BUSY : "README · 회고 · 노트 · .md 파일에서 활동과 경험을 찾아요")}
+        </DropdownMenu.Item>
+        <DropdownMenu.Item onSelect={onNewApplication} className={item}>
+          <FileTextIcon className="mt-0.5 size-4.5 shrink-0" aria-hidden="true" />
+          {text("새 지원서", "지원처와 문항을 넣으면 맞는 경험을 근거와 함께 찾아요")}
+        </DropdownMenu.Item>
+      </DropdownMenu.Content>
+    </DropdownMenu.Portal>
+  </DropdownMenu.Root>;
+}
+
+/** 아래쪽 연결 · 계정 — 「내보내기」(S-33)는 기능이 들어올 때 붙인다 */
+function SidebarFooter({ activePage = "timeline", collapsed = false, variant, onNavigate }: SidebarProps & { collapsed?: boolean; variant: "rail" | "sidebar"; onNavigate?: () => void }) {
+  return <div className="relative mt-auto flex shrink-0 flex-col gap-0.5">
+    <nav aria-label="연결"><SideLink href="/connections" label="연결" icon={<PlugsConnectedIcon />} active={activePage === "connections"} collapsed={collapsed} onNavigate={onNavigate} /></nav>
+    <AccountMenu variant={variant} />
+  </div>;
 }
 
 function RailTip({ label, enabled, children }: { label: string; enabled: boolean; children: React.ReactElement }) {
@@ -139,7 +212,7 @@ export function Logo({ className }: { className?: string }) {
 export type AddSourceProps = { onClick: () => void; busy?: boolean };
 
 export function AddSourceButton({ onClick, busy, className }: AddSourceProps & { className?: string }) {
-  return <Button onClick={onClick} disabled={busy} title={busy ? "지금 넣은 자료의 분석이 끝나면 더 넣을 수 있어요" : undefined} className={className}>
+  return <Button onClick={onClick} disabled={busy} title={busy ? BUSY : undefined} className={className}>
     <PlusIcon />자료 넣기
   </Button>;
 }

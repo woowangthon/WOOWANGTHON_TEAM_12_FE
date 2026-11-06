@@ -23,10 +23,10 @@ test("icons stay in place throughout collapse and expansion while width and labe
     const read = () => ({
       width: drawer.getBoundingClientRect().width,
       padding: parseFloat(getComputedStyle(document.querySelector(".app-shell")!).paddingLeft),
-      icons: Array.from(drawer.querySelectorAll('nav svg, [aria-label^="계정 메뉴"] svg')).map(el => {
+      icons: Array.from(drawer.querySelectorAll('nav a:not([data-rail-only]) svg, nav button svg, [aria-label^="계정 메뉴"] svg')).map(el => {
         const r = el.getBoundingClientRect(); return { x: r.x, y: r.y };
       }),
-      labels: Array.from(drawer.querySelectorAll("nav .sidebar-label")).map(el => ({ text: el.textContent, opacity: Number(getComputedStyle(el).opacity) })),
+      labels: Array.from(drawer.querySelectorAll("nav a:not([data-rail-only]) .sidebar-label, nav button .sidebar-label")).map(el => ({ text: el.textContent, opacity: Number(getComputedStyle(el).opacity) })),
     });
     const before = read();
     drawer.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!.click();
@@ -89,9 +89,9 @@ test("desktop collapse survives reload and navigation; the application list rema
   await expect(sidebar(page)).toHaveCSS("width", "248px");
   await sidebar(page).getByRole("button", { name: "사이드바 접기", exact: true }).click();
   await page.getByRole("heading", { name: "지원", level: 1, exact: true }).click();
-  const link = sidebar(page).getByRole("link", { name: "지원", exact: true });
+  const link = sidebar(page).getByRole("link", { name: "지원서", exact: true });
   await link.hover();
-  await expect(page.getByRole("tooltip")).toHaveText("지원");
+  await expect(page.getByRole("tooltip")).toHaveText("지원서");
   await page.mouse.move(500, 10);
   await capture(page, "questions-1440-collapsed");
   await page.reload();
@@ -99,7 +99,7 @@ test("desktop collapse survives reload and navigation; the application list rema
   await sidebar(page).getByRole("link", { name: "내 경험", exact: true }).click();
   await expect(page.getByRole("heading", { name: "내 경험", exact: true })).toBeVisible();
   await expect(sidebar(page)).toHaveCSS("width", "72px");
-  await sidebar(page).getByRole("link", { name: "지원", exact: true }).click();
+  await sidebar(page).getByRole("link", { name: "지원서", exact: true }).click();
   await expect(page.locator("#application-list").getByRole("button").first()).toBeVisible();
   await sidebar(page).getByRole("button", { name: "사이드바 펼치기", exact: true }).click();
   await expect(sidebar(page)).toHaveCSS("width", "248px");
@@ -113,7 +113,7 @@ test("automatic rail overlays without moving content, supports Escape and resets
   await page.goto("/questions");
   await expect(page.getByRole("tabpanel", { name: "선택한 문항" })).toBeVisible();
   await expect(sidebar(page)).toHaveCSS("width", "72px");
-  await expect(page.getByRole("banner")).toBeHidden();
+  await expect(page.getByRole("banner").getByRole("navigation", { name: "주 메뉴", exact: true })).toBeHidden();
   await capture(page, "questions-1024");
   const brand = sidebar(page).locator('[data-slot="sidebar-brand"]');
   const navBefore = (await sidebar(page).getByRole("navigation", { name: "주 메뉴", exact: true }).boundingBox())!;

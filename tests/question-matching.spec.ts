@@ -1,4 +1,5 @@
 // 지원 · 문항 · 추천 · 되묻기 화면 — 실제 API 모드에서 가짜 BE(fake-question-api.ts)를 상대로 (FE#30 · #38 · #31 · #51 → FE#32)
+import { openAddSource } from "./add-source";
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import { FakeQuestionApi, type FakeOptions } from "./fake-question-api";
@@ -593,7 +594,7 @@ test("add source from the application screen opens the dialog on the timeline on
     await page.goto("/questions");
     await expect(result(page)).toBeVisible();
     if (process.env.UPDATE_QUESTION_SCREENSHOTS === "1") await page.screenshot({ path: `docs/fe-64/apply-${width}.png`, style: "nextjs-portal { display: none !important; }" });
-    await page.getByRole("button", { name: "자료 넣기", exact: true }).filter({ visible: true }).click();
+    await openAddSource(page);
     const dialog = page.getByRole("dialog", { name: "자료 넣기" });
     await expect(dialog).toBeVisible();
     await expect(page).toHaveURL(/\/experience$/);

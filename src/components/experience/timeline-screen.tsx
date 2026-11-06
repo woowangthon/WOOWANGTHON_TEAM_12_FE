@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowsClockwiseIcon, PlusIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { AddSourceButton, AppHeader, type AddSourceProps } from "@/components/app-header";
+import { countExperiences } from "@/components/sidebar-applications";
 import { CenterState } from "@/components/center-state";
 import { AddSourceDialog } from "@/components/source/add-source-dialog";
 import { AnalysisBanner, AnalysisBatch, AnalysisCenter, analysisView } from "@/components/source/analysis-status";
@@ -431,7 +432,7 @@ export function TimelineScreen() {
 
   return (
     <div className="flex min-h-dvh flex-1 flex-col bg-canvas lg:h-dvh">
-      <AppHeader hideOnMobile={!!selected} addSource={addSource} />
+      <AppHeader hideOnMobile={!!selected} addSource={addSource} experienceCount={ready ? countExperiences(ready.activities) : null} />
       {Number(params.get("workJob")) > 0 && !isMockMode() && <SourceWorkDetail key={params.get("workJob")} jobId={Number(params.get("workJob"))} />}
       <p className="m-0 border-b border-hairline px-4 py-2 text-xs text-muted" role="note">
         {isMockMode() ? "목 모드 · 예시 데이터이며 서버에 저장할 수 없어요." : "실제 API 모드 · 활동과 경험 수정은 서버에 저장해요."}

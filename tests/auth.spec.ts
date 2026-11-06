@@ -1,3 +1,4 @@
+import { openAddSource } from "./add-source";
 import { test, expect, type Page } from "@playwright/test";
 import type { Me } from "../src/lib/api/auth";
 
@@ -145,7 +146,7 @@ test("daily limit: remaining count in the dialog, and a 429 keeps the text with 
   const state = await setup(page, { signedIn: true, me: { ...ME, dailyAnalysis: { used: 200, limit: 200 } } });
   await timelineReady(page);
   state.sourceLimit = true;
-  await page.getByRole("button", { name: "자료 넣기", exact: true }).filter({ visible: true }).first().click();
+  await openAddSource(page);
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("오늘 남은 분석 0회 — 한국 시간 자정에 다시 채워져요");
   await dialog.getByRole("textbox").fill("오늘 넣어 보는 자료");

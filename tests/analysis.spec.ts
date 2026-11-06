@@ -1,3 +1,4 @@
+import { openAddSource } from "./add-source";
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import type { Job, SourceRequest, ActivityDetail } from "../src/lib/api/types";
@@ -43,6 +44,7 @@ async function setup(page: Page) {
       return route.fulfill({ json: { activities: state.status === "COMPLETED" && !state.empty ? [{ id: 70, name: detail.name, period: detail.period, experienceCount: 1, mergeSuggestion: state.suggestion ? { activityId: 7, name: "기존 활동", period: detail.period } : null }] : [] } });
     }
     if (path === "/api/activities/70") { state.details++; return route.fulfill({ json: detail }); }
+    if (path === "/api/applications") return route.fulfill({ json: { applications: [] } }); // 사이드바 지원서(FE#147)
     throw new Error(`Unexpected API: ${req.method()} ${path}`);
   });
   await page.goto("/experience");
@@ -51,7 +53,7 @@ async function setup(page: Page) {
 }
 
 async function submit(page: Page, text = "Original source") {
-  await page.getByRole("button", { name: "자료 넣기", exact: true }).filter({ visible: true }).first().click();
+  await openAddSource(page);
   await page.getByLabel("붙여넣을 자료").fill(text);
   await page.getByRole("button", { name: "넣기", exact: true }).click();
 }
@@ -146,7 +148,7 @@ test("completed analysis does not hide a failed activity refresh with fake resul
 
 test("text.length blocks 50001 UTF-16 units, accepts 50000 and prevents duplicate submit", async ({ page }) => {
   const state = await setup(page);
-  await page.getByRole("button", { name: "자료 넣기", exact: true }).filter({ visible: true }).first().click();
+  await openAddSource(page);
   const input = page.getByLabel("붙여넣을 자료");
   const button = page.getByRole("button", { name: "넣기", exact: true });
   await input.fill(" \n ");
@@ -165,7 +167,7 @@ test("text.length blocks 50001 UTF-16 units, accepts 50000 and prevents duplicat
 
 test("file validation and JSON upload keep original name and text", async ({ page }) => {
   const state = await setup(page);
-  await page.getByRole("button", { name: "자료 넣기", exact: true }).filter({ visible: true }).first().click();
+  await openAddSource(page);
   const input = page.locator('input[type="file"]');
   const button = page.getByRole("button", { name: "넣기", exact: true });
   await input.setInputFiles({ name: "bad.pdf", mimeType: "application/pdf", buffer: Buffer.from("invalid") });
@@ -206,7 +208,7 @@ test("restore validates storage, separates mock jobs and shows a missing job err
 
 test("PDF · PPTX 는 브라우저에서 글자를 뽑아 sections 와 함께 보내고, 못 읽는 파일은 보내지 않는다 (FE#79)", async ({ page }) => {
   const state = await setup(page);
-  await page.getByRole("button", { name: "자료 넣기", exact: true }).filter({ visible: true }).first().click();
+  await openAddSource(page);
   const input = page.locator('input[type="file"]');
   const button = page.getByRole("button", { name: "넣기", exact: true });
   const dialog = page.getByRole("dialog");

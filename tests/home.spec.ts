@@ -93,7 +93,8 @@ test("빈 홈은 실제 입력으로 연결하고 조회 실패를 빈 데이터
   await expect(page.getByText("최근 지원을 불러오지 못했어요.", { exact: true })).toBeVisible();
   await expect(page.getByText("경험 0개가 쌓여 있어요", { exact: false })).toHaveCount(0);
   state.failActivities = false; state.failApplications = false;
-  await page.getByRole("button", { name: "다시 시도", exact: true }).first().click();
+  // 사이드바 지원서에도 다시 시도가 있다(FE#147) — 여기서는 홈 안의 것
+  await page.getByRole("main").getByRole("button", { name: "다시 시도", exact: true }).first().click();
   await expect(page.getByText("경험 0개가 쌓여 있어요", { exact: false })).toBeVisible();
 });
 

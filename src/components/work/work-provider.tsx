@@ -4,15 +4,18 @@ import { createContext, useContext, useRef, useState, type ReactNode } from "rea
 import Link from "next/link";
 import { BellIcon } from "@phosphor-icons/react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { useSidebar } from "@/components/sidebar-layout";
 import { Button } from "@/components/ui/button";
 import { isMockMode } from "@/lib/api/http";
+import { cn } from "@/lib/utils";
 import { isUnread, latestFinished, workHref, WORK_KIND, WORK_STATUS, type WorkItem } from "@/lib/api/work";
 import { useWork } from "./use-work";
 
-const WorkContext = createContext<{ open: (trigger: HTMLButtonElement) => void; count: number; unread: number } | null>(null);
+const WorkContext = createContext<{ open: (trigger: HTMLButtonElement) => void; count: number; unread: number; status: string } | null>(null);
 
 export function WorkProvider({ children }: { children: ReactNode }) {
   const work = useWork();
+  const { desktop } = useSidebar();
   const [opened, setOpened] = useState(false);
   const trigger = useRef<HTMLButtonElement | null>(null);
   const navigating = useRef(false);
@@ -33,11 +36,10 @@ export function WorkProvider({ children }: { children: ReactNode }) {
     // 열린 순간 보인 목록까지만. 이후 도착한 소식은 다시 열기 전까지 안 읽음이다.
     void work.markSeen(displayedBoundary.current);
   };
-  return <WorkContext value={{ open, count: inProgress.length, unread }}>
-    <div className="sticky top-0 z-40 flex min-h-11 shrink-0 items-center justify-between gap-2 border-b border-hairline bg-canvas px-4 text-xs lg:px-8" aria-label="전역 작업 상태">
-      <p aria-live="polite" aria-atomic="true" className="my-2 min-w-0 break-words text-muted">{work.error ? "작업 상태를 확인하지 못했어요" : summary || (snapshot ? "진행 중인 일이 없어요" : isMockMode() ? "작업 소식은 서버 연결 후 확인할 수 있어요" : "작업 상태 확인 중…")}</p>
-      <WorkButton />
-    </div>
+  const status = work.error ? "작업 상태를 확인하지 못했어요" : summary || (snapshot ? "진행 중인 일이 없어요" : isMockMode() ? "작업 소식은 서버 연결 후 확인할 수 있어요" : "작업 상태 확인 중…");
+  return <WorkContext value={{ open, count: inProgress.length, unread, status }}>
+    {/* PC 는 상단 바 오른쪽(app-header), 좁은 화면은 맨 위 막대 — 둘이 겹치면 상단 바가 가려진다 */}
+    {!desktop && <WorkStatus className="sticky top-0 z-40 min-h-11 justify-between border-b border-hairline bg-canvas px-4" />}
     {children}
     <Sheet open={opened} onOpenChange={setOpened}>
       <SheetContent aria-describedby={undefined} onCloseAutoFocus={event => { event.preventDefault(); if (!navigating.current) trigger.current?.focus(); }} className="w-full! gap-0 sm:max-w-[420px]!">
@@ -57,15 +59,22 @@ export function WorkProvider({ children }: { children: ReactNode }) {
   </WorkContext>;
 }
 
-export function WorkButton({ collapsed = false }: { collapsed?: boolean }) {
+export function WorkStatus({ className }: { className?: string }) {
+  const work = useContext(WorkContext);
+  if (!work) return null;
+  return <div aria-label="전역 작업 상태" className={cn("flex min-w-0 shrink-0 items-center gap-2 text-xs", className)}>
+    <p aria-live="polite" aria-atomic="true" className="my-2 min-w-0 break-words text-muted">{work.status}</p>
+    <WorkButton />
+  </div>;
+}
+
+function WorkButton() {
   const work = useContext(WorkContext);
   if (!work) return null;
   return <button type="button" onClick={event => work.open(event.currentTarget)} aria-label={`진행 중인 일 ${work.count}개 · 안 읽은 소식 ${work.unread}개`} aria-haspopup="dialog"
-    title={collapsed ? `진행 중 ${work.count} · 소식 ${work.unread}` : undefined}
     className="relative flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full px-3 text-sm font-medium hover:bg-surface-soft focus-visible:outline-2 focus-visible:outline-ink">
     <BellIcon aria-hidden="true" className="size-5 shrink-0" />
-    {!collapsed && <span className="whitespace-nowrap">소식{work.unread > 0 ? ` ${work.unread}` : ""}</span>}
-    {collapsed && (work.count > 0 || work.unread > 0) && <span className="absolute top-0 right-0 rounded-full bg-primary px-1 text-xs text-on-primary">{work.unread || work.count}</span>}
+    <span className="whitespace-nowrap">소식{work.unread > 0 ? ` ${work.unread}` : ""}</span>
   </button>;
 }
 

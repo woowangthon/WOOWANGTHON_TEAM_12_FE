@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { ArrowSquareOutIcon, ArrowsClockwiseIcon, MagnifyingGlassIcon, PlusIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { isPostingUrl } from "@/lib/api/entrance";
 import { AppHeader } from "@/components/app-header";
 import { useSidebar } from "@/components/sidebar-layout";
+import { SidebarApplicationText, dateText, monthText, progressText, sidebarApplicationRow } from "@/components/sidebar-applications";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { CenterState } from "@/components/center-state";
 import { Button } from "@/components/ui/button";
@@ -35,15 +36,6 @@ function failureText(error: QuestionDetail["error"]) {
 }
 /** 원문 링크의 사이트 이름만 — 긴 주소를 그대로 보이지 않는다 */
 const hostOf = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; } };
-const dateText = (iso: string) => new Date(iso).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" });
-/** 낸 달 "2026-11" → 「2026년 11월」 */
-const monthText = (month: string) => { const [y, m] = month.split("-"); return `${y}년 ${Number(m)}월`; };
-
-/** 「지원 3 · 분석 중 1」처럼 — 문항 상태를 한 줄로 */
-function progressText(application: Application) {
-  const n = (s: keyof typeof STATUS) => application.questions.filter(q => q.status === s).length;
-  return [`문항 ${application.questions.length}`, n("ANALYZING") && `분석 중 ${n("ANALYZING")}`, n("FAILED") && `실패 ${n("FAILED")}`].filter(Boolean).join(" · ");
-}
 
 /** 지원 화면(S-18 · S-21) — 지원 목록(xl 이상은 사이드바) · 상태 꼬리표(S-36), 고른 지원: 여러 문항에 추천된 활동 → 문항 탭 → 참고 경험(#30),
  *  오른쪽 차곡이 패널: 요구사항 · 보완 재사용 · 되묻기(FE#51). 배치는 ETC 시안 6 apply.html. 답 입력 · 근거 점검(S-45)은 추천 상태와 따로 쓴다 */
@@ -52,8 +44,14 @@ export function ApplicationScreen() {
   const rawRun = Number(params.get("run"));
   const restoreRun = Number.isSafeInteger(rawRun) && rawRun > 0 ? rawRun : null;
   const matching = useApplications();
-  const router = useRouter();
-  const [composing, setComposing] = useState(false);
+  // 사이드바 「+ 추가」 → 새 지원서(FE#147). 새로고침하면 다시 뜨지 않게 주소에서 지운다
+  const [composing, setComposing] = useState(useSearchParams().get("new") === "1");
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("new")) return;
+    url.searchParams.delete("new");
+    window.history.replaceState(window.history.state, "", url);
+  }, []);
   const [adding, setAdding] = useState(false);
   const open = matching.open;
   const overlaps = useMemo(() => (open ? overlapsOf(open.details) : []), [open]);
@@ -118,20 +116,21 @@ export function ApplicationScreen() {
     onAnswer={(clarificationId, answer) => selected ? matching.answer(selected.id, clarificationId, answer) : Promise.resolve()}
     draftActions={{ ...draftActions, focusRequest: draftFocus?.questionId === selected?.id ? draftFocus?.request ?? 0 : 0 }}
     onClose={() => setPanelChoice(false)} />;
+  const startNew = () => { setComposing(true); setAdding(false); scrollToDetail(); };
   const pick = (a: Application) => { setComposing(false); setAdding(false); matching.selectApplication(a); scrollToDetail(); };
   const activeId = composing ? null : open?.application.id ?? null;
   const list = { applications: matching.applications, activeId, onPick: pick, onSave: matching.updateApplication };
 
-  return <div className="min-h-dvh bg-canvas xl:flex xl:items-start">
-    {/* 「자료 넣기」 — 시안 6 사이드바는 세 화면이 같다(FE#64). 자료 넣기 창 · 분석 상태는 내 경험 화면에 있어 그리로 가서 연다 */}
-    <AppHeader activePage="questions" addSource={{ onClick: () => router.push("/experience?add=1") }}
-      sidebarExtra={ready ? <ApplicationList {...list} sidebar /> : undefined} />
+  return <div className="flex min-h-dvh flex-col bg-canvas">
+    <AppHeader activePage="questions" onNewApplication={startNew}
+      applicationList={{ applications: matching.applications, loading: matching.loading, error: matching.error, onRetry: () => { void matching.refresh(); }, rows: <ApplicationList {...list} sidebar /> }} />
+    <div className="flex-1 xl:flex xl:items-start">
     <div className="min-w-0 flex-1">
     <main className="mx-auto max-w-[1280px] px-4.5 py-6 lg:px-8 lg:py-8">
       <div className="mb-7 flex items-start justify-between gap-3">
         <div><h1 className="m-0 text-[26px] leading-snug font-bold tracking-[-0.4px]">지원</h1><p className="mt-2 mb-0 text-sm text-muted">지원서의 문항마다 꺼내 볼 경험을 찾아요. 같은 경험도 문항마다 다른 점을 보여 줄 수 있어요.</p></div>
         {(empty || matching.error) && restoreRun !== null && <Button variant="secondary" onClick={() => setPanelChoice(!panelOpen)} aria-expanded={panelOpen}>차곡이</Button>}
-        {!empty && <Button disabled={composing || matching.loading || !!matching.error} onClick={() => { setComposing(true); setAdding(false); scrollToDetail(); }}><PlusIcon aria-hidden="true" />지원 넣기</Button>}
+        {!empty && <Button disabled={composing || matching.loading || !!matching.error} onClick={startNew}><PlusIcon aria-hidden="true" />지원 넣기</Button>}
       </div>
       {ready && matching.pollWarnings.map(warning => <div key={warning.id} role="alert" aria-label={warning.label}
         className="mb-4 flex flex-wrap items-center justify-between gap-3 border-y border-hairline py-3 text-sm">
@@ -146,10 +145,10 @@ export function ApplicationScreen() {
       </div> : empty ? <section id="selected-application" className="max-w-2xl" aria-label="새 지원 입력">
         <ApplicationForm onSubmit={req => matching.submit(req)} />
       </section> : <div className="grid items-start gap-7 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-10 xl:grid-cols-1">
-        {collapsed && <aside id="application-list" className="min-w-0 scroll-mt-4 lg:sticky lg:top-6 xl:static" aria-label="지원 목록">
+        {collapsed && <aside id="application-list" className="min-w-0 scroll-mt-4 lg:sticky lg:top-20 lg:scroll-mt-20 xl:static" aria-label="지원 목록">
           <ApplicationList {...list} />
         </aside>}
-        <section id="selected-application" className="min-w-0 scroll-mt-5" aria-label={composing ? "새 지원 입력" : "선택한 지원"}>
+        <section id="selected-application" className="min-w-0 scroll-mt-5 lg:scroll-mt-20" aria-label={composing ? "새 지원 입력" : "선택한 지원"}>
           {composing ? <ApplicationForm onCancel={() => setComposing(false)} onSubmit={async req => {
             const saved = await matching.submit(req);
             if (saved) { setComposing(false); scrollToDetail(); }
@@ -193,13 +192,14 @@ export function ApplicationScreen() {
     </main>
     </div>
     {(ready || restoreRun !== null) && (wide
-      ? panelOpen && <aside id="chagok-panel" aria-label="차곡이" className="sticky top-0 h-dvh w-[400px] shrink-0 border-l border-hairline">{panel}</aside>
+      ? panelOpen && <aside id="chagok-panel" aria-label="차곡이" className="sticky top-14 h-[calc(100dvh-3.5rem)] w-[400px] shrink-0 border-l border-hairline">{panel}</aside>
       : <Sheet open={panelOpen} onOpenChange={o => setPanelChoice(o)}>
         <SheetContent side="right" showCloseButton={false} id="chagok-panel" aria-describedby={undefined} className="w-full! gap-0 p-0 sm:max-w-[420px]!">
           <SheetTitle className="sr-only">차곡이</SheetTitle>
           {panel}
         </SheetContent>
       </Sheet>)}
+    </div>
   </div>;
 }
 
@@ -219,25 +219,27 @@ function AnswerSkeleton() {
   </div>)}</div>;
 }
 
-/** 지원 목록 — 펼친 사이드바 안, 접었거나 좁으면 화면 안 왼쪽 · 위 */
+/** 지원 목록 — 펼친 사이드바 안(머리 · 상태는 SidebarApplications), 접었거나 좁으면 화면 안 왼쪽 · 위 */
 function ApplicationList({ applications, activeId, onPick, onSave, sidebar = false }: {
   applications: Application[]; activeId: number | null; onPick: (application: Application) => void;
   onSave: (applicationId: number, req: UpdateApplicationRequest) => Promise<void>; sidebar?: boolean;
 }) {
   return <>
-    <div className={cn("mb-3 flex items-baseline justify-between", sidebar && "mb-1.5 px-3.5")}>
-      <h2 className={cn("m-0 font-semibold", sidebar ? "text-xs text-muted" : "text-[17px]")}>{sidebar ? "지원서" : "넣었던 지원"}</h2>
+    {!sidebar && <div className="mb-3 flex items-baseline justify-between">
+      <h2 className="m-0 text-[17px] font-semibold">넣었던 지원</h2>
       <span className="text-[13px] text-muted tabular-nums">{applications.length}곳</span>
-    </div>
+    </div>}
     <ul className={cn("m-0 grid list-none content-start gap-1 overflow-y-auto p-0", sidebar ? "min-h-0" : "max-h-72 lg:max-h-[calc(100dvh-240px)] xl:max-h-72")}>{applications.map(a => {
       const active = activeId === a.id;
       return <li key={a.id} className="relative">
         <button type="button" aria-pressed={active} onClick={() => onPick(a)}
-          className={cn("grid w-full gap-1 rounded-sm px-3.5 text-left transition-colors", sidebar ? "py-2" : "py-3",
-            active ? (sidebar ? "bg-canvas" : "bg-mark-soft") : (sidebar ? "hover:bg-canvas/60" : "hover:bg-surface-soft"))}>
-          <span className="pr-16 text-sm font-semibold">{a.organization || "지원처 이름 없음"}</span>
-          <span className="line-clamp-1 text-[13px] text-body">{a.questions[0].text}</span>
-          <span className="text-xs text-muted tabular-nums">{progressText(a)} · {a.submittedMonth ? `${monthText(a.submittedMonth)} 냄` : dateText(a.createdAt)}</span>
+          className={sidebar ? cn(sidebarApplicationRow, active ? "bg-canvas" : "hover:bg-canvas/60")
+            : cn("grid w-full gap-1 rounded-sm px-3.5 py-3 text-left transition-colors", active ? "bg-mark-soft" : "hover:bg-surface-soft")}>
+          {sidebar ? <SidebarApplicationText application={a} /> : <>
+            <span className="pr-16 text-sm font-semibold">{a.organization || "지원처 이름 없음"}</span>
+            <span className="line-clamp-1 text-[13px] text-body">{a.questions[0].text}</span>
+            <span className="text-xs text-muted tabular-nums">{progressText(a)} · {a.submittedMonth ? `${monthText(a.submittedMonth)} 냄` : dateText(a.createdAt)}</span>
+          </>}
         </button>
         {/* 버튼 안에 버튼을 둘 수 없어 줄의 형제로 겹친다 */}
         <ApplicationStatusTag application={a} onSave={req => onSave(a.id, req)} className={cn("absolute right-1.5", sidebar ? "-top-0.5" : "top-0")} errorClassName="px-3.5 pb-2" />
