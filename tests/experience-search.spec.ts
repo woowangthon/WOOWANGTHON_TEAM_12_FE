@@ -2,6 +2,7 @@
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import type { ActivityDetail, ExperienceResult } from "../src/lib/api/types";
+import { pickOption } from "./pick-option";
 
 const PERIOD = { start: "2025-03", end: "2025-06", ongoing: false };
 const ACTIVITY = { id: 7, name: "바꿔요 — 캠퍼스 중고거래 앱", period: PERIOD, category: "PROJECT" as const };
@@ -60,8 +61,8 @@ test("no input shows every experience; a word and all filters are sent together"
   await page.getByRole("menuitemcheckbox", { name: "문제 해결" }).click();
   await page.getByRole("menuitemcheckbox", { name: "협업" }).click();
   await page.keyboard.press("Escape");
-  await page.getByLabel("연도").selectOption("2025");
-  await page.getByLabel("활동 분류").selectOption("PROJECT");
+  await pickOption(page.getByLabel("연도"), "2025년");
+  await pickOption(page.getByLabel("활동 분류"), "프로젝트 · 일");
   await page.getByLabel("확인 필요만").check();
   await expect.poll(() => searches.at(-1)?.toString()).toBe(new URLSearchParams({
     query: "WebSocket 회고", competencies: "PROBLEM_SOLVING,COLLABORATION", year: "2025", sourceStatus: "NEEDS_REVIEW", category: "PROJECT",

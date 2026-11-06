@@ -1,12 +1,15 @@
 import { test, expect } from "@playwright/test";
+import { pickOption } from "./pick-option";
+
+const MOCK_LABEL = { SOURCE: "자료", APPLICATION: "지원", ASK: "한 줄 질문", UNSURE: "애매함" };
 
 test("목임을 표시하고 네 분류를 실제 호출 없이 확인한다", async ({ page }) => {
   let requests = 0;
   page.on("request", req => { if (req.url().includes("/api/")) requests++; });
-  for (const kind of ["SOURCE", "APPLICATION", "ASK", "UNSURE"]) {
+  for (const kind of ["SOURCE", "APPLICATION", "ASK", "UNSURE"] as const) {
     await page.goto("/?debug=entrance");
     await expect(page.getByRole("note")).toContainText("목 모드");
-    await page.getByRole("combobox", { name: "목 분류 결과", exact: true }).selectOption(kind);
+    await pickOption(page.getByRole("combobox", { name: "목 분류 결과", exact: true }), MOCK_LABEL[kind]);
     await page.getByRole("textbox", { name: "홈에 넣을 글", exact: true }).fill("목에서 확인할 글");
     await page.getByRole("button", { name: "보내기", exact: true }).click();
     if (kind === "SOURCE") await expect(page.getByLabel("붙여넣을 자료")).toHaveValue("목에서 확인할 글");
@@ -19,7 +22,7 @@ test("목임을 표시하고 네 분류를 실제 호출 없이 확인한다", a
 
 test("목 꺼내기 답은 카드 있는 답 · 0개 답을 고정 예시로 보이고 목임을 밝힌다", async ({ page }, info) => {
   await page.goto("/?debug=entrance");
-  await page.getByRole("combobox", { name: "목 분류 결과", exact: true }).selectOption("ASK");
+  await pickOption(page.getByRole("combobox", { name: "목 분류 결과", exact: true }), "한 줄 질문");
   await page.getByRole("button", { name: "리더십을 보여 준 경험 있어?", exact: true }).click();
   await page.getByRole("button", { name: "보내기", exact: true }).click();
   const answer = page.getByRole("region", { name: "꺼내기 답" });
@@ -29,7 +32,7 @@ test("목 꺼내기 답은 카드 있는 답 · 0개 답을 고정 예시로 보
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
   await page.screenshot({ path: `artifacts/ask-mock-${info.project.name}.png`, fullPage: true });
-  await page.getByRole("combobox", { name: "목 꺼내기 답", exact: true }).selectOption("EMPTY");
+  await pickOption(page.getByRole("combobox", { name: "목 꺼내기 답", exact: true }), "0개");
   await page.getByRole("button", { name: "보내기", exact: true }).click();
   await expect(answer).toContainText("쌓인 자료에서 찾지 못했어요.");
   await answer.getByRole("button", { name: "지원으로 만들기", exact: true }).click();
@@ -38,7 +41,7 @@ test("목 꺼내기 답은 카드 있는 답 · 0개 답을 고정 예시로 보
 
 test("목 지원 나누기는 글에 적힌 문항만 규칙으로 나누고 목임을 밝힌다", async ({ page }, info) => {
   await page.goto("/?debug=entrance");
-  await page.getByRole("combobox", { name: "목 분류 결과", exact: true }).selectOption("APPLICATION");
+  await pickOption(page.getByRole("combobox", { name: "목 분류 결과", exact: true }), "지원");
   await page.getByRole("button", { name: "지원 문항 붙여 넣어 보기", exact: true }).click();
   await page.getByRole("button", { name: "보내기", exact: true }).click();
   const dialog = page.getByRole("dialog");
@@ -60,7 +63,7 @@ test("기본 홈에는 목 선택기가 없고 개발용 주소에서만 열린�
   await expect(page.getByText("자료로 쌓을까요, 지원으로 만들까요?", { exact: true })).toBeVisible();
   await page.goto("/?debug=entrance");
   await expect(page.getByRole("combobox", { name: "목 분류 결과", exact: true })).toBeVisible();
-  await page.getByRole("combobox", { name: "목 분류 결과", exact: true }).selectOption("SOURCE");
+  await pickOption(page.getByRole("combobox", { name: "목 분류 결과", exact: true }), "자료");
   await page.evaluate(() => window.history.pushState(null, "", "/"));
   await expect(page.getByRole("textbox", { name: "홈에 넣을 글", exact: true })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "목 분류 결과", exact: true })).toHaveCount(0);

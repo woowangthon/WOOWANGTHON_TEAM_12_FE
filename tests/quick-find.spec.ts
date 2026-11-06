@@ -2,6 +2,7 @@
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import type { ActivityDetail, ExperienceResult } from "../src/lib/api/types";
+import { pickOption } from "./pick-option";
 
 const PERIOD = { start: "2025-03", end: "2025-06", ongoing: false };
 const ACTIVITY = { id: 7, name: "바꿔요 — 캠퍼스 중고거래 앱", period: PERIOD, category: "PROJECT" as const };
@@ -225,8 +226,8 @@ test("find chips narrow the same search and more results carries them", async ({
   await page.goto("/guidelines");
   await openByButton(page);
   await expect(rows(page)).toHaveCount(3);
-  await dialog(page).getByRole("combobox", { name: "활동 분류", exact: true }).selectOption("PROJECT");
-  await dialog(page).getByRole("combobox", { name: "연도", exact: true }).selectOption("2025");
+  await pickOption(dialog(page).getByRole("combobox", { name: "활동 분류", exact: true }), "프로젝트 · 일");
+  await pickOption(dialog(page).getByRole("combobox", { name: "연도", exact: true }), "2025년");
   await dialog(page).getByText("확인 필요만").click();
   await dialog(page).getByRole("button", { name: "역량", exact: true }).click();
   await page.getByRole("menuitemcheckbox", { name: "협업" }).click();
@@ -239,16 +240,16 @@ test("find chips narrow the same search and more results carries them", async ({
   await expect(page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).resolves.toBe(true);
   await dialog(page).getByRole("option", { name: /검색에서 더 보기/ }).click();
   await expect(page).toHaveURL(/\/experience\?q=&competencies=COLLABORATION&year=2025&review=1&category=PROJECT/);
-  await expect(page.getByRole("combobox", { name: "활동 분류", exact: true })).toHaveValue("PROJECT");
-  await expect(page.getByRole("combobox", { name: "연도", exact: true })).toHaveValue("2025");
+  await expect(page.getByRole("combobox", { name: "활동 분류", exact: true })).toHaveText("프로젝트 · 일");
+  await expect(page.getByRole("combobox", { name: "연도", exact: true })).toHaveText("2025년");
   await expect(page.getByRole("checkbox", { name: "확인 필요만", exact: true })).toBeChecked();
   await expect(page.getByRole("button", { name: "역량 1", exact: true })).toBeVisible();
 
   // 내 경험 화면 안에서는 화면이 조건을 받는다
   await openByButton(page);
-  await dialog(page).getByRole("combobox", { name: "활동 분류", exact: true }).selectOption("STUDY");
+  await pickOption(dialog(page).getByRole("combobox", { name: "활동 분류", exact: true }), "공부 · 성장");
   await dialog(page).getByRole("option", { name: /검색에서 더 보기/ }).click();
-  await expect(page.getByRole("combobox", { name: "활동 분류", exact: true })).toHaveValue("STUDY");
+  await expect(page.getByRole("combobox", { name: "활동 분류", exact: true })).toHaveText("공부 · 성장");
   await expect(page.getByRole("checkbox", { name: "확인 필요만", exact: true })).not.toBeChecked();
 });
 
@@ -257,7 +258,12 @@ test("after a chip on PC the arrow keys and Enter still pick from the input", as
   await setup(page);
   await page.goto("/guidelines");
   await openByButton(page);
-  await dialog(page).getByRole("combobox", { name: "활동 분류", exact: true }).selectOption("PROJECT");
+  await pickOption(dialog(page).getByRole("combobox", { name: "활동 분류", exact: true }), "프로젝트 · 일");
+  await expect(box(page)).toBeFocused();
+  await dialog(page).getByRole("combobox", { name: "연도", exact: true }).click();
+  await page.keyboard.press("Escape"); // 고르기 칸만 닫힌다
+  await expect(page.getByRole("listbox", { name: "연도", exact: true })).toBeHidden();
+  await expect(dialog(page)).toBeVisible();
   await expect(box(page)).toBeFocused();
   await dialog(page).getByRole("button", { name: "역량", exact: true }).click();
   await page.keyboard.press("Escape");
