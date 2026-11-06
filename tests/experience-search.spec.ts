@@ -148,6 +148,7 @@ test("switching views keeps the word", async ({ page }) => {
 // FE#200 — 시안 6 아이콘 전환. 1024 미만은 말풍선이 없어 글자를 같이 보인다
 test("the view switch is icons with a tip on PC and icon with text below it", async ({ page }, info) => {
   await setup(page, () => ({ json: { total: 0, experiences: [] } }));
+  await page.goto("/experience");
   const search = page.getByRole("button", { name: "경험 찾기", exact: true });
   await expect(search).toHaveAttribute("aria-pressed", "false");
   const box = (await search.boundingBox())!;
