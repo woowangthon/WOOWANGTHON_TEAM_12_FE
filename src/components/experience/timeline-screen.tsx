@@ -15,8 +15,9 @@ import { hasPendingAnalysis, useAnalysisJob } from "@/components/source/use-anal
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { dismissMergeSuggestion, fetchActivities, fetchActivity, isMockMode, mergeActivities, moveExperience, updateActivity, type MockAnalysis, type MockMode } from "@/lib/api/experience";
-import type { ActivitySummary, Experience, Period } from "@/lib/api/types";
+import { ACTIVITY_CATEGORIES, type ActivityCategory, type ActivitySummary, type Experience, type Period } from "@/lib/api/types";
 import { monthNumber, periodText, spanOf, yearsOf, type Span } from "@/lib/period";
+import { CATEGORY_KEYS, CategoryIcon, categoryOf } from "./activity-category";
 import { ActivityDetailView, type DetailState } from "./activity-detail";
 import { ExperienceSearch } from "./experience-search";
 import { MergeActivityDialog, MoveExperienceDialog } from "./regroup-dialogs";
@@ -59,10 +60,14 @@ export function TimelineScreen() {
   const [dragging, setDragging] = useState<Experience | null>(null);
   const [moving, setMoving] = useState<Experience | null>(null);
   const [mergeOpen, setMergeOpen] = useState(false);
+  // 거르기 칩(S-57) — 받은 목록에서 FE 가 거른다. 저장하지 않아 새로고침하면 「전체」로 돌아간다
+  const [categoryFilter, setCategoryFilter] = useState<ActivityCategory | null>(null);
   // 경험 찾기(S-58) — ?q=낱말 로 들어오면 찾기부터. 한 번 열면 낱말 · 거르기를 지키려고 숨기기만 한다
   const linkedQuery = params.get("q");
   const [listView, setListView] = useState<"timeline" | "search">(linkedQuery === null ? "timeline" : "search");
   const [searchOpened, setSearchOpened] = useState(linkedQuery !== null);
+  // 빠른 찾기(S-61)가 넘긴 낱말 — 바뀌면 찾기를 그 낱말로 새로 연다
+  const [searchStart, setSearchStart] = useState({ query: linkedQuery ?? "", version: 0 });
   const [searchVersion, setSearchVersion] = useState(0);
   const refreshSearch = () => setSearchVersion((n) => n + 1);
   const detailRequest = useRef(0);
@@ -238,6 +243,13 @@ export function TimelineScreen() {
     requestAnimationFrame(() => window.scrollTo(0, listScrollY.current));
   };
 
+  const searchFor = (query: string) => {
+    if (selectedRef.current != null) close(); // 모바일 — 세부가 목록을 가린다
+    setListView("search");
+    setSearchOpened(true);
+    setSearchStart((prev) => ({ query, version: prev.version + 1 }));
+  };
+
   const activitySaved = (activity: ActivitySummary) => {
     const queued = periodSaves.current.get(activity.id);
     if (queued && !queued.running) {
@@ -255,6 +267,13 @@ export function TimelineScreen() {
     ++listRequest.current;
     setList(prev => prev.status === "ready" ? { ...prev, activities: prev.activities.map(a => a.id === activity.id ? { ...a, note: activity.note } : a) } : prev);
     setDetail(prev => prev.status === "ready" && prev.activity.id === activity.id ? { ...prev, activity: { ...prev.activity, note: activity.note } } : prev);
+  };
+
+  // 분류만 반영한다. 세부는 목록 줄(summary)의 분류를 읽으니 목록만 고치면 된다
+  const categorySaved = (activity: ActivitySummary) => {
+    ++listRequest.current;
+    refreshSearch();
+    setList(prev => prev.status === "ready" ? { ...prev, activities: prev.activities.map(a => a.id === activity.id ? { ...a, category: activity.category, categoryBy: activity.categoryBy } : a) } : prev);
   };
 
   /** 띠는 즉시 반영한다. 같은 활동은 한 요청씩 보내고, 대기 중 변경은 마지막 것만 저장한다(#62). */
@@ -407,8 +426,12 @@ export function TimelineScreen() {
     }
     // 지원만 있는 해도 연도로 세운다 — 낸 지원이 사라져 보이지 않게
     const marks = (appItems ?? []).map((a) => ({ start: a.month, end: a.month }));
-    return { spans, years: yearsOf([...spans.values(), ...marks]), activityYears: yearsOf([...spans.values()]) };
-  }, [ready, appItems]);
+    // 미분류는 「전체」에만. 거른 동안엔 지원 한 줄은 그대로 두고, 아무것도 없는 해의 머리는 세우지 않는다
+    const activities = categoryFilter ? ready.activities.filter((a) => categoryOf(a) === categoryFilter) : ready.activities;
+    const shown = [...activities.flatMap((a) => spans.get(a.id) ?? []), ...marks];
+    const years = yearsOf(shown).filter((y) => !categoryFilter || shown.some((s) => Math.floor(s.start / 12) <= y && y <= Math.floor(s.end / 12)));
+    return { spans, activities, years, activityYears: yearsOf([...spans.values()]) };
+  }, [ready, appItems, categoryFilter]);
 
   const selected = ready?.activities.find((a) => a.id === selectedId) ?? null;
   const hasActivities = !!ready && ready.activities.length > 0;
@@ -432,7 +455,7 @@ export function TimelineScreen() {
 
   return (
     <div className="flex min-h-dvh flex-1 flex-col bg-canvas lg:h-dvh">
-      <AppHeader hideOnMobile={!!selected} addSource={addSource} experienceCount={ready ? countExperiences(ready.activities) : null} />
+      <AppHeader hideOnMobile={!!selected} addSource={addSource} experienceCount={ready ? countExperiences(ready.activities) : null} quickFind={{ openActivity: select, search: searchFor }} />
       {Number(params.get("workJob")) > 0 && !isMockMode() && <SourceWorkDetail key={params.get("workJob")} jobId={Number(params.get("workJob"))} />}
       <p className="m-0 border-b border-hairline px-4 py-2 text-xs text-muted" role="note">
         {isMockMode() ? "목 모드 · 예시 데이터이며 서버에 저장할 수 없어요." : "실제 API 모드 · 활동과 경험 수정은 서버에 저장해요."}
@@ -484,15 +507,25 @@ export function TimelineScreen() {
               <ViewSwitch view={listView} onChange={(next) => { setListView(next); if (next === "search") setSearchOpened(true); }} />
               {searchOpened && (
                 <div hidden={listView !== "search"}>
-                  <ExperienceSearch initialQuery={linkedQuery ?? ""} years={timeline.activityYears} mock={mock} version={searchVersion} hiddenIds={hiddenIds} onOpen={select} />
+                  <ExperienceSearch key={searchStart.version} initialQuery={searchStart.query} years={timeline.activityYears} mock={mock} version={searchVersion} hiddenIds={hiddenIds} onOpen={select} />
                 </div>
               )}
               {listView === "timeline" && (
                 <>
-                  <ApplicationsToggle shown={applications.shown} onChange={applications.setShown} state={applications.state} onRetry={applications.retry} />
+                  <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                    <CategoryChips value={categoryFilter} onChange={setCategoryFilter} />
+                    <span className="mx-1 hidden h-4 w-px bg-hairline sm:block" aria-hidden="true" />
+                    <ApplicationsToggle shown={applications.shown} onChange={applications.setShown} state={applications.state} onRetry={applications.retry} />
+                  </div>
+                  {categoryFilter && timeline.activities.length === 0 && (
+                    <div role="status" className="mt-6 grid justify-items-start gap-2 rounded-md bg-surface-soft px-4.5 py-5">
+                      <p className="m-0 text-sm text-body">「{ACTIVITY_CATEGORIES[categoryFilter]}」로 정리된 활동이 아직 없어요. 분류는 활동 세부에서 고를 수 있어요.</p>
+                      <Button variant="secondary" className="min-h-11" onClick={() => setCategoryFilter(null)}>전체 보기</Button>
+                    </div>
+                  )}
                   <Timeline
                     applications={appItems ?? undefined}
-                    activities={ready.activities}
+                    activities={timeline.activities}
                     spans={timeline.spans}
                     years={timeline.years}
                     selectedId={selectedId}
@@ -522,6 +555,7 @@ export function TimelineScreen() {
               onRetry={() => loadDetail(selected.id)}
               onActivitySaved={activitySaved}
               onNoteSaved={noteSaved}
+              onCategorySaved={categorySaved}
               onExperienceSaved={experienceSaved}
               onExperienceAdded={experienceAdded}
               onExperienceDelete={deletion.remove}
@@ -613,12 +647,38 @@ function ViewSwitch({ view, onChange }: { view: "timeline" | "search"; onChange:
   );
 }
 
+/** 거르기 칩(S-57) — 전체 · 분류 셋. 한 번에 하나 */
+function CategoryChips({ value, onChange }: { value: ActivityCategory | null; onChange: (next: ActivityCategory | null) => void }) {
+  const chip = (id: ActivityCategory | null, label: string) => (
+    <button
+      key={id ?? "all"}
+      type="button"
+      aria-pressed={value === id}
+      data-category={id ?? undefined}
+      onClick={() => onChange(id)}
+      className={cn(
+        "inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3.5 text-[13px] whitespace-nowrap lg:min-h-9",
+        value === id ? "border-ink bg-ink font-semibold text-on-primary" : "border-hairline bg-canvas text-muted hover:bg-surface-soft",
+      )}
+    >
+      {id && <CategoryIcon category={id} />}
+      {label}
+    </button>
+  );
+  return (
+    <div role="group" aria-label="분류로 거르기" className="flex flex-wrap items-center gap-2">
+      {chip(null, "전체")}
+      {CATEGORY_KEYS.map((c) => chip(c, ACTIVITY_CATEGORIES[c]))}
+    </div>
+  );
+}
+
 /** 「지원도 같이 보기」(S-37) — 기본 꺼짐. 켠 동안 지원을 못 받으면 활동은 그대로 두고 여기에만 오류 · 다시 시도 */
 function ApplicationsToggle({ shown, onChange, state, onRetry }: {
   shown: boolean; onChange: (next: boolean) => void; state: TimelineApplicationsState; onRetry: () => void;
 }) {
   return (
-    <div className="mt-4 flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1">
+    <div className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1">
       <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 text-[13px] text-muted">
         <input type="checkbox" checked={shown} onChange={(e) => onChange(e.target.checked)} className="size-4 accent-record-pink" />
         지원도 같이 보기

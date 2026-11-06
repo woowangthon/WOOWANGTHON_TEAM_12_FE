@@ -1,0 +1,75 @@
+"use client";
+
+// 활동 분류(S-57) — 표시 · 세부에서 고르기. 색은 globals.css 의 [data-category] 가 정하고, 여기선 아이콘 · 이름으로 색 없이도 구분되게 한다
+import { useRef, useState } from "react";
+import { ArrowsClockwiseIcon, FolderIcon, PlantIcon, UsersThreeIcon, type Icon } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
+import { updateActivity } from "@/lib/api/experience";
+import { ACTIVITY_CATEGORIES, type ActivityCategory, type ActivitySummary } from "@/lib/api/types";
+import { cn } from "@/lib/utils";
+
+export const CATEGORY_KEYS = Object.keys(ACTIVITY_CATEGORIES) as ActivityCategory[];
+
+const ICON: Record<ActivityCategory, Icon> = { PROJECT: FolderIcon, STUDY: PlantIcon, CLUB: UsersThreeIcon };
+
+/** 이전 응답(필드 없음) · 모르는 값은 미분류로 본다 */
+export function categoryOf(activity: Pick<ActivitySummary, "category">): ActivityCategory | null {
+  const { category } = activity;
+  return category && Object.hasOwn(ACTIVITY_CATEGORIES, category) ? category : null;
+}
+
+/** 「프로젝트 · 일 (AI 해석)」 — 미분류면 null */
+export function categoryText(activity: Pick<ActivitySummary, "category" | "categoryBy">) {
+  const category = categoryOf(activity);
+  if (!category) return null;
+  return `${ACTIVITY_CATEGORIES[category]}${activity.categoryBy === "AI" ? " (AI 해석)" : ""}`;
+}
+
+export function CategoryIcon({ category, className }: { category: ActivityCategory; className?: string }) {
+  const Glyph = ICON[category];
+  return <Glyph weight="fill" className={cn("size-3.5 shrink-0 text-category", className)} aria-hidden="true" />;
+}
+
+/** 세부에서 고르거나 비운다. 저장이 끝나야 바뀐 것으로 보이고, 실패하면 원래 값 + 오류 · 다시 시도 */
+export function ActivityCategoryField({ activity, onSaved, readOnly = false }: {
+  activity: ActivitySummary; onSaved: (activity: ActivitySummary) => void; readOnly?: boolean;
+}) {
+  const category = categoryOf(activity);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState<ActivityCategory | null>(null);
+  const pending = useRef(false);
+
+  if (readOnly) {
+    const text = categoryText(activity);
+    return text && <p data-category={category ?? undefined} className="m-0 inline-flex items-center gap-1.5 text-[13px] text-muted">{category && <CategoryIcon category={category} />}{text}</p>;
+  }
+
+  const save = async (value: ActivityCategory | null) => {
+    if (pending.current) return;
+    pending.current = true; setSaving(true); setAttempt(value); setError(null);
+    try {
+      onSaved(await updateActivity(activity.id, { category: value }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "분류를 저장하지 못했어요. 다시 시도해 주세요.");
+    } finally { pending.current = false; setSaving(false); }
+  };
+
+  return <div data-category={category ?? undefined} className="grid justify-items-start gap-1">
+    <div className="flex flex-wrap items-center gap-2">
+      {category && <CategoryIcon category={category} />}
+      <select aria-label="이 활동의 분류" value={(saving ? attempt : category) ?? ""} disabled={saving}
+        onChange={(e) => void save((e.target.value || null) as ActivityCategory | null)}
+        className="min-h-11 rounded-sm border border-hairline bg-canvas px-3 text-base text-ink disabled:opacity-60 sm:text-sm lg:min-h-9">
+        <option value="">미분류</option>
+        {CATEGORY_KEYS.map((c) => <option key={c} value={c}>{ACTIVITY_CATEGORIES[c]}</option>)}
+      </select>
+      {saving ? <span role="status" className="text-xs text-muted">저장 중…</span>
+        : category && activity.categoryBy === "AI" && <span className="text-xs text-muted">AI 해석</span>}
+    </div>
+    {error && <div className="grid justify-items-start gap-1">
+      <p role="alert" className="m-0 text-sm text-error">{error}</p>
+      <Button variant="secondary" className="min-h-11" disabled={saving} onClick={() => void save(attempt)}><ArrowsClockwiseIcon />다시 시도</Button>
+    </div>}
+  </div>;
+}

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { peekApplicationText, takeApplicationText } from "@/lib/application-handoff";
 import { ArrowSquareOutIcon, ArrowsClockwiseIcon, MagnifyingGlassIcon, PlusIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { isPostingUrl } from "@/lib/api/entrance";
 import { AppHeader } from "@/components/app-header";
@@ -48,7 +49,10 @@ export function ApplicationScreen() {
   const [groundingChecks] = useState(createGroundingChecks);
   // 사이드바 「+ 추가」 → 새 지원서(FE#147). 새로고침하면 다시 뜨지 않게 주소에서 지운다
   const [composing, setComposing] = useState(useSearchParams().get("new") === "1");
+  // 빠른 찾기의 「지원으로 만들기」(S-61)가 넘긴 글 — 「공고 · 문항 글로 칸 채우기」에 넣어 둔다
+  const [pasted, setPasted] = useState(peekApplicationText);
   useEffect(() => {
+    takeApplicationText();
     const url = new URL(window.location.href);
     if (!url.searchParams.has("new")) return;
     url.searchParams.delete("new");
@@ -118,7 +122,7 @@ export function ApplicationScreen() {
     onAnswer={(clarificationId, answer) => selected ? matching.answer(selected.id, clarificationId, answer) : Promise.resolve()}
     draftActions={{ ...draftActions, focusRequest: draftFocus?.questionId === selected?.id ? draftFocus?.request ?? 0 : 0 }}
     onClose={() => setPanelChoice(false)} />;
-  const startNew = () => { setComposing(true); setAdding(false); scrollToDetail(); };
+  const startNew = () => { setPasted(takeApplicationText()); setComposing(true); setAdding(false); scrollToDetail(); };
   const pick = (a: Application) => { setComposing(false); setAdding(false); matching.selectApplication(a); scrollToDetail(); };
   // 지원을 열면 첫 화면을 문항과 답칸에 내준다 — 화면 제목은 읽기 프로그램에만 남고 「지원 넣기」는 지원처 머리로 간다(FE#148)
   const working = !composing && !matching.error && (matching.loading || !!open);
@@ -147,13 +151,13 @@ export function ApplicationScreen() {
       {matching.loading ? <LoadingApplications /> : matching.error ? <div role="alert" className="grid justify-items-start gap-3 py-8">
         <p className="m-0 text-error">{matching.error}</p><Button variant="secondary" onClick={() => { void matching.refresh(); }}>다시 불러오기</Button>
       </div> : empty ? <section id="selected-application" className="max-w-2xl" aria-label="새 지원 입력">
-        <ApplicationForm onSubmit={req => matching.submit(req)} />
+        <ApplicationForm key={pasted} pastedText={pasted} onSubmit={req => matching.submit(req)} />
       </section> : <div className={cn("grid items-start gap-7 lg:gap-10", collapsed && "lg:grid-cols-[240px_minmax(0,1fr)]")}>
         {collapsed && <aside id="application-list" className="min-w-0 scroll-mt-4 lg:sticky lg:top-20 lg:scroll-mt-20" aria-label="지원 목록">
           <ApplicationList {...list} />
         </aside>}
         <section id="selected-application" className="min-w-0 scroll-mt-5 lg:scroll-mt-20" aria-label={composing ? "새 지원 입력" : "선택한 지원"}>
-          {composing ? <ApplicationForm onCancel={() => setComposing(false)} onSubmit={async req => {
+          {composing ? <ApplicationForm key={pasted} pastedText={pasted} onCancel={() => setComposing(false)} onSubmit={async req => {
             const saved = await matching.submit(req);
             if (saved) { setComposing(false); scrollToDetail(); }
           }} /> : open ? <>

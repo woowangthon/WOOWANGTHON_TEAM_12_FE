@@ -5,7 +5,7 @@
 /*
   임시 — 시안 6(ETC docs/design/chagok/, 디자인 담당 styles.css)의 색이다(FE#43). DESIGN.md 를 디자인 담당이
   다시 쓰면(ETC#19) 이 값들만 바꾼다. 화면 코드에는 색 값을 직접 쓰지 않는다.
-  검정 중심(주 버튼 · 활성 = 검정), 강조는 로고의 파랑. 색이 있는 꼬리표는 「확인 필요」 하나. 어두운 화면은 아직 없다.
+  검정 중심(주 버튼 · 활성 = 검정), 강조는 로고의 파랑. 색이 있는 꼬리표는 「확인 필요」 하나, 활동 분류는 시안 6 세 색(S-57). 어두운 화면은 아직 없다.
 */
 :root {
   --page: #fcfcfc; /* 사이드바 쪽 바탕 — 가운데 흰 작업 면과 갈린다 */
@@ -34,6 +34,9 @@
   --application-soft: #fffafd;
   --application-line: #efb8d3;
   --application-tint: #fdeff6; /* 경험의 「지원서 N곳에 쓰임」 알약(S-38) — 시안 6 .used */
+  /* 활동 분류(S-57) — 시안 6 CATS: 파랑 · 초록 · 분홍. 값은 [data-category] 가 정한다. 미분류는 어느 분류로도 읽히지 않게 회색 */
+  --category: var(--muted-soft);
+  --category-soft: var(--surface-strong);
   --home-glow: radial-gradient(50% 42% at 50% 34%, rgb(65 161 245 / 0.13), transparent 70%);
   --home-input-shadow: 0 8px 30px rgb(30 60 100 / 0.07);
   --evidence: #1f6fb2;
@@ -89,6 +92,8 @@
   --color-mark-soft: var(--mark-soft);
   --color-record-green: var(--record-green);
   --color-record-pink: var(--record-pink);
+  --color-category: var(--category);
+  --color-category-soft: var(--category-soft);
   --color-attach: var(--attach);
   --color-attach-soft: var(--attach-soft);
   --color-application: var(--application);
@@ -127,6 +132,10 @@
   --radius-md: 18px;
   --radius-lg: 28px;
 }
+
+[data-category="PROJECT"] { --category: var(--mark); --category-soft: var(--mark-soft); }
+[data-category="STUDY"] { --category: var(--record-green); --category-soft: var(--attach-soft); }
+[data-category="CLUB"] { --category: var(--record-pink); --category-soft: var(--application-tint); }
 
 .home-background { background-image: var(--home-glow); }
 

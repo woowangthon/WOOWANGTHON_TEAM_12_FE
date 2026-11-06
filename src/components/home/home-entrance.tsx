@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { ArrowUpIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { ContinueCards, HomeMascot } from "./home-overview";
 import { ModelMenu } from "./model-menu";
-import { AskAnswer, AskFailureNotice, type AskAnswerState, type AskFailure } from "./ask-answer";
+import { AskAnswer, AskFailureNotice } from "./ask-answer";
+import { useAsk } from "./use-ask";
 import type { HomeOverview } from "./use-home-overview";
 import { ApplicationForm } from "@/components/questions/application-form";
 import { ParseFailureNotice, useApplicationParse, type ParseFailure } from "@/components/questions/application-parse";
@@ -13,7 +14,7 @@ import { AddSourceDialog } from "@/components/source/add-source-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ApiError } from "@/lib/api/errors";
-import { askExperiences, ENTRANCE_KINDS, routeEntrance, singleLink, type EntranceKind, type ParsedApplication } from "@/lib/api/entrance";
+import { ENTRANCE_KINDS, routeEntrance, singleLink, type EntranceKind, type ParsedApplication } from "@/lib/api/entrance";
 import { isMockMode } from "@/lib/api/http";
 import { submitApplication } from "@/lib/api/questions";
 import { submitSource, type MockAnalysis } from "@/lib/api/experience";
@@ -59,9 +60,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
   const [saving, setSaving] = useState(false);
   const [mockKind, setMockKind] = useState<EntranceKind>("UNSURE");
   const [mockAsk, setMockAsk] = useState<MockAskResult>("CARDS");
-  const [asking, setAsking] = useState(false);
-  const [answer, setAnswer] = useState<AskAnswerState | null>(null);
-  const [askFailure, setAskFailure] = useState<AskFailure | null>(null);
+  const { asking, answer, failure: askFailure, ask, clear: clearAsk } = useAsk();
   const [file, setFile] = useState<SourceFile | null>(null);
   const [readingFile, setReadingFile] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -112,22 +111,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     setChoosing(false); setError(null);
   };
 
-  /** S-29 꺼내기 — 한 번 묻고 경험 카드로 답한다. 실패는 정해진 답으로 채우지 않는다 */
-  const ask = async (value: string) => {
-    setAsking(true); setAskFailure(null); setAnswer(null);
-    try {
-      const recommendations = await askExperiences(value, mockAsk);
-      setAnswer({ text: value, recommendations, mock: isMockMode() });
-      refreshAccount();
-    } catch (e) {
-      if (e instanceof ApiError && e.code === "DAILY_LIMIT_EXCEEDED") setAskFailure({ text: value, retryable: false, message: "오늘 분석 횟수를 다 썼어요. 한국 시간 자정에 다시 채워지면 물어봐 주세요." });
-      else if (e instanceof ApiError && (e.status === 502 || e.status === 504 || e.code === "NETWORK_ERROR" || e.code === "INVALID_RESPONSE"))
-        setAskFailure({ text: value, retryable: true, message: e.status === 504 ? "경험을 찾는 데 시간이 너무 걸렸어요." : "쌓인 경험에서 찾지 못했어요 — 잠시 뒤 다시 시도해 주세요." });
-      else setAskFailure({ text: value, retryable: false, message: e instanceof Error ? e.message : "경험을 찾지 못했어요." });
-    } finally { setAsking(false); }
-  };
-
-  const makeApplication = (value: string) => { setAnswer(null); setAskFailure(null); void fillApplication(value); };
+  const makeApplication = (value: string) => { clearAsk(); void fillApplication(value); };
 
   const send = async () => {
     if (pending.current || readingFile || (!file && (!text.trim() || tooLong))) return;
@@ -145,17 +129,17 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     }
     const link = singleLink(text);
     if (link) {
-      pending.current = true; setError(null); setChoosing(false); setAnswer(null); setAskFailure(null);
+      pending.current = true; setError(null); setChoosing(false); clearAsk();
       try { await fillFromLink(link); } finally { pending.current = false; }
       return;
     }
     pending.current = true;
-    setRouting(true); setError(null); setChoosing(false); setAnswer(null); setAskFailure(null);
+    setRouting(true); setError(null); setChoosing(false); clearAsk();
     try {
       const result = await routeEntrance(text, showMockControls ? mockKind : "UNSURE");
       if (result.kind === "SOURCE") openDestination("source");
       else if (result.kind === "APPLICATION") await fillApplication(text);
-      else if (result.kind === "ASK") await ask(text);
+      else if (result.kind === "ASK") await ask(text, mockAsk);
       else setChoosing(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "글을 가르지 못했어요. 다시 시도해 주세요.");
@@ -209,7 +193,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     </label>}
     {asking && <p role="status" className="mt-4 text-center text-sm text-muted">쌓인 경험에서 찾고 있어요…</p>}
     {answer && <AskAnswer answer={answer} busy={busy} onMakeApplication={() => makeApplication(answer.text)} />}
-    {askFailure && <AskFailureNotice failure={askFailure} busy={busy} onRetry={() => void ask(askFailure.text)} onMakeApplication={() => makeApplication(askFailure.text)} />}
+    {askFailure && <AskFailureNotice failure={askFailure} busy={busy} onRetry={() => void ask(askFailure.text, mockAsk)} onMakeApplication={() => makeApplication(askFailure.text)} />}
     {routing && !parse.parsing && !asking && <p role="status" className="mt-4 text-center text-sm text-muted">글을 읽고 자료인지 지원인지 가르고 있어요…</p>}
     {parse.parsing && <p role="status" className="mt-4 text-center text-sm text-muted">{singleLink(text) ? "링크를 읽고 지원처와 문항을 나누고 있어요…" : "글을 읽고 지원처와 문항을 나누고 있어요…"}</p>}
     {parse.failure && <ParseFailureNotice className="mt-4" failure={parse.failure}

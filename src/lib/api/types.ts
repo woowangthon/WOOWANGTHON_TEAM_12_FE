@@ -19,6 +19,8 @@ export type Competency = keyof typeof COMPETENCIES;
 /** ETC contracts README 「값 목록」 activityCategory — 활동 분류(S-57). 미분류면 null */
 export const ACTIVITY_CATEGORIES = { PROJECT: "프로젝트 · 일", STUDY: "공부 · 성장", CLUB: "동아리 · 대외활동" } as const;
 export type ActivityCategory = keyof typeof ACTIVITY_CATEGORIES;
+/** README 「값 목록」 categoryBy — 지금 분류를 누가 붙였나 */
+export type CategoryBy = "AI" | "USER";
 
 /** `start` · `end` 는 "YYYY" · "YYYY-MM" · "YYYY-MM-DD". 모르면 null */
 export type Period = {
@@ -92,6 +94,9 @@ export type ActivitySummary = {
   id: number;
   name: string;
   period: Period;
+  /** S-57. 기존 활동은 null, 이전 응답엔 없을 수 있다 */
+  category?: ActivityCategory | null;
+  categoryBy?: CategoryBy | null;
   experienceCount: number;
   mergeSuggestion?: MergeSuggestion | null;
 };
@@ -172,13 +177,15 @@ export type ActivityDetail = {
   id: number;
   name: string;
   period: Period;
+  category?: ActivityCategory | null;
+  categoryBy?: CategoryBy | null;
   experiences: Experience[];
   mergeSuggestion?: MergeSuggestion | null;
   /** S-35. REJECTED 는 빠져 온다. 목 · 이전 응답엔 없을 수 있다 */
   links?: ActivityLink[];
 };
 
-export type UpdateActivityRequest = { name?: string; period?: Period; note?: string | null };
+export type UpdateActivityRequest = { name?: string; period?: Period; note?: string | null; category?: ActivityCategory | null };
 // 생략하면 유지하고, [] 를 보내면 역량을 지운다.
 export type UpdateExperienceRequest = { content?: string; competencies?: Competency[]; actor?: Actor };
 export type CreateExperienceRequest = { content: string; competencies?: Competency[]; actor: Actor };

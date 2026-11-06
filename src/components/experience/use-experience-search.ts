@@ -12,13 +12,14 @@ export type ExperienceSearchState =
 
 const WAIT_MS = 250;
 
-/** `version` 이 바뀌면 같은 조건으로 다시 부른다 — 활동 세부에서 경험을 고친 뒤 */
-export function useExperienceSearch(search: ExperienceSearch, { mock = null, version = 0 }: { mock?: MockMode; version?: number } = {}) {
+/** `version` 이 바뀌면 같은 조건으로 다시 부른다 — 활동 세부에서 경험을 고친 뒤. `enabled` 가 false 면 부르지 않는다 */
+export function useExperienceSearch(search: ExperienceSearch, { mock = null, version = 0, enabled = true }: { mock?: MockMode; version?: number; enabled?: boolean } = {}) {
   const [state, setState] = useState<ExperienceSearchState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
   const key = JSON.stringify(search);
 
   useEffect(() => {
+    if (!enabled) return;
     let stale = false;
     const timer = setTimeout(() => {
       setState((prev) => prev.status === "ready" ? { ...prev, refreshing: true } : { status: "loading" });
@@ -28,7 +29,7 @@ export function useExperienceSearch(search: ExperienceSearch, { mock = null, ver
       );
     }, WAIT_MS);
     return () => { stale = true; clearTimeout(timer); };
-  }, [key, mock, version, attempt]);
+  }, [key, mock, version, attempt, enabled]);
 
   return { state, retry: () => setAttempt((n) => n + 1) };
 }

@@ -24,7 +24,10 @@ test("every screen has the top bar with its location and no button without a fea
     const location = page.getByRole("banner").getByRole("navigation", { name: "현재 위치", exact: true });
     await expect(location).toContainText("내 서랍");
     await expect(location.locator("strong")).toHaveText(name);
-    await expect(page.getByRole("banner").getByRole("button")).toHaveAccessibleName(/^진행 중인 일 \d+개/); // 소식 하나뿐(FE#106)
+    // 빠른 찾기(FE#126) · 소식(FE#106) 둘뿐
+    await expect(page.getByRole("banner").getByRole("button")).toHaveCount(2);
+    await expect(page.getByRole("banner").getByRole("button", { name: "빠른 찾기", exact: true })).toBeVisible();
+    await expect(page.getByRole("banner").getByRole("button", { name: /^진행 중인 일 \d+개/ })).toBeVisible();
     await expect(page.getByText("모두 저장됨")).toHaveCount(0);
   }
 });

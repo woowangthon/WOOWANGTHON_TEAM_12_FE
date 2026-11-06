@@ -1,7 +1,6 @@
 import { ApiError } from "@/lib/api/errors";
 import type { PublicProfile, PublicProfileSettings } from "@/lib/api/share";
 import type { ActivityDetail, Experience } from "@/lib/api/types";
-import { MOCK_CATEGORY } from "./experience-search";
 
 // MOCK(public-profile): API 주소가 없는 목 모드에서만 공개 프로필을 이 브라우저 저장소로 모의한다. 실제 API 실패 대체용이 아니다.
 // 새 탭에서 공개 페이지를 여는 걸 보려고 localStorage 에 둔다. 다른 기기 · 브라우저에서는 「없는 페이지예요」다.
@@ -62,9 +61,8 @@ export async function mockFetchPublicProfile(activities: ActivityDetail[], token
     activities: activities.flatMap((a) => {
       const experiences = a.experiences.filter(visible);
       if (experiences.length === 0) return [];
-      const category = MOCK_CATEGORY[a.id] ?? null;
       return [{
-        name: a.name, period: a.period, category, categoryBy: category && ("AI" as const),
+        name: a.name, period: a.period, category: a.category ?? null, categoryBy: a.categoryBy ?? null,
         experiences: experiences.map((e) => ({
           content: e.content,
           sourceStatus: e.sourceStatus as "SOURCE_CONFIRMED" | "USER_ENTERED",
