@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { updateActivity } from "@/lib/api/experience";
 import { activityError } from "@/lib/api/editing";
 import type { ActivitySummary } from "@/lib/api/types";
@@ -45,7 +46,7 @@ export function ActivityEditor({ activity, onSaved, onCancel }: {
 }
 
 const FIRST_YEAR = 1990;
-const selectClass = "min-h-11 min-w-0 flex-1 rounded-sm border border-hairline bg-canvas p-2 disabled:opacity-50";
+const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => ({ value: String(i + 1).padStart(2, "0"), label: `${i + 1}월` }));
 
 /** 「YYYY」 · 「YYYY-MM」 · 「YYYY-MM-DD」 → 연 · 월 칸. 월이 없으면 "" */
 function parts(value: string | null) {
@@ -81,14 +82,10 @@ function MonthField({ label, value, original, disabled, onChange }: {
     <fieldset className="m-0 grid min-w-0 gap-1 border-0 p-0" disabled={disabled}>
       <legend className="mb-1 p-0">{label}</legend>
       <div className="flex gap-2">
-        <select aria-label={`${label} 연도`} className={selectClass} value={year} onChange={(e) => change(e.target.value, e.target.value ? month : "")}>
-          <option value="">{label === "종료" ? "없음 · 모름" : "기간 모름"}</option>
-          {sorted.map((y) => <option key={y} value={y}>{Number(y)}년</option>)}
-        </select>
-        <select aria-label={`${label} 월`} className={selectClass} value={month} disabled={!year} onChange={(e) => change(year, e.target.value)}>
-          <option value="">월 모름</option>
-          {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0")).map((m) => <option key={m} value={m}>{Number(m)}월</option>)}
-        </select>
+        <Select aria-label={`${label} 연도`} className="flex-1" value={year} disabled={disabled} onChange={(next) => change(next, next ? month : "")}
+          options={[{ value: "", label: label === "종료" ? "없음 · 모름" : "기간 모름" }, ...sorted.map((y) => ({ value: y, label: `${Number(y)}년` }))]} />
+        <Select aria-label={`${label} 월`} className="flex-1" value={month} disabled={disabled || !year} onChange={(next) => change(year, next)}
+          options={[{ value: "", label: "월 모름" }, ...MONTH_OPTIONS]} />
       </div>
     </fieldset>
   );

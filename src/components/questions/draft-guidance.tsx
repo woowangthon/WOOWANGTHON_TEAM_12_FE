@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
 import { DRAFT_FRAMES, type DraftFrame } from '@/lib/draft-frames';
 import type { Draft } from '@/lib/api/question-types';
 import { fetchGuidelines, guidelineError, type Guideline } from '@/lib/api/guidelines';
@@ -11,6 +12,8 @@ export function FrameDescription({ frame }: { frame: DraftFrame }) {
   const info = DRAFT_FRAMES[frame];
   return <div className="grid min-w-0 gap-1 text-xs leading-relaxed text-muted"><p className="m-0">{info.steps}</p>{info.source && <a href={info.source} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center justify-self-start break-words text-evidence underline underline-offset-3">출처 · {info.sourceName}</a>}</div>;
 }
+
+const FRAME_OPTIONS = (Object.keys(DRAFT_FRAMES) as DraftFrame[]).map(value => ({ value, label: DRAFT_FRAMES[value].name }));
 
 export function FramePicker({ frame, onChange, disabled, proposed }: { frame: DraftFrame; onChange: (frame: DraftFrame) => void; disabled: boolean; proposed: boolean }) {
   const [guidelines, setGuidelines] = useState<Guideline[] | null>(null);
@@ -23,7 +26,7 @@ export function FramePicker({ frame, onChange, disabled, proposed }: { frame: Dr
     finally { setBusy(false); }
   }
   return <div className="grid min-w-0 gap-2 border-t border-hairline pt-4">
-    <label className="grid gap-2 text-sm font-semibold">구성 틀<select value={frame} disabled={disabled} onChange={e => onChange(e.target.value as DraftFrame)} className="min-h-11 w-full rounded-sm border border-hairline bg-canvas px-3 text-sm sm:max-w-80">{Object.entries(DRAFT_FRAMES).map(([value, info]) => <option key={value} value={value}>{info.name}</option>)}</select></label>
+    <label className="grid gap-2 text-sm font-semibold">구성 틀<Select<DraftFrame> aria-label="구성 틀" value={frame} disabled={disabled} onChange={next => { if (next) onChange(next); }} className="sm:max-w-80" options={FRAME_OPTIONS} /></label>
     {proposed && <p className="m-0 text-xs text-muted">문항 유형에 맞춘 제안 · 바꿔도 괜찮아요.</p>}
     <FrameDescription frame={frame} />
     <p className="m-0 text-xs text-muted">자료로 받칠 수 없는 단계는 지어내지 않고 건너뛰어요.</p>
