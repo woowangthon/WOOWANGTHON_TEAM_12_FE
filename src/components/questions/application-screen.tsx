@@ -11,7 +11,7 @@ import { CenterState } from "@/components/center-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { MAX_QUESTIONS_PER_APPLICATION, type Application, type QuestionDetail, type QuestionSummary, type QuestionType, type UpdateApplicationRequest } from "@/lib/api/question-types";
+import { MAX_QUESTIONS_PER_APPLICATION, type Answer, type Application, type QuestionDetail, type QuestionSummary, type QuestionType, type UpdateApplicationRequest } from "@/lib/api/question-types";
 import { AddQuestionForm, ApplicationForm } from "./application-form";
 import { overlapsOf, sameExperienceElsewhere, type Overlap } from "./overlap";
 import { AnswerInput } from "./answer-input";
@@ -153,7 +153,7 @@ export function ApplicationScreen() {
                 if (saved) setAdding(false);
               }} /> : <SelectedQuestion key={matching.questionId} summary={summary} question={selected} index={selectedIndex}
                 loadError={matching.detailError} onReload={matching.reloadQuestion}
-                overlaps={overlaps} onRetry={id => matching.retry(id)} onTypeChange={(id, type) => matching.updateQuestionType(id, type)}
+                overlaps={overlaps} onRetry={id => matching.retry(id)} onTypeChange={(id, type) => matching.updateQuestionType(id, type)} onAnswerChange={matching.keepAnswer}
                 {...draftActions} onOpenOmissions={openDraftQuestions} />}
             </div>
           </> : null}
@@ -260,9 +260,9 @@ function OverlapPanel({ overlaps, onPick }: { overlaps: Overlap[]; onPick: (ques
 }
 
 /** 고른 문항 — 받아 둔 내용이 있으면 바로, 처음 보는 문항이면 받는 동안 자리만(FE#60). 문항 글 · 상태는 지원 목록에 이미 있다 */
-function SelectedQuestion({ summary, question, index, loadError, onReload, overlaps, onRetry, onTypeChange, onGenerate, onRefresh, onOpenOmissions, savingAnswer, requestingDraft }: {
+function SelectedQuestion({ summary, question, index, loadError, onReload, overlaps, onRetry, onTypeChange, onAnswerChange, onGenerate, onRefresh, onOpenOmissions, savingAnswer, requestingDraft }: {
   summary: QuestionSummary | null; question: QuestionDetail | null; index: number; loadError: string | null; onReload: (id: number) => void;
-  overlaps: Overlap[]; onRetry: (id: number) => Promise<unknown>; onTypeChange: (id: number, type: QuestionType) => Promise<void>;
+  overlaps: Overlap[]; onRetry: (id: number) => Promise<unknown>; onTypeChange: (id: number, type: QuestionType) => Promise<void>; onAnswerChange: (id: number, answer: Answer | null) => void;
 } & DraftActions) {
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
@@ -275,7 +275,7 @@ function SelectedQuestion({ summary, question, index, loadError, onReload, overl
       <h3 className="m-0 max-h-52 overflow-y-auto whitespace-pre-wrap text-[20px] leading-relaxed font-[650] tracking-[-0.3px]">{summary.text}</h3>
       <div className="mt-3"><QuestionTypeField question={question ?? summary} onSave={type => onTypeChange(summary.id, type)} /></div>
     </header>
-    <AnswerInput key={`answer-${summary.id}`} questionId={summary.id} />
+    <AnswerInput key={`answer-${summary.id}`} questionId={summary.id} question={question} loadFailed={!!loadError} onAnswerChange={onAnswerChange} />
     {!question ? loadError ? <div role="alert" className="grid justify-items-start gap-3 py-8">
       <p className="m-0 text-error">{loadError}</p><Button variant="secondary" onClick={() => onReload(summary.id)}>다시 불러오기</Button>
     </div> : <div role="status" aria-label="문항을 불러오고 있어요"><AnswerSkeleton /></div>
