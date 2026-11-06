@@ -23,7 +23,7 @@ test("responsive breakpoint: JS and CSS agree at the browser default font size",
       expect(await page.evaluate(() => matchMedia("(min-width:1280px)").matches)).toBe(true);
     }
     const sidebar = page.locator('aside[aria-label="사이드바"]');
-    const topMenu = page.getByRole("banner");
+    const topMenu = page.getByRole("banner").getByRole("navigation", { name: "주 메뉴", exact: true });
     const desktop = width >= fontSize * 64;
     if (desktop) {
       await expect(sidebar).toBeVisible();

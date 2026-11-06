@@ -1,4 +1,5 @@
 // 자료 여러 개 한 번에(S-59) · 활동에 자료 더하기(S-60) — 가짜 BE 가 experience-api.md 모양으로 답한다. 실제 BE · AI 를 돌리지 않는다
+import { openAddSource } from "./add-source";
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import type { ActivityDetail, ActivitySummary, Job, SourceRequest } from "../src/lib/api/types";
@@ -70,7 +71,7 @@ const textFile = (name: string, text = `${name} 내용`) => ({ name, mimeType: "
 const stored = (page: Page) => page.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith("analysis:pending-job:")).length);
 
 async function openFiles(page: Page) {
-  await page.getByRole("button", { name: "자료 넣기", exact: true }).filter({ visible: true }).first().click();
+  await openAddSource(page);
   return page.locator('input[type="file"]');
 }
 

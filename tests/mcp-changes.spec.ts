@@ -20,6 +20,7 @@ async function setup(page: Page, list: Record<string, unknown>[], connected = tr
   const state = { writeEnabled: false, changes: list, fail: "", calls: [] as string[], patches: [] as unknown[] };
   await page.route("https://cdn.jsdelivr.net/**", r => r.abort());
   await page.route("**/api/activities", r => r.fulfill({ json: { activities: [] } }));
+  await page.route("**/api/applications", r => r.fulfill({ json: { applications: [] } })); // 사이드바 지원서(FE#147)
   await page.route("**/api/public-profile", r => r.fulfill({ json: { title: null, linkEnabled: false, token: null, sharedCount: 0, visibleCount: 0 } }));
   await page.route("**/api/mcp/connection", r => {
     const method = r.request().method();

@@ -1,3 +1,4 @@
+import { openAddSource } from "./add-source";
 import { test, expect } from "@playwright/test";
 
 test("mock timeline, competency provenance edits, and source analysis remains mock", async ({ page }) => {
@@ -34,7 +35,7 @@ test("mock timeline, competency provenance edits, and source analysis remains mo
   await expect(last).toContainText("Manual mock experience");
   await expect(last.getByText("AI", { exact: true })).toHaveCount(0);
   if (page.viewportSize()!.width < 1024) await page.getByRole("button", { name: "타임라인", exact: true }).click();
-  await page.getByRole("button", { name: "자료 넣기", exact: true }).filter({ visible: true }).first().click();
+  await openAddSource(page);
   await page.getByRole("dialog").getByRole("textbox").fill("Test source text");
   await page.getByRole("button", { name: "넣기", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("목 분석 결과", { timeout: 15000 });
