@@ -472,7 +472,7 @@ export function TimelineScreen() {
 
   return (
     <div className="flex min-h-dvh flex-1 flex-col bg-canvas lg:h-dvh">
-      <AppHeader hideOnMobile={!!selected} addSource={addSource} experienceCount={ready ? countExperiences(ready.activities) : null} quickFind={{ openActivity: select, search: searchFor }} />
+      <AppHeader hideTabBar={!!selected} addSource={addSource} experienceCount={ready ? countExperiences(ready.activities) : null} quickFind={{ openActivity: select, search: searchFor }} />
       {Number(params.get("workJob")) > 0 && !isMockMode() && <SourceWorkDetail key={params.get("workJob")} jobId={Number(params.get("workJob"))} />}
       {/* 실제 API 모드엔 안내 줄을 두지 않는다 — 목 모드 표시(대회 규칙 1)와 지원에서 온 길만 (FE#174) */}
       {(isMockMode() || fromQuestion) && <p className="m-0 border-b border-hairline px-4 py-2 text-xs text-muted" role="note">
@@ -594,13 +594,6 @@ export function TimelineScreen() {
         )}
       </div>
 
-      {/* 모바일 — 「자료 넣기」는 오른쪽 아래 떠 있는 버튼 */}
-      {hasActivities && !selected && (
-        <AddSourceButton
-          {...addSource}
-          className="fixed right-4 bottom-[calc(20px+env(safe-area-inset-bottom,0px))] rounded-full shadow-float lg:hidden"
-        />
-      )}
 
       <MoveExperienceDialog experience={moving} activities={ready?.activities ?? []} onClose={() => setMoving(null)} onPick={moveTo} />
       {selected && ready && (

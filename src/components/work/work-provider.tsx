@@ -11,7 +11,6 @@ import { isMockMode } from "@/lib/api/http";
 import { cn } from "@/lib/utils";
 import { isUnread, latestFinished, workHref, WORK_KIND, WORK_STATUS, type WorkItem } from "@/lib/api/work";
 import { useWork } from "./use-work";
-import { QuickFindButton } from "@/components/quick-find/quick-find";
 
 const ROW = "grid min-h-11 min-w-0 grid-cols-[minmax(0,1fr)] gap-1 rounded-sm border-b border-hairline-soft p-3 text-sm hover:bg-surface-soft focus-visible:outline-2 focus-visible:outline-ink lg:gap-0.5 lg:border-b-0 lg:px-3 lg:py-2.5 lg:text-[13px]";
 const GROUP_TITLE = "mt-0 text-sm font-semibold lg:mb-0 lg:px-2 lg:pt-2 lg:pb-0.5 lg:text-[11px] lg:leading-[13px] lg:text-muted";
@@ -59,8 +58,6 @@ export function WorkProvider({ children }: { children: ReactNode }) {
     </section>
   </div>;
   return <WorkContext value={{ opened, toggle, count: inProgress.length, unread, status }}>
-    {/* PC 는 상단 바 오른쪽(app-header), 좁은 화면은 맨 위 막대 — 둘이 겹치면 상단 바가 가려진다 */}
-    {!desktop && <WorkStatus className="sticky top-0 z-40 min-h-11 justify-between border-b border-hairline bg-canvas px-4"><QuickFindButton /></WorkStatus>}
     {children}
     {desktop ? <Popover.Root open={opened} onOpenChange={setOpened}>
       <Popover.Anchor virtualRef={trigger as RefObject<HTMLButtonElement>} />
@@ -86,21 +83,19 @@ export function WorkStatus({ className, children }: { className?: string; childr
   const work = useContext(WorkContext);
   if (!work) return null;
   return <div aria-label="전역 작업 상태" className={cn("flex min-w-0 shrink-0 items-center gap-2 text-xs", className)}>
-    <p aria-live="polite" aria-atomic="true" className="my-2 min-w-0 break-words text-muted">{work.status}</p>
+    <p aria-live="polite" aria-atomic="true" className="my-2 min-w-0 break-words text-muted max-lg:truncate">{work.status}</p>
     <div className="flex shrink-0 items-center gap-1">{children}<WorkButton /></div>
   </div>;
 }
 
 function WorkButton() {
   const work = useContext(WorkContext);
-  const { desktop } = useSidebar();
   if (!work) return null;
   const unread = work.unread > 0;
   return <button type="button" onClick={event => work.toggle(event.currentTarget)} aria-label={`진행 중인 일 ${work.count}개 · 안 읽은 소식 ${work.unread}개`} aria-haspopup="dialog" aria-expanded={work.opened}
-    className="relative flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full px-3 text-sm font-medium hover:bg-surface-soft focus-visible:outline-2 focus-visible:outline-ink lg:size-9 lg:min-h-0 lg:px-0">
+    className="relative flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-surface-soft focus-visible:outline-2 focus-visible:outline-ink lg:size-9">
     <BellIcon aria-hidden="true" className="size-5 shrink-0" />
-    {desktop ? unread && <i data-slot="unread-dot" aria-hidden="true" className="absolute top-1.75 right-2 size-1.75 rounded-full bg-unread outline-2 outline-canvas" />
-      : <span className="whitespace-nowrap">소식{unread ? ` ${work.unread}` : ""}</span>}
+    {unread && <i data-slot="unread-dot" aria-hidden="true" className="absolute top-2.5 right-3 size-1.75 rounded-full bg-unread outline-2 outline-canvas lg:top-1.75 lg:right-2" />}
   </button>;
 }
 

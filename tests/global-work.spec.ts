@@ -71,8 +71,7 @@ test("PC 는 종 아래 작은 창 · 빨간 점, 1024 미만은 패널", async 
   await expect(trigger(page)).toHaveAccessibleName("진행 중인 일 0개 · 안 읽은 소식 1개");
   const dot = trigger(page).locator("[data-slot=unread-dot]");
   if (page.viewportSize()!.width < 1024) {
-    await expect(trigger(page)).toContainText("소식 1");
-    await expect(dot).toHaveCount(0);
+    await expect(dot).toBeVisible();
     await trigger(page).click();
     expect((await dialog(page).boundingBox())!.width).toBeCloseTo(390, 0);
     await page.keyboard.press("Escape");
@@ -206,6 +205,7 @@ test("다른 화면·새로고침 후 서버 상태 복원", async ({ page }) =>
   await setup(page, { seenAt: null, inProgress: [item()], recent: [] });
   await page.goto("/questions");
   await expect(trigger(page)).toHaveAccessibleName("진행 중인 일 1개 · 안 읽은 소식 0개");
+  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" }); // 개발 표시가 왼쪽 아래 탭을 가린다
   await page.getByRole("link", { name: "내 경험", exact: true }).filter({ visible: true }).first().click();
   await expect(trigger(page)).toHaveAccessibleName("진행 중인 일 1개 · 안 읽은 소식 0개");
   await page.reload();
