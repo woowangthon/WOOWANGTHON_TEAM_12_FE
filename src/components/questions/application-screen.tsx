@@ -21,6 +21,7 @@ import { createGroundingChecks, type GroundingChecks } from "./use-grounding-che
 import type { DraftFrame } from "@/lib/draft-frames";
 import type { DraftActions } from "./answer-draft";
 import { QuestionResult } from "./question-result";
+import { SimilarAnswers } from "./similar-answers";
 import { ChagokPanel, Mascot, type SupplementOrigin } from "./chagok-panel";
 import { useApplications } from "./use-applications";
 import { useChagokRun } from "./use-chagok-run";
@@ -39,7 +40,7 @@ function failureText(error: QuestionDetail["error"]) {
 /** 원문 링크의 사이트 이름만 — 긴 주소를 그대로 보이지 않는다 */
 const hostOf = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; } };
 
-/** 지원 화면(S-18 · S-21) — 지원 목록(xl 이상은 사이드바, lg 미만은 「지원 목록으로」 뒤) · 상태 꼬리표(S-36), 고른 지원: 지원처 머리 → 문항 탭 → 문항 → 답 → 초안 → 참고 경험 → 여러 문항에 추천된 활동(FE#148),
+/** 지원 화면(S-18 · S-21) — 지원 목록(xl 이상은 사이드바, lg 미만은 「지원 목록으로」 뒤) · 상태 꼬리표(S-36), 고른 지원: 지원처 머리 → 문항 탭 → 문항 → 답 → 예전에 쓴 답 → 초안 → 참고 경험 → 여러 문항에 추천된 활동(FE#148),
  *  오른쪽 차곡이 패널: 요구사항 · 보완 재사용 · 되묻기(FE#51). 배치는 ETC 시안 6 apply.html. 답 입력 · 근거 점검(S-45)은 추천 상태와 따로 쓴다 */
 export function ApplicationScreen() {
   const params = useSearchParams();
@@ -209,7 +210,7 @@ export function ApplicationScreen() {
               {adding ? <AddQuestionForm onCancel={() => setAdding(false)} onSubmit={async text => {
                 const saved = await matching.addQuestion(open.application.id, text);
                 if (saved) setAdding(false);
-              }} /> : <SelectedQuestion key={matching.questionId} summary={summary} question={selected} index={selectedIndex}
+              }} /> : <SelectedQuestion key={matching.questionId} summary={summary} question={selected} application={open.application} index={selectedIndex}
                 loadError={matching.detailError} onReload={matching.reloadQuestion}
                 overlaps={overlaps} onPickOverlap={id => { matching.selectQuestion(id); scrollToDetail(); }} onRetry={id => matching.retry(id)} onTypeChange={(id, type) => matching.updateQuestionType(id, type)} onAnswerChange={matching.keepAnswer} groundingChecks={groundingChecks}
                 {...draftActions} onOpenOmissions={openDraftQuestions} />}
@@ -321,8 +322,8 @@ function OverlapPanel({ overlaps, onPick }: { overlaps: Overlap[]; onPick: (ques
 }
 
 /** 고른 문항 — 받아 둔 내용이 있으면 바로, 처음 보는 문항이면 받는 동안 자리만(FE#60). 문항 글 · 상태는 지원 목록에 이미 있다 */
-function SelectedQuestion({ summary, question, index, loadError, onReload, overlaps, onPickOverlap, onRetry, onTypeChange, onAnswerChange, groundingChecks, onGenerate, onRefresh, onOpenOmissions, savingAnswer, requestingDraft }: {
-  summary: QuestionSummary | null; question: QuestionDetail | null; index: number; loadError: string | null; onReload: (id: number) => void;
+function SelectedQuestion({ summary, question, application, index, loadError, onReload, overlaps, onPickOverlap, onRetry, onTypeChange, onAnswerChange, groundingChecks, onGenerate, onRefresh, onOpenOmissions, savingAnswer, requestingDraft }: {
+  summary: QuestionSummary | null; question: QuestionDetail | null; application: Application; index: number; loadError: string | null; onReload: (id: number) => void;
   overlaps: Overlap[]; onPickOverlap: (questionId: number) => void; onRetry: (id: number) => Promise<unknown>; onTypeChange: (id: number, type: QuestionType) => Promise<void>; onAnswerChange: (id: number, answer: Answer | null) => void; groundingChecks: GroundingChecks;
 } & DraftActions) {
   const [retrying, setRetrying] = useState(false);
@@ -339,6 +340,7 @@ function SelectedQuestion({ summary, question, index, loadError, onReload, overl
       <h3 className="m-0 max-h-36 overflow-y-auto whitespace-pre-wrap text-[20px] leading-relaxed font-[650] tracking-[-0.3px]">{summary.text}</h3>
     </header>
     <AnswerInput key={`answer-${summary.id}`} questionId={summary.id} question={question} loadFailed={!!loadError} onAnswerChange={onAnswerChange} checks={groundingChecks} />
+    {question && <SimilarAnswers question={question} application={application} />}
     {!question ? loadError ? <div role="alert" className="grid justify-items-start gap-3 py-8">
       <p className="m-0 text-error">{loadError}</p><Button variant="secondary" onClick={() => onReload(summary.id)}>다시 불러오기</Button>
     </div> : <div role="status" aria-label="문항을 불러오고 있어요"><AnswerSkeleton /></div>

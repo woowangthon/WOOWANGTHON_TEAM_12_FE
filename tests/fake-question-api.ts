@@ -1,7 +1,7 @@
 // 시험용 가짜 BE — question-api.md 대로 지원 · 문항 · 되묻기 · 보완과, 추천 활동을 여는 타임라인(활동 7)만 흉내 낸다.
 // 화면이 계약대로 부르고 그 응답을 그대로 그리는지 보려는 것이다. 추천 내용은 계약 예시(문항 41 · 42)를 그대로 쓴다 — AI 판단을 흉내 내지 않는다.
 import type { Page, Route } from "@playwright/test";
-import type { Application, ApplicationStatus, Clarification, JobRole, OrganizationType, QuestionDetail, QuestionSummary } from "../src/lib/api/question-types";
+import type { Application, ApplicationStatus, Clarification, JobRole, OrganizationType, QuestionDetail, QuestionSummary, SimilarAnswer } from "../src/lib/api/question-types";
 import type { ActivityDetail, Supplement } from "../src/lib/api/types";
 import { QUESTION_EXAMPLES } from "./fixtures/question-examples";
 import { DRAFT_EXAMPLE } from "./fixtures/draft-example";
@@ -43,6 +43,10 @@ export class FakeQuestionApi {
   postingUrls = new Map<number, string | null>();
   /** 문항 ID → 앞으로 실패시킬 GET 횟수 — 폴링의 일시 · 연속 연결 실패 */
   questionFailures = new Map<number, number>();
+  /** GET similar-answers(S-43)가 돌려줄 목록 */
+  similarAnswers: SimilarAnswer[] = [];
+  /** 켜 두면 GET similar-answers 가 503 */
+  similarDown = false;
   /** 초안 HTTP 계약 시험 제어. 제품 실행에서는 사용하지 않는다. */
   draftError: { status: number; code: string } | null = null;
   failDraft = false;
@@ -186,6 +190,10 @@ export class FakeQuestionApi {
       const now = this.types.get(+m[1]) ?? { organizationType: null, jobRole: null };
       this.types.set(+m[1], { ...now, ...types });
       return json(route, this.application(+m[1]));
+    }
+    if ((m = path.match(/^\/api\/questions\/(\d+)\/similar-answers$/)) && method === "GET") {
+      if (this.similarDown) return error(route, 503, "INTERNAL_ERROR", "잠시 뒤 다시 시도해 주세요.");
+      return this.find(+m[1]) ? json(route, { answers: this.similarAnswers }) : error(route, 404, "QUESTION_NOT_FOUND");
     }
     if ((m = path.match(/^\/api\/questions\/(\d+)$/)) && method === "PATCH") {
       if (this.patchDown) return error(route, 503, "INTERNAL_ERROR", "잠시 뒤 다시 시도해 주세요");

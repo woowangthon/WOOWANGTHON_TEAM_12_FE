@@ -81,6 +81,12 @@ export type Draft = {
   createdAt: string; updatedAt: string;
 };
 export type CreateDraftRequest = { experienceIds: number[]; frame?: DraftFrame };
+/** S-43 비슷한 확정 답변 — 참고만, 근거가 아니다. 지원 · 문항의 지금 값을 함께 싣는다 */
+export type SimilarAnswer = {
+  questionId: number; questionText: string; questionType: QuestionType | null;
+  applicationId: number; organization: string | null; organizationType: OrganizationType | null; jobRole: JobRole | null;
+  text: string; confirmedAt: string;
+};
 export type CreateQuestionRequest = { organization?: string | null; text: string };
 export type QuestionSubmitted = { questionId: number; applicationId: number; status: "ANALYZING" };
 
