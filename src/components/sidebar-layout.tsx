@@ -46,7 +46,7 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
   return <SidebarContext value={{ collapsed, wide, desktop, toggle }}>
     <div data-sidebar-collapsed={collapsed} data-sidebar-animating={animating}
       onTransitionEnd={event => { if (event.target === event.currentTarget) setAnimating(false); }}
-      className="app-shell flex min-h-dvh flex-1 flex-col">
+      className="app-shell flex min-h-dvh flex-1 flex-col max-lg:has-data-[slot=tab-bar]:pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))]">
       {children}
     </div>
   </SidebarContext>;

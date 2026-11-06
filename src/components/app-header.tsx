@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -17,8 +17,8 @@ import { WorkStatus } from "@/components/work/work-provider";
 
 type Page = "home" | "timeline" | "questions" | "connections" | "guidelines";
 type HeaderProps = {
-  /** 1024 미만에서 세부를 전체 화면으로 열면 위 막대를 숨긴다 */
-  hideOnMobile?: boolean; addSource?: AddSourceProps; activePage?: Page;
+  /** 1024 미만에서 세부를 전체 화면으로 열면 아래 탭바를 숨긴다 */
+  hideTabBar?: boolean; addSource?: AddSourceProps; activePage?: Page;
   /** 지원 화면이 받아 둔 목록과 그 줄. 없으면 사이드바가 직접 받는다 */
   applicationList?: ApplicationsLoad & { rows?: React.ReactNode };
   /** 지원 화면 안에서 새 지원을 연다. 없으면 지원 화면으로 가서 연다 */
@@ -31,10 +31,11 @@ type HeaderProps = {
 type SidebarProps = Pick<HeaderProps, "activePage" | "experienceCount"> & {
   list: React.ReactNode; onAddSource: () => void; onRecord: () => void; addSourceBusy?: boolean; onNewApplication: () => void;
 };
-const links = [
-  { page: "timeline", href: "/experience", label: "내 경험" },
-  { page: "questions", href: "/questions", label: "지원" },
-  { page: "connections", href: "/connections", label: "연결" },
+const tabs: { page: Page; href: string; label: string; icon: React.ReactNode }[] = [
+  { page: "home", href: "/", label: "홈", icon: <HouseIcon /> },
+  { page: "timeline", href: "/experience", label: "내 경험", icon: <StackIcon /> },
+  { page: "questions", href: "/questions", label: "지원", icon: <FileTextIcon /> },
+  { page: "connections", href: "/connections", label: "연결", icon: <PlugsConnectedIcon /> },
 ];
 const sideLinks = [
   { page: "home", href: "/", label: "홈", icon: <HouseIcon /> },
@@ -45,39 +46,36 @@ const BUSY = "지금 넣은 자료의 분석이 끝나면 더 넣을 수 있어�
 // 왼쪽 여백·아이콘 칸·줄 간격은 접어도 유지한다. 글자는 남겨 서랍의 폭으로 잘라 낸다(시안 6).
 const navItem = "flex h-11 w-full shrink-0 items-center gap-2.5 overflow-hidden rounded-full px-3 text-sm font-medium whitespace-nowrap text-ink transition-colors";
 
-export function AppHeader({ hideOnMobile, addSource, applicationList, onNewApplication, experienceCount, activePage, quickFind }: HeaderProps) {
+export function AppHeader({ hideTabBar, addSource, applicationList, onNewApplication, experienceCount, activePage, quickFind }: HeaderProps) {
   const { wide, desktop } = useSidebar();
   const router = useRouter();
   const ownList = useSidebarApplications(desktop && !applicationList);
   const ownCount = useExperienceCount(desktop && experienceCount === undefined);
   const page = activePage ?? "timeline";
   const newApplication = onNewApplication ?? (() => router.push("/questions?new=1"));
+  const onAddSource = addSource?.onClick ?? (() => router.push("/experience?add=1"));
+  const onRecord = addSource?.onRecord ?? (() => router.push("/experience?add=line"));
   useQuickFindActions({ ...quickFind, addSource: addSource?.onClick, addRecord: addSource?.onRecord, addSourceBusy: addSource?.busy, newApplication: onNewApplication });
   return <Tooltip.Provider delayDuration={200}>
-    <header className={cn("flex h-14 items-center gap-4 border-b border-hairline bg-canvas px-4.5 lg:sticky lg:top-0 lg:z-20 lg:px-6", hideOnMobile && "max-lg:hidden")}>
-      <div className="contents lg:hidden">
-        <Link href="/" aria-label="차곡 — 홈"><Logo className="h-5 w-auto" /></Link>
-        <nav className="flex shrink-0 items-center gap-4 text-sm font-semibold" aria-label="주 메뉴">
-          {links.map(l => <Link key={l.page} href={l.href} aria-current={page === l.page ? "page" : undefined}
-            className={cn("inline-flex h-14 items-center border-b-2", page === l.page ? "border-ink" : "border-transparent text-muted")}>
-            {l.label}
-          </Link>)}
-        </nav>
-        <div className="ml-auto flex items-center gap-2"><AccountMenu /></div>
-      </div>
-      <div className="hidden lg:contents">
-        <nav aria-label="현재 위치" className="flex min-w-0 items-center gap-2.5 text-xs text-muted">
-          <ArchiveIcon className="size-4 shrink-0" aria-hidden="true" />
-          <span>내 서랍</span><span className="text-hairline" aria-hidden="true">/</span>
-          <strong aria-current="page" className="truncate font-medium text-ink">{PAGE_NAME[page]}</strong>
-        </nav>
-        {/* 기능이 없는 버튼은 두지 않는다 */}
-        <div data-slot="header-actions" className="ml-auto flex min-w-0 items-center gap-2">{desktop && <WorkStatus><QuickFindButton /></WorkStatus>}</div>
-      </div>
+    {/* 1024 미만 — 한 줄. 높이는 스크롤해도 붙어 있는 줄 하나(45px)로 두어 본화면을 줄이지 않는다(FE#201) */}
+    <header className="sticky top-0 z-40 flex h-11.25 items-center gap-1 border-b border-hairline bg-canvas pr-2 pl-4 lg:hidden">
+      <Link href="/" aria-label="차곡 — 홈" className="shrink-0"><Logo className="h-5 w-auto" /></Link>
+      {!desktop && <WorkStatus className="min-w-0 flex-1 shrink justify-end"><QuickFindButton /></WorkStatus>}
+      <AccountMenu />
+    </header>
+    <header className="hidden h-14 items-center gap-4 border-b border-hairline bg-canvas px-6 lg:sticky lg:top-0 lg:z-20 lg:flex">
+      <nav aria-label="현재 위치" className="flex min-w-0 items-center gap-2.5 text-xs text-muted">
+        <ArchiveIcon className="size-4 shrink-0" aria-hidden="true" />
+        <span>내 서랍</span><span className="text-hairline" aria-hidden="true">/</span>
+        <strong aria-current="page" className="truncate font-medium text-ink">{PAGE_NAME[page]}</strong>
+      </nav>
+      {/* 기능이 없는 버튼은 두지 않는다 */}
+      <div data-slot="header-actions" className="ml-auto flex min-w-0 items-center gap-2">{desktop && <WorkStatus><QuickFindButton /></WorkStatus>}</div>
     </header>
     <DesktopSidebar key={wide ? "wide" : desktop ? "rail" : "mobile"} activePage={page} experienceCount={experienceCount === undefined ? ownCount : experienceCount}
-      onAddSource={addSource?.onClick ?? (() => router.push("/experience?add=1"))} onRecord={addSource?.onRecord ?? (() => router.push("/experience?add=line"))} addSourceBusy={addSource?.busy} onNewApplication={newApplication}
+      onAddSource={onAddSource} onRecord={onRecord} addSourceBusy={addSource?.busy} onNewApplication={newApplication}
       list={<SidebarApplications {...(applicationList ?? ownList)} onNew={newApplication} showAll={page !== "questions"} />} />
+    {!desktop && !hideTabBar && <TabBar page={page} busy={addSource?.busy} onAddSource={onAddSource} onRecord={onRecord} onNewApplication={newApplication} />}
   </Tooltip.Provider>;
 }
 
@@ -130,7 +128,16 @@ function DesktopSidebar(props: SidebarProps) {
 
 function SidebarNavigation({ collapsed = false, activePage = "timeline", experienceCount, onAddSource, onRecord, addSourceBusy, onNewApplication, onNavigate, id }: SidebarProps & { collapsed?: boolean; onNavigate?: () => void; id?: string }) {
   return <nav id={id} className="relative flex shrink-0 flex-col gap-0.5" aria-label="주 메뉴">
-    <AddMenu collapsed={collapsed} busy={addSourceBusy} onAddSource={() => { onNavigate?.(); onAddSource(); }} onRecord={() => { onNavigate?.(); onRecord(); }} onNewApplication={() => { onNavigate?.(); onNewApplication(); }} />
+    <AddMenu side={collapsed ? "right" : "bottom"} align="start" busy={addSourceBusy} onAddSource={() => { onNavigate?.(); onAddSource(); }} onRecord={() => { onNavigate?.(); onRecord(); }} onNewApplication={() => { onNavigate?.(); onNewApplication(); }}>
+      <RailTip label="추가" enabled={collapsed}>
+        <DropdownMenu.Trigger asChild>
+          <button type="button" aria-label="추가" className={cn(navItem, "hover:bg-canvas/60 data-[state=open]:bg-canvas/60")}>
+            <span className="flex size-5 shrink-0 items-center justify-center" aria-hidden="true"><PlusIcon className="size-4.5" /></span>
+            <span className="sidebar-label shrink-0" aria-hidden={collapsed || undefined}>추가</span>
+          </button>
+        </DropdownMenu.Trigger>
+      </RailTip>
+    </AddMenu>
     {sideLinks.map(l => <SideLink key={l.page} {...l} active={activePage === l.page} collapsed={collapsed} onNavigate={onNavigate}
       count={l.page === "timeline" ? experienceCount : null} />)}
     {/* 펼치면 아래 「지원서」 목록이 이 메뉴를 대신한다(시안 6) */}
@@ -152,21 +159,16 @@ function SideLink({ href, label, icon, active, collapsed, count, railOnly, onNav
 }
 
 /** 「+ 추가」 — 쌓기(자료 쌓기 · 직접 기록하기) · 꺼내기(새 지원서). 직접 기록하기는 같은 자료 넣기(S-01)의 한 줄 입구다(FE#179) */
-function AddMenu({ collapsed, busy, onAddSource, onRecord, onNewApplication }: { collapsed: boolean; busy?: boolean; onAddSource: () => void; onRecord: () => void; onNewApplication: () => void }) {
+function AddMenu({ side, align, busy, onAddSource, onRecord, onNewApplication, children }: {
+  side: "right" | "bottom" | "top"; align: "start" | "center"; busy?: boolean; onAddSource: () => void; onRecord: () => void; onNewApplication: () => void; children: React.ReactNode;
+}) {
   const item = "flex cursor-pointer gap-3 rounded-sm px-3 py-2.5 outline-none focus:bg-surface-soft data-disabled:cursor-default data-disabled:opacity-60";
   const text = (title: string, detail: string) => <span className="grid"><span className="text-sm leading-4 font-semibold text-ink">{title}</span><span className="text-[11px] leading-normal text-muted">{detail}</span></span>;
   const label = "px-3 pt-2 pb-1 text-[11px] font-medium text-muted";
   return <DropdownMenu.Root modal={false}>
-    <RailTip label="추가" enabled={collapsed}>
-      <DropdownMenu.Trigger asChild>
-        <button type="button" aria-label="추가" className={cn(navItem, "hover:bg-canvas/60 data-[state=open]:bg-canvas/60")}>
-          <span className="flex size-5 shrink-0 items-center justify-center" aria-hidden="true"><PlusIcon className="size-4.5" /></span>
-          <span className="sidebar-label shrink-0" aria-hidden={collapsed || undefined}>추가</span>
-        </button>
-      </DropdownMenu.Trigger>
-    </RailTip>
+    {children}
     <DropdownMenu.Portal>
-      <DropdownMenu.Content align="start" side={collapsed ? "right" : "bottom"} sideOffset={6} className="z-60 grid w-70 gap-0.5 rounded-md border border-hairline bg-canvas p-2 shadow-float">
+      <DropdownMenu.Content align={align} side={side} sideOffset={6} className="z-60 grid w-70 gap-0.5 rounded-md border border-hairline bg-canvas p-2 shadow-float">
         <DropdownMenu.Label className={label}>쌓기</DropdownMenu.Label>
         <DropdownMenu.Item disabled={busy} onSelect={onAddSource} className={item}>
           <PaperclipIcon className="mt-px size-5 shrink-0" aria-hidden="true" />
@@ -185,6 +187,46 @@ function AddMenu({ collapsed, busy, onAddSource, onRecord, onNewApplication }: {
       </DropdownMenu.Content>
     </DropdownMenu.Portal>
   </DropdownMenu.Root>;
+}
+
+/** 1024 미만 아래 탭바 — 위 막대의 글자 메뉴 · 내 경험의 떠 있는 버튼을 대신한다(FE#201) */
+function TabBar({ page, busy, onAddSource, onRecord, onNewApplication }: { page: Page; busy?: boolean; onAddSource: () => void; onRecord: () => void; onNewApplication: () => void }) {
+  const hidden = useHideOnScrollDown();
+  const tab = "flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 text-xs font-medium";
+  const link = ({ page: target, href, label, icon }: (typeof tabs)[number]) => <Link key={target} href={href} aria-current={page === target ? "page" : undefined}
+    className={cn(tab, page === target ? "font-bold text-ink" : "text-muted")}>
+    <span className="text-[22px] leading-none" aria-hidden="true">{icon}</span>{label}
+  </Link>;
+  // 화면 키보드가 떠 있는 동안은 숨긴다. 입력칸에서 버튼을 누르는 순간 초점이 빠져도 그 자리에 탭바가
+  // 바로 나오면 누르기가 탭바에 끝나 버튼이 안 눌린다 — 나오기를 200ms 늦춘다
+  return <nav data-slot="tab-bar" aria-label="주 메뉴" className={cn("fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-hairline bg-canvas pb-[env(safe-area-inset-bottom,0px)] [transition:transform_150ms,visibility_0s_200ms] has-focus-visible:translate-y-0 motion-reduce:[transition:visibility_0s_200ms] lg:hidden [body:has(input:focus,textarea:focus)_&]:invisible", hidden && "translate-y-full")}>
+    {link(tabs[0])}{link(tabs[1])}
+    <AddMenu side="top" align="center" busy={busy} onAddSource={onAddSource} onRecord={onRecord} onNewApplication={onNewApplication}>
+      <DropdownMenu.Trigger asChild>
+        <button type="button" aria-label="추가" className={cn(tab, "text-ink")}>
+          <span className="flex size-9 items-center justify-center rounded-full bg-primary text-on-primary" aria-hidden="true"><PlusIcon className="size-5" /></span>
+        </button>
+      </DropdownMenu.Trigger>
+    </AddMenu>
+    {link(tabs[2])}{link(tabs[3])}
+  </nav>;
+}
+
+/** 아래로 내리면 숨고 위로 올리면 나온다 — 읽는 동안 본화면을 줄이지 않는다 */
+function useHideOnScrollDown() {
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    let last = window.scrollY;
+    const onScroll = () => {
+      const y = window.scrollY;
+      if (Math.abs(y - last) < 8) return;
+      setHidden(y > last && y > 56);
+      last = y;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  return hidden;
 }
 
 /** 아래쪽 연결 · 계정 — 「내보내기」(S-33)는 기능이 들어올 때 붙인다 */

@@ -68,7 +68,7 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
   return (
     <div className="flex min-h-full flex-col">
       {/* 모바일 — 타임라인으로 돌아가기 */}
-      <div className="sticky top-0 z-10 flex h-14 items-center border-b border-hairline bg-canvas px-3 lg:hidden">
+      <div className="sticky top-11.25 z-10 flex h-14 items-center border-b border-hairline bg-canvas px-3 lg:hidden">
         <button
           type="button"
           onClick={onClose}

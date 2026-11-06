@@ -107,14 +107,43 @@ test("rail keeps the menu reachable: applications icon, add menu and overlay lis
   await expect(page.locator("#selected-application")).toHaveAttribute("aria-label", "새 지원 입력");
 });
 
-test("390 keeps the top menu without the desktop shell or its requests", async ({ page }, info) => {
+test("390 uses a one line top bar and a bottom tab bar without the desktop shell or its requests", async ({ page }, info) => {
   test.skip(info.project.name !== "mobile");
   const api = await install(page);
   await page.goto("/connections");
-  await expect(page.getByRole("banner").getByRole("navigation", { name: "주 메뉴", exact: true })).toBeVisible();
+  const banner = page.getByRole("banner").filter({ visible: true });
+  const tabs = page.getByRole("navigation", { name: "주 메뉴", exact: true });
+  await expect(tabs.getByRole("link")).toHaveText(["홈", "내 경험", "지원", "연결"]);
+  await expect(tabs.getByRole("link", { name: "연결", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(banner.getByRole("button", { name: "빠른 찾기", exact: true })).toBeVisible();
+  // 본화면을 줄이지 않는다 — 위 45 + 아래 56 은 예전 두 줄(45 + 56)과 같다
+  expect((await banner.boundingBox())!.height).toBe(45);
+  expect((await tabs.boundingBox())!.height).toBeLessThanOrEqual(57);
+  for (const target of await tabs.locator("a, button").all()) expect((await target.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await tabs.getByRole("button", { name: "추가", exact: true }).click();
+  await expect(page.getByRole("menuitem")).toHaveText([/^자료 쌓기/, /^직접 기록하기/, /^새 지원서/]);
+  await page.keyboard.press("Escape");
   await expect(page.getByRole("banner").getByRole("navigation", { name: "현재 위치", exact: true })).toBeHidden();
   await expect(sidebar(page)).toBeHidden();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   expect(api.calls.filter(c => c.call === "GET /api/applications")).toHaveLength(0);
   await capture(page, "connections-390");
+});
+
+test("the tab bar hides while scrolling down, returns on the way up, and stays out of typing", async ({ page }, info) => {
+  test.skip(info.project.name !== "mobile");
+  await install(page);
+  await page.goto("/connections");
+  const tabs = page.getByRole("navigation", { name: "주 메뉴", exact: true });
+  await expect(tabs).toBeInViewport();
+  await page.evaluate(() => { document.body.style.minHeight = "3000px"; window.scrollTo(0, 400); });
+  await expect(tabs).not.toBeInViewport();
+  await page.evaluate(() => window.scrollTo(0, 200));
+  await expect(tabs).toBeInViewport();
+  await page.goto("/");
+  await expect(tabs).toBeVisible();
+  await page.getByRole("textbox").first().focus();
+  await expect(tabs).toBeHidden();
+  await page.getByRole("textbox").first().blur();
+  await expect(tabs).toBeVisible();
 });
