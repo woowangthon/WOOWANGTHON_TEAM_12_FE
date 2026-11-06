@@ -4,13 +4,25 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
-import { createMcpConnection, deleteMcpConnection, fetchMcpConnection, type McpConnection } from "@/lib/api/mcp";
+import { cn } from "@/lib/utils";
+import { createMcpConnection, deleteMcpConnection, fetchMcpConnection, setMcpWrite, type McpConnection } from "@/lib/api/mcp";
 import { isMockMode } from "@/lib/api/http";
+import { McpChangeLog, timestamp } from "./mcp-changes";
 
 type Action = "replace" | "disconnect";
-const timestamp = (value: string) => new Intl.DateTimeFormat("ko-KR", {
-  dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Seoul",
-}).format(new Date(value));
+const CONFIRM = {
+  replace: {
+    title: "연결 주소를 다시 만들까요?",
+    body: "다시 만들면 이전 주소는 즉시 사용할 수 없어요. 켜 둔 쓰기도 다시 꺼져요. 새 주소를 Claude에 다시 넣어야 해요. 연결하면 경험 · 근거가 해당 AI 서비스로 전송돼요.",
+    action: "새 주소 만들기",
+  },
+  disconnect: { title: "연결을 끊을까요?", body: "지금 주소는 즉시 사용할 수 없어요. 다시 연결하려면 새 주소를 만들어야 해요.", action: "연결 끊기" },
+  write: {
+    title: "외부 AI 쓰기를 켤까요?",
+    body: "외부 AI가 내 확인 없이 자료를 넣고 경험 본문을 고칠 수 있어요. 연결 주소를 가진 사람도 할 수 있어요. 바뀐 것은 이 화면의 변경 기록에서 보고 되돌릴 수 있어요.",
+    action: "쓰기 켜기",
+  },
+};
 
 export function ConnectionScreen() {
   const [connection, setConnection] = useState<McpConnection | null>(null);
@@ -19,7 +31,7 @@ export function ConnectionScreen() {
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
-  const [confirm, setConfirm] = useState<Action | null>(null);
+  const [confirm, setConfirm] = useState<Action | "write" | null>(null);
   const generation = useRef(0);
   const locked = useRef(false);
   const mock = isMockMode();
@@ -66,12 +78,12 @@ export function ConnectionScreen() {
       if (action === "disconnect") {
         await deleteMcpConnection();
         if (generation.current !== current) return;
-        setConnection({ connected: false, createdAt: null, lastUsedAt: null });
+        setConnection({ connected: false, writeEnabled: false, createdAt: null, lastUsedAt: null });
         setNotice("연결을 끊었어요.");
       } else {
         const created = await createMcpConnection();
         if (generation.current !== current) return;
-        setConnection({ connected: true, createdAt: created.createdAt, lastUsedAt: null });
+        setConnection({ connected: true, writeEnabled: false, createdAt: created.createdAt, lastUsedAt: null });
         setUrl(created.url);
       }
     } catch {
@@ -81,6 +93,31 @@ export function ConnectionScreen() {
       setError(action === "disconnect"
         ? "연결 끊기 결과를 확인하지 못했어요. 연결 상태를 다시 확인해 주세요."
         : "주소 발급 결과를 확인하지 못했어요. 이전 주소가 유지되는지는 알 수 없어요. 연결 상태를 확인한 뒤 필요하면 다시 만들어 주세요.");
+    } finally {
+      locked.current = false;
+      if (generation.current === current) setBusy(false);
+    }
+  }
+
+  // 켜고 끄는 동안 방금 만든 주소는 그대로 보여 둔다(주소가 바뀌지 않는다).
+  async function setWrite(writeEnabled: boolean) {
+    if (locked.current) return;
+    locked.current = true;
+    const current = ++generation.current;
+    setBusy(true);
+    setConfirm(null);
+    setNotice("");
+    setError(null);
+    try {
+      const next = await setMcpWrite(writeEnabled);
+      if (generation.current !== current) return;
+      setConnection(next);
+      setNotice(next.writeEnabled ? "쓰기를 켰어요. 다음 요청부터 적용돼요." : "쓰기를 껐어요. 다음 요청부터 적용돼요.");
+    } catch {
+      if (generation.current !== current) return;
+      // 응답을 받지 못해도 바뀌었을 수 있다 — 켜짐 · 꺼짐을 짐작해 보이지 않는다.
+      setConnection(null);
+      setError("쓰기 설정 결과를 확인하지 못했어요. 연결 상태를 다시 확인해 주세요.");
     } finally {
       locked.current = false;
       if (generation.current === current) setBusy(false);
@@ -108,7 +145,7 @@ export function ConnectionScreen() {
       </p>}
       <section aria-labelledby="mcp-title" className="mt-8 border-t border-hairline pt-6">
         <h2 id="mcp-title" className="text-xl font-semibold">다른 AI에서 쓰기(MCP)</h2>
-        <p className="mt-3 text-sm leading-relaxed text-body">연결하면 내 경험 · 근거가 연결한 AI 서비스(Claude 등)로 전송돼요. 읽기만 가능해요.</p>
+        <p className="mt-3 text-sm leading-relaxed text-body">연결하면 내 경험 · 근거가 연결한 AI 서비스(Claude 등)로 전송돼요. 기본은 읽기만 가능해요.</p>
         <p className="mt-2 text-sm leading-relaxed text-body">연결 주소는 비밀번호와 같아요. 다른 사람에게 보여 주지 마세요.</p>
 
         {error && <div role="alert" className="mt-6 space-y-3">
@@ -123,6 +160,20 @@ export function ConnectionScreen() {
               <dt className="text-muted">만든 시각</dt><dd><time dateTime={connection.createdAt}>{timestamp(connection.createdAt)} (한국 시간)</time></dd>
               <dt className="text-muted">마지막 사용</dt><dd>{connection.lastUsedAt ? <time dateTime={connection.lastUsedAt}>{timestamp(connection.lastUsedAt)} 사용</time> : "Claude에서 아직 안 쓰임"}</dd>
             </dl>
+            <div className="mt-5 flex items-center justify-between gap-4 border-t border-hairline pt-4">
+              <div className="min-w-0">
+                <p id="mcp-write" className="text-sm font-semibold">외부 AI 쓰기</p>
+                <p id="mcp-write-hint" className="mt-1 text-sm leading-relaxed text-muted">{connection.writeEnabled ? "외부 AI가 확인 없이 자료를 넣고 경험 본문을 고칠 수 있어요." : "꺼져 있어요. 외부 AI는 읽기만 해요."}</p>
+              </div>
+              <button type="button" role="switch" aria-checked={connection.writeEnabled} aria-labelledby="mcp-write" aria-describedby="mcp-write-hint" disabled={busy}
+                onClick={() => { if (connection.writeEnabled) void setWrite(false); else setConfirm("write"); }}
+                className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-sm text-sm font-medium disabled:opacity-50">
+                <span aria-hidden="true">{connection.writeEnabled ? "켜짐" : "꺼짐"}</span>
+                <span aria-hidden="true" className={cn("flex h-7 w-12 items-center rounded-full p-0.5 transition-colors", connection.writeEnabled ? "justify-end bg-primary" : "justify-start bg-surface-strong")}>
+                  <span className="size-6 rounded-full bg-canvas" />
+                </span>
+              </button>
+            </div>
             {!url && <p className="mt-4 text-sm leading-relaxed text-muted">주소는 만들 때 한 번만 보여요. 주소를 잃어버렸다면 「다시 만들기」로 새 주소를 받으세요.</p>}
             <div className="mt-5 flex flex-wrap gap-2">
               <Button className="min-h-11" variant="secondary" disabled={busy} onClick={() => setConfirm("replace")}>다시 만들기</Button>
@@ -139,6 +190,7 @@ export function ConnectionScreen() {
         </div>}
         <p role="status" aria-live="polite" className="mt-3 text-sm text-body">{notice}</p>
       </section>
+      <McpChangeLog />
       <section aria-labelledby="claude-guide" className="mt-8 border-t border-hairline pt-6">
         <h2 id="claude-guide" className="text-lg font-semibold">Claude에 넣는 법</h2>
         <ol className="mt-4 list-decimal space-y-2 pl-5 text-sm leading-relaxed text-body">
@@ -152,13 +204,11 @@ export function ConnectionScreen() {
     </main>
     <Dialog open={confirm !== null} onOpenChange={(open) => { if (!open) setConfirm(null); }}>
       <DialogContent>
-        <DialogTitle>{confirm === "replace" ? "연결 주소를 다시 만들까요?" : "연결을 끊을까요?"}</DialogTitle>
-        <DialogDescription>{confirm === "replace"
-          ? "다시 만들면 이전 주소는 즉시 사용할 수 없어요. 새 주소를 Claude에 다시 넣어야 해요. 연결하면 경험 · 근거가 해당 AI 서비스로 전송돼요."
-          : "지금 주소는 즉시 사용할 수 없어요. 다시 연결하려면 새 주소를 만들어야 해요."}</DialogDescription>
+        <DialogTitle>{confirm && CONFIRM[confirm].title}</DialogTitle>
+        <DialogDescription>{confirm && CONFIRM[confirm].body}</DialogDescription>
         <DialogFooter>
           <Button className="min-h-11" variant="secondary" onClick={() => setConfirm(null)}>취소</Button>
-          <Button className="min-h-11" disabled={busy} onClick={() => { if (confirm) void mutate(confirm); }}>{confirm === "replace" ? "새 주소 만들기" : "연결 끊기"}</Button>
+          <Button className="min-h-11" disabled={busy} onClick={() => { if (confirm === "write") void setWrite(true); else if (confirm) void mutate(confirm); }}>{confirm && CONFIRM[confirm].action}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

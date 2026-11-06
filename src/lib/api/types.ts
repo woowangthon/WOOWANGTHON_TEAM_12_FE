@@ -114,6 +114,8 @@ export type Experience = {
   supplements?: Supplement[];
   /** 이 경험이 지금 추천에 있는 지원(S-38). 활동 세부 응답에만 실린다 — 수정 · 추가 응답엔 없다 */
   usedIn?: UsedIn[];
+  /** 외부 AI 가 본문을 고쳤고 사용자가 아직 정하지 않았다(S-53). 전 · 후 본문은 변경 기록에 있다 */
+  mcpChange?: { changeId: number; client: string } | null;
 };
 
 /** GET /api/experiences 의 경험 — activityId 대신 activity, usedIn 은 없다(S-58) */
