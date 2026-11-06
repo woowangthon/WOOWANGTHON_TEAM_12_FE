@@ -116,6 +116,8 @@ export type Experience = {
   usedIn?: UsedIn[];
   /** 외부 AI 가 본문을 고쳤고 사용자가 아직 정하지 않았다(S-53). 전 · 후 본문은 변경 기록에 있다 */
   mcpChange?: { changeId: number; client: string } | null;
+  /** 공개 프로필에 넣었나(S-65). 바꾸는 곳은 PUT /api/experiences/{id}/shared 하나 */
+  shared?: boolean;
 };
 
 /** GET /api/experiences 의 경험 — activityId 대신 activity, usedIn 은 없다(S-58) */

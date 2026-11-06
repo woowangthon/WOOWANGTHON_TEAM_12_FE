@@ -31,7 +31,7 @@ npm.cmd run check
 
 ## 변경 파일
 
-- `src/app/connections/page.tsx` — 연결 라우트
+- `src/app/(app)/connections/page.tsx` — 연결 라우트
 - `src/components/connections/connection-screen.tsx` — 상태별 화면·복사·확인·오류·주소 수명 관리
 - `src/lib/api/mcp.ts` — 계약 타입·응답 검증·기존 요청 계층 연결
 - `src/lib/mock/mcp.ts` — 명시적 목 구현

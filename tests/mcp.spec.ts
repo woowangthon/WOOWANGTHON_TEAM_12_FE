@@ -11,6 +11,7 @@ test.beforeEach(async ({ page }) => {
 async function setup(page: Page, connected = false) {
   const state = { connected, lastUsedAt: null as string | null, fail: "", invalid: false, lostResponse: false, sequence: 0, bodies: [] as (string | null)[] };
   await page.route("**/api/activities", r => r.fulfill({ json: { activities: [] } }));
+  await page.route("**/api/public-profile", r => r.fulfill({ json: { title: null, linkEnabled: false, token: null, sharedCount: 0, visibleCount: 0 } }));
   await page.route("**/api/mcp/changes", r => r.fulfill({ json: { changes: [] } }));
   await page.route("**/api/mcp/connection", r => {
     const method = r.request().method();
