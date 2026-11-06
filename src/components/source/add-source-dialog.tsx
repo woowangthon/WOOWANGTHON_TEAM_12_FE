@@ -130,7 +130,7 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
     <Dialog open={open} onOpenChange={changeOpen}>
       <DialogContent>
         <DialogHeader className="pr-10">
-          <DialogTitle>{target ? `「${target.name}」에 자료 더하기` : line ? "직접 기록하기" : "자료 넣기"}</DialogTitle>
+          <DialogTitle>{target ? `「${target.name}」에 자료 더하기` : line ? "직접 기록하기" : "자료 가져오기"}</DialogTitle>
           <DialogDescription className="text-[15px] text-body">
             {target
               ? "이 활동에 대한 새 자료(회고 · 발표 자료 · README)를 넣으면, 이 활동의 경험으로 붙이고 근거를 더해요. 다른 활동 얘기가 섞여 있으면 새 활동으로 남기고 따로 알려 줄게요."
