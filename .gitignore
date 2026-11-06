@@ -46,3 +46,6 @@ npm-debug.log*
 !/artifacts/work-work-1440-test-api.png
 !/artifacts/work-work-1024-test-api.png
 !/artifacts/work-work-390-test-api.png
+
+# 시안 비교 결과(npm run design:diff)
+/artifacts/design-diff/
