@@ -27,7 +27,7 @@ async function fakeApi(page: Page) {
   await page.route("**/api/**", async (route) => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
-    if (path.startsWith("/api/auth/")) return route.fallback();
+    if (path.startsWith("/api/auth/") || path === "/api/work") return route.fallback();
     if (path === "/api/sources/batch") {
       const { sources } = req.postDataJSON() as { sources: SourceRequest[] };
       state.batches.push(sources);
