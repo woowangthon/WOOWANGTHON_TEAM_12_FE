@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ComponentType, type KeyboardEvent, type ReactNode } from "react";
 import { ArrowRightIcon, ArrowsClockwiseIcon, ArrowUpIcon, FileTextIcon, HouseIcon, MagnifyingGlassIcon, PlusIcon, StackIcon } from "@phosphor-icons/react";
 import { CitationList } from "@/components/experience/citation-list";
+import { ExperienceFilterBar, isFiltered, type ExperienceFilters } from "@/components/experience/experience-filters";
 import { ExperienceMeta } from "@/components/experience/experience-item";
 import { useExperienceSearch } from "@/components/experience/use-experience-search";
 import { AskAnswer, AskFailureNotice } from "@/components/home/ask-answer";
@@ -10,13 +11,14 @@ import { useAsk } from "@/components/home/use-ask";
 import { Mascot } from "@/components/questions/chagok-panel";
 import { Button } from "@/components/ui/button";
 import { handOffApplicationText } from "@/lib/application-handoff";
-import type { ExperienceResult } from "@/lib/api/types";
-import { periodText } from "@/lib/period";
+import { fetchActivities } from "@/lib/api/experience";
+import type { ExperienceResult, ExperienceSearch } from "@/lib/api/types";
+import { monthNumber, periodText, spanOf, yearsOf } from "@/lib/period";
 import { cn } from "@/lib/utils";
 
 export type QuickFindTarget =
   | { kind: "activity"; id: number }
-  | { kind: "search"; query: string }
+  | { kind: "search"; search: ExperienceSearch }
   | { kind: "source" | "application" | "experience" | "home" };
 
 type Tab = "find" | "ask" | "go";
@@ -40,10 +42,14 @@ export function QuickFindPanel({ addSourceBusy, onGo }: { addSourceBusy: boolean
   const [tab, setTab] = useState<Tab>("find");
   const [word, setWord] = useState("");
   const [active, setActive] = useState(0);
+  const [filters, setFilters] = useState<ExperienceFilters>({});
+  const [years, setYears] = useState<number[]>([]);
   const input = useRef<HTMLInputElement>(null);
   const asked = useAsk();
   const query = word.trim();
-  const { state, retry } = useExperienceSearch({ query: query || undefined }, { enabled: tab === "find" });
+  const search: ExperienceSearch = { query: query || undefined, ...filters };
+  const { state, retry } = useExperienceSearch(search, { enabled: tab === "find" });
+  const filtered = isFiltered(filters);
 
   const found = state.status === "ready" ? state.experiences.slice(0, MAX_ROWS) : [];
   const shortcuts = SHORTCUTS.filter(s => s.label.includes(query));
@@ -54,7 +60,17 @@ export function QuickFindPanel({ addSourceBusy, onGo }: { addSourceBusy: boolean
   const preview = tab === "find" ? found[current] : undefined;
 
   useEffect(() => { document.getElementById(optionId(current))?.scrollIntoView({ block: "nearest" }); }, [current]);
+  // 연도 목록만 쓴다 — 못 받아도 찾기는 되니 「모든 연도」로 둔다
+  useEffect(() => {
+    let live = true;
+    const now = monthNumber(new Date());
+    fetchActivities().then(activities => { if (live) setYears(yearsOf(activities.flatMap(a => spanOf(a.period, now) ?? []))); }, () => {});
+    return () => { live = false; };
+  }, []);
 
+  const changeFilters = (next: ExperienceFilters) => { setFilters(next); setActive(0); };
+  // 화면 키보드가 결과를 가리지 않게 PC 폭에서만 입력칸으로 돌아간다
+  const backToInput = () => { if (matchMedia("(min-width: 64rem)").matches) input.current?.focus(); };
   const moveTo = (next: Tab) => { setTab(next); setActive(0); input.current?.focus(); };
   /** 맨 앞 ? · > 는 탭을 바꾸는 덤이고 글에 남기지 않는다 — 그래서 탭으로 들어와 글을 지워도 그 탭에 머문다 */
   const type = (value: string) => {
@@ -71,7 +87,7 @@ export function QuickFindPanel({ addSourceBusy, onGo }: { addSourceBusy: boolean
     }
     const row = found[index];
     if (row) onGo({ kind: "activity", id: row.activity.id });
-    else if (found.length) onGo({ kind: "search", query });
+    else if (found.length) onGo({ kind: "search", search });
   };
   const send = () => { if (query) void asked.ask(query); };
   const makeApplication = (text: string) => { handOffApplicationText(text); onGo({ kind: "application" }); };
@@ -96,12 +112,13 @@ export function QuickFindPanel({ addSourceBusy, onGo }: { addSourceBusy: boolean
         className="min-h-11 min-w-0 flex-1 bg-transparent text-[17px] text-ellipsis text-ink outline-none placeholder:text-muted-soft" />
       {tab === "ask" && <Button type="button" size="icon" className="size-11 shrink-0" aria-label="보내기" disabled={!query || asked.asking} onClick={send}><ArrowUpIcon aria-hidden="true" /></Button>}
     </div>
-    <div role="group" aria-label="빠른 찾기 탭" className="flex gap-1.5 border-b border-hairline-soft px-3.5 pb-2.5 lg:px-4.5">
+    <div role="group" aria-label="빠른 찾기 탭" className={cn("flex gap-1.5 px-3.5 lg:px-4.5", tab === "find" ? "pb-1.5" : "border-b border-hairline-soft pb-2.5")}>
       {TABS.map(t => <button key={t.value} type="button" aria-pressed={tab === t.value} onClick={() => moveTo(t.value)}
         className={cn("inline-flex min-h-11 items-center gap-1.5 rounded-full px-3.5 text-[13px] lg:min-h-8", tab === t.value ? "bg-surface-soft font-bold text-ink" : "text-muted hover:bg-surface-soft")}>
         {t.value === "ask" && <Mascot size={16} />}{t.label}
       </button>)}
     </div>
+    {tab === "find" && <ExperienceFilterBar compact value={filters} onChange={changeFilters} years={years} onDone={backToInput} className="border-b border-hairline-soft px-3.5 pb-2.5 lg:px-4.5" />}
 
     {tab === "ask" ? <div className="min-h-0 flex-1 overflow-y-auto p-4 [&>section]:mt-0">
       {!asked.asking && !asked.answer && !asked.failure && <div className="flex items-start gap-3 px-1 text-sm leading-relaxed">
@@ -133,10 +150,11 @@ export function QuickFindPanel({ addSourceBusy, onGo }: { addSourceBusy: boolean
         </div>}
         {state.status === "ready" && found.length === 0 && <div role="status" className="grid gap-1 p-3 text-sm">
           <p className="m-0 font-medium text-ink">쌓인 자료에서 찾지 못했어요</p>
-          <p className="m-0 text-muted">뜻으로 찾고 싶다면 「차곡이에게」로 물어보세요.</p>
+          <p className="m-0 text-muted">{filtered ? "거르기를 줄이거나, " : ""}뜻으로 찾고 싶다면 「차곡이에게」로 물어보세요.</p>
+          {filtered && <Button type="button" variant="secondary" className="mt-1 min-h-11 justify-self-start" onClick={() => changeFilters({})}>거르기 지우기</Button>}
         </div>}
         {found.length > 0 && <>
-          <p role="status" className="m-0 px-2.5 pt-2 pb-1 text-[11px] font-semibold text-muted">{query ? `찾은 경험 ${state.status === "ready" ? state.total : found.length}개` : "쌓인 경험"}</p>
+          <p role="status" className="m-0 px-2.5 pt-2 pb-1 text-[11px] font-semibold text-muted">{query || filtered ? `찾은 경험 ${state.status === "ready" ? state.total : found.length}개` : "쌓인 경험"}</p>
           <OptionList label="찾은 경험">
             {found.map((e, i) => <Option key={e.id} index={i} active={i === current} onPick={pick} onHover={setActive}><ResultLine experience={e} /></Option>)}
             <Option index={found.length} active={current === found.length} onPick={pick} onHover={setActive}>
@@ -153,8 +171,10 @@ export function QuickFindPanel({ addSourceBusy, onGo }: { addSourceBusy: boolean
 
     <div className="hidden gap-4.5 border-t border-hairline-soft px-5 py-2.5 text-xs text-muted lg:flex">
       <Key name="Enter">{tab === "ask" ? "보내기" : "열기"}</Key>
-      <Key name="?">차곡이에게 묻기</Key>
-      <Key name=">">바로가기</Key>
+      {tab === "find" ? <>
+        <Key name="?">차곡이에게 묻기</Key>
+        <Key name=">">바로가기</Key>
+      </> : <Key name="Backspace">비어 있을 때 찾기로</Key>}
       <Key name="Esc">닫기</Key>
     </div>
   </>;

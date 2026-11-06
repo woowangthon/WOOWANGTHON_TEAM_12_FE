@@ -20,6 +20,8 @@ import { monthNumber, periodText, spanOf, yearsOf, type Span } from "@/lib/perio
 import { CATEGORY_KEYS, CategoryIcon, categoryOf } from "./activity-category";
 import { ActivityDetailView, type DetailState } from "./activity-detail";
 import { ExperienceSearch } from "./experience-search";
+import { experienceSearchFromParams } from "@/lib/experience-search-link";
+import type { ExperienceSearch as ExperienceSearchConditions } from "@/lib/api/types";
 import { MergeActivityDialog, MoveExperienceDialog } from "./regroup-dialogs";
 import { Timeline } from "./timeline";
 import { useExperienceDeletion } from "./use-experience-deletion";
@@ -66,8 +68,8 @@ export function TimelineScreen() {
   const linkedQuery = params.get("q");
   const [listView, setListView] = useState<"timeline" | "search">(linkedQuery === null ? "timeline" : "search");
   const [searchOpened, setSearchOpened] = useState(linkedQuery !== null);
-  // 빠른 찾기(S-61)가 넘긴 낱말 — 바뀌면 찾기를 그 낱말로 새로 연다
-  const [searchStart, setSearchStart] = useState({ query: linkedQuery ?? "", version: 0 });
+  // 빠른 찾기(S-61)가 넘긴 조건 — 바뀌면 찾기를 그 조건으로 새로 연다
+  const [searchStart, setSearchStart] = useState(() => ({ search: experienceSearchFromParams(params), version: 0 }));
   const [searchVersion, setSearchVersion] = useState(0);
   const refreshSearch = () => setSearchVersion((n) => n + 1);
   const detailRequest = useRef(0);
@@ -178,8 +180,9 @@ export function TimelineScreen() {
 
   // 다른 화면(지원)의 「자료 넣기」(?add=1, FE#64) — 자료 넣기 창을 연다. 새로고침에 다시 열리지 않게 주소에서 지운다.
   // 분석이 아직 돌고 있으면 이 화면의 「자료 넣기」처럼 막고 이유만 알린다
+  const addRequested = params.get("add") === "1";
   useEffect(() => {
-    if (params.get("add") !== "1") return;
+    if (!addRequested) return;
     const timer = setTimeout(() => {
       if (hasPendingAnalysis()) showToast("지금 넣은 자료의 분석이 끝나면 더 넣을 수 있어요.");
       else setAddOpen(true);
@@ -188,9 +191,8 @@ export function TimelineScreen() {
       window.history.replaceState(null, "", url);
     }, 0);
     return () => clearTimeout(timer);
-    // 처음 한 번만
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // 이 화면이 이미 떠 있을 때 들어온 ?add=1(빠른 찾기 창이 화면이 뜨는 도중에 보낸 것)도 받는다
+  }, [addRequested]);
 
   const analysis = useAnalysisJob(async (job, { batch }) => {
     const activities = await loadList(mock);
@@ -243,11 +245,11 @@ export function TimelineScreen() {
     requestAnimationFrame(() => window.scrollTo(0, listScrollY.current));
   };
 
-  const searchFor = (query: string) => {
+  const searchFor = (search: ExperienceSearchConditions) => {
     if (selectedRef.current != null) close(); // 모바일 — 세부가 목록을 가린다
     setListView("search");
     setSearchOpened(true);
-    setSearchStart((prev) => ({ query, version: prev.version + 1 }));
+    setSearchStart((prev) => ({ search, version: prev.version + 1 }));
   };
 
   const activitySaved = (activity: ActivitySummary) => {
@@ -507,7 +509,7 @@ export function TimelineScreen() {
               <ViewSwitch view={listView} onChange={(next) => { setListView(next); if (next === "search") setSearchOpened(true); }} />
               {searchOpened && (
                 <div hidden={listView !== "search"}>
-                  <ExperienceSearch key={searchStart.version} initialQuery={searchStart.query} years={timeline.activityYears} mock={mock} version={searchVersion} hiddenIds={hiddenIds} onOpen={select} />
+                  <ExperienceSearch key={searchStart.version} initial={searchStart.search} years={timeline.activityYears} mock={mock} version={searchVersion} hiddenIds={hiddenIds} onOpen={select} />
                 </div>
               )}
               {listView === "timeline" && (
