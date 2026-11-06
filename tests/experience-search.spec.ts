@@ -23,7 +23,7 @@ async function setup(page: Page, reply: Reply) {
   const searches: URLSearchParams[] = [];
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
-    if (url.pathname.startsWith("/api/auth/")) return route.fallback();
+    if (url.pathname.startsWith("/api/auth/") || url.pathname === "/api/work") return route.fallback();
     if (url.pathname === "/api/activities") return route.fulfill({ json: { activities: [{ id: 7, name: ACTIVITY.name, period: PERIOD, note: null, experienceCount: 2 }] } });
     if (url.pathname === "/api/activities/7") return route.fulfill({ json: DETAIL });
     if (url.pathname === "/api/applications") return route.fulfill({ json: { applications: [] } });

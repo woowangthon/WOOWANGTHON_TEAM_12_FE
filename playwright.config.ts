@@ -13,6 +13,7 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   projects: [
+    ...([1440, 1024, 390] as const).map(width => ({ name: `work-${width}`, testMatch: mock ? [] : "global-work.spec.ts", use: { viewport: { width, height: width === 390 ? 844 : 1000 } } })),
     { name: "guidelines-rail", testMatch: mock ? [] : "guidelines.spec.ts", use: { viewport: { width: 1024, height: 1000 } } },
     { name: "grounding-rail", testMatch: mock ? [] : ["grounding-check.spec.ts", "answer-confirmation.spec.ts", "chagok-run.spec.ts"], use: { viewport: { width: 1024, height: 1000 } } },
     { name: "large-font", testMatch: mock ? [] : "responsive-breakpoint.spec.ts", metadata: { defaultFontSize: 20 }, use: { viewport: { width: 1400, height: 1000 }, launchOptions: { args: ["--blink-settings=defaultFontSize=20"] } } },

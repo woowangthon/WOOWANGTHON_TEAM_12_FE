@@ -57,7 +57,7 @@ async function setup(page: Page) {
   await page.route("**/api/**", async (route) => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
-    if (path.startsWith("/api/auth/")) return route.fallback(); // 로그인 확인은 signed-in 픽스처가 받는다
+    if (path.startsWith("/api/auth/") || path === "/api/work") return route.fallback(); // 로그인 확인은 signed-in 픽스처가 받는다
     if (req.method() === "PATCH") {
       state.patches.push({ url: path, body: req.postDataJSON() });
       if (state.delay) await new Promise((resolve) => setTimeout(resolve, state.delay));

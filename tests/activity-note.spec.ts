@@ -20,7 +20,7 @@ async function setup(page: Page, note: string | null = null) {
     staleResponseFields: false, gets: 0 };
   await page.route("**/api/**", async route => {
     const request = route.request(), path = new URL(request.url()).pathname;
-    if (path.startsWith("/api/auth/")) return route.fallback();
+    if (path.startsWith("/api/auth/") || path === "/api/work") return route.fallback();
     if (path === "/api/activities") return route.fulfill({ json: { activities: activities.map(summary) } });
     const match = path.match(/^\/api\/activities\/(\d+)$/);
     if (!match) return route.fulfill({ status: 404, json: { error: { code: "NOT_FOUND", message: "시험 경로 없음" } } });

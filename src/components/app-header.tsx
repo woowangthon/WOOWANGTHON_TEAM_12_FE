@@ -10,6 +10,7 @@ import { useSidebar } from "@/components/sidebar-layout";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { WorkButton } from "@/components/work/work-provider";
 
 type Page = "home" | "timeline" | "questions" | "connections" | "guidelines";
 type HeaderProps = {
@@ -65,7 +66,7 @@ function DesktopSidebar(props: HeaderProps) {
         className={cn("relative flex min-h-0 w-55 flex-1 flex-col transition-opacity duration-150", collapsed && "pointer-events-none opacity-0")}>
         {props.sidebarExtra}
       </div>}
-      <div className="relative mt-auto"><AccountMenu variant={collapsed ? "rail" : "sidebar"} /></div>
+      <div className="relative mt-auto"><WorkButton collapsed={collapsed} /><AccountMenu variant={collapsed ? "rail" : "sidebar"} /></div>
     </aside>
     <Sheet open={overlayOpen && desktop && !wide} onOpenChange={setOverlayOpen}>
       <SheetContent side="left" id="sidebar-overlay" aria-describedby={undefined} showCloseButton={false}

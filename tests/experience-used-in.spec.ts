@@ -24,7 +24,7 @@ const ACTIVITY: ActivityDetail = {
 async function setup(page: Page) {
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path.startsWith("/api/auth/")) return route.fallback();
+    if (path.startsWith("/api/auth/") || path === "/api/work") return route.fallback();
     if (path === "/api/activities") return route.fulfill({ json: { activities: [{ id: 7, name: ACTIVITY.name, period: ACTIVITY.period, note: null, experienceCount: 3 }] } });
     if (path === "/api/activities/7") return route.fulfill({ json: ACTIVITY });
     if (path === "/api/applications") return route.fulfill({ json: { applications: [] } });

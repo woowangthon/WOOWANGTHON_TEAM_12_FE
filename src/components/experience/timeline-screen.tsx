@@ -26,6 +26,7 @@ import { SupplementSourceContext, supplementSource } from "./supplement-list";
 import { fetchQuestions } from "@/lib/api/questions";
 import { useAuth } from "@/components/auth/auth-gate";
 import { rememberActivity } from "@/lib/home-overview";
+import { SourceWorkDetail } from "@/components/work/source-work-detail";
 
 type ListState =
   | { status: "loading" }
@@ -410,6 +411,7 @@ export function TimelineScreen() {
   return (
     <div className="flex min-h-dvh flex-1 flex-col bg-canvas lg:h-dvh">
       <AppHeader hideOnMobile={!!selected} addSource={addSource} />
+      {Number(params.get("workJob")) > 0 && !isMockMode() && <SourceWorkDetail key={params.get("workJob")} jobId={Number(params.get("workJob"))} />}
       <p className="m-0 border-b border-hairline px-4 py-2 text-xs text-muted" role="note">
         {isMockMode() ? "목 모드 · 예시 데이터이며 서버에 저장할 수 없어요." : "실제 API 모드 · 활동과 경험 수정은 서버에 저장해요."}
         {isMockMode() ? " 자료 넣기·분석도 목 기능이에요." : " 자료 넣기·분석 상태도 실제 API로 확인해요."}

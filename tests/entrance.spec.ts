@@ -18,7 +18,7 @@ async function setup(page: Page, kind: EntranceKind = "SOURCE", status = 200) {
   await page.route("**/api/**", async route => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
-    if (path.startsWith("/api/auth/")) return route.fallback();
+    if (path.startsWith("/api/auth/") || path === "/api/work") return route.fallback();
     if (path === "/api/activities") return route.fulfill({ json: { activities: [] } });
     if (path === "/api/entrance/route") {
       calls.routes.push(req.postDataJSON());

@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowSquareOutIcon, ArrowsClockwiseIcon, MagnifyingGlassIcon, PlusIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { isPostingUrl } from "@/lib/api/entrance";
 import { AppHeader } from "@/components/app-header";
@@ -48,6 +48,9 @@ function progressText(application: Application) {
 /** 지원 화면(S-18 · S-21) — 지원 목록(xl 이상은 사이드바) · 상태 꼬리표(S-36), 고른 지원: 여러 문항에 추천된 활동 → 문항 탭 → 참고 경험(#30),
  *  오른쪽 차곡이 패널: 요구사항 · 보완 재사용 · 되묻기(FE#51). 배치는 ETC 시안 6 apply.html. 답 입력 · 근거 점검(S-45)은 추천 상태와 따로 쓴다 */
 export function ApplicationScreen() {
+  const params = useSearchParams();
+  const rawRun = Number(params.get("run"));
+  const restoreRun = Number.isSafeInteger(rawRun) && rawRun > 0 ? rawRun : null;
   const matching = useApplications();
   const router = useRouter();
   const [composing, setComposing] = useState(false);
@@ -59,11 +62,38 @@ export function ApplicationScreen() {
   const ready = !empty && !matching.loading && !matching.error;
   const { wide, collapsed } = useSidebar();
   const [panelChoice, setPanelChoice] = useState<boolean | null>(null);
-  const panelOpen = panelChoice ?? wide;
+  const panelOpen = panelChoice ?? (restoreRun !== null || wide);
   const [draftFocus, setDraftFocus] = useState<{ questionId: number; request: number } | null>(null);
   const selectedIndex = open?.application.questions.findIndex(q => q.id === matching.questionId) ?? -1;
   const summary = open?.application.questions[selectedIndex] ?? null;
   const selected = open?.details[selectedIndex] ?? null;
+  const linkedQuestion = Number(params.get("question"));
+  const linkedArea = params.get("workArea");
+  const selectedQuestionId = selected?.id;
+  const openedWorkQuestion = useRef<number | null>(null);
+  // 소식에서 같은 화면으로 돌아와도 해당 문항을 선택한다. 상세 폴링은 바꾸지 않는다.
+  useEffect(() => {
+    if (matching.loading || !linkedQuestion) return;
+    if (linkedQuestion === matching.questionId) { openedWorkQuestion.current = linkedQuestion; return; }
+    if (openedWorkQuestion.current === linkedQuestion) return;
+    const timer = setTimeout(() => { openedWorkQuestion.current = linkedQuestion; void matching.openLinkedQuestion(linkedQuestion); setComposing(false); setAdding(false); }, 0);
+    return () => clearTimeout(timer);
+  }, [linkedQuestion, matching]);
+  useEffect(() => {
+    if (restoreRun === null) return;
+    const timer = setTimeout(() => { setPanelChoice(true); setComposing(false); setAdding(false); }, 0);
+    return () => clearTimeout(timer);
+  }, [restoreRun]);
+  useEffect(() => {
+    if (!linkedArea || !selectedQuestionId || selectedQuestionId !== linkedQuestion) return;
+    const id = linkedArea === "draft" ? `draft-title-${selectedQuestionId}` : linkedArea === "answer" ? `answer-title-${selectedQuestionId}` : "question-panel";
+    const timer = setTimeout(() => {
+      const target = document.getElementById(id);
+      target?.scrollIntoView({ block: "start" });
+      target?.setAttribute("tabindex", "-1"); target?.focus({ preventScroll: true });
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [linkedArea, linkedQuestion, selectedQuestionId]);
   const unanswered = (selected?.clarifications.filter(c => c.supplementId === null).length ?? 0)
     + (selected?.draft?.status === "COMPLETED" ? selected.draft.omitted.filter(o => o.clarificationId !== null && o.supplementId === null).length : 0);
   const draftActions = {
@@ -83,7 +113,7 @@ export function ApplicationScreen() {
     return `${owner.organization || "다른 지원"} 문항`;
   };
   const panelQuestion = composing || adding ? null : selected;
-  const chagok = useChagokRun(panelQuestion?.id ?? null);
+  const chagok = useChagokRun(panelQuestion?.id ?? null, restoreRun);
   const panel = <ChagokPanel question={panelQuestion} index={selectedIndex} originOf={originOf} control={chagok}
     onAnswer={(clarificationId, answer) => selected ? matching.answer(selected.id, clarificationId, answer) : Promise.resolve()}
     draftActions={{ ...draftActions, focusRequest: draftFocus?.questionId === selected?.id ? draftFocus?.request ?? 0 : 0 }}
@@ -100,6 +130,7 @@ export function ApplicationScreen() {
     <main className="mx-auto max-w-[1280px] px-4.5 py-6 lg:px-8 lg:py-8">
       <div className="mb-7 flex items-start justify-between gap-3">
         <div><h1 className="m-0 text-[26px] leading-snug font-bold tracking-[-0.4px]">지원</h1><p className="mt-2 mb-0 text-sm text-muted">지원서의 문항마다 꺼내 볼 경험을 찾아요. 같은 경험도 문항마다 다른 점을 보여 줄 수 있어요.</p></div>
+        {(empty || matching.error) && restoreRun !== null && <Button variant="secondary" onClick={() => setPanelChoice(!panelOpen)} aria-expanded={panelOpen}>차곡이</Button>}
         {!empty && <Button disabled={composing || matching.loading || !!matching.error} onClick={() => { setComposing(true); setAdding(false); scrollToDetail(); }}><PlusIcon aria-hidden="true" />지원 넣기</Button>}
       </div>
       {ready && matching.pollWarnings.map(warning => <div key={warning.id} role="alert" aria-label={warning.label}
@@ -161,7 +192,7 @@ export function ApplicationScreen() {
       </div>}
     </main>
     </div>
-    {ready && (wide
+    {(ready || restoreRun !== null) && (wide
       ? panelOpen && <aside id="chagok-panel" aria-label="차곡이" className="sticky top-0 h-dvh w-[400px] shrink-0 border-l border-hairline">{panel}</aside>
       : <Sheet open={panelOpen} onOpenChange={o => setPanelChoice(o)}>
         <SheetContent side="right" showCloseButton={false} id="chagok-panel" aria-describedby={undefined} className="w-full! gap-0 p-0 sm:max-w-[420px]!">

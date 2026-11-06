@@ -25,7 +25,7 @@ async function setup(page: Page, suggested = false) {
   await page.route("**/api/**", async (route) => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
-    if (path.startsWith("/api/auth/")) return route.fallback(); // 로그인 확인은 signed-in 픽스처가 받는다
+    if (path.startsWith("/api/auth/") || path === "/api/work") return route.fallback(); // 로그인 확인은 signed-in 픽스처가 받는다
     const fail = () => route.fulfill({ status: state.fail, json: { error: { code: "INTERNAL_ERROR", message: "Server rejected" } } });
     const dismissal = path.match(/^\/api\/activities\/(\d+)\/merge-suggestion$/);
     if (dismissal && req.method() === "DELETE") {

@@ -14,7 +14,7 @@ async function setup(page: Page) {
   await page.clock.setFixedTime(new Date("2026-11-05T03:00:00Z"));
   await page.route("**/api/**", async route => {
     const req = route.request(); const path = new URL(req.url()).pathname;
-    if (path.startsWith("/api/auth/")) return route.fallback();
+    if (path.startsWith("/api/auth/") || path === "/api/work") return route.fallback();
     if (req.method() !== "GET") { state.posts++; throw new Error(`Unexpected write ${path}`); }
     if (path === "/api/activities") return state.failActivities ? route.fulfill({ status: 503, json: { error: { code: "UNAVAILABLE", message: "경험 조회 실패" } } }) : route.fulfill({ json: { activities: state.empty ? [] : activities.map(({ experiences, ...a }) => ({ ...a, experienceCount: experiences.length })) } });
     const activity = activities.find(a => path === `/api/activities/${a.id}`);
