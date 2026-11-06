@@ -37,7 +37,7 @@
   /* 활동 분류(S-57) — 시안 6 CATS: 파랑 · 초록 · 분홍. 값은 [data-category] 가 정한다. 미분류는 어느 분류로도 읽히지 않게 회색 */
   --category: var(--muted-soft);
   --category-soft: var(--surface-strong);
-  --home-glow: radial-gradient(50% 42% at 50% 34%, rgb(65 161 245 / 0.13), transparent 70%);
+  --home-dot: #e7e3da; /* 홈 바탕 점 무늬 — 시안 6 .home::before */
   --home-input-shadow: 0 8px 30px rgb(30 60 100 / 0.07);
   --evidence: #1f6fb2;
   --evidence-soft: #e3f3fe;
@@ -137,7 +137,18 @@
 [data-category="STUDY"] { --category: var(--record-green); --category-soft: var(--attach-soft); }
 [data-category="CLUB"] { --category: var(--record-pink); --category-soft: var(--application-tint); }
 
-.home-background { background-image: var(--home-glow); }
+/* 시안 6 — 22px 간격 점 무늬가 가운데에서 바깥으로 흐려진다. 마스크가 내용에 걸리지 않게 뒤에 깐 층에만 준다 */
+.home-background { position: relative; isolation: isolate; }
+.home-background::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(circle, var(--home-dot) 1px, transparent 1.2px) 0 0 / 22px 22px;
+  mask-image: radial-gradient(60% 55% at 50% 40%, black 30%, transparent 85%);
+  opacity: 0.9;
+}
 
 @layer base {
   * {
