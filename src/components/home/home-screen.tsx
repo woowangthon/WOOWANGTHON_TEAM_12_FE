@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AppHeader } from "@/components/app-header";
 import { useAuth } from "@/components/auth/auth-gate";
 import { AddSourceDialog } from "@/components/source/add-source-dialog";
+import { countExperiences } from "@/components/sidebar-applications";
 import { AnalysisBanner, AnalysisBatch, analysisView } from "@/components/source/analysis-status";
 import { useAnalysisJob } from "@/components/source/use-analysis-job";
 import { isMockMode } from "@/lib/api/http";
@@ -36,7 +37,8 @@ function HomeContent() {
   const mockAnalysis = params.get("analysis");
   const mock = mockAnalysis === "fail" || mockAnalysis === "empty" ? mockAnalysis : null;
   return <div className="min-h-dvh flex-1 bg-canvas">
-    <AppHeader activePage="home" addSource={{ onClick: () => setAddOpen(true), busy: analysis.busy }} />
+    <AppHeader activePage="home" addSource={{ onClick: () => setAddOpen(true), busy: analysis.busy }}
+      experienceCount={overview.activities ? countExperiences(overview.activities) : null} />
     <p className="m-0 border-b border-hairline px-4 py-2 text-xs text-muted" role="note">{isMockMode() ? "목 모드 · 예시 데이터이며 서버에 저장할 수 없어요." : "실제 API 모드 · 내 기록으로 이어져요."}</p>
     <main className="home-background min-h-[calc(100dvh-2rem)] px-4.5 pt-10 pb-12 lg:px-9 lg:pt-[9vh]">
       <HomeEntrance sourceBusy={analysis.busy} mockAnalysis={mock} onSourceSubmitted={analysis.start} overview={overview} onRefresh={() => void refresh()} showMockControls={params.get("debug") === "entrance"} />

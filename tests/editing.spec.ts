@@ -1,3 +1,4 @@
+import { openAddSource } from "./add-source";
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import type { ActivityDetail, UpdateActivityRequest, UpdateExperienceRequest } from "../src/lib/api/types";
@@ -329,7 +330,7 @@ test("source HTTP failure keeps the text and never shows mock analysis success",
   await setup(page);
   await page.route("**/api/sources", (route) => route.fulfill({ status: 503, json: { error: { code: "INTERNAL_ERROR", message: "Source unavailable" } } }));
   if (page.viewportSize()!.width < 1024) await page.getByRole("button", { name: "타임라인", exact: true }).click();
-  await page.getByRole("button", { name: "자료 넣기", exact: true }).filter({ visible: true }).first().click();
+  await openAddSource(page);
   await page.getByRole("dialog").getByRole("textbox").fill("Mock source text");
   await page.getByRole("button", { name: "넣기", exact: true }).click();
   await expect(page.getByRole("dialog").getByRole("alert")).toHaveText("Source unavailable");

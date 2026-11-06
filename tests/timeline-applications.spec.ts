@@ -39,26 +39,27 @@ async function setup(page: Page) {
 }
 
 test("지원도 같이 보기 — 기본 꺼짐, 켜면 낸 달에 한 줄 · 작성 중은 빠짐 · 누르면 그 지원", async ({ page }) => {
-  const state = await setup(page);
+  await setup(page);
   const toggle = page.getByLabel("지원도 같이 보기");
   await expect(toggle).not.toBeChecked();
-  expect(state.calls).toBe(0);
+  // 사이드바 지원서(FE#147)가 먼저 받아도 타임라인에는 켜기 전까지 끼지 않는다
+  await expect(page.locator("main").getByRole("link", { name: /UX 리서치 학회/ })).toHaveCount(0);
 
   await toggle.check();
-  const row = page.getByRole("link", { name: /UX 리서치 학회/ });
+  const row = page.locator("main").getByRole("link", { name: /UX 리서치 학회/ });
   await expect(row).toContainText("2025.08 · 지원 · 합격");
   await expect(row).toHaveAttribute("href", "/questions?question=20");
   // 지원만 있는 해(2024)도 연도로 선다
   await expect(page.getByRole("region", { name: "2024년" }).getByRole("link", { name: /OO 기업 인턴/ })).toBeVisible();
-  await expect(page.getByRole("link", { name: /OO 부트캠프/ })).toHaveCount(0);
+  await expect(page.locator("main").getByRole("link", { name: /OO 부트캠프/ })).toHaveCount(0);
 
   // 새로고침해도 켠 채로(브라우저에 저장)
   await page.reload();
   await expect(page.getByLabel("지원도 같이 보기")).toBeChecked();
-  await expect(page.getByRole("link", { name: /UX 리서치 학회/ })).toBeVisible();
+  await expect(page.locator("main").getByRole("link", { name: /UX 리서치 학회/ })).toBeVisible();
 
   await page.getByLabel("지원도 같이 보기").uncheck();
-  await expect(page.getByRole("link", { name: /UX 리서치 학회/ })).toHaveCount(0);
+  await expect(page.locator("main").getByRole("link", { name: /UX 리서치 학회/ })).toHaveCount(0);
 });
 
 test("지원을 못 받으면 활동은 그대로 두고 지원 자리에 오류 · 다시 시도", async ({ page }) => {
@@ -69,6 +70,6 @@ test("지원을 못 받으면 활동은 그대로 두고 지원 자리에 오류
   await expect(page.getByRole("button", { name: /바꿔요/ }).first()).toBeVisible();
   state.fail = false;
   await page.getByRole("button", { name: "다시 시도" }).click();
-  await expect(page.getByRole("link", { name: /UX 리서치 학회/ })).toBeVisible();
+  await expect(page.locator("main").getByRole("link", { name: /UX 리서치 학회/ })).toBeVisible();
   await expect(page.getByRole("alert").filter({ hasText: "지원을 불러오지 못했어요" })).toHaveCount(0);
 });

@@ -50,7 +50,7 @@ export function QuestionResult({ question, elsewhere, onGenerate, onRefresh, onO
       <p className="m-0 font-medium">현재 자료에서 연결된 경험을 찾지 못했어요.</p>
       <p className="m-0 text-sm text-muted">경험이 없다는 뜻은 아니에요. 관련 기록을 더 확인하면 좋겠어요.</p>
     </div> : <ol className="m-0 mt-4 grid list-none gap-2.5 p-0">{question.recommendations.map((r, i) => { const answered = answeredFor(question, r.experience.id); return <li key={r.experience.id} id={`recommendation-${question.id}-${r.experience.id}`}
-      className="scroll-mt-5" aria-label={`추천 경험 ${i + 1}`}>
+      className="scroll-mt-5 lg:scroll-mt-20" aria-label={`추천 경험 ${i + 1}`}>
       {/* 첫 추천은 기존처럼 펼쳐 근거를 바로 확인할 수 있게 둔다. */}
       <details open={i === 0} className="group rounded-[18px] bg-mark-soft">
         <summary className="grid cursor-pointer list-none grid-cols-[auto_minmax(0,1fr)] items-start gap-3 px-4 py-3.5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-4.5 [&::-webkit-details-marker]:hidden">

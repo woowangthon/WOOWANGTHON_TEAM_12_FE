@@ -1,0 +1,115 @@
+// FE#147 — 공통 틀: PC 상단 바 · 사이드바(「+ 추가」 · 홈 · 내 경험 · 지원서 목록 · 연결)
+import { test, expect } from "./signed-in";
+import { FakeQuestionApi } from "./fake-question-api";
+import type { Page } from "@playwright/test";
+
+const sidebar = (page: Page) => page.getByRole("complementary", { name: "사이드바", exact: true });
+const applications = (page: Page) => sidebar(page).getByRole("region", { name: "지원서", exact: true });
+const capture = async (page: Page, name: string) => {
+  if (process.env.UPDATE_SHELL_SCREENSHOTS !== "1") return;
+  await page.screenshot({ path: `docs/fe-147/${name}.png`, animations: "disabled", style: "nextjs-portal { display: none !important; }" });
+};
+const install = async (page: Page) => {
+  await page.route("https://cdn.jsdelivr.net/**", route => route.abort());
+  const api = new FakeQuestionApi();
+  await api.install(page);
+  return api;
+};
+
+test("every screen has the top bar with its location and no button without a feature", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop");
+  await install(page);
+  for (const [path, name] of [["/", "홈"], ["/experience", "내 경험"], ["/questions", "지원서"], ["/connections", "연결"], ["/guidelines", "작성 지침"]]) {
+    await page.goto(path);
+    const location = page.getByRole("banner").getByRole("navigation", { name: "현재 위치", exact: true });
+    await expect(location).toContainText("내 서랍");
+    await expect(location.locator("strong")).toHaveText(name);
+    await expect(page.getByRole("banner").getByRole("button")).toHaveCount(0);
+    await expect(page.getByText("모두 저장됨")).toHaveCount(0);
+  }
+});
+
+test("sidebar shows the applications anywhere and a row opens that application", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop");
+  await install(page);
+  await page.goto("/experience");
+  await expect(sidebar(page).getByRole("link", { name: "홈", exact: true })).toBeVisible();
+  await expect(sidebar(page).getByRole("link", { name: "내 경험", exact: true })).toContainText(/\d+/);
+  await expect(sidebar(page).getByRole("link", { name: "연결", exact: true })).toBeVisible();
+  const row = applications(page).getByRole("link", { name: /OO 연합 동아리/ });
+  await expect(row).toBeVisible();
+  await expect(applications(page).getByRole("link", { name: "모든 지원서", exact: true })).toHaveAttribute("href", "/questions");
+  await capture(page, "experience-1440");
+  await row.click();
+  await expect(page).toHaveURL(/\/questions\?question=\d+/);
+  await expect(page.getByRole("tabpanel", { name: "선택한 문항", exact: true })).toBeVisible();
+  await expect(sidebar(page).locator("button[aria-pressed=true]")).toContainText("OO 연합 동아리");
+  await expect(applications(page).getByRole("link", { name: "모든 지원서", exact: true })).toHaveCount(0);
+  await capture(page, "questions-1440");
+});
+
+test("failing to load the applications is an error with retry, not an empty list", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop");
+  const api = await install(page);
+  api.listDown = true;
+  await page.goto("/connections");
+  await expect(applications(page).getByRole("alert")).toContainText("지원서를 불러오지 못했어요.");
+  await expect(applications(page).getByText("아직 넣은 지원서가 없어요.")).toHaveCount(0);
+  await capture(page, "connections-list-error-1440");
+  api.listDown = false;
+  await applications(page).getByRole("button", { name: "다시 시도", exact: true }).click();
+  await expect(applications(page).getByRole("link", { name: /OO 연합 동아리/ })).toBeVisible();
+  await expect(applications(page).getByRole("alert")).toHaveCount(0);
+});
+
+test("the add menu opens a new application from another screen, once", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop");
+  await install(page);
+  await page.goto("/connections");
+  await sidebar(page).getByRole("button", { name: "추가", exact: true }).click();
+  await expect(page.getByRole("menuitem")).toHaveCount(2);
+  await capture(page, "add-menu-1440");
+  await page.getByRole("menuitem", { name: /^새 지원서/ }).click();
+  await expect(page).toHaveURL(/\/questions/);
+  await expect(page.locator("#selected-application")).toHaveAttribute("aria-label", "새 지원 입력");
+  await expect(page).not.toHaveURL(/new=1/);
+  await page.reload();
+  await expect(page.locator("#selected-application")).toHaveAttribute("aria-label", "선택한 지원");
+  // 지원 화면 안에서는 옮겨 가지 않고 바로 연다
+  await applications(page).getByRole("button", { name: "새 지원서", exact: true }).click();
+  await expect(page.locator("#selected-application")).toHaveAttribute("aria-label", "새 지원 입력");
+});
+
+test("rail keeps the menu reachable: applications icon, add menu and overlay list", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop");
+  await install(page);
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await page.goto("/experience");
+  await expect(sidebar(page)).toHaveCSS("width", "72px");
+  await expect(sidebar(page).getByRole("link", { name: "지원서", exact: true })).toBeVisible();
+  await expect(sidebar(page).getByRole("region", { name: "지원서", exact: true })).toHaveCount(0);
+  await capture(page, "experience-1024");
+  await sidebar(page).getByRole("button", { name: "추가", exact: true }).click();
+  await expect(page.getByRole("menuitem", { name: /^자료 넣기/ })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await sidebar(page).getByRole("button", { name: "사이드바 펼치기", exact: true }).click();
+  const overlay = page.getByRole("dialog", { name: "사이드바", exact: true });
+  await overlay.getByRole("button", { name: "추가", exact: true }).click();
+  await expect(page.getByRole("menuitem", { name: /^새 지원서/ })).toBeVisible();
+  await capture(page, "add-menu-overlay-1024");
+  await page.getByRole("menuitem", { name: /^새 지원서/ }).click();
+  await expect(overlay).toHaveCount(0);
+  await expect(page.locator("#selected-application")).toHaveAttribute("aria-label", "새 지원 입력");
+});
+
+test("390 keeps the top menu without the desktop shell or its requests", async ({ page }, info) => {
+  test.skip(info.project.name !== "mobile");
+  const api = await install(page);
+  await page.goto("/connections");
+  await expect(page.getByRole("banner").getByRole("navigation", { name: "주 메뉴", exact: true })).toBeVisible();
+  await expect(page.getByRole("banner").getByRole("navigation", { name: "현재 위치", exact: true })).toBeHidden();
+  await expect(sidebar(page)).toBeHidden();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  expect(api.calls.filter(c => c.call === "GET /api/applications")).toHaveLength(0);
+  await capture(page, "connections-390");
+});
