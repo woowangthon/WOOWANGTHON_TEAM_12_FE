@@ -30,7 +30,7 @@ async function setup(page: Page, connected = false) {
     return r.fulfill({ status: 204 });
   });
   await page.goto("/connections", { waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("heading", { name: "다른 AI에서 쓰기(MCP)" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "다른 AI 에서 내 경험 쓰기" })).toBeVisible();
   return state;
 }
 
@@ -77,8 +77,8 @@ test("existing connection timestamps and responsive captures", async ({ page }, 
   state.lastUsedAt = "2026-11-04T10:12:30+09:00";
   await page.reload();
   await expect(page.locator("time")).toHaveCount(2);
-  await expect(page.locator("time").first()).toContainText("오전 10:00");
-  await expect(page.locator("time").last()).toContainText("오전 10:12");
+  await expect(page.locator("time").first()).toContainText("오전 10:12");
+  await expect(page.locator("time").last()).toContainText("오전 10:00");
   await expect(page.getByLabel("연결 주소", { exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: `artifacts/mcp-${info.project.name}-connected.png`, fullPage: true, style: "nextjs-portal { display: none !important; }" });
@@ -140,7 +140,7 @@ test("lost POST response restores only status; DELETE remains successful if alre
   await expect(page.locator("main").getByRole("alert")).toContainText("주소 발급 결과를 확인하지 못했어요");
   expect(state.sequence).toBe(1);
   await page.getByRole("button", { name: "연결 상태 다시 확인" }).click();
-  await expect(page.getByText("연결이 있어요", { exact: true })).toBeVisible();
+  await expect(page.getByText("연결됨", { exact: true })).toBeVisible();
   await expect(page.getByLabel("연결 주소", { exact: true })).toHaveCount(0);
   state.connected = false;
   await page.getByRole("button", { name: "연결 끊기", exact: true }).click();

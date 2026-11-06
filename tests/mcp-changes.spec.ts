@@ -50,9 +50,27 @@ async function setup(page: Page, list: Record<string, unknown>[], connected = tr
     return r.fulfill({ status: 202, json: { jobId: 34, status: "ANALYZING" } });
   });
   await page.goto("/connections", { waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("heading", { name: "변경 기록" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "다른 AI 에서 내 경험 쓰기" })).toBeVisible();
+  if (list.length) await openLog(page);
   return state;
 }
+
+/** 기록이 있으면 카드 아래에 접혀 있다 */
+async function openLog(page: Page) {
+  await page.locator("summary", { hasText: "변경 기록" }).click();
+}
+
+test("change log stays out of sight until writing is on or a record exists, then sits folded", async ({ page }) => {
+  await setup(page, []);
+  await expect(page.getByRole("switch", { name: "외부 AI 쓰기" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "변경 기록" })).toHaveCount(0);
+  await page.getByRole("switch", { name: "외부 AI 쓰기" }).click();
+  await page.getByRole("button", { name: "쓰기 켜기", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "변경 기록" })).toBeVisible();
+  await expect(page.getByText("아직 외부 AI가 바꾼 것이 없어요.")).toBeHidden();
+  await openLog(page);
+  await expect(page.getByText("아직 외부 AI가 바꾼 것이 없어요.")).toBeVisible();
+});
 
 test("write switch is off by default, warns before turning on, keeps the shown address and turns off at once", async ({ page }) => {
   const state = await setup(page, []);
@@ -153,6 +171,7 @@ test("API failures show an error with retry and a conflict reloads the current r
   await expect(page.locator("main").getByRole("alert")).toContainText("변경 기록을 불러오지 못했어요");
   state.fail = "";
   await page.getByRole("button", { name: "다시 시도", exact: true }).click();
+  await openLog(page);
   await expect(page.getByText("채팅 API 를 맡았다")).toBeVisible();
 });
 

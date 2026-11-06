@@ -19,7 +19,7 @@ const install = async (page: Page) => {
 test("every screen has the top bar with its location and no button without a feature", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop");
   await install(page);
-  for (const [path, name] of [["/", "홈"], ["/experience", "내 경험"], ["/questions", "지원서"], ["/connections", "연결"], ["/guidelines", "작성 지침"]]) {
+  for (const [path, name] of [["/", "홈"], ["/experience", "내 경험"], ["/questions", "지원서"], ["/connections", "연결 · 내보내기"], ["/guidelines", "작성 지침"]]) {
     await page.goto(path);
     const location = page.getByRole("banner").getByRole("navigation", { name: "현재 위치", exact: true });
     await expect(location).toContainText("내 서랍");
@@ -38,7 +38,7 @@ test("sidebar shows the applications anywhere and a row opens that application",
   await page.goto("/experience");
   await expect(sidebar(page).getByRole("link", { name: "홈", exact: true })).toBeVisible();
   await expect(sidebar(page).getByRole("link", { name: "내 경험", exact: true })).toContainText(/\d+/);
-  await expect(sidebar(page).getByRole("link", { name: "연결", exact: true })).toBeVisible();
+  await expect(sidebar(page).getByRole("link", { name: "연결 · 내보내기", exact: true })).toBeVisible();
   const row = applications(page).getByRole("link", { name: /OO 연합 동아리/ });
   await expect(row).toBeVisible();
   await expect(applications(page).getByRole("link", { name: "모든 지원서", exact: true })).toHaveAttribute("href", "/questions");
