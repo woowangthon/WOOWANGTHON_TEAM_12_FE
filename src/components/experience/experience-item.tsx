@@ -113,12 +113,14 @@ type Props = {
   onDelete: (experience: Experience) => void;
   /** 메뉴 「다른 활동으로 옮기기」 — 모바일 · 끌기 어려운 곳 (S-12) */
   onMove: (experience: Experience) => void;
+  /** 메뉴 「다른 경험과 합치기」(S-70) — 같은 활동에 다른 경험이 없으면 undefined 로 숨긴다 */
+  onMerge?: (experience: Experience) => void;
   /** PC — 손잡이를 끌어 타임라인의 다른 활동 위에 놓는다 (S-12) */
   onDragChange: (experience: Experience | null) => void;
   dragging: boolean;
 };
 
-export function ExperienceItem({ experience, citationsOpen, onToggleCitations, onShowCitations, onSaved, onDelete, onMove, onDragChange, dragging, readOnly = false }: Props) {
+export function ExperienceItem({ experience, citationsOpen, onToggleCitations, onShowCitations, onSaved, onDelete, onMove, onMerge, onDragChange, dragging, readOnly = false }: Props) {
   const [editing, setEditing] = useState(false);
   const [usedInOpen, setUsedInOpen] = useState(false);
   const e = experience;
@@ -159,6 +161,7 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
               <DropdownMenu.Content align="end" sideOffset={4} className="z-50 min-w-32 rounded-md border border-hairline bg-canvas p-1 shadow-float">
                 <DropdownMenu.Item onSelect={() => setEditing(true)} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">고치기</DropdownMenu.Item>
                 <DropdownMenu.Item onSelect={() => onMove(e)} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">다른 활동으로 옮기기</DropdownMenu.Item>
+                {onMerge && <DropdownMenu.Item onSelect={() => onMerge(e)} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">다른 경험과 합치기</DropdownMenu.Item>}
                 <DropdownMenu.Item onSelect={() => onDelete(e)} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm text-error outline-none focus:bg-surface-soft">지우기</DropdownMenu.Item>
               </DropdownMenu.Content>
             </DropdownMenu.Portal>

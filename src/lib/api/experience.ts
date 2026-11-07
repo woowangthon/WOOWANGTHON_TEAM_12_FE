@@ -211,6 +211,12 @@ export async function moveExperience(id: number, toActivityId: number): Promise<
   return checkCompetencies<Experience>(await request(`/experiences/${id}/move`, { toActivityId }, "POST"));
 }
 
+/** POST /api/experiences/{keepId}/merge — fromId 의 근거 · 보완을 keepId 로 옮기고 fromId 를 지운다. 되돌리는 API 는 없다 (S-70).
+ *  응답은 남긴 경험(값은 그대로, citations · supplements 만 늘어남). usedIn 은 없어 활동 세부를 다시 읽는다 */
+export async function mergeExperiences(keepId: number, fromId: number): Promise<Experience> {
+  return checkCompetencies<Experience>(await request(`/experiences/${keepId}/merge`, { fromExperienceId: fromId }, "POST"));
+}
+
 /** POST /api/activities/{keepId}/merge — fromId 의 경험을 keepId 로 옮기고 fromId 를 지운다. 응답은 남은 활동의 세부 (S-13) */
 export async function mergeActivities(keepId: number, fromId: number): Promise<ActivityDetail> {
   const activity = await request<ActivityDetail>(`/activities/${keepId}/merge`, { fromActivityId: fromId }, "POST");
