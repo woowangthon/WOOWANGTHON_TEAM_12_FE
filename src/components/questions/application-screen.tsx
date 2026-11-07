@@ -25,6 +25,7 @@ import { SimilarAnswers } from "./similar-answers";
 import { ChagokPanel, Mascot, type SupplementOrigin } from "./chagok-panel";
 import { useApplications } from "./use-applications";
 import { useChagokRun } from "./use-chagok-run";
+import { useDraftPicks } from "./use-draft-picks";
 import { ActivityCategoriesProvider } from "./activity-categories";
 import { ApplicationStatusTag, ApplicationTypeFields, QuestionTypeField } from "./type-fields";
 
@@ -110,7 +111,9 @@ export function ApplicationScreen() {
   }, [linkedArea, linkedQuestion, selectedQuestionId]);
   const unanswered = (selected?.clarifications.filter(c => c.supplementId === null).length ?? 0)
     + (selected?.draft?.status === "COMPLETED" ? selected.draft.omitted.filter(o => o.clarificationId !== null && o.supplementId === null).length : 0);
+  const picks = useDraftPicks(selected);
   const draftActions = {
+    picks: picks.ids, onResetPicks: picks.reset,
     onGenerate: (ids: number[], frame?: DraftFrame) => selected ? matching.createDraft(selected, ids, frame) : Promise.resolve(),
     onRefresh: () => selected ? matching.refreshDraft(selected.id) : Promise.resolve(),
     savingAnswer: matching.savingAnswer, requestingDraft: matching.requestingDraft,
@@ -146,6 +149,9 @@ export function ApplicationScreen() {
 
   return <ActivityCategoriesProvider><div className="flex min-h-dvh flex-col bg-canvas">
     <AppHeader activePage="questions" onNewApplication={startNew}
+      panelToggle={open && !composing && <Button variant="secondary" size="sm" className="shrink-0 max-lg:h-11 max-lg:min-w-11 max-lg:gap-1 max-lg:border-0 max-lg:px-1" aria-label={unanswered > 0 && !panelOpen ? `차곡이 질문 ${unanswered}` : "차곡이"} aria-expanded={panelOpen} aria-controls="chagok-panel" onClick={() => setPanelChoice(!panelOpen)}>
+        <Mascot size={20} /><span className="max-lg:sr-only">차곡이</span>{unanswered > 0 && !panelOpen && <span className="rounded-full bg-primary px-1.5 text-xs leading-5 text-on-primary tabular-nums"><span className="max-lg:hidden">질문 </span>{unanswered}</span>}
+      </Button>}
       applicationList={{ applications: matching.applications, loading: matching.loading, error: matching.error, onRetry: () => { void matching.refresh(); }, rows: <ApplicationList {...list} sidebar /> }} />
     <div className="flex-1 xl:flex xl:items-start">
     <div className="min-w-0 flex-1">
@@ -177,7 +183,7 @@ export function ApplicationScreen() {
             if (saved) { setComposing(false); scrollToDetail(); }
           }} /> : open ? <>
             <button type="button" onClick={showList} className="mb-1 inline-flex min-h-11 items-center text-sm text-muted underline underline-offset-4 lg:hidden">지원 목록으로</button>
-            {/* sm 미만은 버튼이 이름 줄만 쓰고 칩은 아래 줄 전체를 쓴다. sm 이상은 칩이 이름 옆으로 온다 */}
+            {/* sm 미만은 칩이 아래 줄 전체를 쓰고, sm 이상은 이름 옆으로 온다 */}
             <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3">
               <div className="contents sm:block sm:min-w-0">
                 <div className="contents sm:flex sm:flex-wrap sm:items-center sm:gap-x-2">
@@ -197,11 +203,6 @@ export function ApplicationScreen() {
                   </a>}
                 </p>
               </div>
-              <div className="col-start-2 row-start-1 flex gap-2">
-                <Button variant="secondary" aria-expanded={panelOpen} aria-controls="chagok-panel" onClick={() => setPanelChoice(!panelOpen)}>
-                  <Mascot size={20} />차곡이{unanswered > 0 && !panelOpen && <span className="rounded-full bg-primary px-1.5 text-xs leading-5 text-on-primary tabular-nums">질문 {unanswered}</span>}
-                </Button>
-              </div>
             </header>
             <QuestionTabs questions={open.application.questions} selectedId={adding ? null : matching.questionId} adding={adding}
               canAdd={open.application.questions.length < MAX_QUESTIONS_PER_APPLICATION}
@@ -213,7 +214,7 @@ export function ApplicationScreen() {
               }} /> : <SelectedQuestion key={matching.questionId} summary={summary} question={selected} application={open.application} index={selectedIndex}
                 loadError={matching.detailError} onReload={matching.reloadQuestion}
                 overlaps={overlaps} onPickOverlap={id => { matching.selectQuestion(id); scrollToDetail(); }} onRetry={id => matching.retry(id)} onTypeChange={(id, type) => matching.updateQuestionType(id, type)} onAnswerChange={matching.keepAnswer} groundingChecks={groundingChecks}
-                {...draftActions} onOpenOmissions={openDraftQuestions} composerOpen={panelOpen} />}
+                {...draftActions} onPick={picks.toggle} onOpenOmissions={openDraftQuestions} />}
             </div>
           </> : null}
         </section>
@@ -322,9 +323,9 @@ function OverlapPanel({ overlaps, onPick }: { overlaps: Overlap[]; onPick: (ques
 }
 
 /** 고른 문항 — 받아 둔 내용이 있으면 바로, 처음 보는 문항이면 받는 동안 자리만(FE#60). 문항 글 · 상태는 지원 목록에 이미 있다 */
-function SelectedQuestion({ summary, question, application, index, loadError, onReload, overlaps, onPickOverlap, onRetry, onTypeChange, onAnswerChange, groundingChecks, onGenerate, onRefresh, onOpenOmissions, savingAnswer, requestingDraft, composerOpen }: {
+function SelectedQuestion({ summary, question, application, index, loadError, onReload, overlaps, onPickOverlap, onRetry, onTypeChange, onAnswerChange, groundingChecks, onOpenOmissions, savingAnswer, requestingDraft, picks, onPick }: {
   summary: QuestionSummary | null; question: QuestionDetail | null; application: Application; index: number; loadError: string | null; onReload: (id: number) => void;
-  overlaps: Overlap[]; onPickOverlap: (questionId: number) => void; onRetry: (id: number) => Promise<unknown>; onTypeChange: (id: number, type: QuestionType) => Promise<void>; onAnswerChange: (id: number, answer: Answer | null) => void; groundingChecks: GroundingChecks; composerOpen: boolean;
+  overlaps: Overlap[]; onPickOverlap: (questionId: number) => void; onRetry: (id: number) => Promise<unknown>; onTypeChange: (id: number, type: QuestionType) => Promise<void>; onAnswerChange: (id: number, answer: Answer | null) => void; groundingChecks: GroundingChecks; onPick: (experienceId: number, on: boolean) => void;
 } & DraftActions) {
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
@@ -339,7 +340,7 @@ function SelectedQuestion({ summary, question, application, index, loadError, on
       </div>
       <h3 className="m-0 max-h-36 overflow-y-auto whitespace-pre-wrap text-[20px] leading-relaxed font-[650] tracking-[-0.3px]">{summary.text}</h3>
     </header>
-    <AnswerInput key={`answer-${summary.id}`} questionId={summary.id} question={question} loadFailed={!!loadError} onAnswerChange={onAnswerChange} checks={groundingChecks} />
+    <AnswerInput key={`answer-${summary.id}`} questionId={summary.id} question={question} loadFailed={!!loadError} onAnswerChange={onAnswerChange} checks={groundingChecks} onAskDraft={onOpenOmissions} />
     {question && <SimilarAnswers question={question} application={application} />}
     {!question ? loadError ? <div role="alert" className="grid justify-items-start gap-3 py-8">
       <p className="m-0 text-error">{loadError}</p><Button variant="secondary" onClick={() => onReload(summary.id)}>다시 불러오기</Button>
@@ -357,7 +358,7 @@ function SelectedQuestion({ summary, question, application, index, loadError, on
           finally { retryPending.current = false; setRetrying(false); }
         }}><ArrowsClockwiseIcon aria-hidden="true" />{retrying ? "다시 시작하고 있어요…" : "다시 시도"}</Button>
         {retryError && <p role="alert" className="m-0 text-sm text-error">{retryError}</p>}
-      </CenterState> : <QuestionResult key={question.id} question={question} elsewhere={id => sameExperienceElsewhere(overlaps, question.id, id)} onGenerate={onGenerate} onRefresh={onRefresh} onOpenOmissions={onOpenOmissions} savingAnswer={savingAnswer} requestingDraft={requestingDraft} composerOpen={composerOpen} />}
+      </CenterState> : <QuestionResult key={question.id} question={question} elsewhere={id => sameExperienceElsewhere(overlaps, question.id, id)} onOpenOmissions={onOpenOmissions} savingAnswer={savingAnswer} requestingDraft={requestingDraft} picks={picks} onPick={onPick} />}
     {overlaps.length > 0 && <OverlapPanel overlaps={overlaps} onPick={onPickOverlap} />}
   </section>;
 }

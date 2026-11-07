@@ -99,11 +99,19 @@ function WorkButton() {
   </button>;
 }
 
+/** 시안 6 .ntag — 실패 · 내가 볼 것 · 끝난 일만 색을 쓴다. 도는 중인 일은 회색 */
+function tagTone({ kind, status }: WorkItem) {
+  if (status === "FAILED") return "bg-error/10 text-error";
+  if (status === "WAITING_CONFIRM") return "bg-review-soft text-review";
+  if (status !== "COMPLETED" && status !== "DONE") return "bg-surface-soft text-muted";
+  return kind === "SOURCE_ANALYSIS" ? "bg-attach-soft text-positive" : "bg-evidence-soft text-evidence";
+}
+
 function WorkList({ items, seenAt, onNavigate }: { items: WorkItem[]; seenAt: string | null; onNavigate: () => void }) {
   return <ul className="m-0 grid min-w-0 grid-cols-[minmax(0,1fr)] list-none gap-1 p-0">{items.map(item => {
     const href = workHref(item);
     const content = <>
-      <span className={`text-xs font-semibold ${item.status === "FAILED" ? "text-error" : "text-muted"}`}>{WORK_KIND[item.kind] ?? item.kind} · {WORK_STATUS[item.status] ?? item.status}{isUnread(item, seenAt) && " · 안 읽음"}</span>
+      <span className={cn("justify-self-start rounded-full px-2 py-px text-xs font-bold", tagTone(item))}>{WORK_KIND[item.kind] ?? item.kind} · {WORK_STATUS[item.status] ?? item.status}{isUnread(item, seenAt) && " · 안 읽음"}</span>
       <span className="min-w-0 break-all whitespace-normal font-medium">{item.label}</span>
       {item.finishedAt && <time className="text-xs text-muted" dateTime={item.finishedAt}>{new Date(item.finishedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}</time>}
       {item.status === "FAILED" && <span className="break-words text-xs text-error">{item.errorCode ?? "오류 코드 없음"} · 해당 화면에서 다시 시도해 주세요.</span>}

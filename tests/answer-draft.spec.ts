@@ -9,7 +9,7 @@ import { DRAFT_EXAMPLE } from "./fixtures/draft-example";
 const draftScreen = (page: Page) => page.getByRole("region", { name: "답변 초안", exact: true });
 const draftFollowUp = (page: Page) => page.getByRole("region", { name: "차곡이의 초안", exact: true });
 async function openDraftFollowUp(page: Page) {
-  const ask = draftScreen(page).getByRole("button", { name: /초안 부탁하기|초안 설정 열기/ });
+  const ask = page.getByRole("button", { name: /초안 부탁하기|초안 설정 열기/ });
   await expect(draftFollowUp(page).or(ask).first()).toBeVisible();
   if (!(await draftFollowUp(page).isVisible())) await ask.click();
   await expect(draftFollowUp(page)).toBeVisible();
@@ -18,6 +18,11 @@ async function openDraftFollowUp(page: Page) {
 async function openDraftComposer(page: Page) {
   await openDraftFollowUp(page);
   return page.getByRole("region", { name: "초안 설정", exact: true });
+}
+/** 좁은 폭은 패널이 화면을 덮으니 닫고 참고 카드에서 고른다 */
+async function referenceChoices(page: Page) {
+  if (page.viewportSize()!.width < 1280) await closeDraftPanel(page);
+  return page.getByRole("region", { name: "참고 — 꺼내 쓸 경험", exact: true }).getByRole("checkbox");
 }
 async function closeDraftPanel(page: Page) {
   const close = page.getByRole("button", { name: "차곡이 닫기", exact: true });
@@ -58,10 +63,10 @@ test("default selection, zero-selection guard, generating, evidence details and 
   await expect(screen.getByRole("checkbox")).toHaveCount(0);
   await expect(screen.getByRole("combobox")).toHaveCount(0);
   await expect(screen.getByRole("button", { name: "초안 만들기", exact: true })).toHaveCount(0);
-  await expect((await openDraftComposer(page)).getByRole("checkbox")).toBeChecked();
-  await (await openDraftComposer(page)).getByRole("checkbox").uncheck();
+  await expect((await referenceChoices(page))).toBeChecked();
+  await (await referenceChoices(page)).uncheck();
   await expect((await openDraftComposer(page)).getByRole("button", { name: "초안 만들기", exact: true })).toBeDisabled();
-  await (await openDraftComposer(page)).getByRole("checkbox").check();
+  await (await referenceChoices(page)).check();
   await generate(page);
   const sentences = screen.getByRole("list", { name: "초안 문장" });
   await closeDraftPanel(page);
@@ -79,7 +84,7 @@ test("default selection, zero-selection guard, generating, evidence details and 
   // 화면과 기존 추천은 함께 남는다. 문항을 오가도 최신 초안 하나만 유지한다.
   const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab");
   await tabs.nth(1).click();
-  await expect((await openDraftComposer(page)).getByRole("checkbox")).toHaveCount(2);
+  await expect((await referenceChoices(page))).toHaveCount(2);
   await closeDraftPanel(page);
   await expect(draftScreen(page).getByRole("list", { name: "초안 문장" })).toHaveCount(0);
   await tabs.first().click();
@@ -103,7 +108,7 @@ test("three selected by default, a fourth cannot be selected, and only recommend
       q.recommendations.push({ ...structuredClone(q.recommendations[0]), experience: { ...structuredClone(q.recommendations[0].experience), id, content, actor: id === 103 ? "TEAM" : "ME", citations: [], supplements: [] }, evidence: [] });
     }
   });
-  const choices = (await openDraftComposer(page)).getByRole("checkbox");
+  const choices = await referenceChoices(page);
   await expect(choices).toHaveCount(4);
   for (let i = 0; i < 3; i++) await expect(choices.nth(i)).toBeChecked();
   await expect(choices.nth(3)).toBeDisabled();
@@ -168,7 +173,7 @@ test("clipboard rejection is visible and can be retried", async ({ page }) => {
 
 test("no recommended experiences cannot generate a draft", async ({ page }) => {
   await setup(page, q => { q.recommendations = []; q.clarifications = []; });
-  await expect((await openDraftComposer(page)).getByRole("checkbox")).toHaveCount(0);
+  await expect((await referenceChoices(page))).toHaveCount(0);
   await expect((await openDraftComposer(page)).getByRole("button", { name: "초안 만들기", exact: true })).toBeDisabled();
 });
 
@@ -183,8 +188,8 @@ for (const [status, code, text] of [
     api.draftError = { status, code };
     await (await openDraftComposer(page)).getByRole("button", { name: "다시 만들기", exact: true }).click();
     await expect((await openDraftComposer(page)).getByRole("alert")).toContainText(text);
-    await expect((await openDraftComposer(page)).getByRole("checkbox")).toBeChecked();
     await expect((await openDraftComposer(page)).getByRole("button", { name: "초안 상태 확인", exact: true })).toBeEnabled();
+    await expect((await referenceChoices(page))).toBeChecked();
     await closeDraftPanel(page);
     await expect(draftScreen(page).getByRole("list", { name: "초안 문장" }).getByRole("listitem")).toHaveCount(2);
   });
@@ -230,7 +235,7 @@ test("regeneration hides old sentences and duplicate submissions are blocked", a
   await expect((await openDraftComposer(page)).getByRole("button", { name: "초안 만드는 중…", exact: true })).toBeDisabled();
   await closeDraftPanel(page);
   await expect(draftScreen(page).getByRole("list", { name: "초안 문장" })).toHaveCount(0);
-  await expect((await openDraftComposer(page)).getByRole("checkbox")).toBeDisabled();
+  await expect((await referenceChoices(page))).toBeDisabled();
   expect(api.calls.filter(c => c.call.endsWith("/draft"))).toHaveLength(1);
 });
 
@@ -449,8 +454,8 @@ test("a completed draft restores its selected experiences for regeneration", asy
     q.recommendations = structuredClone(QUESTION_EXAMPLES[1].recommendations);
     q.draft = { ...structuredClone(DRAFT_EXAMPLE), experienceIds: [102] };
   });
-  await expect((await openDraftComposer(page)).getByRole("checkbox").first()).toBeChecked();
-  await expect((await openDraftComposer(page)).getByRole("checkbox").last()).not.toBeChecked();
+  await expect((await referenceChoices(page)).first()).toBeChecked();
+  await expect((await referenceChoices(page)).last()).not.toBeChecked();
   await (await openDraftComposer(page)).getByRole("button", { name: "다시 만들기", exact: true }).click();
   expect(api.calls.filter(c => c.call.endsWith("/draft"))).toEqual([
     { call: "POST /api/questions/41/draft", body: { experienceIds: [102], frame: "NONE" } },
@@ -499,7 +504,7 @@ test("a pending panel regeneration blocks a second request and hides old result 
   await expect(panel.getByRole("status")).toContainText("초안을 만드는 중");
   await closeDraftPanel(page);
   await expect((await openDraftComposer(page)).getByRole("button", { name: "초안 만드는 중…", exact: true })).toBeDisabled();
-  await expect((await openDraftComposer(page)).getByRole("checkbox")).toBeDisabled();
+  await expect((await referenceChoices(page))).toBeDisabled();
   await closeDraftPanel(page);
   await expect(draftScreen(page).getByRole("list", { name: "초안 문장" })).toHaveCount(0);
   release();

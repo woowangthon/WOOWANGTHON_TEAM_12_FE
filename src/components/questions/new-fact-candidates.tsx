@@ -32,15 +32,15 @@ export function NewFactCandidates({ confirmed: a }: { confirmed: Confirmed }) {
     {a.failure && <div className="grid justify-items-start gap-2">
       <p role="alert" className="m-0 text-sm text-error">{a.failure.message}{a.pollFailures >= 3 && " 자동 확인을 멈췄어요."}</p>
       <Button variant="secondary" disabled={a.busy} onClick={() => void (a.failure?.action === "confirm" ? a.confirm(a.failure.text!) : a.failure?.action === "find" ? a.retryFind() : a.refresh())}>
-        {a.failure.action === "confirm" ? "같은 답으로 다시 확정" : a.failure.action === "find" ? "다시 찾기" : "확정 상태 다시 확인"}
+        {a.failure.action === "confirm" ? "같은 답으로 다시 저장" : a.failure.action === "find" ? "다시 찾기" : "저장 상태 다시 확인"}
       </Button>
     </div>}
     {a.answer && <section aria-label="새 경험 후보" className="grid min-w-0 gap-3">
       <h4 className="m-0 text-sm font-semibold">새 경험 후보</h4>
-      <p className="m-0 text-sm leading-relaxed text-muted">확정한 글에서 새로 쓴 사실을 찾아요. AI 제안이니 확인하고 고쳐 주세요. 경험은 저장을 눌러야 쌓여요.</p>
+      <p className="m-0 text-sm leading-relaxed text-muted">다 쓴 글에서 새로 쓴 사실을 찾아요. AI 제안이니 확인하고 고쳐 주세요. 경험은 저장을 눌러야 쌓여요.</p>
       {facts?.status === "ANALYZING" && <p role="status" className="m-0 text-sm text-muted">새 경험 후보를 찾고 있어요… 새로고침해도 이어서 확인해요.</p>}
       {facts?.status === "FAILED" && !a.failure && <div className="grid justify-items-start gap-2">
-        <p role="alert" className="m-0 text-sm text-error">답은 확정됐어요 · {facts.error?.message || "후보를 찾지 못했어요."}</p>
+        <p role="alert" className="m-0 text-sm text-error">답은 저장했어요 · {facts.error?.message || "후보를 찾지 못했어요."}</p>
         <Button variant="secondary" disabled={a.busy} onClick={() => void a.retryFind()}>다시 찾기</Button>
       </div>}
       {!facts && !a.failure && <div className="flex flex-wrap items-center gap-2"><Button variant="secondary" disabled={a.busy} onClick={() => void a.retryFind()}>새 경험 후보 찾기</Button><AnalysisCost running={a.busy} /></div>}
@@ -68,7 +68,7 @@ function CandidateCard({ candidate: c, activities, unavailable, busy, decide, qu
   };
   return <li className="grid min-w-0 gap-3 rounded-md border border-hairline p-4">
     <p className="m-0 text-xs font-semibold text-muted">AI 제안</p>
-    <div className="grid gap-1"><p className="m-0 text-xs text-muted">확정한 답의 원래 문장</p><blockquote className="m-0 whitespace-pre-wrap break-words border-l-2 border-hairline pl-3 text-sm leading-relaxed">{c.sentence}</blockquote></div>
+    <div className="grid gap-1"><p className="m-0 text-xs text-muted">다 쓴 답의 원래 문장</p><blockquote className="m-0 whitespace-pre-wrap break-words border-l-2 border-hairline pl-3 text-sm leading-relaxed">{c.sentence}</blockquote></div>
     {c.status === "PENDING" ? <>
       <label className="grid min-w-0 gap-1 text-xs text-muted">경험 문장<textarea rows={3} className={field} value={content} disabled={busy} onChange={e => setContent(e.target.value)} /></label>
       <div className="grid min-w-0 gap-3 sm:grid-cols-[1fr_2fr]">

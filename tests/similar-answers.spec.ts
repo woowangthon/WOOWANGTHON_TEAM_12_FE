@@ -87,7 +87,7 @@ test("유형 · 직무 · 종류를 고치거나 답을 확정하면 다시 부�
   await expect.poll(() => reads.count).toBe(opened + 3);
 
   await page.getByRole("textbox", { name: "내가 쓴 답" }).fill("내 답");
-  await page.getByRole("button", { name: "확정", exact: true }).click();
+  await page.getByRole("button", { name: "다 썼어요", exact: true }).click();
   await expect.poll(() => reads.count).toBe(opened + 4);
 });
 

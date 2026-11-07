@@ -10,10 +10,10 @@ import type { QuestionDetail } from "@/lib/api/question-types";
 import { AnswerEvidence } from "./answer-evidence";
 import { failureReason } from "./draft-errors";
 
-export type DraftActions = { onGenerate: (experienceIds: number[], frame?: DraftFrame) => Promise<void>; onRefresh: () => Promise<void>; onOpenOmissions: () => void; savingAnswer: boolean; requestingDraft: boolean };
+export type DraftActions = { onGenerate: (experienceIds: number[], frame?: DraftFrame) => Promise<void>; onRefresh: () => Promise<void>; onOpenOmissions: () => void; picks: number[]; onResetPicks: (questionId: number) => void; savingAnswer: boolean; requestingDraft: boolean };
 
-/** composerOpen — 차곡이 패널이 열려 초안 설정이 보인다. 초안이 없을 땐 여기에 같은 안내를 두지 않는다(시안 6 은 답칸과 패널뿐) */
-export function AnswerDraft({ question, onOpenOmissions, requestingDraft, composerOpen }: { question: QuestionDetail; composerOpen: boolean } & DraftActions) {
+/** 초안이 생긴 뒤에만 있다 — 부탁은 답칸의 버튼과 차곡이 패널에서 한다(시안 6) */
+export function AnswerDraft({ question, onOpenOmissions, requestingDraft }: { question: QuestionDetail } & Pick<DraftActions, "onOpenOmissions" | "requestingDraft">) {
   const draft = question.draft ?? null;
   const [copyError, setCopyError] = useState("");
   const { toast, showToast } = useToast();
@@ -27,13 +27,10 @@ export function AnswerDraft({ question, onOpenOmissions, requestingDraft, compos
     } catch { setCopyError("복사하지 못했어요. 브라우저의 클립보드 권한을 확인하고 다시 눌러 주세요."); }
   };
 
-  if (!draft && !analyzing && composerOpen) return null;
+  if (!draft && !analyzing) return null;
 
   return <section aria-labelledby={`draft-title-${question.id}`} className="mb-8 grid min-w-0 gap-4 rounded-[18px] border border-hairline bg-canvas p-4 sm:p-5">
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <h3 id={`draft-title-${question.id}`} className="m-0 text-[17px] font-semibold">답변 초안</h3>
-      {!composerOpen && <Button variant="secondary" className="min-h-11" onClick={onOpenOmissions}>{draft ? "초안 설정 열기" : "초안 부탁하기"}</Button>}
-    </div>
+    <h3 id={`draft-title-${question.id}`} className="m-0 text-[17px] font-semibold">답변 초안</h3>
     {analyzing && <p role="status" className="m-0 text-sm text-muted">고른 경험으로 초안을 만드는 중이에요…</p>}
     {draft?.status === "FAILED" && !analyzing && <p role="alert" className="m-0 text-sm text-error">{failureReason(draft.error)} 차곡이에서 다시 만들 수 있어요.</p>}
     {draft?.status === "COMPLETED" && !analyzing && <>

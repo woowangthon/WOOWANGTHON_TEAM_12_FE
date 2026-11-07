@@ -1,12 +1,9 @@
 "use client";
 
 import Link from 'next/link';
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { DRAFT_FRAMES, type DraftFrame } from '@/lib/draft-frames';
 import type { Draft } from '@/lib/api/question-types';
-import { fetchGuidelines, guidelineError, type Guideline } from '@/lib/api/guidelines';
 
 export function FrameDescription({ frame }: { frame: DraftFrame }) {
   const info = DRAFT_FRAMES[frame];
@@ -16,23 +13,12 @@ export function FrameDescription({ frame }: { frame: DraftFrame }) {
 const FRAME_OPTIONS = (Object.keys(DRAFT_FRAMES) as DraftFrame[]).map(value => ({ value, label: DRAFT_FRAMES[value].name }));
 
 export function FramePicker({ frame, onChange, disabled, proposed }: { frame: DraftFrame; onChange: (frame: DraftFrame) => void; disabled: boolean; proposed: boolean }) {
-  const [guidelines, setGuidelines] = useState<Guideline[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  async function load() {
-    setBusy(true); setError(null);
-    try { setGuidelines((await fetchGuidelines()).filter(g => g.enabled)); }
-    catch (e) { setError(guidelineError(e)); }
-    finally { setBusy(false); }
-  }
   return <div className="grid min-w-0 gap-2 border-t border-hairline pt-4">
     <label className="grid gap-2 text-sm font-semibold">구성 틀<Select<DraftFrame> aria-label="구성 틀" value={frame} disabled={disabled} onChange={next => { if (next) onChange(next); }} className="sm:max-w-80" options={FRAME_OPTIONS} /></label>
     {proposed && <p className="m-0 text-xs text-muted">문항 유형에 맞춘 제안 · 바꿔도 괜찮아요.</p>}
     <FrameDescription frame={frame} />
     <p className="m-0 text-xs text-muted">자료로 받칠 수 없는 단계는 지어내지 않고 건너뛰어요.</p>
-    <div className="flex flex-wrap items-center gap-3"><Button variant="ghost" className="min-h-11" disabled={busy} onClick={() => void load()}>{busy ? '지침 불러오는 중…' : '켠 작성 지침 보기'}</Button><Link href="/guidelines" className="inline-flex min-h-11 items-center text-sm text-evidence underline underline-offset-3">작성 지침 관리 →</Link></div>
-    {error && <p role="alert" className="m-0 text-sm text-error">{error} 「켠 작성 지침 보기」로 다시 시도해 주세요.</p>}
-    {guidelines !== null && <div className="grid gap-2 rounded-sm bg-surface-soft p-3 text-xs text-muted"><p className="m-0">{guidelines.length ? '다음 초안을 만들 때 켠 지침을 써요. 반영 여부는 만든 뒤 확인해 주세요.' : '켠 작성 지침이 없어요. 지침 없이 초안을 만들 수 있어요.'}</p>{guidelines.map(g => <p className="m-0 break-words" key={g.id}>{g.text} · 출처: {g.source}</p>)}</div>}
+    <Link href="/guidelines" className="inline-flex min-h-11 items-center justify-self-start text-sm text-evidence underline underline-offset-3">작성 지침 관리 →</Link>
   </div>;
 }
 
