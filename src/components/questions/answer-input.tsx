@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useConfirmedAnswer } from "./use-confirmed-answer";
 import { NewFactCandidates } from "./new-fact-candidates";
+import { AnalysisCost } from "@/components/auth/analysis-cost";
 import { Button } from "@/components/ui/button";
 import { MAX_GROUNDING_TEXT_LENGTH, type Answer, type GroundingStatus, type QuestionDetail } from "@/lib/api/question-types";
 import { AnswerEvidence } from "./answer-evidence";
@@ -40,14 +41,15 @@ function AnswerEditor({ questionId, confirmed: a, checks }: { questionId: number
   return <>
     <label htmlFor={`answer-${questionId}`} className="sr-only">내가 쓴 답</label>
     <div className="grid min-w-0 overflow-hidden rounded-[18px] border border-hairline bg-canvas has-[textarea:focus-visible]:outline-2 has-[textarea:focus-visible]:outline-offset-2 has-[textarea:focus-visible]:outline-ink">
-    <textarea id={`answer-${questionId}`} aria-describedby={`answer-help-${questionId}`} rows={8}
+    <textarea id={`answer-${questionId}`} rows={8}
       maxLength={MAX_GROUNDING_TEXT_LENGTH} value={g.text} disabled={g.loading || g.busy || analyzing || !g.initialized || locked}
       placeholder="지원 문항에 맞춰 내 답을 적어 주세요."
       onChange={e => g.setText(e.target.value)}
       className="block w-full min-w-0 resize-y border-0 bg-transparent p-5 text-[15px] leading-relaxed outline-none focus-visible:outline-none disabled:bg-surface-soft" />
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-hairline-soft px-3.5 py-2.5">
       <span className="text-xs text-muted tabular-nums">{g.text.length.toLocaleString()} / 5,000자</span>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+      <AnalysisCost running={g.busy || analyzing || locked} />
       <Button variant="secondary" className="min-h-11" disabled={!valid || g.loading || g.busy || analyzing || !g.initialized} onClick={() => void g.submit(g.text)}>
         {g.busy || analyzing ? "근거 점검 중…" : "근거 점검"}
       </Button>
@@ -55,7 +57,6 @@ function AnswerEditor({ questionId, confirmed: a, checks }: { questionId: number
       </div>
     </div>
     </div>
-    <p id={`answer-help-${questionId}`} className="m-0 text-xs leading-relaxed text-muted">근거 점검과 확정 뒤 새 경험 후보 찾기는 각각 분석 1회예요. 답 확정 자체는 횟수를 쓰지 않아요.</p>
     {a.answer && <p role="status" className="m-0 text-sm text-muted">{g.text === a.answer.text ? "답을 확정했어요" : "확정한 글과 달라요 · 다시 확정해 주세요"}</p>}
     {g.loading && <p role="status" className="m-0 text-sm text-muted">마지막 근거 점검을 불러오고 있어요…</p>}
     {analyzing && <p role="status" className="m-0 text-sm text-muted">문장을 근거와 대조하고 있어요. 새로고침해도 점검한 글과 진행 상태를 이어서 확인해요.</p>}

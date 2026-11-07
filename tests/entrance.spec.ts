@@ -198,7 +198,9 @@ test("쌓기와 파일은 가르지 않으며 세 폭에서 가로 넘침이 없
   await expect(page.getByRole("button", { name: "꺼내기", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await expect(page.getByText("외부 AI 제공사(OpenAI)")).toHaveCount(0); // S-16 안내는 자료를 넣는 쌓기에서만(FE#183)
   await page.getByRole("button", { name: "쌓기", exact: true }).click();
+  await expect(page.getByText("넣은 자료는 분석을 위해 외부 AI 제공사(OpenAI)로 보내져요 · 학습엔 안 쓰여요")).toBeVisible();
   await page.getByLabel("홈에 넣을 글").fill("쌓을 자료");
   await page.getByRole("button", { name: "보내기", exact: true }).click();
   await expect.poll(() => calls.sources.length).toBe(1);
