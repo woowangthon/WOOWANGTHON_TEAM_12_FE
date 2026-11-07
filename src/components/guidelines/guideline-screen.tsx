@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AppHeader } from '@/components/app-header';
+import { AnalysisCost } from '@/components/auth/analysis-cost';
 import { Button } from '@/components/ui/button';
 import { deleteGuideline, extractGuidelines, fetchGuidelines, guidelineError, saveGuidelines, updateGuideline, type Guideline, type GuidelineInput } from '@/lib/api/guidelines';
 
@@ -76,12 +77,12 @@ export function GuidelineScreen() {
         <div className="grid items-start gap-6 md:grid-cols-2">
           <section aria-labelledby="extract-title" className={card}>
             <h2 id="extract-title" className="m-0 text-lg font-semibold">붙여 넣고 정리하기</h2>
-            <p className="m-0 text-sm leading-relaxed text-muted">요점이나 자막에 있는 작성법만 한 줄씩 정리해요. 분석 1회로 세며 실패해도 횟수를 써요.</p>
+            <p className="m-0 text-sm leading-relaxed text-muted">요점이나 자막에 있는 작성법만 한 줄씩 정리해요.</p>
             <form onSubmit={e => { e.preventDefault(); void extract(); }} className="grid min-w-0 gap-4">
               <fieldset disabled={busy} className="m-0 grid min-w-0 gap-4 border-0 p-0">
                 <label className="grid gap-1.5 text-sm font-medium">요점 · 자막<textarea required maxLength={20000} rows={7} className={inputClass + ' resize-y leading-relaxed'} value={raw.text} onChange={e => setRaw({ ...raw, text: e.target.value })} /></label>
                 <label className="grid gap-1.5 text-sm font-medium">출처<input required maxLength={100} className={inputClass} placeholder="어느 영상 · 누구의 피드백" value={raw.source} onChange={e => setRaw({ ...raw, source: e.target.value })} /></label>
-                <Button type="submit" className="min-h-11 justify-self-start" disabled={!raw.text.trim() || !raw.source.trim()}>정리하기</Button>
+                <div className="flex flex-wrap items-center gap-3"><Button type="submit" className="min-h-11" disabled={!raw.text.trim() || !raw.source.trim()}>정리하기</Button><AnalysisCost running={busy} /></div>
               </fieldset>
             </form>
             {extractError && <div className="grid justify-items-start gap-2"><p role="alert" className="m-0 text-sm text-error">{extractError}</p><Button variant="secondary" disabled={busy} onClick={() => void extract()}>다시 시도</Button></div>}
@@ -89,7 +90,7 @@ export function GuidelineScreen() {
           </section>
           <section aria-labelledby="manual-title" className={card}>
             <h2 id="manual-title" className="m-0 text-lg font-semibold">직접 한 줄 쓰기</h2>
-            <p className="m-0 text-sm leading-relaxed text-muted">내가 정한 작성법도 좋아요. 직접 쓰고 저장할 때는 분석 횟수를 쓰지 않아요.</p>
+            <p className="m-0 text-sm leading-relaxed text-muted">내가 정한 작성법도 좋아요.</p>
             <form className="grid min-w-0 gap-4" onSubmit={e => { e.preventDefault(); void save([manual], () => setManual({ text: '', source: '' })); }}>
               <fieldset disabled={busy || loading || !!loadError} className="m-0 grid min-w-0 gap-4 border-0 p-0"><LineFields value={manual} onChange={setManual} /><Button type="submit" variant="secondary" className="min-h-11 justify-self-start" disabled={!manual.text.trim() || !manual.source.trim()}>한 줄 저장</Button></fieldset>
             </form>

@@ -6,6 +6,7 @@ import { CitationList } from "@/components/experience/citation-list";
 import { ExperienceFilterBar, isFiltered, type ExperienceFilters } from "@/components/experience/experience-filters";
 import { ExperienceMeta } from "@/components/experience/experience-item";
 import { useExperienceSearch } from "@/components/experience/use-experience-search";
+import { AnalysisCost } from "@/components/auth/analysis-cost";
 import { AskAnswer, AskFailureNotice } from "@/components/home/ask-answer";
 import { useAsk } from "@/components/home/use-ask";
 import { Mascot } from "@/components/questions/chagok-panel";
@@ -111,6 +112,7 @@ export function QuickFindPanel({ addSourceBusy, onGo }: { addSourceBusy: boolean
         autoComplete="off" role={hasList ? "combobox" : undefined} aria-expanded={hasList ? count > 0 : undefined} aria-controls={hasList ? LIST_ID : undefined}
         aria-autocomplete={hasList ? "list" : undefined} aria-activedescendant={hasList && count ? optionId(current) : undefined}
         className="min-h-11 min-w-0 flex-1 bg-transparent lg:h-5.5 lg:min-h-0 text-[17px] text-ellipsis text-ink outline-none placeholder:text-muted-soft" />
+      {tab === "ask" && <AnalysisCost className="shrink-0" />}
       {tab === "ask" && <Button type="button" size="icon" className="size-11 shrink-0 lg:size-8" aria-label="보내기" disabled={!query || asked.asking} onClick={send}><ArrowUpIcon aria-hidden="true" /></Button>}
     </div>
     <div role="group" aria-label="빠른 찾기 탭" className={cn("flex gap-1.5 px-3.5 lg:px-4.5", tab === "find" ? "pb-1.5" : "border-b border-hairline-soft pb-2.5")}>
@@ -126,7 +128,6 @@ export function QuickFindPanel({ addSourceBusy, onGo }: { addSourceBusy: boolean
         <Mascot size={30} />
         <div className="min-w-0">
           <p className="m-0 break-words text-body">{query ? `「${query}」 — 쌓인 경험에서 찾아 근거와 함께 답할게요.` : "무엇이든 물어보세요. 예: 리더십을 보여 준 경험 있어?"}</p>
-          <p className="mt-1 mb-0 text-xs text-muted">보내면 분석 1회를 써요. 넣은 글은 외부 AI(OpenAI)로 보내져요.</p>
         </div>
       </div>}
       {asked.asking && <p role="status" className="py-8 text-center text-sm text-muted">쌓인 경험에서 찾고 있어요…</p>}

@@ -157,6 +157,20 @@ test("daily limit: remaining count in the dialog, and a 429 keeps the text with 
   await expect(page.getByText("분석하고 있어요", { exact: false })).toHaveCount(0);
 });
 
+test("남은 분석이 3회 이하일 때만 홈 · 묻기에서 경고한다(FE#183)", async ({ page }) => {
+  await setup(page, { signedIn: true });
+  await page.goto("/");
+  await expect(page.getByRole("form", { name: "글 보내기" })).toBeVisible();
+  await expect(page.getByText(/오늘 남은 분석/)).toHaveCount(0);
+
+  await setup(page, { signedIn: true, me: { ...ME, dailyAnalysis: { used: 197, limit: 200 } } });
+  await page.goto("/");
+  await expect(page.getByText("오늘 남은 분석 3회")).toBeVisible();
+  await page.keyboard.press("Control+k");
+  await page.getByRole("button", { name: "차곡이에게" }).click();
+  await expect(page.getByRole("dialog")).toContainText("분석 1회 · 오늘 3회 남음");
+});
+
 test("auth check failure is an error with retry — not a login screen and not mock data", async ({ page }) => {
   const state = await setup(page, { signedIn: true, meError: 503 });
   await expect(page.getByRole("heading", { name: "로그인 상태를 확인하지 못했어요" })).toBeVisible();

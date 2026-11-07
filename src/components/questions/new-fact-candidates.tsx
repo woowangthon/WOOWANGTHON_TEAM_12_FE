@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { AnalysisCost } from "@/components/auth/analysis-cost";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { fetchActivities } from "@/lib/api/experience";
@@ -42,7 +43,7 @@ export function NewFactCandidates({ confirmed: a }: { confirmed: Confirmed }) {
         <p role="alert" className="m-0 text-sm text-error">답은 확정됐어요 · {facts.error?.message || "후보를 찾지 못했어요."}</p>
         <Button variant="secondary" disabled={a.busy} onClick={() => void a.retryFind()}>다시 찾기</Button>
       </div>}
-      {!facts && !a.failure && <Button variant="secondary" className="justify-self-start" disabled={a.busy} onClick={() => void a.retryFind()}>새 경험 후보 찾기</Button>}
+      {!facts && !a.failure && <div className="flex flex-wrap items-center gap-2"><Button variant="secondary" disabled={a.busy} onClick={() => void a.retryFind()}>새 경험 후보 찾기</Button><AnalysisCost running={a.busy} /></div>}
       {facts?.status === "COMPLETED" && !facts.candidates.length && <p role="status" className="m-0 text-sm text-muted">새로 쓴 사실이 없어요</p>}
       {activityError && needsActivities && <div className="grid justify-items-start gap-2"><p role="alert" className="m-0 text-sm text-error">{activityError}</p><Button variant="secondary" onClick={() => { setLoading(true); setAttempt(n => n + 1); }}>활동 다시 불러오기</Button></div>}
       {facts?.status === "COMPLETED" && <ol className="m-0 grid list-none gap-4 p-0">{facts.candidates.map(c => <CandidateCard key={c.id} candidate={c} activities={activities} unavailable={loading || !!activityError} busy={a.busy} decide={a.decide} questionId={a.answer!.questionId} />)}</ol>}

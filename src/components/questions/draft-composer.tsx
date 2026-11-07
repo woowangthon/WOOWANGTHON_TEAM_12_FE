@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { AnalysisCost } from "@/components/auth/analysis-cost";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api/errors";
 import { suggestedFrame, type DraftFrame } from "@/lib/draft-frames";
@@ -45,8 +46,8 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
 
   return <section aria-label="초안 설정" className="grid min-w-0 gap-3 rounded-md border border-hairline bg-canvas p-3.5">
     <h4 className="m-0 text-sm font-semibold">{draft ? "초안 다시 만들기" : "초안 만들기"}</h4>
-    <p className="m-0 text-xs leading-relaxed text-muted">경험을 1 ~ 3개 골라 주세요. 만든 문장은 답변 초안에서 근거와 함께 확인할 수 있어요. 분석 1회로 세어요.</p>
-    {draft?.status === "COMPLETED" && <p className="m-0 text-xs leading-relaxed text-muted">다시 만들면 고른 경험과 최신 보완으로 다시 써요. 답을 저장할 때는 분석 횟수를 쓰지 않아요.</p>}
+    <p className="m-0 text-xs leading-relaxed text-muted">경험을 1 ~ 3개 골라 주세요. 만든 문장은 답변 초안에서 근거와 함께 확인할 수 있어요.</p>
+    {draft?.status === "COMPLETED" && <p className="m-0 text-xs leading-relaxed text-muted">다시 만들면 고른 경험과 최신 보완으로 다시 써요.</p>}
     <fieldset disabled={analyzing || savingAnswer} className="m-0 grid min-w-0 gap-2 border-0 p-0">
       <legend className="mb-2 text-sm font-semibold">초안에 쓸 경험 · {selected.filter(id => question.recommendations.some(r => r.experience.id === id)).length}개 선택</legend>
       {question.recommendations.map(r => <label key={r.experience.id} className="flex min-w-0 items-start gap-3 rounded-sm bg-surface-soft p-3 text-sm leading-relaxed">
@@ -60,6 +61,7 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
     <FramePicker frame={frame} disabled={analyzing || savingAnswer} proposed={!draft && chosenFrame === null} onChange={setChosenFrame} />
     <div className="flex flex-wrap items-center gap-3">
       <Button className="min-h-11" onClick={() => void generate()} disabled={!allowed || analyzing || savingAnswer}>{analyzing ? "초안 만드는 중…" : draft ? "다시 만들기" : "초안 만들기"}</Button>
+      <AnalysisCost running={analyzing} />
     </div>
     {analyzing && <p className="m-0 text-sm text-muted">고른 경험으로 초안을 만드는 중이에요…</p>}
     {error && (error.code !== "DRAFT_IN_PROGRESS" || analyzing) && <div className="grid justify-items-start gap-2">
