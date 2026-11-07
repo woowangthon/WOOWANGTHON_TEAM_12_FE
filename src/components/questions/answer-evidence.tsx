@@ -1,3 +1,4 @@
+import { mcpAnswerName } from "@/components/experience/supplement-list";
 import type { DraftEvidence, QuestionDetail } from "@/lib/api/question-types";
 
 /** 초안과 근거 점검은 같은 근거 모양을 쓴다. 추천 밖 경험도 응답의 text · activityId로 연다. */
@@ -7,7 +8,7 @@ export function AnswerEvidence({ evidence: e, questionId, question }: { evidence
   const supplement = e.type === "SUPPLEMENT" ? experience?.supplements.find(s => s.id === e.id) : null;
   return <details className="min-w-0 rounded-sm border border-hairline-soft bg-surface-soft px-3 py-2 text-sm">
     <summary className={`min-h-11 cursor-pointer content-center break-words font-medium ${e.type === "CITATION" ? "text-evidence" : "text-body"}`}>
-      {e.type === "CITATION" ? `원문 · ${citation?.sourceName ?? "연결된 발췌"}` : e.type === "SUPPLEMENT" ? `내가 입력 · ${supplement?.question ?? "보완"}` : "내가 입력 · 직접 넣거나 고친 경험"}
+      {e.type === "CITATION" ? `원문 · ${citation?.sourceName ?? "연결된 발췌"}` : e.type === "SUPPLEMENT" ? `${supplement?.mcpChange ? mcpAnswerName(supplement.mcpChange.client) : "내가 입력"} · ${supplement?.question ?? "보완"}` : "내가 입력 · 직접 넣거나 고친 경험"}
     </summary>
     <div className="grid gap-2 pt-3">
       {supplement && <p className="m-0 text-note text-muted">질문 · {supplement.question}</p>}

@@ -172,6 +172,8 @@ export type Supplement = {
   question: string;
   answer: string;
   questionId: number | null;
+  /** 외부 AI 를 거쳐 들어와 아직 정하지 않은 답(S-56). 있는 동안은 「내가 입력」이 아니고 추천 · 초안 근거에서 빠진다 */
+  mcpChange?: { changeId: number; client: string } | null;
   createdAt: string;
   updatedAt: string;
 };

@@ -30,6 +30,11 @@ function questionInUrl(): number | null {
   const id = Number(new URLSearchParams(window.location.search).get("question"));
   return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
+/** 변경 기록의 「지원으로 가기」처럼 문항을 모르고 지원만 알 때 `?application=` — `?question=` 이 있으면 그쪽이 먼저 */
+function applicationInUrl(): number | null {
+  const id = Number(new URLSearchParams(window.location.search).get("application"));
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
 function keepInUrl(id: number) {
   const url = new URL(window.location.href);
   if (url.searchParams.get("question") === String(id)) return;
@@ -100,7 +105,8 @@ export function useApplications() {
       const wanted = questionInUrl();
       const [applications, first] = await Promise.all([fetchApplications(), wanted ? fetchQuestion(wanted).catch(() => null) : null]);
       if (version !== generation.current) return;
-      const application = ownerOf(applications, wanted) ?? applications[0] ?? null;
+      const wantedApplication = applicationInUrl();
+      const application = ownerOf(applications, wanted) ?? applications.find(a => a.id === wantedApplication) ?? applications[0] ?? null;
       if (wanted && !first && !ownerOf(applications, wanted)) throw new ApiError("QUESTION_NOT_FOUND", "알림의 문항을 불러오지 못했어요. 다시 불러와 주세요.");
       const questionId = application ? (application.questions.find(q => q.id === wanted) ?? application.questions[0]).id : null;
       if (questionId !== null) keepInUrl(questionId);

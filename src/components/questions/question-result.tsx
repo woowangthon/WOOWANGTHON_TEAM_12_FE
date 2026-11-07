@@ -2,7 +2,7 @@ import Link from "next/link";
 import { CaretRightIcon, CheckIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { ExperienceMeta } from "@/components/experience/experience-item";
 import { CitationList } from "@/components/experience/citation-list";
-import { UserEnteredLabel } from "@/components/experience/supplement-list";
+import { McpAnswerLabel, UserEnteredLabel } from "@/components/experience/supplement-list";
 import type { QuestionDetail, Recommendation } from "@/lib/api/question-types";
 import type { OverlapUse } from "./overlap";
 import { useActivityCategory } from "./activity-categories";
@@ -27,7 +27,8 @@ export function RecommendationEvidence({ recommendation }: { recommendation: Pic
     }
     const supplement = experience.supplements.find(s => s.id === ref.id);
     return supplement ? <figure key={`${ref.type}-${ref.id}-${i}`} className="m-0 grid gap-2 rounded-sm border border-hairline bg-canvas p-3.5">
-      <figcaption><UserEnteredLabel>내가 입력한 보완</UserEnteredLabel></figcaption>
+      {/* BE 는 확인 전 답을 추천에서 빼지만, 오더라도 사용자 말처럼 보이지 않게 가른다 */}
+      <figcaption>{supplement.mcpChange ? <McpAnswerLabel client={supplement.mcpChange.client} /> : <UserEnteredLabel>내가 입력한 보완</UserEnteredLabel>}</figcaption>
       <p className="m-0 text-note text-muted">{supplement.question}</p>
       <blockquote className="m-0 whitespace-pre-wrap border-l-2 border-hairline pl-3 text-sm text-body">{supplement.answer}</blockquote>
     </figure> : <p key={i} className="m-0 text-sm text-muted">연결된 보완을 찾지 못했어요.</p>;
