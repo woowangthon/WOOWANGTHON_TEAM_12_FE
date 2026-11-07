@@ -41,6 +41,7 @@
   --category-ink: var(--muted); /* 분류색을 글자로 쓸 때 — 시안의 색은 흰 바탕에서 대비가 3:1 아래라 어둡게 */
   --home-dot: #e7e3da; /* 홈 바탕 점 무늬 — 시안 6 .home::before */
   --home-input-shadow: 0 8px 30px rgb(30 60 100 / 0.07);
+  --mode-shadow: 0 1px 4px rgb(0 0 0 / 0.08); /* 고른 모드 — 시안 6 .modes */
   --evidence: #1f6fb2;
   --positive: #1f7a58; /* 끝난 일 · 공부 분류의 글자 */
   --evidence-soft: #e3f3fe;
@@ -122,6 +123,7 @@
   --color-application-line: var(--application-line);
   --color-application-tint: var(--application-tint);
   --shadow-home-input: var(--home-input-shadow);
+  --shadow-mode: var(--mode-shadow);
   --color-evidence: var(--evidence);
   --color-evidence-soft: var(--evidence-soft);
   --color-review: var(--review);
@@ -208,6 +210,14 @@
 .sidebar-drawer {
   width: var(--sidebar-width);
 }
+/* 창이 스크롤해도 작업 면 왼쪽 위아래가 둥글게 — 사이드바 바탕을 모서리 틈까지 이어 칠한다(FE#226). */
+.sidebar-corners {
+  --corner: var(--radius-lg);
+  width: calc(var(--sidebar-width) + var(--corner));
+  mask:
+    radial-gradient(circle var(--corner) at 100% 100%, transparent calc(100% - 0.5px), #000 100%) top right / var(--corner) var(--corner) no-repeat,
+    radial-gradient(circle var(--corner) at 100% 0, transparent calc(100% - 0.5px), #000 100%) bottom right / var(--corner) var(--corner) no-repeat;
+}
 .sidebar-label { transition: opacity 0.15s; }
 .sidebar-drawer[data-collapsed="true"] .sidebar-label { opacity: 0; }
 /* 좁은 PC의 서랍도 안쪽 항목을 밀지 않고 오른쪽 가장자리만 드러낸다. */
@@ -223,7 +233,7 @@
 @media (min-width: 80rem) {
   /* 첫 표시에는 바로 배치하고 사용자가 접고 펼 때만 작업 면과 서랍을 함께 전환한다. */
   .app-shell[data-sidebar-animating="true"] { transition: padding-left var(--sidebar-slide); }
-  .app-shell[data-sidebar-animating="true"] .sidebar-drawer { transition: width var(--sidebar-slide); }
+  .app-shell[data-sidebar-animating="true"] :is(.sidebar-drawer, .sidebar-corners) { transition: width var(--sidebar-slide); }
   .app-shell[data-sidebar-collapsed="false"] { --sidebar-width: 15.5rem; }
 }
 

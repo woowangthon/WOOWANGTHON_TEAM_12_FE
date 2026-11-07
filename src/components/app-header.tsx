@@ -87,6 +87,7 @@ function DesktopSidebar(props: SidebarProps) {
   const trigger = useRef<HTMLButtonElement>(null);
   const toggleLabel = collapsed ? "사이드바 펼치기" : "사이드바 접기";
   return <>
+    <div aria-hidden="true" className="sidebar-corners pointer-events-none fixed inset-y-0 left-0 z-30 hidden overflow-clip bg-page lg:block"><SidebarBackground /></div>
     <aside data-collapsed={collapsed} className="sidebar-drawer fixed inset-y-0 left-0 z-30 hidden flex-col gap-3 overflow-clip px-3.5 pt-6.5 pb-4.5 lg:flex" aria-label="사이드바">
       <SidebarBackground />
       {/* 시안 6: 레일은 같은 로고 자리에서 펼침 아이콘으로 바뀐다. 높이를 고정해 메뉴가 밀리지 않게 한다. */}

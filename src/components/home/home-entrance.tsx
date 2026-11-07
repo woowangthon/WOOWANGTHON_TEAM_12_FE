@@ -153,9 +153,15 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
 
   return <>
     <section aria-label="홈 입력" className="mx-auto max-w-[760px]">
-    <div className="grid justify-items-center gap-2.5 text-center"><HomeMascot overview={overview} onRefresh={onRefresh} /></div>
+    <div className="grid justify-items-center gap-2.5 text-center"><HomeMascot overview={overview} onRefresh={onRefresh} mode={mode} /></div>
     <form aria-label="글 보내기" aria-busy={busy} onSubmit={e => { e.preventDefault(); void send(); }}>
-      <div className="mt-8 rounded-lg border border-hairline bg-canvas pt-4 pr-3.5 pb-3 pl-5.5 shadow-home-input focus-within:border-ink">
+      <div role="group" aria-label="입력 모드" className="mx-auto mt-5 flex w-fit gap-1 rounded-full bg-surface-soft p-1">
+        {([ ["out", "꺼내기"], ["in", "쌓기"] ] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={mode === value} disabled={busy || (!!file && value === "out")} onClick={() => { setMode(value); setChoosing(false); setError(null); }}
+          className={cn("inline-flex min-h-11 items-center gap-1.75 rounded-full px-4 text-sm leading-none whitespace-nowrap transition-colors disabled:opacity-50 lg:min-h-9", mode === value ? "bg-canvas font-bold text-ink shadow-mode" : "font-normal text-muted hover:text-ink")}>
+          <span aria-hidden="true" className={cn("size-1.75 rounded-full", value === "out" ? "bg-mark" : "bg-record-green", mode !== value && "opacity-55")} />{label}
+        </button>)}
+      </div>
+      <div className="mt-3 rounded-lg border border-hairline bg-canvas pt-4 pr-3.5 pb-3 pl-5.5 shadow-home-input focus-within:border-ink">
         {file && <span className="mb-2 inline-flex max-w-full items-center gap-2 rounded-full bg-surface-soft px-3 py-1 text-xs text-body"><span className="min-w-0 break-all">{file.name} · {file.text.length.toLocaleString("ko-KR")}자</span><button type="button" aria-label="첨부 파일 빼기" disabled={busy} className="flex size-11 shrink-0 items-center justify-center" onClick={() => { ++fileVersion.current; setFile(null); setError(null); }}><XIcon aria-hidden="true" /></button></span>}
         <textarea aria-label="홈에 넣을 글" aria-describedby={mode === "in" ? "entrance-note entrance-length" : "entrance-length"} aria-invalid={tooLong}
           id="home-text" rows={2} value={text} disabled={busy || !!file} onChange={e => { setText(e.target.value); setChoosing(false); setError(null); parse.clear(); }}
@@ -169,12 +175,9 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
           <Button type="submit" size="icon" className="size-11" aria-label="보내기" title={mode === "in" ? "자료 분석 시작" : "보내기"} disabled={busy || (!file && (!text.trim() || tooLong)) || ((mode === "in" || !!file) && sourceBusy)}><ArrowUpIcon aria-hidden="true" /></Button>
         </div>
       </div>
-      <div className="mt-3 flex justify-center gap-2" role="group" aria-label="입력 모드">
-        {([ ["out", "꺼내기"], ["in", "쌓기"] ] as const).map(([value, label]) => <Button key={value} type="button" variant={mode === value ? "secondary" : "ghost"} className="min-h-11" aria-pressed={mode === value} disabled={busy || (!!file && value === "out")} onClick={() => { setMode(value); setChoosing(false); setError(null); }}><span aria-hidden="true" className={cn("size-1.5 rounded-full", value === "out" ? "bg-mark" : "bg-record-green")} />{label}</Button>)}
-      </div>
     </form>
     <div role="group" aria-label="입력 예시" className="mt-3 flex flex-wrap justify-center gap-2">
-      {EXAMPLES[mode].map(([label, value], index) => <button key={label} type="button" disabled={busy || !!file} onClick={() => { setText(value); setError(null); setChoosing(false); document.getElementById("home-text")?.focus(); }} className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-hairline bg-canvas px-3 text-xs text-body hover:border-muted-soft disabled:opacity-50"><span aria-hidden="true" className={cn("size-1.5 shrink-0 rounded-full", ["bg-mark", "bg-record-green", "bg-record-pink"][index])} />{label}</button>)}
+      {EXAMPLES[mode].map(([label, value]) => <button key={label} type="button" disabled={busy || !!file} onClick={() => { setText(value); setError(null); setChoosing(false); document.getElementById("home-text")?.focus(); }} className="inline-flex min-h-11 items-center rounded-full border border-hairline bg-canvas px-3 text-xs text-body hover:border-muted-soft disabled:opacity-50">{label}</button>)}
     </div>
     {/* S-16 — 자료를 넣는 쌓기 모드에서, 분석을 시작하기 전에 보인다 */}
     {mode === "in" && <p id="entrance-note" className="mt-3 mb-0 flex items-center justify-center gap-1.5 text-center text-note leading-relaxed text-muted"><LockSimpleIcon className="size-[13px] shrink-0" aria-hidden="true" />넣은 자료는 분석을 위해 외부 AI 제공사(OpenAI)로 보내져요 · 학습엔 안 쓰여요</p>}
