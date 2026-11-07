@@ -4,8 +4,8 @@
   "pairs": [
     { "name": "배경 점 무늬", "design": ".home", "app": "main.home-background", "pseudo": "::before", "extra": ["backgroundImage", "backgroundSize", "maskImage", "opacity"] },
     { "name": "제목", "design": ".hero h1", "app": "main h1" },
-    { "name": "부제", "design": ".hero__sub", "app": "main h1 + div" },
-    { "name": "입력 상자", "design": ".ask-box", "app": "form[aria-label='글 보내기'] > div:first-child" },
+    { "name": "부제", "design": ".hero__sub", "app": "main div:has(+ h1)" },
+    { "name": "입력 상자", "design": ".ask-box", "app": "form[aria-label='글 보내기'] > div:has(> textarea)" },
     { "name": "입력칸", "design": ".ask-box textarea", "app": "#home-text" },
     { "name": "보내기", "design": ".ask-box__send", "app": "form[aria-label='글 보내기'] button[type=submit]" },
     { "name": "모드 버튼", "design": ".modes button", "app": "[aria-label='입력 모드'] button" },

@@ -11,7 +11,7 @@ import type { HomeOverview } from "./use-home-overview";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "@/components/sidebar-layout";
 
-export function HomeMascot({ overview, onRefresh }: { overview: HomeOverview; onRefresh: () => void }) {
+export function HomeMascot({ overview, onRefresh, mode }: { overview: HomeOverview; onRefresh: () => void; mode: "out" | "in" }) {
   const { desktop } = useSidebar();
   const total = overview.activities?.reduce((n, a) => n + a.experienceCount, 0);
   const review = overview.details?.flatMap(a => a.experiences.filter(e => e.sourceStatus === "NEEDS_REVIEW").map(e => ({ activityId: a.id, experience: e })));
@@ -45,12 +45,12 @@ export function HomeMascot({ overview, onRefresh }: { overview: HomeOverview; on
         {overview.detailError && <p className="mt-2 mb-0 text-note text-error">{overview.detailError} <Button variant="link" onClick={onRefresh}>다시 시도</Button></p>}
       </Popover.Content></Popover.Portal>
     </Popover.Root>
-    <h1 className="m-0 text-hero-sm leading-snug font-bold tracking-[-1px] lg:text-hero">어떤 경험을 꺼내볼까요?</h1>
     <div className="text-sm text-muted">
       {overview.activityError ? <span>{overview.activityError} <Button variant="link" onClick={onRefresh}>다시 시도</Button></span>
         : total === undefined ? "쌓인 경험을 불러오고 있어요…"
         : <>경험 {total}개가 쌓여 있어요{review && !overview.detailError && <> · <Link href={review.length ? `/experience?activity=${review[0].activityId}` : "/experience"} title="확인할 경험 보기" className="underline-offset-4 hover:underline">확인할 것 {review.length}</Link></>}</>}
     </div>
+    <h1 className="m-0 text-hero-sm leading-snug font-bold tracking-[-1px] lg:text-hero">어떤 경험을 {mode === "in" ? "쌓아볼까요" : "꺼내볼까요"}?</h1>
   </>;
 }
 
