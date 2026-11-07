@@ -4,7 +4,9 @@ import Link from "next/link";
 import type { DraftFrame } from "@/lib/draft-frames";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { MCP_ANSWER_NOTE, mcpAnswerName } from "@/components/experience/supplement-list";
 import { ApiError } from "@/lib/api/errors";
+import { mcpClientName } from "@/lib/api/mcp";
 import { MAX_ANSWER_LENGTH, type DraftOmission, type QuestionDetail } from "@/lib/api/question-types";
 import { bubble, type AnswerHandler } from "./clarifications";
 import { DraftComposer } from "./draft-composer";
@@ -56,12 +58,15 @@ function OmissionItem({ item, question, onAnswer, onRefresh, disabled }: {
   if (item.supplementId !== null) return <li className="grid min-w-0 gap-2.5">
     <div className={bubble}>{ask}</div>
     {supplement && <p className="m-0 max-w-[92%] justify-self-end rounded-[16px_4px_16px_16px] bg-primary px-3.5 py-3 text-sm leading-relaxed whitespace-pre-wrap text-on-primary">
-      <span className="mb-1 block text-xs">내가 입력</span>{supplement.answer}
+      <span className="mb-1 block text-xs">{supplement.mcpChange ? mcpAnswerName(supplement.mcpChange.client) : "내가 입력"}</span>{supplement.answer}
     </p>}
-    <div role="status" className={bubble}>
+    {supplement?.mcpChange ? <div role="status" className={bubble}>
+      <p className="m-0">{mcpClientName(supplement.mcpChange.client)}가 전한 답이에요. {MCP_ANSWER_NOTE}</p>
+      <p className="m-0 text-note text-muted">맞아요 · 되돌리기는 활동 세부에서 할 수 있어요.</p>
+    </div> : <div role="status" className={bubble}>
       <p className="m-0">내가 입력 · 경험에 보완으로 쌓았어요.</p>
       <p className="m-0 text-note text-muted">다른 문항에서도 이 답을 근거로 쓸 수 있어요. 답은 활동 세부에서 확인하고 고칠 수 있어요.</p>
-    </div>
+    </div>}
   </li>;
   if (skipped) return <li className="grid min-w-0 gap-1 px-1">
     <p className="m-0 break-words text-note leading-relaxed text-muted">건너뛴 질문 · {item.question}</p>

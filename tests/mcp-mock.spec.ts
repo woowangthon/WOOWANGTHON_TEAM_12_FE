@@ -14,7 +14,13 @@ test("mock is explicit, stores only metadata and never restores the preview addr
   await page.getByRole("switch", { name: "외부 AI 쓰기" }).click();
   await page.getByRole("button", { name: "쓰기 켜기", exact: true }).click();
   await expect(page.getByRole("switch", { name: "외부 AI 쓰기" })).toBeChecked();
+  // 변경 기록은 접혀 있다(5b3648a) — 펼쳐서 본다. 예시가 여럿이라 경험 고치기 건만 집는다
+  await page.locator("summary", { hasText: "변경 기록" }).click();
   await expect(page.getByText(/예시\) 백엔드 API 설계를 전부/)).toBeVisible();
-  await page.getByRole("button", { name: "맞아요", exact: true }).click();
-  await expect(page.getByText("맞아요 — 「내가 입력」으로 바뀌었어요.")).toBeVisible();
+  const update = page.getByRole("listitem").filter({ hasText: "예시) 백엔드 API 설계를 전부" });
+  await update.getByRole("button", { name: "맞아요", exact: true }).click();
+  await expect(update).toContainText("맞아요 — 「내가 입력」으로 바뀌었어요.");
+  // FE#118 — 지원 만들기 · 되묻기 답 예시도 보인다
+  await expect(page.getByRole("listitem").filter({ hasText: "지원을 만듦" })).toContainText("(예시) OO 백엔드 부트캠프");
+  await expect(page.getByRole("listitem").filter({ hasText: "되묻기 답을 전함" })).toContainText("(예시) 로그에 도착 시간을");
 });

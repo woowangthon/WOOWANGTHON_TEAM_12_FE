@@ -232,3 +232,111 @@ test("activity detail explains a change outside the recent log", async ({ page }
   await page.getByRole("button", { name: "Claude 가 고침" }).click();
   await expect(page.getByRole("link", { name: "연결 화면의 변경 기록" })).toBeVisible();
 });
+
+// FE#118 — 외부 AI 가 만든 지원 · 전한 답 (S-55 · S-56)
+const application = (id: number, extra: object = {}) => change({
+  id, type: "CREATE_APPLICATION", application: { id: 21, organization: "OO 백엔드 부트캠프", questionCount: 2, analyzingCount: 0 }, ...extra,
+});
+const answer = (id: number, extra: object = {}) => change({
+  id, type: "ANSWER_CLARIFICATION",
+  supplement: { id: 302, experienceId: 104, activityName: "바꿔요", question: "메시지가 제때 오는지 어떻게 확인했나요?", answer: "로그에 도착 시간을 남겨 확인했다" }, ...extra,
+});
+
+test("write notice says external AI can create applications and answer clarifications", async ({ page }) => {
+  await setup(page, []);
+  await page.getByRole("switch", { name: "외부 AI 쓰기" }).click();
+  await expect(page.getByRole("dialog")).toContainText("지원을 만들고 되묻기에 답할 수도 있어요");
+  await expect(page.getByRole("dialog")).toContainText("맞아요를 눌러야 근거로 쓰여요");
+});
+
+test("change log shows created applications and relayed answers with type-specific reasons; responsive captures", async ({ page }, info) => {
+  const state = await setup(page, [
+    application(1), answer(2),
+    application(3, { undoable: false, undoBlockedReason: "ANALYZING", application: { id: 22, organization: null, questionCount: 3, analyzingCount: 2 } }),
+    application(4, { undoable: false, undoBlockedReason: "CHANGED_AFTER" }),
+    answer(5, { undoable: false, undoBlockedReason: "CHANGED_AFTER" }),
+  ]);
+  const items = page.getByRole("listitem");
+  await expect(items.nth(0)).toContainText("Claude · 지원을 만듦");
+  await expect(items.nth(0)).toContainText("OO 백엔드 부트캠프 · 문항 2개");
+  await expect(items.nth(0)).toContainText("분석 완료");
+  await expect(items.nth(0).getByRole("link", { name: "지원으로 가기" })).toHaveAttribute("href", "/questions?application=21");
+  await expect(items.nth(0).getByRole("button", { name: "맞아요" })).toHaveCount(0);
+  await expect(items.nth(1)).toContainText("Claude · 되묻기 답을 전함");
+  await expect(items.nth(1)).toContainText("바꿔요");
+  await expect(items.nth(1)).toContainText("메시지가 제때 오는지 어떻게 확인했나요?");
+  await expect(items.nth(1)).toContainText("로그에 도착 시간을 남겨 확인했다");
+  await expect(items.nth(1)).toContainText("맞아요를 눌러야 추천 · 초안 근거로 쓰여요");
+  await expect(items.nth(2)).toContainText("지원처 미입력 · 문항 3개");
+  await expect(items.nth(2)).toContainText("문항 2개 분석 중");
+  await expect(items.nth(2)).toContainText("되돌려도 쓴 분석 횟수는 돌아오지 않아요");
+  await expect(items.nth(3)).toContainText("답 · 초안을 쓰거나 문항을 더해서 되돌릴 수 없어요");
+  await expect(items.nth(4)).toContainText("답을 고치거나 지워서 되돌릴 수 없어요");
+  await expect(items.nth(4).getByRole("button")).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: `artifacts/mcp-changes-118-${info.project.name}.png`, fullPage: true, style: "nextjs-portal { display: none !important; }" });
+  if (info.project.name === "mcp-desktop") {
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await page.screenshot({ path: "artifacts/mcp-changes-118-1024.png", fullPage: true, style: "nextjs-portal { display: none !important; }" });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+  }
+
+  await items.nth(0).getByRole("button", { name: "되돌리기" }).click();
+  await expect(page.getByRole("dialog")).toContainText("쓴 분석 횟수는 돌아오지 않아요");
+  await page.getByRole("dialog").getByRole("button", { name: "되돌리기" }).click();
+  await expect(items.nth(0)).toContainText("지원과 문항 · 추천을 지웠어요");
+  await expect(items.nth(0).getByRole("link", { name: "지원으로 가기" })).toHaveCount(0);
+
+  await items.nth(1).getByRole("button", { name: "맞아요" }).click();
+  await expect(items.nth(1)).toContainText("다음 추천 · 초안부터 근거로 쓰여요");
+  await expect(items.nth(1)).toContainText("맞아요를 누른 답은 되돌릴 수 없어요");
+  expect(state.calls).toEqual(["undo:1", "confirm:2"]);
+});
+
+async function openAnswer(page: Page, list: Record<string, unknown>[]) {
+  const relayed = { id: 302, question: "메시지가 제때 오는지 어떻게 확인했나요?", answer: "로그에 도착 시간을 남겨 확인했다", questionId: null, mcpChange: { changeId: 2, client: "claude-ai" }, createdAt: CREATED, updatedAt: CREATED };
+  const typed = { ...relayed, id: 301, question: "몇 명이 썼나요?", answer: "200명", mcpChange: null };
+  const detail = activity({ mcpChange: null, sourceStatus: "SOURCE_CONFIRMED", supplements: [typed, relayed] });
+  const state = await setup(page, list);
+  await page.unroute("**/api/activities");
+  await page.route("**/api/activities", r => r.fulfill({ json: { activities: [{ ...detail, experiences: undefined, experienceCount: 1 }] } }));
+  await page.route("**/api/activities/7", r => r.fulfill({ json: detail }));
+  await page.route("**/api/activities/7/**", r => r.fulfill({ json: {} }));
+  await page.goto("/experience?activity=7", { waitUntil: "domcontentloaded" });
+  const mine = page.getByRole("list", { name: "내가 입력한 보완", exact: true });
+  const viaMcp = page.getByRole("list", { name: "외부 AI 를 거친 답", exact: true });
+  await expect(viaMcp).toContainText("Claude 를 거친 답");
+  return { state, mine, viaMcp };
+}
+
+test("activity detail tells a relayed answer apart from 내가 입력 and confirms it", async ({ page }, info) => {
+  const { state, mine, viaMcp } = await openAnswer(page, [answer(2)]);
+  await expect(mine).toContainText("200명");
+  await expect(mine).not.toContainText("로그에 도착 시간");
+  await expect(viaMcp).toContainText("로그에 도착 시간을 남겨 확인했다");
+  await expect(viaMcp).not.toContainText("내가 입력 ·");
+  await expect(viaMcp).toContainText("맞아요를 눌러야 추천 · 초안 근거로 쓰여요");
+  await viaMcp.getByRole("button", { name: "맞아요 · 되돌리기" }).click();
+  await page.screenshot({ path: `artifacts/mcp-answer-${info.project.name}.png`, fullPage: true, style: "nextjs-portal { display: none !important; }" });
+  if (info.project.name === "mcp-desktop") {
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await page.screenshot({ path: "artifacts/mcp-answer-1024.png", fullPage: true, style: "nextjs-portal { display: none !important; }" });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+  }
+  await viaMcp.getByRole("button", { name: "맞아요", exact: true }).click();
+  await expect(page.getByText("「내가 입력」 답이 됐어요")).toBeVisible();
+  await expect(mine).toContainText("로그에 도착 시간을 남겨 확인했다");
+  await expect(viaMcp).toHaveCount(0);
+  expect(state.calls).toEqual(["confirm:2"]);
+});
+
+test("activity detail undoes a relayed answer and removes it", async ({ page }) => {
+  const { state, mine, viaMcp } = await openAnswer(page, [answer(2)]);
+  await viaMcp.getByRole("button", { name: "맞아요 · 되돌리기" }).click();
+  await viaMcp.getByRole("button", { name: "되돌리기", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "되돌리기" }).click();
+  await expect(page.getByText("그 되묻기에 다시 답할 수 있어요.", { exact: false }).last()).toBeVisible();
+  await expect(viaMcp).toHaveCount(0);
+  await expect(mine).not.toContainText("로그에 도착 시간");
+  expect(state.calls).toEqual(["undo:2"]);
+});

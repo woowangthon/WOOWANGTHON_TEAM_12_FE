@@ -2,7 +2,10 @@
 
 // 되묻기(S-22 · S-23) — 시안 6 apply.html 차곡이 패널의 묻기 말풍선(msg--ask). 답은 선택이고, 건너뛰면 아무것도 보내지 않는다
 import { useRef, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { MCP_ANSWER_NOTE, mcpAnswerName } from "@/components/experience/supplement-list";
+import { mcpClientName } from "@/lib/api/mcp";
 import { MAX_ANSWER_LENGTH, type Clarification, type QuestionExperience } from "@/lib/api/question-types";
 import { ActivityChip, shortName } from "./question-result";
 
@@ -28,9 +31,14 @@ export function ClarificationItem({ activityName, clarification: c, experience, 
     const supplement = experience.supplements.find(s => s.id === c.supplementId);
     return <li className="grid gap-2.5">
       <div className={card}>{ask}</div>
-      {supplement ? <p className="m-0 max-w-[92%] justify-self-end rounded-[16px_4px_16px_16px] bg-primary px-3.5 py-3 text-sm leading-relaxed whitespace-pre-wrap text-on-primary">{supplement.answer}</p>
-        : <p className="m-0 justify-self-end text-sm text-muted">답한 보완을 지금 불러오지 못했어요.</p>}
-      <p className={bubble}>「{shortName(activityName)}」 경험에 보완으로 쌓았어요. 다른 지원서에서도 이 답을 근거로 같이 써요.</p>
+      {supplement ? <p className="m-0 max-w-[92%] justify-self-end rounded-[16px_4px_16px_16px] bg-primary px-3.5 py-3 text-sm leading-relaxed whitespace-pre-wrap text-on-primary">
+        {supplement.mcpChange && <span className="mb-1 block text-xs">{mcpAnswerName(supplement.mcpChange.client)}</span>}{supplement.answer}
+      </p> : <p className="m-0 justify-self-end text-sm text-muted">답한 보완을 지금 불러오지 못했어요.</p>}
+      {/* 외부 AI 가 전한 답은 맞아요 전까지 근거가 아니다(S-56) — 정하는 곳은 활동 세부 · 변경 기록 */}
+      {supplement?.mcpChange ? <div className={bubble}>
+        <p className="m-0">{mcpClientName(supplement.mcpChange.client)}가 전한 답이에요. {MCP_ANSWER_NOTE}</p>
+        <Link href={`/experience?activity=${experience.activityId}`} className="inline-flex min-h-11 items-center text-note font-medium underline underline-offset-3">활동 세부에서 맞아요 · 되돌리기</Link>
+      </div> : <p className={bubble}>「{shortName(activityName)}」 경험에 보완으로 쌓았어요. 다른 지원서에서도 이 답을 근거로 같이 써요.</p>}
     </li>;
   }
 

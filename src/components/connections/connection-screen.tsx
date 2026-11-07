@@ -23,7 +23,7 @@ const CONFIRM = {
   disconnect: { title: "연결을 끊을까요?", body: "지금 주소는 즉시 사용할 수 없어요. 다시 연결하려면 새 주소를 만들어야 해요.", action: "연결 끊기" },
   write: {
     title: "외부 AI 쓰기를 켤까요?",
-    body: "외부 AI가 내 확인 없이 자료를 넣고 경험 본문을 고칠 수 있어요. 연결 주소를 가진 사람도 할 수 있어요. 바뀐 것은 이 화면의 변경 기록에서 보고 되돌릴 수 있어요.",
+    body: "외부 AI가 내 확인 없이 자료를 넣고 경험 본문을 고칠 수 있어요. 지원을 만들고 되묻기에 답할 수도 있어요 — 전한 답은 맞아요를 눌러야 근거로 쓰여요. 연결 주소를 가진 사람도 할 수 있어요. 바뀐 것은 이 화면의 변경 기록에서 보고 되돌릴 수 있어요.",
     action: "쓰기 켜기",
   },
 };
@@ -196,7 +196,7 @@ export function ConnectionScreen() {
         {connection?.connected && <div className="flex items-center justify-between gap-4 border-t border-hairline-soft pt-4">
           <div className="min-w-0">
             <p id="mcp-write" className="text-sm font-semibold">외부 AI 쓰기</p>
-            <p id="mcp-write-hint" className="mt-1 text-sm leading-relaxed text-muted">{connection.writeEnabled ? "외부 AI가 확인 없이 자료를 넣고 경험 본문을 고칠 수 있어요." : "꺼져 있어요. 외부 AI는 읽기만 해요."}</p>
+            <p id="mcp-write-hint" className="mt-1 text-sm leading-relaxed text-muted">{connection.writeEnabled ? "외부 AI가 확인 없이 자료를 넣고 경험 본문을 고칠 수 있어요. 지원을 만들고 되묻기에 답할 수도 있어요." : "꺼져 있어요. 외부 AI는 읽기만 해요."}</p>
           </div>
           <button type="button" role="switch" aria-checked={connection.writeEnabled} aria-labelledby="mcp-write" aria-describedby="mcp-write-hint" disabled={busy}
             onClick={() => { if (connection.writeEnabled) void setWrite(false); else setConfirm("write"); }}

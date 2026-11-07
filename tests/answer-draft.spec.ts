@@ -565,3 +565,22 @@ test("opinion labels stay separate from facts and text-only copy across reload a
     }
   }
 });
+
+// FE#118 — 외부 AI 가 전한 답(mcpChange)은 맞아요 전까지 근거가 아니다(S-56). 「내가 입력」으로 보이지 않고, 초안 자리에서 알린다
+test("an unconfirmed answer relayed by external AI is labelled apart and the draft composer says it is not used", async ({ page }) => {
+  const api = await setup(page);
+  api.supplements.get(101)![0].mcpChange = { changeId: 57, client: "claude-ai" };
+  await page.reload();
+  const controls = await openDraftComposer(page);
+  await expect(controls).toContainText("외부 AI 를 거친 답 1개는 아직 확인 전이라 초안 근거로 쓰이지 않아요");
+  const relayed = page.getByText("Claude가 전한 답이에요.", { exact: false });
+  await expect(relayed.first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "활동 세부에서 맞아요 · 되돌리기" }).first()).toHaveAttribute("href", /\/experience\?activity=/);
+  await expect(page.getByText("다른 지원서에서도 이 답을 근거로 같이 써요", { exact: false })).toHaveCount(0);
+  // 맞아요를 누른 뒤(mcpChange 없음)엔 원래대로 「내가 입력」 보완이다
+  api.supplements.get(101)![0].mcpChange = null;
+  await page.reload();
+  await openDraftComposer(page);
+  await expect(page.getByText("다른 지원서에서도 이 답을 근거로 같이 써요", { exact: false }).first()).toBeVisible();
+  await expect(page.getByText("Claude가 전한 답이에요.", { exact: false })).toHaveCount(0);
+});

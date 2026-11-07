@@ -33,15 +33,37 @@ const UNDO_WARNING: Record<McpChange["type"], string> = {
   ANSWER_CLARIFICATION: "이 보완을 지워요. 그 되묻기에 다시 답할 수 있어요.",
 };
 
+/** 「그 뒤 바뀜」은 종류마다 무엇이 바뀌었는지가 다르다(mcp-api.md 「CHANGED_AFTER」) */
+const CHANGED_AFTER: Record<McpChange["type"], string> = {
+  UPDATE_EXPERIENCE: "그 뒤 내용이 바뀌어서 되돌릴 수 없어요.",
+  ADD_SOURCE: "그 뒤 내용이 바뀌어서 되돌릴 수 없어요.",
+  CREATE_APPLICATION: "그 뒤 이 지원에 답 · 초안을 쓰거나 문항을 더해서 되돌릴 수 없어요. 내가 손댄 지원은 지우지 않아요.",
+  ANSWER_CLARIFICATION: "그 뒤 답을 고치거나 지워서 되돌릴 수 없어요. 웹에서 고친 답은 「내가 입력」이에요.",
+};
+
 function blockedText(change: McpChange) {
   switch (change.undoBlockedReason) {
-    case "CHANGED_AFTER": return "그 뒤 내용이 바뀌어서 되돌릴 수 없어요.";
-    case "ANALYZING": return "분석이 끝나면 되돌릴 수 있어요.";
+    case "CHANGED_AFTER": return CHANGED_AFTER[change.type];
+    case "ANALYZING": return change.type === "CREATE_APPLICATION"
+      ? "문항 분석이 끝나면 되돌릴 수 있어요. 되돌려도 쓴 분석 횟수는 돌아오지 않아요."
+      : "분석이 끝나면 되돌릴 수 있어요.";
     case "ANALYSIS_FAILED": return "분석에 실패해서 되돌릴 것이 없어요.";
-    case "DECIDED": return change.status === "CONFIRMED" ? "맞아요를 누른 변경은 되돌릴 수 없어요. 고치려면 경험에서 직접 고쳐 주세요." : null;
+    case "DECIDED": if (change.status !== "CONFIRMED") return null;
+      return change.type === "ANSWER_CLARIFICATION"
+        ? "맞아요를 누른 답은 되돌릴 수 없어요. 고치려면 활동 세부에서 답을 고쳐 주세요."
+        : "맞아요를 누른 변경은 되돌릴 수 없어요. 고치려면 경험에서 직접 고쳐 주세요.";
     default: return null;
   }
 }
+
+const CONFIRMED: Partial<Record<McpChange["type"], string>> = {
+  UPDATE_EXPERIENCE: "맞아요 — 「내가 입력」으로 바뀌었어요.",
+  ANSWER_CLARIFICATION: "맞아요 — 「내가 입력」 답이 됐어요. 다음 추천 · 초안부터 근거로 쓰여요.",
+};
+const UNDONE: Partial<Record<McpChange["type"], string>> = {
+  CREATE_APPLICATION: "되돌렸어요. 지원과 문항 · 추천을 지웠어요. 쓴 분석 횟수는 돌아오지 않아요.",
+  ANSWER_CLARIFICATION: "되돌렸어요. 그 되묻기에 다시 답할 수 있어요.",
+};
 
 function Text({ label, children }: { label: string; children: ReactNode }) {
   return <div>
@@ -69,8 +91,20 @@ function Body({ change, inActivity }: { change: McpChange; inActivity: boolean }
       <Text label="자료">{source.name}</Text>
       <p className="text-sm text-body"><AnalysisStatus source={source} /></p>
     </>}
-    {application && <Text label="지원">{application.organization || "지원처 미입력"} · 문항 {application.questionCount}개</Text>}
-    {supplement && <Text label={supplement.question}>{supplement.answer}</Text>}
+    {application && <>
+      <Text label="지원">{application.organization || "지원처 미입력"} · 문항 {application.questionCount}개</Text>
+      {change.status !== "UNDONE" && <p className="text-sm text-body">
+        {application.analyzingCount > 0 ? `문항 ${application.analyzingCount}개 분석 중` : "분석 완료"}
+      </p>}
+      {/* 되돌리면 지원이 지워져 갈 곳이 없다 */}
+      {change.status !== "UNDONE" && <Link href={`/questions?application=${application.id}`} className="inline-flex min-h-11 items-center text-sm font-medium underline underline-offset-3">지원으로 가기</Link>}
+    </>}
+    {supplement && <>
+      {!inActivity && <p className="text-sm font-medium text-ink">{supplement.activityName}</p>}
+      <Text label="질문">{supplement.question}</Text>
+      <Text label="전한 답">{supplement.answer}</Text>
+      {change.status === "APPLIED" && change.undoBlockedReason !== "CHANGED_AFTER" && <p className="text-note leading-relaxed text-muted">맞아요를 눌러야 추천 · 초안 근거로 쓰여요.</p>}
+    </>}
   </div>;
 }
 
@@ -105,14 +139,14 @@ export function McpChangeCard({ change, onChange, onStale, inActivity = false }:
   }
 
   const confirm = () => run(async () => {
-    onChange(await confirmMcpChange(change.id), "맞아요 — 「내가 입력」으로 바뀌었어요.");
+    onChange(await confirmMcpChange(change.id), CONFIRMED[change.type] ?? "맞아요를 저장했어요.");
   }, "맞아요를 저장하지 못했어요. 다시 시도해 주세요.");
 
   const undo = () => run(async () => {
     const { change: next, removedExperiences, keptExperiences } = await undoMcpChange(change.id);
     onChange(next, change.type === "ADD_SOURCE"
       ? `되돌렸어요. 경험 ${removedExperiences}개를 지웠고, 내가 손댄 경험 ${keptExperiences}개는 남겼어요. 원본은 남아 있어요.`
-      : "되돌렸어요.");
+      : UNDONE[change.type] ?? "되돌렸어요.");
   }, "되돌리지 못했어요. 다시 시도해 주세요.");
 
   const retry = () => run(async () => {

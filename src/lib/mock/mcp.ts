@@ -28,6 +28,10 @@ export async function mockSetWrite(writeEnabled: boolean): Promise<McpConnection
 // MOCK(mcp-changes): API 주소가 없을 때만 변경 기록을 예시로 보이고, 맞아요 · 되돌리기는 이 탭의 메모리만 바꾼다. 실제 경험은 바뀌지 않는다.
 const NONE = { reason: null, decidedAt: null, experience: null, source: null, application: null, supplement: null };
 let changes: McpChange[] = [
+  { ...NONE, id: 4, type: "ANSWER_CLARIFICATION", client: "claude-ai", status: "APPLIED", createdAt: "2026-11-05T10:30:00+09:00", undoable: true, undoBlockedReason: null,
+    supplement: { id: 1, experienceId: 1, activityName: "(예시 활동)", question: "(예시) 바꾼 뒤 메시지가 제때 오는지 어떻게 확인했나요?", answer: "(예시) 로그에 도착 시간을 남겨 지연이 1초 안인지 확인했다" } },
+  { ...NONE, id: 3, type: "CREATE_APPLICATION", client: "claude-ai", status: "APPLIED", createdAt: "2026-11-05T10:25:00+09:00", undoable: true, undoBlockedReason: null,
+    application: { id: 1, organization: "(예시) OO 백엔드 부트캠프", questionCount: 2, analyzingCount: 0 } },
   { ...NONE, id: 2, type: "UPDATE_EXPERIENCE", client: "claude-ai", reason: "(예시) 사용자가 대화에서 전부가 아니라 일부만 맡았다고 말함", status: "APPLIED", createdAt: "2026-11-05T10:20:00+09:00", undoable: true, undoBlockedReason: null,
     experience: { id: 1, activityId: 1, activityName: "(예시 활동)", beforeContent: "(예시) 백엔드 API 설계를 전부 맡았다", afterContent: "(예시) 백엔드 API 중 채팅 · 거래 API 를 설계했다", beforeSourceStatus: "SOURCE_CONFIRMED" } },
   { ...NONE, id: 1, type: "ADD_SOURCE", client: "claude-ai", status: "APPLIED", createdAt: "2026-11-05T10:15:00+09:00", undoable: true, undoBlockedReason: null,

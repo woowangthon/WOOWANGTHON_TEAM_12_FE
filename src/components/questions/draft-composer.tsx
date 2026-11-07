@@ -23,6 +23,9 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
   const ids = picks;
   const count = ids.filter(id => question.recommendations.some(r => r.experience.id === id)).length;
   const allowed = ids.length >= 1 && ids.length <= 3 && new Set(ids).size === ids.length && ids.every(id => question.recommendations.some(r => r.experience.id === id));
+  // 확인 전인 외부 AI 답은 BE 가 초안 근거에서 뺀다(S-56) — 고른 경험(안 골랐으면 추천 전체)에 있으면 미리 알린다
+  const scope = count ? question.recommendations.filter(r => ids.includes(r.experience.id)) : question.recommendations;
+  const pendingAnswers = scope.reduce((n, r) => n + r.experience.supplements.filter(s => s.mcpChange).length, 0);
   const generate = async () => {
     if (pending.current || savingAnswer || analyzing || !allowed) return;
     pending.current = true; setBusy(true); setError(null);
@@ -46,6 +49,9 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
     <h4 className="m-0 text-sm font-semibold">{draft ? "초안 다시 만들기" : "초안 만들기"}</h4>
     {draft?.status === "COMPLETED" && <p className="m-0 text-note leading-relaxed text-muted">다시 만들면 고른 경험과 최신 보완으로 다시 써요.</p>}
     <p className="m-0 text-sm text-body">{!question.recommendations.length ? "추천된 경험이 있으면 초안을 만들 수 있어요." : count ? `체크한 경험 ${count}개로 만들어요` : "참고 카드에서 경험을 1 ~ 3개 골라 주세요."}</p>
+    {pendingAnswers > 0 && <p className="m-0 text-note leading-relaxed text-muted">
+      외부 AI 를 거친 답 {pendingAnswers}개는 아직 확인 전이라 초안 근거로 쓰이지 않아요. 활동 세부에서 맞아요를 눌러야 근거로 쓰여요.
+    </p>}
     <FramePicker frame={frame} disabled={analyzing || savingAnswer} proposed={!draft && chosenFrame === null} onChange={setChosenFrame} />
     <div className="flex flex-wrap items-center gap-3">
       <Button className="min-h-11" onClick={() => void generate()} disabled={!allowed || analyzing || savingAnswer}>{analyzing ? "초안 만드는 중…" : draft ? "다시 만들기" : "초안 만들기"}</Button>
