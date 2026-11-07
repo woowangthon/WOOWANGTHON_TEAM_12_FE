@@ -165,6 +165,23 @@ test("day precision survives when year · month are unchanged; clearing the year
   await expect(page.getByLabel("시작 월")).toBeDisabled();
 });
 
+test("source name opens stored text, marks the cited lines, and shows failure with retry (S-74)", async ({ page }) => {
+  const state = await setup(page);
+  state.activity.experiences[0].citations = [{ id: 1, sourceId: 5, sourceName: "회고.md", quote: "둘째 줄", matched: true, location: { startLine: 2, endLine: 2 } }];
+  let down = true;
+  await page.route("**/api/sources/5", (route) => down
+    ? route.fulfill({ status: 503, json: { error: { code: "INTERNAL_ERROR", message: "잠시 뒤 다시 시도해 주세요" } } })
+    : route.fulfill({ json: { id: 5, name: "회고.md", text: "첫 줄\n둘째 줄\n셋째 줄", createdAt: "2026-11-07T10:00:00+09:00" } }));
+  await page.reload();
+  await page.getByRole("button", { name: /API test activity/ }).click();
+  await page.getByRole("button", { name: "회고.md", exact: true }).first().click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("alert")).toContainText("잠시 뒤 다시 시도해 주세요");
+  down = false;
+  await dialog.getByRole("button", { name: "다시 시도" }).press("Enter"); // 모바일 폭에선 개발 서버 표시가 버튼을 덮는다
+  await expect(dialog.getByLabel("원문")).toContainText("셋째 줄");
+});
+
 test("experience cancel, no-op, empty validation, changed fields, source status and citations", async ({ page }) => {
   const state = await setup(page);
   const edit = () => page.getByRole("button", { name: /^경험 수정:/ }).click();

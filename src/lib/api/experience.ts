@@ -12,7 +12,7 @@ import { mockSharedIds } from "../mock/share";
 import { ApiError } from "./errors";
 import { isMockMode, request } from "./http";
 import { activityNoteError } from "./editing";
-import type { ActivityCategory, ActivityDetail, ActivityLink, ActivitySummary, Job, SourceRequest, Experience, ExperienceSearch, ExperienceSearchResult, Supplement, UpdateActivityRequest, UpdateExperienceRequest, CreateExperienceRequest } from "./types";
+import type { ActivityCategory, ActivityDetail, ActivityLink, ActivitySummary, Job, SourceRequest, SourceText, Experience, ExperienceSearch, ExperienceSearchResult, Supplement, UpdateActivityRequest, UpdateExperienceRequest, CreateExperienceRequest } from "./types";
 import { ACTIVITY_CATEGORIES, COMPETENCIES, MAX_TEXT_LENGTH, type SourceSubmitted } from "./types";
 
 export { ApiError, isMockMode };
@@ -58,6 +58,12 @@ export async function fetchActivities(mock: MockMode = null): Promise<ActivitySu
       if (b.period.start == null) return -1;
       return a.period.start.localeCompare(b.period.start);
     });
+}
+
+/** GET /api/sources/{sourceId} — 내 자료의 저장된 글자(S-74). 목 데이터에는 원문이 없어 오류로 보인다 */
+export async function fetchSource(id: number): Promise<SourceText> {
+  if (isMockMode()) throw new ApiError("SOURCE_NOT_FOUND", "예시 자료에는 원문이 없어요.");
+  return request<SourceText>(`/sources/${id}`);
 }
 
 /** GET /api/activities/{activityId} */

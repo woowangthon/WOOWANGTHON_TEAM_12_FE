@@ -70,6 +70,31 @@ async function compose(page: Page, text: string) {
   await page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true }).click();
 }
 
+test("organization name edits in place: Enter saves, Esc cancels, failure keeps the text (S-73)", async ({ page }) => {
+  const api = await fake(page);
+  await page.goto("/questions");
+  const name = page.getByRole("button", { name: /^지원처 이름 고치기/ });
+  const input = page.getByLabel("지원처 이름", { exact: true });
+  await name.click();
+  await input.fill("취소할 이름");
+  await input.press("Escape");
+  await expect(name).not.toContainText("취소할 이름");
+  expect(api.calls.filter(c => c.call.startsWith("PATCH"))).toHaveLength(0);
+
+  await name.click();
+  await input.fill("  OO 부트캠프 백엔드 4기  ");
+  await input.press("Enter");
+  await expect(name).toContainText("OO 부트캠프 백엔드 4기");
+  expect(api.calls.filter(c => c.call.startsWith("PATCH")).map(c => c.body)).toEqual([{ organization: "OO 부트캠프 백엔드 4기" }]);
+
+  api.patchDown = true;
+  await name.click();
+  await input.fill("실패할 이름");
+  await input.press("Enter");
+  await expect(page.getByRole("alert").filter({ hasText: "글자를 고치거나" })).toContainText("잠시 뒤 다시 시도해 주세요");
+  await expect(input).toHaveValue("실패할 이름");
+});
+
 test("question 41/42 switch shows contract judgments, actors and supplemental evidence; selection lives in the URL", async ({ page }, info) => {
   const api = await fake(page);
   await page.goto("/questions");

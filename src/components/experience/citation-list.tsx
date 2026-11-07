@@ -2,6 +2,7 @@
 import { FileTextIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import type { Citation } from "@/lib/api/types";
 import { sectionLabel } from "@/lib/source-file/sections";
+import { SourceFileButton } from "./source-viewer";
 
 export function ReviewWarning({ children }: { children: string }) {
   return (
@@ -27,7 +28,8 @@ function lineText({ startLine, endLine, section }: NonNullable<Citation["locatio
   return startLine === endLine ? `${startLine}번째 줄` : `${startLine}–${endLine}번째 줄`;
 }
 
-export function CitationList({ citations }: { citations: Citation[] }) {
+/** readOnly(공개 프로필)면 자료 이름을 누를 수 없다(S-74) */
+export function CitationList({ citations, readOnly = false }: { citations: Citation[]; readOnly?: boolean }) {
   if (!citations.length) {
     return <ReviewWarning>원본에서 이 내용을 찾지 못했어요. 맞는지 확인해 주세요.</ReviewWarning>;
   }
@@ -36,7 +38,7 @@ export function CitationList({ citations }: { citations: Citation[] }) {
       {citations.map((c) => (
         <figure key={c.id} className="m-0 grid gap-1.5 rounded-sm bg-surface-soft px-3.5 py-3">
           <figcaption className="flex flex-wrap items-center gap-2">
-            <SourceFile name={c.sourceName} />
+            {readOnly ? <SourceFile name={c.sourceName} /> : <SourceFileButton sourceId={c.sourceId} name={c.sourceName} lines={c.location} />}
             {c.location && <span className="text-xs text-muted tabular-nums">{lineText(c.location)}</span>}
           </figcaption>
           <blockquote className="m-0 border-l-2 border-hairline pl-3 text-sm leading-relaxed text-body">

@@ -142,8 +142,9 @@ export type CreateApplicationRequest = {
   postingUrl?: string | null;
   questions: { text: string }[];
 };
-/** PATCH /api/applications/{id} — 보낸 필드만 바꾼다. 종류 · 직무는 null 이면 비우고, 상태 · 낸 달은 null 을 받지 않는다 */
+/** PATCH /api/applications/{id} — 보낸 필드만 바꾼다. 이름 · 종류 · 직무는 null 이면 비우고, 상태 · 낸 달은 null 을 받지 않는다 */
 export type UpdateApplicationRequest = {
+  organization?: string | null;
   organizationType?: OrganizationType | null; jobRole?: JobRole | null;
   applicationStatus?: ApplicationStatus; submittedMonth?: string;
 };

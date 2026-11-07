@@ -66,7 +66,7 @@ export async function submitApplication(req: CreateApplicationRequest): Promise<
   return request("/applications", req, "POST");
 }
 
-/** PATCH /api/applications/{id} — 지원처 종류 · 직무(S-42) · 상태(S-36) · 낸 달(S-37) 바꾸기. 추천은 다시 돌지 않는다 */
+/** PATCH /api/applications/{id} — 지원처 이름(S-73) · 종류 · 직무(S-42) · 상태(S-36) · 낸 달(S-37) 바꾸기. 추천은 다시 돌지 않는다 */
 export function updateApplication(id: number, req: UpdateApplicationRequest): Promise<Application> {
   return request(`/applications/${id}`, req, "PATCH");
 }
