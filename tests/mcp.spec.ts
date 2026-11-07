@@ -7,6 +7,14 @@ const CREATED = "2026-11-04T10:00:00+09:00";
 test.beforeEach(async ({ page }) => {
   // 외부 폰트 CDN 로딩과 관계없이 기능을 검증한다(시스템 대체 글꼴 사용).
   await page.route("https://cdn.jsdelivr.net/**", route => route.abort());
+  // 개발 서버의 Next.js 도구 배지가 모바일 아래 탭바의 「내 경험」 칸을 덮는다 — 배지만 누르는 판정에서 뺀다(운영엔 없다)
+  await page.addInitScript(() => {
+    document.addEventListener("DOMContentLoaded", () => {
+      const style = document.createElement("style");
+      style.textContent = "nextjs-portal, nextjs-portal * { pointer-events: none !important; }";
+      document.head.appendChild(style);
+    }, { once: true });
+  });
 });
 async function setup(page: Page, connected = false) {
   const state = { connected, lastUsedAt: null as string | null, fail: "", invalid: false, lostResponse: false, sequence: 0, bodies: [] as (string | null)[] };
