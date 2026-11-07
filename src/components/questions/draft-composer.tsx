@@ -46,10 +46,9 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
 
   return <section aria-label="초안 설정" className="grid min-w-0 gap-3 rounded-md border border-hairline bg-canvas p-3.5">
     <h4 className="m-0 text-sm font-semibold">{draft ? "초안 다시 만들기" : "초안 만들기"}</h4>
-    <p className="m-0 text-xs leading-relaxed text-muted">경험을 1 ~ 3개 골라 주세요. 만든 문장은 답변 초안에서 근거와 함께 확인할 수 있어요.</p>
     {draft?.status === "COMPLETED" && <p className="m-0 text-xs leading-relaxed text-muted">다시 만들면 고른 경험과 최신 보완으로 다시 써요.</p>}
     <fieldset disabled={analyzing || savingAnswer} className="m-0 grid min-w-0 gap-2 border-0 p-0">
-      <legend className="mb-2 text-sm font-semibold">초안에 쓸 경험 · {selected.filter(id => question.recommendations.some(r => r.experience.id === id)).length}개 선택</legend>
+      <legend className="mb-2 text-sm font-semibold">초안에 쓸 경험 1 ~ 3개 · {selected.filter(id => question.recommendations.some(r => r.experience.id === id)).length}개 선택</legend>
       {question.recommendations.map(r => <label key={r.experience.id} className="flex min-w-0 items-start gap-3 rounded-sm bg-surface-soft p-3 text-sm leading-relaxed">
         <input type="checkbox" className="mt-1 size-4 shrink-0 accent-primary" checked={selected.includes(r.experience.id)}
           disabled={!selected.includes(r.experience.id) && selected.length >= 3}
@@ -63,7 +62,6 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
       <Button className="min-h-11" onClick={() => void generate()} disabled={!allowed || analyzing || savingAnswer}>{analyzing ? "초안 만드는 중…" : draft ? "다시 만들기" : "초안 만들기"}</Button>
       <AnalysisCost running={analyzing} />
     </div>
-    {analyzing && <p className="m-0 text-sm text-muted">고른 경험으로 초안을 만드는 중이에요…</p>}
     {error && (error.code !== "DRAFT_IN_PROGRESS" || analyzing) && <div className="grid justify-items-start gap-2">
       <p role="alert" className="m-0 text-sm text-error">{error.text}</p>
       <Button variant="secondary" className="min-h-11" disabled={busy || savingAnswer} onClick={() => void refresh()}>초안 상태 확인</Button>

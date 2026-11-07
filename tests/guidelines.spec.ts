@@ -101,7 +101,7 @@ test('manual entry, save disabled at enabled limit, edit/toggle/delete failure k
   const manual = manualScreen(page);
   await manual.getByLabel('지침 한 줄').fill('결론을 먼저 쓴다'); await manual.getByLabel('출처', { exact: true }).fill('내 생각');
   await manual.getByRole('button', { name: '한 줄 저장', exact: true }).click();
-  await expect(page.getByRole('status')).toContainText('꺼진 채 저장');
+  await expect(page.getByRole('alert').filter({ hasText: '꺼진 채 저장' })).toBeVisible();
   const item = page.getByRole('listitem', { name: '작성 지침 911', exact: true });
   api.patchCode = 'TOO_MANY_ENABLED';
   await item.getByRole('switch').click();
@@ -137,7 +137,9 @@ test('load error retry, zero candidates invite manual entry and account menu ope
 
 const composer = (page: Page) => page.getByRole('region', { name: '초안 설정', exact: true });
 async function openComposer(page: Page) {
-  if (!(await composer(page).isVisible())) await draftScreen(page).getByRole('button', { name: /초안 부탁하기|초안 설정 열기/ }).click();
+  const ask = draftScreen(page).getByRole('button', { name: /초안 부탁하기|초안 설정 열기/ });
+  await expect(composer(page).or(ask).first()).toBeVisible();
+  if (!(await composer(page).isVisible())) await ask.click();
   await expect(composer(page)).toBeVisible();
   return composer(page);
 }
@@ -192,7 +194,8 @@ test('draft snapshot stays on left, panel owns generation controls and text copy
   await expect(screen.getByRole('button', { name: '다시 만들기', exact: true })).toHaveCount(0);
   const snapshot = screen.getByRole('complementary', { name: '초안에 쓴 틀과 지침', exact: true });
   await expect(snapshot).toContainText('PREP 기법(두괄식)');
-  await expect(snapshot.getByRole('link')).toHaveAttribute('href', 'https://fourweekmba.com/prep-method/');
+  await expect(snapshot).toContainText('결론 → 이유 → 사례 → 결론');
+  await expect(snapshot.getByRole('link')).toHaveCount(0);
   await expect(snapshot.getByRole('region', { name: '적용한 지침', exact: true })).toContainText('멘토 피드백');
   await expect(snapshot.getByRole('region', { name: '이번엔 반영 못 함', exact: true })).toContainText('반영 못 함 — 자료에 수치가 없어요');
   await shot(page, 'draft-guidelines');

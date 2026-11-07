@@ -11,6 +11,7 @@
   --page: #fcfcfc; /* 사이드바 쪽 바탕 — 가운데 흰 작업 면과 갈린다 */
   --canvas: #ffffff;
   --surface-soft: #f5f5f5;
+  --surface-faint: #fafafa; /* 시안 6 .tg — 추천 카드 */
   --surface-strong: #ededed;
   --ink: #000000;
   --body: #2b2b2b;
@@ -37,6 +38,7 @@
   /* 활동 분류(S-57) — 시안 6 CATS: 파랑 · 초록 · 분홍. 값은 [data-category] 가 정한다. 미분류는 어느 분류로도 읽히지 않게 회색 */
   --category: var(--muted-soft);
   --category-soft: var(--surface-strong);
+  --category-ink: var(--muted); /* 분류색을 글자로 쓸 때 — 시안의 색은 흰 바탕에서 대비가 3:1 아래라 어둡게 */
   --home-dot: #e7e3da; /* 홈 바탕 점 무늬 — 시안 6 .home::before */
   --home-input-shadow: 0 8px 30px rgb(30 60 100 / 0.07);
   --evidence: #1f6fb2;
@@ -78,6 +80,7 @@
   --color-page: var(--page);
   --color-canvas: var(--canvas);
   --color-surface-soft: var(--surface-soft);
+  --color-surface-faint: var(--surface-faint);
   --color-surface-strong: var(--surface-strong);
   --color-ink: var(--ink);
   --color-body: var(--body);
@@ -95,6 +98,7 @@
   --color-record-pink: var(--record-pink);
   --color-category: var(--category);
   --color-category-soft: var(--category-soft);
+  --color-category-ink: var(--category-ink);
   --color-attach: var(--attach);
   --color-attach-soft: var(--attach-soft);
   --color-application: var(--application);
@@ -135,9 +139,9 @@
   --radius-lg: 28px;
 }
 
-[data-category="PROJECT"] { --category: var(--mark); --category-soft: var(--mark-soft); }
-[data-category="STUDY"] { --category: var(--record-green); --category-soft: var(--attach-soft); }
-[data-category="CLUB"] { --category: var(--record-pink); --category-soft: var(--application-tint); }
+[data-category="PROJECT"] { --category: var(--mark); --category-soft: var(--mark-soft); --category-ink: var(--evidence); }
+[data-category="STUDY"] { --category: var(--record-green); --category-soft: var(--attach-soft); --category-ink: #1f7a58; }
+[data-category="CLUB"] { --category: var(--record-pink); --category-soft: var(--application-tint); --category-ink: #b83a7c; }
 
 /* 시안 6 — 22px 간격 점 무늬가 가운데에서 바깥으로 흐려진다. 마스크가 내용에 걸리지 않게 뒤에 깐 층에만 준다 */
 .home-background { position: relative; isolation: isolate; }

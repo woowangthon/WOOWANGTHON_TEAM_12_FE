@@ -9,9 +9,9 @@ import { DRAFT_EXAMPLE } from "./fixtures/draft-example";
 const draftScreen = (page: Page) => page.getByRole("region", { name: "답변 초안", exact: true });
 const draftFollowUp = (page: Page) => page.getByRole("region", { name: "차곡이의 초안", exact: true });
 async function openDraftFollowUp(page: Page) {
-  if (!(await draftFollowUp(page).isVisible())) {
-    await draftScreen(page).getByRole("button", { name: /초안 부탁하기|초안 설정 열기/ }).click();
-  }
+  const ask = draftScreen(page).getByRole("button", { name: /초안 부탁하기|초안 설정 열기/ });
+  await expect(draftFollowUp(page).or(ask).first()).toBeVisible();
+  if (!(await draftFollowUp(page).isVisible())) await ask.click();
   await expect(draftFollowUp(page)).toBeVisible();
   return draftFollowUp(page);
 }
@@ -39,7 +39,7 @@ async function setup(page: Page, edit?: (q: QuestionDetail) => void) {
     });
   });
   await page.goto("/questions?question=41");
-  await expect(draftScreen(page)).toBeVisible();
+  await expect(page.getByRole("tab", { name: /문항 1/ }).or(page.getByRole("textbox", { name: "내가 쓴 답", exact: true })).first()).toBeVisible();
   return api;
 }
 async function generate(page: Page) {
@@ -162,7 +162,7 @@ test("clipboard rejection is visible and can be retried", async ({ page }) => {
   await page.evaluate(() => { Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => { throw new Error("denied"); } } }); });
   await closeDraftPanel(page);
   await draftScreen(page).getByRole("button", { name: "텍스트로 복사", exact: true }).click();
-  await expect(draftScreen(page).getByRole("status").last()).toContainText("복사하지 못했어요");
+  await expect(draftScreen(page).getByRole("alert")).toContainText("복사하지 못했어요");
   await expect(draftScreen(page).getByRole("button", { name: "텍스트로 복사", exact: true })).toBeEnabled();
 });
 

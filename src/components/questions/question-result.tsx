@@ -5,14 +5,15 @@ import { CitationList } from "@/components/experience/citation-list";
 import { UserEnteredLabel } from "@/components/experience/supplement-list";
 import type { QuestionDetail, Recommendation } from "@/lib/api/question-types";
 import type { OverlapUse } from "./overlap";
+import { useActivityCategory } from "./activity-categories";
 import { AnswerDraft, type DraftActions } from "./answer-draft";
 
 /** 「바꿔요 — 캠퍼스 중고거래 앱」 → 「바꿔요」 (시안의 활동 칩) */
 export const shortName = (name: string) => name.split(" — ")[0];
 
-/** onTint — 파란 카드 위(흰 칩), 아니면 흰 바탕 위(파란 칩) */
+/** 활동 칩 — 분류색(S-57). onTint — 회색 카드 위(흰 칩), 아니면 흰 바탕 위(분류색 칩). 색은 칩에만 쓴다(시안 6 .act-chip) */
 export function ActivityChip({ name, onTint = false }: { name: string; onTint?: boolean }) {
-  return <span className={`inline-flex justify-self-start rounded-full px-2.5 py-px text-xs font-semibold whitespace-nowrap text-evidence ${onTint ? "bg-canvas/85" : "bg-mark-soft"}`}>{shortName(name)}</span>;
+  return <span data-category={useActivityCategory(name)} className={`inline-flex justify-self-start rounded-full px-2.5 py-px text-xs font-semibold whitespace-nowrap text-category-ink ${onTint ? "bg-canvas/85" : "bg-category-soft"}`}>{shortName(name)}</span>;
 }
 
 export function RecommendationEvidence({ recommendation }: { recommendation: Pick<Recommendation, "experience" | "evidence"> }) {
@@ -43,8 +44,8 @@ const boxTitle = "m-0 text-xs font-semibold text-muted";
 
 /** 「참고 — 꺼내 쓸 경험」(시안 6 apply.html 의 접기 카드). 펼치기 전엔 활동 칩 · 경험 · 이유 한 줄, 펼치면 강조점 · 근거 · 빠진 것.
  *  요구사항 판정 · 되묻기는 차곡이 패널에 있다. elsewhere — 같은 지원의 다른 문항에도 추천된 같은 경험(FE#38 · S-21) */
-export function QuestionResult({ question, elsewhere, onGenerate, onRefresh, onOpenOmissions, savingAnswer, requestingDraft }: { question: QuestionDetail; elsewhere?: (experienceId: number) => OverlapUse[] } & DraftActions) {
-  return <><AnswerDraft key={question.id} question={question} onGenerate={onGenerate} onRefresh={onRefresh} onOpenOmissions={onOpenOmissions} savingAnswer={savingAnswer} requestingDraft={requestingDraft} /><section aria-labelledby="refs-title">
+export function QuestionResult({ question, elsewhere, onGenerate, onRefresh, onOpenOmissions, savingAnswer, requestingDraft, composerOpen }: { question: QuestionDetail; elsewhere?: (experienceId: number) => OverlapUse[]; composerOpen: boolean } & DraftActions) {
+  return <><AnswerDraft key={question.id} question={question} onGenerate={onGenerate} onRefresh={onRefresh} onOpenOmissions={onOpenOmissions} savingAnswer={savingAnswer} requestingDraft={requestingDraft} composerOpen={composerOpen} /><section aria-labelledby="refs-title">
     <h3 id="refs-title" className="m-0 text-[17px] font-semibold">참고 — 꺼내 쓸 경험</h3>
     {question.recommendations.length === 0 ? <div className="mt-4 grid gap-2 rounded-sm bg-surface-soft p-5">
       <p className="m-0 font-medium">현재 자료에서 연결된 경험을 찾지 못했어요.</p>
@@ -52,7 +53,7 @@ export function QuestionResult({ question, elsewhere, onGenerate, onRefresh, onO
     </div> : <ol className="m-0 mt-4 grid list-none gap-2.5 p-0">{question.recommendations.map((r, i) => { const answered = answeredFor(question, r.experience.id); return <li key={r.experience.id} id={`recommendation-${question.id}-${r.experience.id}`}
       className="scroll-mt-5 lg:scroll-mt-20" aria-label={`추천 경험 ${i + 1}`}>
       {/* 첫 추천은 기존처럼 펼쳐 근거를 바로 확인할 수 있게 둔다. */}
-      <details open={i === 0} className="group rounded-[18px] bg-mark-soft">
+      <details open={i === 0} className="group rounded-[18px] border border-hairline bg-surface-faint">
         <summary className="grid cursor-pointer list-none grid-cols-[auto_minmax(0,1fr)] items-start gap-3 px-4 py-3.5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-4.5 [&::-webkit-details-marker]:hidden">
           <CaretRightIcon aria-hidden="true" className="mt-1 size-4 text-muted transition-transform group-open:rotate-90" />
           <span className="grid gap-1">

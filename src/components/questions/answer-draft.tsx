@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { WarningCircleIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { Toast, useToast } from "@/components/ui/toast";
 import type { DraftFrame } from "@/lib/draft-frames";
 import { DraftGuidance } from "./draft-guidance";
 import type { QuestionDetail } from "@/lib/api/question-types";
@@ -11,24 +12,28 @@ import { failureReason } from "./draft-errors";
 
 export type DraftActions = { onGenerate: (experienceIds: number[], frame?: DraftFrame) => Promise<void>; onRefresh: () => Promise<void>; onOpenOmissions: () => void; savingAnswer: boolean; requestingDraft: boolean };
 
-export function AnswerDraft({ question, onOpenOmissions, requestingDraft }: { question: QuestionDetail } & DraftActions) {
+/** composerOpen — 차곡이 패널이 열려 초안 설정이 보인다. 초안이 없을 땐 여기에 같은 안내를 두지 않는다(시안 6 은 답칸과 패널뿐) */
+export function AnswerDraft({ question, onOpenOmissions, requestingDraft, composerOpen }: { question: QuestionDetail; composerOpen: boolean } & DraftActions) {
   const draft = question.draft ?? null;
-  const [copy, setCopy] = useState("");
+  const [copyError, setCopyError] = useState("");
+  const { toast, showToast } = useToast();
   const analyzing = requestingDraft || draft?.status === "ANALYZING";
   const copyText = async () => {
     if (!draft?.sentences.length) return;
+    setCopyError("");
     try {
       await navigator.clipboard.writeText(draft.sentences.map(s => s.text).join(" "));
-      setCopy("문장만 복사했어요. 자기 글로 고쳐 써 주세요.");
-    } catch { setCopy("복사하지 못했어요. 브라우저의 클립보드 권한을 확인하고 다시 눌러 주세요."); }
+      showToast("문장만 복사했어요. 자기 글로 고쳐 써 주세요.");
+    } catch { setCopyError("복사하지 못했어요. 브라우저의 클립보드 권한을 확인하고 다시 눌러 주세요."); }
   };
 
+  if (!draft && !analyzing && composerOpen) return null;
+
   return <section aria-labelledby={`draft-title-${question.id}`} className="mb-8 grid min-w-0 gap-4 rounded-[18px] border border-hairline bg-canvas p-4 sm:p-5">
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center justify-between gap-2">
       <h3 id={`draft-title-${question.id}`} className="m-0 text-[17px] font-semibold">답변 초안</h3>
+      {!composerOpen && <Button variant="secondary" className="min-h-11" onClick={onOpenOmissions}>{draft ? "초안 설정 열기" : "초안 부탁하기"}</Button>}
     </div>
-    <p className="m-0 text-sm leading-relaxed text-muted">차곡이에게 경험과 구성 틀을 골라 초안을 부탁해 보세요. 만든 문장은 여기서 근거와 함께 확인하고, 자기 글로 고쳐 쓸 수 있어요.</p>
-    <Button variant="secondary" className="min-h-11 justify-self-start" onClick={onOpenOmissions}>{draft ? "초안 설정 열기" : "초안 부탁하기"}</Button>
     {analyzing && <p role="status" className="m-0 text-sm text-muted">고른 경험으로 초안을 만드는 중이에요…</p>}
     {draft?.status === "FAILED" && !analyzing && <p role="alert" className="m-0 text-sm text-error">{failureReason(draft.error)} 차곡이에서 다시 만들 수 있어요.</p>}
     {draft?.status === "COMPLETED" && !analyzing && <>
@@ -50,7 +55,8 @@ export function AnswerDraft({ question, onOpenOmissions, requestingDraft }: { qu
         <Button variant="secondary" className="min-h-11 justify-self-start" onClick={onOpenOmissions}>차곡이에서 확인</Button>
       </div>}
       <Button variant="secondary" className="min-h-11 justify-self-start" disabled={!draft.sentences.length} onClick={() => void copyText()}>텍스트로 복사</Button>
-      {copy && <p role="status" className="m-0 text-sm text-muted">{copy}</p>}
+      {copyError && <p role="alert" className="m-0 text-sm text-error">{copyError}</p>}
     </>}
+    <Toast toast={toast} />
   </section>;
 }

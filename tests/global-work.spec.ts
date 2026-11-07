@@ -16,7 +16,10 @@ const dialog = (page: Page) => page.getByRole("dialog", { name: /^(알림|진행
 const requestsArrive = (page: Page) => page.waitForTimeout(300);
 
 async function setup(page: Page, snapshot: WorkSnapshot = { seenAt: null, inProgress: [], recent: [] }) {
-  await new FakeQuestionApi().install(page);
+  const api = new FakeQuestionApi();
+  // 초안 소식은 초안이 있을 때 온다 — 없으면 패널이 열린 왼쪽에 초안 칸이 없다(FE#210)
+  if (snapshot.recent.some(r => r.kind === "DRAFT")) api.edit(41, q => { q.draft = { questionId: 41, status: "COMPLETED", error: null, experienceIds: [101], sentences: [], omitted: [], createdAt: FINISHED, updatedAt: FINISHED }; });
+  await api.install(page);
   const state = { snapshot, reads: 0, posts: [] as string[], status: 200, seenStatus: 200, delay: null as null | Promise<void>, seenDelay: null as null | Promise<void>, current: 0, max: 0 };
   await page.route("**/api/work", async route => {
     state.reads++; state.current++; state.max = Math.max(state.max, state.current);

@@ -10,7 +10,7 @@ import { fetchGuidelines, guidelineError, type Guideline } from '@/lib/api/guide
 
 export function FrameDescription({ frame }: { frame: DraftFrame }) {
   const info = DRAFT_FRAMES[frame];
-  return <div className="grid min-w-0 gap-1 text-xs leading-relaxed text-muted"><p className="m-0">{info.steps}</p>{info.source && <a href={info.source} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center justify-self-start break-words text-evidence underline underline-offset-3">출처 · {info.sourceName}</a>}</div>;
+  return <p className="m-0 min-w-0 text-xs leading-relaxed text-muted">{info.steps}</p>;
 }
 
 const FRAME_OPTIONS = (Object.keys(DRAFT_FRAMES) as DraftFrame[]).map(value => ({ value, label: DRAFT_FRAMES[value].name }));

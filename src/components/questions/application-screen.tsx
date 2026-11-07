@@ -25,6 +25,7 @@ import { SimilarAnswers } from "./similar-answers";
 import { ChagokPanel, Mascot, type SupplementOrigin } from "./chagok-panel";
 import { useApplications } from "./use-applications";
 import { useChagokRun } from "./use-chagok-run";
+import { ActivityCategoriesProvider } from "./activity-categories";
 import { ApplicationStatusTag, ApplicationTypeFields, QuestionTypeField } from "./type-fields";
 
 const STATUS = { ANALYZING: "분석 중", COMPLETED: "완료", FAILED: "실패" } as const;
@@ -143,7 +144,7 @@ export function ApplicationScreen() {
   const activeId = composing ? null : open?.application.id ?? null;
   const list = { applications: matching.applications, activeId, onPick: pick, onSave: matching.updateApplication };
 
-  return <div className="flex min-h-dvh flex-col bg-canvas">
+  return <ActivityCategoriesProvider><div className="flex min-h-dvh flex-col bg-canvas">
     <AppHeader activePage="questions" onNewApplication={startNew}
       applicationList={{ applications: matching.applications, loading: matching.loading, error: matching.error, onRetry: () => { void matching.refresh(); }, rows: <ApplicationList {...list} sidebar /> }} />
     <div className="flex-1 xl:flex xl:items-start">
@@ -197,7 +198,6 @@ export function ApplicationScreen() {
                 </p>
               </div>
               <div className="col-start-2 row-start-1 flex gap-2">
-                <Button variant="secondary" aria-label="지원 넣기" onClick={startNew}><PlusIcon aria-hidden="true" /><span className="hidden sm:inline">지원 넣기</span></Button>
                 <Button variant="secondary" aria-expanded={panelOpen} aria-controls="chagok-panel" onClick={() => setPanelChoice(!panelOpen)}>
                   <Mascot size={20} />차곡이{unanswered > 0 && !panelOpen && <span className="rounded-full bg-primary px-1.5 text-xs leading-5 text-on-primary tabular-nums">질문 {unanswered}</span>}
                 </Button>
@@ -213,7 +213,7 @@ export function ApplicationScreen() {
               }} /> : <SelectedQuestion key={matching.questionId} summary={summary} question={selected} application={open.application} index={selectedIndex}
                 loadError={matching.detailError} onReload={matching.reloadQuestion}
                 overlaps={overlaps} onPickOverlap={id => { matching.selectQuestion(id); scrollToDetail(); }} onRetry={id => matching.retry(id)} onTypeChange={(id, type) => matching.updateQuestionType(id, type)} onAnswerChange={matching.keepAnswer} groundingChecks={groundingChecks}
-                {...draftActions} onOpenOmissions={openDraftQuestions} />}
+                {...draftActions} onOpenOmissions={openDraftQuestions} composerOpen={panelOpen} />}
             </div>
           </> : null}
         </section>
@@ -229,7 +229,7 @@ export function ApplicationScreen() {
         </SheetContent>
       </Sheet>)}
     </div>
-  </div>;
+  </div></ActivityCategoriesProvider>;
 }
 
 /** 지원 화면 첫 진입 — 고른 지원 머리 · 문항 탭 · 추천 카드 자리를 잡아 둔다(FE#60) */
@@ -322,9 +322,9 @@ function OverlapPanel({ overlaps, onPick }: { overlaps: Overlap[]; onPick: (ques
 }
 
 /** 고른 문항 — 받아 둔 내용이 있으면 바로, 처음 보는 문항이면 받는 동안 자리만(FE#60). 문항 글 · 상태는 지원 목록에 이미 있다 */
-function SelectedQuestion({ summary, question, application, index, loadError, onReload, overlaps, onPickOverlap, onRetry, onTypeChange, onAnswerChange, groundingChecks, onGenerate, onRefresh, onOpenOmissions, savingAnswer, requestingDraft }: {
+function SelectedQuestion({ summary, question, application, index, loadError, onReload, overlaps, onPickOverlap, onRetry, onTypeChange, onAnswerChange, groundingChecks, onGenerate, onRefresh, onOpenOmissions, savingAnswer, requestingDraft, composerOpen }: {
   summary: QuestionSummary | null; question: QuestionDetail | null; application: Application; index: number; loadError: string | null; onReload: (id: number) => void;
-  overlaps: Overlap[]; onPickOverlap: (questionId: number) => void; onRetry: (id: number) => Promise<unknown>; onTypeChange: (id: number, type: QuestionType) => Promise<void>; onAnswerChange: (id: number, answer: Answer | null) => void; groundingChecks: GroundingChecks;
+  overlaps: Overlap[]; onPickOverlap: (questionId: number) => void; onRetry: (id: number) => Promise<unknown>; onTypeChange: (id: number, type: QuestionType) => Promise<void>; onAnswerChange: (id: number, answer: Answer | null) => void; groundingChecks: GroundingChecks; composerOpen: boolean;
 } & DraftActions) {
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
@@ -357,7 +357,7 @@ function SelectedQuestion({ summary, question, application, index, loadError, on
           finally { retryPending.current = false; setRetrying(false); }
         }}><ArrowsClockwiseIcon aria-hidden="true" />{retrying ? "다시 시작하고 있어요…" : "다시 시도"}</Button>
         {retryError && <p role="alert" className="m-0 text-sm text-error">{retryError}</p>}
-      </CenterState> : <QuestionResult key={question.id} question={question} elsewhere={id => sameExperienceElsewhere(overlaps, question.id, id)} onGenerate={onGenerate} onRefresh={onRefresh} onOpenOmissions={onOpenOmissions} savingAnswer={savingAnswer} requestingDraft={requestingDraft} />}
+      </CenterState> : <QuestionResult key={question.id} question={question} elsewhere={id => sameExperienceElsewhere(overlaps, question.id, id)} onGenerate={onGenerate} onRefresh={onRefresh} onOpenOmissions={onOpenOmissions} savingAnswer={savingAnswer} requestingDraft={requestingDraft} composerOpen={composerOpen} />}
     {overlaps.length > 0 && <OverlapPanel overlaps={overlaps} onPick={onPickOverlap} />}
   </section>;
 }

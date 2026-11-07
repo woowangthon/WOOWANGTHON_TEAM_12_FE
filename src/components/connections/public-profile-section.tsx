@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Toast, useToast } from "@/components/ui/toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { ApiError } from "@/lib/api/errors";
 import { isMockMode } from "@/lib/api/http";
@@ -21,7 +22,7 @@ export function PublicProfileSection() {
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState("");
+  const { toast, showToast, clearToast } = useToast();
   const [confirm, setConfirm] = useState<Action | null>(null);
   const locked = useRef(false);
   const mock = isMockMode();
@@ -40,7 +41,7 @@ export function PublicProfileSection() {
     setBusy(true);
     setConfirm(null);
     setError(null);
-    setNotice("");
+    clearToast();
     try { await task(); } catch (e) { await failure(e); } finally { locked.current = false; setBusy(false); }
   }
 
@@ -48,10 +49,10 @@ export function PublicProfileSection() {
     if (action === "off") {
       await deletePublicProfileLink();
       setSettings((prev) => prev && { ...prev, linkEnabled: false, token: null });
-      setNotice("링크를 껐어요. 지금 주소는 막혔어요.");
+      showToast("링크를 껐어요. 지금 주소는 막혔어요.");
     } else {
       apply(await createPublicProfileLink());
-      setNotice(action === "renew" ? "새 주소를 만들었어요. 옛 주소는 막혔어요." : "링크를 켰어요.");
+      showToast(action === "renew" ? "새 주소를 만들었어요. 옛 주소는 막혔어요." : "링크를 켰어요.");
     }
   }, async (e) => {
     if (e instanceof ApiError && e.code === "NO_SHARED_EXPERIENCES") {
@@ -66,16 +67,16 @@ export function PublicProfileSection() {
 
   const saveTitle = () => run(async () => {
     apply(await updatePublicProfileTitle(title));
-    setNotice("제목을 저장했어요.");
+    showToast("제목을 저장했어요.");
   }, () => setError("제목을 저장하지 못했어요. 다시 시도해 주세요."));
 
   async function copy() {
     if (!settings?.token) return;
     try {
       await navigator.clipboard.writeText(publicProfileUrl(settings.token));
-      setNotice("공개 주소를 복사했어요.");
+      showToast("공개 주소를 복사했어요.");
     } catch {
-      setNotice("복사하지 못했어요. 표시된 주소를 직접 선택해서 복사해 주세요.");
+      setError("복사하지 못했어요. 표시된 주소를 직접 선택해서 복사해 주세요.");
     }
   }
 
@@ -123,7 +124,6 @@ export function PublicProfileSection() {
           <Button className="min-h-11 text-error" variant="ghost" disabled={busy} onClick={() => setConfirm("off")}>링크 끄기</Button>
         </div>
       </div> : <Button className="min-h-11" disabled={busy || blocked} onClick={() => setConfirm("on")}>링크 켜기</Button>}
-      <p role="status" aria-live="polite" className="text-sm text-body">{notice}</p>
     </div>}
 
     <Dialog open={confirm !== null} onOpenChange={(open) => { if (!open) setConfirm(null); }}>
@@ -136,5 +136,6 @@ export function PublicProfileSection() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    <Toast toast={toast} />
   </section>;
 }

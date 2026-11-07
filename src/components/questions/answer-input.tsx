@@ -43,7 +43,7 @@ function AnswerEditor({ questionId, confirmed: a, checks }: { questionId: number
     <div className="grid min-w-0 overflow-hidden rounded-[18px] border border-hairline bg-canvas has-[textarea:focus-visible]:outline-2 has-[textarea:focus-visible]:outline-offset-2 has-[textarea:focus-visible]:outline-ink">
     <textarea id={`answer-${questionId}`} rows={8}
       maxLength={MAX_GROUNDING_TEXT_LENGTH} value={g.text} disabled={g.loading || g.busy || analyzing || !g.initialized || locked}
-      placeholder="지원 문항에 맞춰 내 답을 적어 주세요."
+      placeholder="여기에 답을 쓰거나, 차곡이에게 초안을 부탁해 보세요."
       onChange={e => g.setText(e.target.value)}
       className="block w-full min-w-0 resize-y border-0 bg-transparent p-5 text-[15px] leading-relaxed outline-none focus-visible:outline-none disabled:bg-surface-soft" />
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-hairline-soft px-3.5 py-2.5">

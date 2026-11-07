@@ -4,7 +4,8 @@ import { useEffect, useRef, useState, type ComponentType, type KeyboardEvent, ty
 import { ArrowRightIcon, ArrowsClockwiseIcon, ArrowUpIcon, FileTextIcon, HouseIcon, MagnifyingGlassIcon, PencilSimpleIcon, PlusIcon, StackIcon } from "@phosphor-icons/react";
 import { CitationList } from "@/components/experience/citation-list";
 import { ExperienceFilterBar, isFiltered, type ExperienceFilters } from "@/components/experience/experience-filters";
-import { ExperienceMeta } from "@/components/experience/experience-item";
+import { categoryOf } from "@/components/experience/activity-category";
+import { ExperienceProperties, SourceStatusMark } from "@/components/experience/experience-item";
 import { useExperienceSearch } from "@/components/experience/use-experience-search";
 import { AnalysisCost } from "@/components/auth/analysis-cost";
 import { AskAnswer, AskFailureNotice } from "@/components/home/ask-answer";
@@ -199,20 +200,23 @@ function Option({ index, active, disabled, onPick, onHover, children }: { index:
   </li>;
 }
 
-/** S-58 결과 한 줄과 같은 내용 — 줄 안의 「근거」 펼침은 오른쪽 미리 보기가 대신한다 */
+/** 시안 6 — 줄은 분류 점 · 본문 · 활동 이름만, 나머지는 오른쪽 미리 보기(S-61). 「확인 필요」는 사실로 읽히면 안 되니 줄에도 둔다 */
 function ResultLine({ experience: e }: { experience: ExperienceResult }) {
-  return <span className="grid min-w-0 gap-0.5">
-    <span className="line-clamp-2 text-sm leading-normal text-ink">{e.content}</span>
-    <span className="min-w-0 truncate text-[11px] text-muted">{e.activity.name} <span className="text-hairline">·</span> <span className="tabular-nums">{periodText(e.activity.period)}</span></span>
-    <span className="flex flex-wrap items-center gap-1 text-[11px] font-medium text-muted"><ExperienceMeta experience={e} aiLabel="AI 해석" /></span>
+  return <span data-category={categoryOf(e.activity) ?? undefined} className="flex min-w-0 items-start gap-2.5">
+    <i aria-hidden="true" className="mt-1.5 size-2 shrink-0 rounded-[3px] bg-category" />
+    <span className="grid min-w-0 flex-1 gap-0.5">
+      <span className="line-clamp-2 text-sm leading-normal text-ink">{e.content}</span>
+      <span className="min-w-0 truncate text-[11px] text-muted">{e.activity.name}</span>
+    </span>
+    {e.sourceStatus === "NEEDS_REVIEW" && <span className="shrink-0"><SourceStatusMark status={e.sourceStatus} /></span>}
   </span>;
 }
 
 function Preview({ experience: e }: { experience: ExperienceResult }) {
   return <>
-    <span className="inline-flex max-w-full rounded-full bg-surface-soft px-2.5 py-0.5 text-xs font-semibold break-words text-body">{e.activity.name}</span>
+    <span data-category={categoryOf(e.activity) ?? undefined} className="inline-flex max-w-full rounded-full bg-category-soft px-2.5 py-0.5 text-xs font-semibold break-words text-category-ink">{e.activity.name}</span>
     <h4 className="m-0 text-[17px] leading-snug font-bold whitespace-pre-wrap text-ink">{e.content}</h4>
-    <span className="flex flex-wrap items-center gap-1.5 text-[13px] font-medium text-muted"><ExperienceMeta experience={e} aiLabel="AI 해석" /></span>
+    <ExperienceProperties experience={e} period={periodText(e.activity.period)} />
     <div className="mt-1 w-full">{e.citations.length ? <CitationList citations={e.citations} /> : <p className="m-0 text-[13px] text-muted-soft">근거 없음</p>}</div>
   </>;
 }
