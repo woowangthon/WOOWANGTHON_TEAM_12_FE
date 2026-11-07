@@ -173,12 +173,12 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
         {([ ["out", "꺼내기"], ["in", "쌓기"] ] as const).map(([value, label]) => <Button key={value} type="button" variant={mode === value ? "secondary" : "ghost"} className="min-h-11" aria-pressed={mode === value} disabled={busy || (!!file && value === "out")} onClick={() => { setMode(value); setChoosing(false); setError(null); }}><span aria-hidden="true" className={cn("size-1.5 rounded-full", value === "out" ? "bg-mark" : "bg-record-green")} />{label}</Button>)}
       </div>
     </form>
-    {/* S-16 — 자료를 넣는 쌓기 모드에서, 분석을 시작하기 전에 보인다 */}
-    {mode === "in" && <p id="entrance-note" className="mt-2 mb-0 flex items-center justify-center gap-1.5 text-center text-xs leading-relaxed text-muted"><LockSimpleIcon className="size-[13px] shrink-0" aria-hidden="true" />넣은 자료는 분석을 위해 외부 AI 제공사(OpenAI)로 보내져요 · 학습엔 안 쓰여요</p>}
-    <LowAnalysisNotice running={busy} className="mt-2 text-center" />
     <div role="group" aria-label="입력 예시" className="mt-3 flex flex-wrap justify-center gap-2">
       {EXAMPLES[mode].map(([label, value], index) => <button key={label} type="button" disabled={busy || !!file} onClick={() => { setText(value); setError(null); setChoosing(false); document.getElementById("home-text")?.focus(); }} className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-hairline bg-canvas px-3 text-xs text-body hover:border-muted-soft disabled:opacity-50"><span aria-hidden="true" className={cn("size-1.5 shrink-0 rounded-full", ["bg-mark", "bg-record-green", "bg-record-pink"][index])} />{label}</button>)}
     </div>
+    {/* S-16 — 자료를 넣는 쌓기 모드에서, 분석을 시작하기 전에 보인다 */}
+    {mode === "in" && <p id="entrance-note" className="mt-3 mb-0 flex items-center justify-center gap-1.5 text-center text-xs leading-relaxed text-muted"><LockSimpleIcon className="size-[13px] shrink-0" aria-hidden="true" />넣은 자료는 분석을 위해 외부 AI 제공사(OpenAI)로 보내져요 · 학습엔 안 쓰여요</p>}
+    <LowAnalysisNotice running={busy} className="mt-2 text-center" />
     {readingFile && <p role="status" className="mt-4 text-center text-sm text-muted">파일을 읽고 있어요…</p>}
     {fileError && <p role="alert" className="mt-4 text-sm text-error">{fileError}</p>}
     {readingFile && <p role="status" className="mt-3 text-sm text-muted">파일에서 글자를 읽는 중…</p>}
