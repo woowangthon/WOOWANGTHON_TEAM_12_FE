@@ -63,7 +63,7 @@ function NewActivities({ ids, activities, onOpen }: { ids: number[]; activities?
 
 function SourceName({ name }: { name: string }) {
   return (
-    <span className="inline-flex items-center gap-1 text-[13px] font-medium text-evidence">
+    <span className="inline-flex items-center gap-1 text-note font-medium text-evidence">
       <FileTextIcon className="size-[1.15em]" aria-hidden="true" />
       {name}
     </span>
@@ -114,13 +114,13 @@ export function AnalysisCenter({ view, tracked, ...a }: { view: Exclude<Analysis
       <CenterState icon={<MagnifyingGlassIcon />} title="자료에서 활동과 경험을 찾고 있어요">
         <SourceName name={tracked.name} />
         <Progress className="w-[200px]" />
-        <ul className="m-0 grid list-none gap-1 p-0 text-sm text-muted-soft">
-          <li className="inline-flex items-center justify-center gap-1 text-muted">
+        <ul className="m-0 grid list-none gap-1 p-0 text-sm text-muted">
+          <li className="inline-flex items-center justify-center gap-1">
             자료 저장 <CheckIcon className="size-[1.1em]" aria-hidden="true" />
           </li>
           <li className="font-semibold text-ink">활동 · 경험 찾는 중</li>
         </ul>
-        <p className="m-0 text-[15px] text-body">창을 닫거나 새로고침해도 분석은 이어져요.</p>
+        <p className="m-0 text-ui text-body">창을 닫거나 새로고침해도 분석은 이어져요.</p>
       </CenterState>
     );
   }
@@ -129,7 +129,7 @@ export function AnalysisCenter({ view, tracked, ...a }: { view: Exclude<Analysis
       <CenterState icon={<WarningCircleIcon className="text-error" />} title="분석하지 못했어요">
         <SourceName name={tracked.name} />
         <p className="m-0 text-sm font-medium text-error">{failReason(tracked.job?.error)}</p>
-        <p className="m-0 text-[15px] text-body">넣은 자료는 저장돼 있어요. 다시 시도하면 같은 자료로 다시 분석해요.</p>
+        <p className="m-0 text-ui text-body">넣은 자료는 저장돼 있어요. 다시 시도하면 같은 자료로 다시 분석해요.</p>
         {retry.error && <p role="alert" className="m-0 text-sm text-error">{retry.error}</p>}
         <div className="flex flex-wrap justify-center gap-2">
           <Button onClick={retry.run} disabled={retry.busy}>
@@ -272,7 +272,7 @@ export function AnalysisBatch({ jobs, activities, onRetry, onRecheck, onDismiss,
           </Button>
         )}
       </div>
-      {running && <p className="m-0 text-[13px] text-muted">앞 자료가 끝나면 다음 자료를 찾아요. 창을 닫아도 이어져요.</p>}
+      {running && <p className="m-0 text-note text-muted">앞 자료가 끝나면 다음 자료를 찾아요. 창을 닫아도 이어져요.</p>}
       <ol className="m-0 grid list-none gap-2.5 py-1 pl-0">
         {jobs.map((tracked) => (
           <BatchRow key={tracked.jobId} tracked={tracked} activities={activities} onRetry={() => onRetry(tracked.jobId)} onRecheck={() => onRecheck(tracked.jobId)} onOpenActivity={onOpenActivity} />
@@ -323,7 +323,7 @@ function BatchRow({ tracked, activities, onRetry, onRecheck, onOpenActivity }: {
   if (tracked.checkFailed) {
     return row(
       "failed",
-      <span className="text-xs text-error">상태를 확인하지 못했어요. {tracked.checkError}</span>,
+      <span className="text-note text-error">상태를 확인하지 못했어요. {tracked.checkError}</span>,
       <Button variant="secondary" size="sm" onClick={onRecheck}><ArrowsClockwiseIcon />다시 확인</Button>,
     );
   }
@@ -333,8 +333,8 @@ function BatchRow({ tracked, activities, onRetry, onRecheck, onOpenActivity }: {
     return row(
       "failed",
       <>
-        <span className="text-xs text-error">실패 — {failReason(job.error)} 자료는 저장돼 있어요.</span>
-        {retry.error && <span role="alert" className="text-xs text-error">{retry.error}</span>}
+        <span className="text-note text-error">실패 — {failReason(job.error)} 자료는 저장돼 있어요.</span>
+        {retry.error && <span role="alert" className="text-note text-error">{retry.error}</span>}
       </>,
       <>
         <Button variant="secondary" size="sm" onClick={retry.run} disabled={retry.busy}><ArrowsClockwiseIcon />다시 시도</Button>
@@ -345,7 +345,7 @@ function BatchRow({ tracked, activities, onRetry, onRecheck, onOpenActivity }: {
   return row(
     "done",
     <>
-      <span className="text-xs text-muted">
+      <span className="text-note text-muted">
         {ids.length ? `완료 — 활동 ${ids.length}개` : "완료 — 활동을 찾지 못했어요. 자료에 없다고 경험이 없는 건 아니에요."}
         {suggested > 0 && ` · 기존 활동과 같아 보이는 활동 ${suggested}개`}
       </span>

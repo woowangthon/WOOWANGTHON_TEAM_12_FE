@@ -35,7 +35,7 @@ export function ClarificationItem({ activityName, clarification: c, experience, 
   }
 
   if (skipped) return <li className="flex flex-wrap items-center justify-between gap-2 px-1">
-    <span className="line-clamp-1 min-w-0 flex-1 text-[13px] text-muted">건너뛴 질문 · {c.question}</span>
+    <span className="line-clamp-1 min-w-0 flex-1 text-note text-muted">건너뛴 질문 · {c.question}</span>
     <Button variant="link" size="sm" className="min-h-11" onClick={() => setSkipped(false)}>다시 보기</Button>
   </li>;
 

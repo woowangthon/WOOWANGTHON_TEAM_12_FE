@@ -112,13 +112,13 @@ export function QuickFindPanel({ addSourceBusy, onGo }: { addSourceBusy: boolean
       <input ref={input} type="text" value={word} onChange={e => type(e.target.value)} onKeyDown={onKeyDown} placeholder={PLACEHOLDER[tab]} aria-label="빠른 찾기 입력"
         autoComplete="off" role={hasList ? "combobox" : undefined} aria-expanded={hasList ? count > 0 : undefined} aria-controls={hasList ? LIST_ID : undefined}
         aria-autocomplete={hasList ? "list" : undefined} aria-activedescendant={hasList && count ? optionId(current) : undefined}
-        className="min-h-11 min-w-0 flex-1 bg-transparent lg:h-5.5 lg:min-h-0 text-[17px] text-ellipsis text-ink outline-none placeholder:text-muted-soft" />
+        className="min-h-11 min-w-0 flex-1 bg-transparent lg:h-5.5 lg:min-h-0 text-title-md text-ellipsis text-ink outline-none placeholder:text-muted" />
       {tab === "ask" && <AnalysisCost className="shrink-0" />}
       {tab === "ask" && <Button type="button" size="icon" className="size-11 shrink-0 lg:size-8" aria-label="보내기" disabled={!query || asked.asking} onClick={send}><ArrowUpIcon aria-hidden="true" /></Button>}
     </div>
     <div role="group" aria-label="빠른 찾기 탭" className={cn("flex gap-1.5 px-3.5 lg:px-4.5", tab === "find" ? "pb-1.5" : "border-b border-hairline-soft pb-2.5")}>
       {TABS.map(t => <button key={t.value} type="button" aria-pressed={tab === t.value} onClick={() => moveTo(t.value)}
-        className={cn("inline-flex min-h-11 items-center gap-1.5 rounded-full px-3.5 text-[13px] lg:min-h-8", tab === t.value ? "bg-surface-soft font-bold text-ink" : "text-muted hover:bg-surface-soft")}>
+        className={cn("inline-flex min-h-11 items-center gap-1.5 rounded-full px-3.5 text-note lg:min-h-8", tab === t.value ? "bg-surface-soft font-bold text-ink" : "text-muted hover:bg-surface-soft")}>
         {t.value === "ask" && <Mascot size={16} />}{t.label}
       </button>)}
     </div>
@@ -140,7 +140,7 @@ export function QuickFindPanel({ addSourceBusy, onGo }: { addSourceBusy: boolean
         {shortcuts.map((s, i) => <Option key={s.kind} index={i} active={i === current} disabled={isDisabled(s)} onPick={pick} onHover={setActive}>
           <span className="flex items-center gap-3">
             <s.icon className="size-4.5 shrink-0" />
-            <span className="grid min-w-0 gap-0.5"><span className="text-sm font-medium text-ink">{s.label}</span><span className="text-xs text-muted">{isDisabled(s) ? BUSY : s.detail}</span></span>
+            <span className="grid min-w-0 gap-0.5"><span className="text-sm font-medium text-ink">{s.label}</span><span className="text-note text-muted">{isDisabled(s) ? BUSY : s.detail}</span></span>
           </span>
         </Option>)}
       </OptionList>
@@ -157,7 +157,7 @@ export function QuickFindPanel({ addSourceBusy, onGo }: { addSourceBusy: boolean
           {filtered && <Button type="button" variant="secondary" className="mt-1 min-h-11 justify-self-start" onClick={() => changeFilters({})}>거르기 지우기</Button>}
         </div>}
         {found.length > 0 && <>
-          <p role="status" className="m-0 px-2.5 pt-2 pb-1 text-[11px] font-semibold text-muted">{query || filtered ? `찾은 경험 ${state.status === "ready" ? state.total : found.length}개` : "쌓인 경험"}</p>
+          <p role="status" className="m-0 px-2.5 pt-2 pb-1 text-xs font-semibold text-muted">{query || filtered ? `찾은 경험 ${state.status === "ready" ? state.total : found.length}개` : "쌓인 경험"}</p>
           <OptionList label="찾은 경험">
             {found.map((e, i) => <Option key={e.id} index={i} active={i === current} onPick={pick} onHover={setActive}><ResultLine experience={e} /></Option>)}
             <Option index={found.length} active={current === found.length} onPick={pick} onHover={setActive}>
@@ -184,7 +184,7 @@ export function QuickFindPanel({ addSourceBusy, onGo }: { addSourceBusy: boolean
 }
 
 function Key({ name, children }: { name: string; children: ReactNode }) {
-  return <span><kbd className="mr-1 rounded-[6px] border border-hairline px-1.5 py-px font-sans text-[11px] text-ink">{name}</kbd>{children}</span>;
+  return <span><kbd className="mr-1 rounded-[6px] border border-hairline px-1.5 py-px font-sans text-xs text-ink">{name}</kbd>{children}</span>;
 }
 
 function OptionList({ label, children }: { label: string; children: ReactNode }) {
@@ -206,7 +206,7 @@ function ResultLine({ experience: e }: { experience: ExperienceResult }) {
     <i aria-hidden="true" className="mt-1.5 size-2 shrink-0 rounded-[3px] bg-category" />
     <span className="grid min-w-0 flex-1 gap-0.5">
       <span className="line-clamp-2 text-sm leading-normal text-ink">{e.content}</span>
-      <span className="min-w-0 truncate text-[11px] text-muted">{e.activity.name}</span>
+      <span className="min-w-0 truncate text-xs text-muted">{e.activity.name}</span>
     </span>
     {e.sourceStatus === "NEEDS_REVIEW" && <span className="shrink-0"><SourceStatusMark status={e.sourceStatus} /></span>}
   </span>;
@@ -215,8 +215,8 @@ function ResultLine({ experience: e }: { experience: ExperienceResult }) {
 function Preview({ experience: e }: { experience: ExperienceResult }) {
   return <>
     <span data-category={categoryOf(e.activity) ?? undefined} className="inline-flex max-w-full rounded-full bg-category-soft px-2.5 py-0.5 text-xs font-semibold break-words text-category-ink">{e.activity.name}</span>
-    <h4 className="m-0 text-[17px] leading-snug font-bold whitespace-pre-wrap text-ink">{e.content}</h4>
+    <h4 className="m-0 text-title-md leading-snug font-bold whitespace-pre-wrap text-ink">{e.content}</h4>
     <ExperienceProperties experience={e} period={periodText(e.activity.period)} />
-    <div className="mt-1 w-full">{e.citations.length ? <CitationList citations={e.citations} /> : <p className="m-0 text-[13px] text-muted-soft">근거 없음</p>}</div>
+    <div className="mt-1 w-full">{e.citations.length ? <CitationList citations={e.citations} /> : <p className="m-0 text-note text-muted">근거 없음</p>}</div>
   </>;
 }

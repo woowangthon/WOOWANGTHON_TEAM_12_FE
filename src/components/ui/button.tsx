@@ -1,6 +1,6 @@
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
-import { cn } from "cn"
+import { cn } from "@/lib/utils"
 import { Slot } from "radix-ui"
 
 // shadcn button — 시안 6(FE#43, 임시): 알약 모양 · 주(검정) · 보조(옅은 테두리) · 글자
@@ -18,7 +18,7 @@ const buttonVariants = cva(
       },
       size: {
         default: "h-10 px-4.5 text-sm",
-        sm: "h-9 px-3.5 text-[13px]",
+        sm: "h-9 px-3.5 text-note",
         icon: "size-9 rounded-full text-lg",
       },
     },

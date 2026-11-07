@@ -35,17 +35,17 @@ export function HomeMascot({ overview, onRefresh }: { overview: HomeOverview; on
                     return <i key={`${a.id}-${i}`} title={experience?.content ?? `${a.name}의 경험`} className={cn("block h-1.5 w-5 rounded-sm even:translate-x-0.5", ["bg-mark", "bg-record-green", "bg-record-pink"][index % 3], experience?.sourceStatus === "NEEDS_REVIEW" && "outline-1 outline-offset-1 outline-dashed outline-review-line")} />;
                   }))}
                 </span>
-                <small className="text-[10px] text-muted">{year}</small>
+                <small className="text-xs text-muted">{year}</small>
               </span>)}
             </span>
             <span className="shrink-0 self-center text-right text-xs leading-relaxed text-muted"><b className="text-2xl text-ink">{total}</b>개의 경험이<br />차곡차곡</span>
           </Link>}
-        {total === 0 && <p className="mt-2 mb-0 text-xs text-muted">자료를 넣으면 경험 하나가 블록 하나로 쌓여요.</p>}
-        <p className="mt-3 mb-0 text-[11px] leading-relaxed text-muted">활동 시작 연도별 경험 수예요. 점선은 확인이 필요한 경험이에요.</p>
-        {overview.detailError && <p className="mt-2 mb-0 text-xs text-error">{overview.detailError} <Button variant="link" onClick={onRefresh}>다시 시도</Button></p>}
+        {total === 0 && <p className="mt-2 mb-0 text-note text-muted">자료를 넣으면 경험 하나가 블록 하나로 쌓여요.</p>}
+        <p className="mt-3 mb-0 text-note leading-relaxed text-muted">활동 시작 연도별 경험 수예요. 점선은 확인이 필요한 경험이에요.</p>
+        {overview.detailError && <p className="mt-2 mb-0 text-note text-error">{overview.detailError} <Button variant="link" onClick={onRefresh}>다시 시도</Button></p>}
       </Popover.Content></Popover.Portal>
     </Popover.Root>
-    <h1 className="m-0 text-[27px] leading-snug font-bold tracking-[-1px] lg:text-[34px]">어떤 경험을 꺼내볼까요?</h1>
+    <h1 className="m-0 text-hero-sm leading-snug font-bold tracking-[-1px] lg:text-hero">어떤 경험을 꺼내볼까요?</h1>
     <div className="text-sm text-muted">
       {overview.activityError ? <span>{overview.activityError} <Button variant="link" onClick={onRefresh}>다시 시도</Button></span>
         : total === undefined ? "쌓인 경험을 불러오고 있어요…"
@@ -60,15 +60,15 @@ export function ContinueCards({ overview, onRefresh, onNewApplication }: { overv
   const past = overview.now && overview.details && !overview.detailError ? thisTimeLastYear(overview.details, overview.now) : null;
   const card = "group flex min-w-0 flex-col items-start gap-1.5 rounded-md border border-hairline bg-canvas/80 px-4.5 py-4 text-left transition-colors hover:border-muted-soft";
   return <section aria-label="이어서" className="mx-auto mt-12 max-w-[980px] lg:mt-[7vh]">
-    <h2 className="mt-0 mb-3 text-[13px] font-semibold text-muted">이어서</h2>
+    <h2 className="mt-0 mb-3 text-note font-semibold text-muted">이어서</h2>
     <div className="grid gap-3 sm:grid-cols-3">
-      {overview.applicationError ? <div className={card}><FileTextIcon className="size-6 text-record-pink" /><span className="text-xs text-error">{overview.applicationError}</span><Button variant="link" onClick={onRefresh}>다시 시도</Button></div>
+      {overview.applicationError ? <div className={card}><FileTextIcon className="size-6 text-record-pink" /><span className="text-note text-error">{overview.applicationError}</span><Button variant="link" onClick={onRefresh}>다시 시도</Button></div>
         : overview.applications === null ? <div role="status" className={card}><span className="text-sm text-muted">최근 지원을 불러오고 있어요…</span></div>
-        : recent ? <Link href={`/questions?question=${recent.questions[0].id}`} className={card}><FileTextIcon className="size-6 text-record-pink" /><span className="text-[11px] text-muted">최근 지원</span><b className="text-sm leading-relaxed font-semibold">{recent.organization || "지원처 이름 없음"}</b><small className="text-xs text-muted">문항 {recent.questions.length}개 · 분석 중 {recent.questions.filter(q => q.status === "ANALYZING").length}개</small></Link>
-        : <button type="button" className={card} onClick={onNewApplication}><FileTextIcon className="size-6 text-record-pink" /><span className="text-[11px] text-muted">지원 시작하기</span><b className="text-sm leading-relaxed font-semibold">지원 문항을 붙여 넣어 보세요</b><small className="text-xs text-muted">어떤 경험을 꺼내 쓸지 찾아요</small></button>}
-      <Link href={last ? `/experience?activity=${last.id}` : "/experience"} className={card}><StackIcon className="size-6 text-record-green" /><span className="text-[11px] text-muted">{last ? "마지막으로 연 활동" : "내 경험 이어 보기"}</span><b className="text-sm leading-relaxed font-semibold">{last?.name ?? "쌓인 경험을 둘러보세요"}</b><small className="text-xs text-muted">{last ? `경험 ${last.experienceCount}개 · ${periodText(last.period)}` : "활동과 그 안에서 한 일을 한눈에"}</small></Link>
-      {overview.detailError || overview.activityError ? <div className={card}><ClockCounterClockwiseIcon className="size-6 text-mark" /><span className="text-xs text-error">지난 경험을 불러오지 못했어요.</span><Button variant="link" onClick={onRefresh}>다시 시도</Button></div>
-        : <Link href={past ? `/experience?activity=${past.id}` : "/experience"} className={card}><ClockCounterClockwiseIcon className="size-6 text-mark" /><span className="text-[11px] text-muted">1년 전 이맘때</span><b className="line-clamp-2 text-sm leading-relaxed font-semibold">{past?.experiences[0].content ?? (overview.details === null ? "지난 경험을 불러오고 있어요…" : "그때의 경험을 돌아보세요")}</b><small className="text-xs text-muted">{past ? `${past.name} · ${periodText(past.period)}` : "같은 달의 활동이 없으면 내 경험에서 찾아보세요"}</small></Link>}
+        : recent ? <Link href={`/questions?question=${recent.questions[0].id}`} className={card}><FileTextIcon className="size-6 text-record-pink" /><span className="text-xs text-muted">최근 지원</span><b className="text-sm leading-relaxed font-semibold">{recent.organization || "지원처 이름 없음"}</b><small className="text-xs text-muted">문항 {recent.questions.length}개 · 분석 중 {recent.questions.filter(q => q.status === "ANALYZING").length}개</small></Link>
+        : <button type="button" className={card} onClick={onNewApplication}><FileTextIcon className="size-6 text-record-pink" /><span className="text-xs text-muted">지원 시작하기</span><b className="text-sm leading-relaxed font-semibold">지원 문항을 붙여 넣어 보세요</b><small className="text-note text-muted">어떤 경험을 꺼내 쓸지 찾아요</small></button>}
+      <Link href={last ? `/experience?activity=${last.id}` : "/experience"} className={card}><StackIcon className="size-6 text-record-green" /><span className="text-xs text-muted">{last ? "마지막으로 연 활동" : "내 경험 이어 보기"}</span><b className="text-sm leading-relaxed font-semibold">{last?.name ?? "쌓인 경험을 둘러보세요"}</b><small className={cn(last ? "text-xs" : "text-note", "text-muted")}>{last ? `경험 ${last.experienceCount}개 · ${periodText(last.period)}` : "활동과 그 안에서 한 일을 한눈에"}</small></Link>
+      {overview.detailError || overview.activityError ? <div className={card}><ClockCounterClockwiseIcon className="size-6 text-mark" /><span className="text-note text-error">지난 경험을 불러오지 못했어요.</span><Button variant="link" onClick={onRefresh}>다시 시도</Button></div>
+        : <Link href={past ? `/experience?activity=${past.id}` : "/experience"} className={card}><ClockCounterClockwiseIcon className="size-6 text-mark" /><span className="text-xs text-muted">1년 전 이맘때</span><b className="line-clamp-2 text-sm leading-relaxed font-semibold">{past?.experiences[0].content ?? (overview.details === null ? "지난 경험을 불러오고 있어요…" : "그때의 경험을 돌아보세요")}</b><small className={cn(past ? "text-xs" : "text-note", "text-muted")}>{past ? `${past.name} · ${periodText(past.period)}` : "같은 달의 활동이 없으면 내 경험에서 찾아보세요"}</small></Link>}
     </div>
   </section>;
 }

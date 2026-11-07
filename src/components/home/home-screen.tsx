@@ -41,7 +41,7 @@ function HomeContent() {
   return <div className="min-h-dvh flex-1 bg-canvas">
     <AppHeader activePage="home" addSource={{ onClick: () => openAdd("material"), onRecord: () => openAdd("line"), busy: analysis.busy }}
       experienceCount={overview.activities ? countExperiences(overview.activities) : null} />
-    {isMockMode() && <p className="m-0 border-b border-hairline px-4 py-2 text-xs text-muted" role="note">목 모드 · 예시 데이터이며 서버에 저장할 수 없어요.</p>}
+    {isMockMode() && <p className="m-0 border-b border-hairline px-4 py-2 text-note text-muted" role="note">목 모드 · 예시 데이터이며 서버에 저장할 수 없어요.</p>}
     <main className="home-background min-h-[calc(100dvh-2rem)] px-4.5 pt-10 pb-12 lg:px-9 lg:pt-[9vh]">
       <HomeEntrance sourceBusy={analysis.busy} mockAnalysis={mock} onSourceSubmitted={analysis.start} overview={overview} onRefresh={() => void refresh()} showMockControls={params.get("debug") === "entrance"} />
       <div className="mx-auto max-w-3xl">

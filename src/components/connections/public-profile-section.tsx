@@ -84,7 +84,7 @@ export function PublicProfileSection() {
   const blocked = settings?.visibleCount === 0;
 
   return <section id="public-profile" aria-labelledby="public-profile-title" className="scroll-mt-20">
-    <h3 id="public-profile-title" className="text-[15px] font-semibold">공개 프로필</h3>
+    <h3 id="public-profile-title" className="text-ui font-semibold">공개 프로필</h3>
     <p className="mt-2 text-sm leading-relaxed text-muted">고른 경험만 링크 하나로 보여 줘요. 켜지 않으면 아무것도 공개되지 않아요.</p>
     {mock && <p role="note" className="mt-4 rounded-sm border border-hairline bg-surface-soft p-4 text-sm leading-relaxed">
       목 모드 · 이 브라우저에만 저장돼요. 주소는 이 브라우저에서만 열리고 다른 사람은 볼 수 없어요.

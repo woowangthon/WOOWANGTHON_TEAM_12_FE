@@ -72,7 +72,7 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
         <button
           type="button"
           onClick={onClose}
-          className="inline-flex h-11 items-center gap-0.5 pr-2 text-[15px] font-medium text-ink"
+          className="inline-flex h-11 items-center gap-0.5 pr-2 text-ui font-medium text-ink"
         >
           <CaretLeftIcon className="size-[1.15em]" aria-hidden="true" />
           타임라인
@@ -81,7 +81,7 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
 
       <header className="grid gap-2.5 border-b border-hairline px-4.5 pt-5 pb-4 lg:px-7 lg:pt-7 lg:pb-5">
         <div className="flex items-start gap-2">
-          <h2 className="m-0 flex-1 text-[21px] leading-snug font-[650] tracking-[-0.3px] text-balance">
+          <h2 className="m-0 flex-1 text-title-lg leading-snug font-[650] tracking-[-0.3px] text-balance">
             {current.name}
           </h2>
           {activity && onMergeRequest && !readOnly && (
@@ -109,7 +109,7 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
           <span className="text-muted">{durationText(period, now)}</span>
         </p>
         {(sources.length > 0 || canAddSource) && (
-          <p className="m-0 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px] text-muted">
+          <p className="m-0 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-note text-muted">
             {sources.length > 0 && "이 활동을 만든 자료"}
             {sources.map((s) => (
               <SourceFile key={s} name={s} />
@@ -186,7 +186,7 @@ function ExperienceList({ activity, onSaved, onAdded, onDelete, onMove, onDragCh
 
   return (
     <>
-      <p className="m-0 pt-4 pb-1 text-[13px] font-medium text-muted">이 활동에서 한 일 {experiences.length}</p>
+      <p className="m-0 pt-4 pb-1 text-note font-medium text-muted">이 활동에서 한 일 {experiences.length}</p>
       <ul className="m-0 list-none p-0">
         {visible.map((e) => (
           <ExperienceItem
@@ -227,7 +227,7 @@ function ExperienceList({ activity, onSaved, onAdded, onDelete, onMove, onDragCh
         )}
       </div>
       {/* 경험이 0개면 빈 상태 안내가 같은 말을 하므로 숨긴다 (FE#22) */}
-      {experiences.length > 0 && <p className="m-0 mt-5 hidden text-[13px] leading-relaxed text-muted lg:block">
+      {experiences.length > 0 && <p className="m-0 mt-5 hidden text-note leading-relaxed text-muted lg:block">
         AI 가 자료에서 찾아 채운 기록이에요. 「확인 필요」는 원문과 맞는지 한번 봐 주세요. 자료에서 찾지 못했다고 경험이
         없는 건 아니에요. {!readOnly && <>다른 활동의 일이면 경험 왼쪽 손잡이를 끌어 타임라인의 그 활동에 놓아 주세요.</>}
       </p>}
@@ -242,10 +242,10 @@ function ExperienceList({ activity, onSaved, onAdded, onDelete, onMove, onDragCh
           {sheetExp && (
             <>
               <SheetHeader className="gap-2 p-0 pr-10">
-                <SheetTitle className="text-[17px] font-semibold">근거 {sheetExp.citations.length}</SheetTitle>
-                <SheetDescription className="text-[15px] leading-relaxed text-body">{sheetExp.content}</SheetDescription>
+                <SheetTitle className="text-title-md font-semibold">근거 {sheetExp.citations.length}</SheetTitle>
+                <SheetDescription className="text-ui leading-relaxed text-body">{sheetExp.content}</SheetDescription>
               </SheetHeader>
-              <div className="flex flex-wrap items-center gap-1.5 text-[13px] font-medium text-muted">
+              <div className="flex flex-wrap items-center gap-1.5 text-note font-medium text-muted">
                 <ExperienceMeta experience={sheetExp} />
               </div>
               <CitationList citations={sheetExp.citations} />
@@ -264,7 +264,7 @@ function ExperienceList({ activity, onSaved, onAdded, onDelete, onMove, onDragCh
 function EmptyExperiences({ onAdd }: { onAdd?: () => void }) {
   return (
     <div className="grid justify-items-start gap-2 rounded-sm bg-surface-soft px-4 py-4">
-      <p className="m-0 text-[15px] font-semibold text-ink">아직 이 활동에 적힌 경험이 없어요</p>
+      <p className="m-0 text-ui font-semibold text-ink">아직 이 활동에 적힌 경험이 없어요</p>
       <p className="m-0 text-sm leading-relaxed text-body">
         자료에 활동 이름 · 기간만 있었거나, 경험을 지우거나 다른 활동으로 옮겼을 수 있어요. 자료에서 찾지 못했다고 한 일이
         없는 건 아니에요 — 기억나는 일을 한 줄씩 적어 두면 여기에 쌓여요.

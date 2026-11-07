@@ -18,19 +18,19 @@ export function ExperienceResultRow({ experience: e, onOpen, onSavedChange }: { 
     <li id={`result-${e.id}`} className="grid gap-1.5 border-b border-hairline py-3.5">
       <button type="button" onClick={() => onOpen(e.activity.id)} className="-mx-2 grid min-h-11 min-w-0 gap-1 rounded-md px-2 py-1 text-left hover:bg-surface-soft">
         <span className="text-base leading-relaxed whitespace-pre-wrap text-ink">{e.content}</span>
-        <span className="min-w-0 text-[13px] break-words text-muted">
+        <span className="min-w-0 text-note break-words text-muted">
           {e.activity.name} <span className="text-hairline">·</span> <span className="tabular-nums">{periodText(e.activity.period)}</span>
         </span>
       </button>
-      <div className="flex flex-wrap items-center gap-1.5 text-[13px] font-medium text-muted">
+      <div className="flex flex-wrap items-center gap-1.5 text-note font-medium text-muted">
         <ExperienceMeta experience={e} aiLabel="AI 해석" />
         {/* 좁은 폭에서 줄이 나뉘어도 저장 · 근거는 오른쪽에 같이 있게 묶는다 */}
         <span className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
           <ExperienceSave experience={e} onChange={onSavedChange} />
-          {n === 0 ? <span className="text-muted-soft">근거 없음</span> : (
+          {n === 0 ? <span className="text-muted">근거 없음</span> : (
             <button
               type="button"
-              className="inline-flex min-h-11 items-center gap-1 rounded-md px-1 text-[13px] font-semibold text-evidence hover:bg-evidence-soft"
+              className="inline-flex min-h-11 items-center gap-1 rounded-md px-1 text-note font-semibold text-evidence hover:bg-evidence-soft"
               aria-expanded={citationsOpen}
               onClick={() => setCitationsOpen((open) => !open)}
             >

@@ -17,7 +17,7 @@ type AnswerChange = (id: number, answer: Answer | null) => void;
 /** 내가 쓴 답(S-45 · S-48): 받아 둔 문항의 확정 답으로 시작하고, 근거 점검은 독립적으로 읽는다. 문항을 못 받았으면 화면의 「다시 불러오기」를 쓴다 */
 export function AnswerInput({ questionId, question, loadFailed, onAnswerChange, checks, onAskDraft }: { questionId: number; question: QuestionDetail | null; loadFailed: boolean; onAnswerChange: AnswerChange; checks: GroundingChecks; onAskDraft: () => void }) {
   return <section aria-labelledby={`answer-title-${questionId}`} className="mb-8 grid min-w-0 gap-3">
-    <h3 id={`answer-title-${questionId}`} className="m-0 text-[17px] font-semibold">내가 쓴 답</h3>
+    <h3 id={`answer-title-${questionId}`} className="m-0 text-title-md font-semibold">내가 쓴 답</h3>
     {question ? <LoadedAnswer questionId={questionId} saved={question.answer ?? null} onAnswerChange={onAnswerChange} checks={checks} draftLabel={question.status === "ANALYZING" || question.status === "FAILED" ? null : question.draft ? "초안 설정 열기" : "초안 부탁하기"} onAskDraft={onAskDraft} />
       : !loadFailed && <p role="status" className="m-0 text-sm text-muted">쓴 답을 불러오고 있어요…</p>}
   </section>;
@@ -45,7 +45,7 @@ function AnswerEditor({ questionId, confirmed: a, checks, draftLabel, onAskDraft
       maxLength={MAX_GROUNDING_TEXT_LENGTH} value={g.text} disabled={g.loading || g.busy || analyzing || !g.initialized || locked}
       placeholder="여기에 답을 쓰거나, 차곡이에게 초안을 부탁해 보세요."
       onChange={e => g.setText(e.target.value)}
-      className="block w-full min-w-0 resize-y border-0 bg-transparent p-5 text-[15px] leading-relaxed outline-none focus-visible:outline-none disabled:bg-surface-soft" />
+      className="block w-full min-w-0 resize-y border-0 bg-transparent p-5 text-ui leading-relaxed outline-none focus-visible:outline-none disabled:bg-surface-soft" />
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-hairline-soft px-3.5 py-2.5">
       {/* 왼쪽은 글을 살피는 일, 오른쪽은 다음 행동 — 초안 부탁을 더 많이 쓴다(FE#215). 「다 썼어요」가 줄 끝이다. 「분석 1회」는 줄에 한 번, 오른쪽 묶음 앞에(S-15) */}
       <div className="flex flex-wrap items-center gap-2">
@@ -76,10 +76,10 @@ function AnswerEditor({ questionId, confirmed: a, checks, draftLabel, onAskDraft
     </div>}
     {g.check?.status === "COMPLETED" && <div className="grid min-w-0 gap-4">
       <h4 className="m-0 text-sm font-semibold">{stale ? "고치기 전 결과 — 다시 점검해 주세요" : "문장별 근거 점검"}</h4>
-      <p className="m-0 text-xs leading-relaxed text-muted">근거 없음은 현재 자료에서 받칠 근거를 찾지 못했다는 뜻이에요. 거짓이라는 뜻은 아니에요. 판정과 이유는 AI 해석이니 직접 확인해 주세요.</p>
+      <p className="m-0 text-note leading-relaxed text-muted">근거 없음은 현재 자료에서 받칠 근거를 찾지 못했다는 뜻이에요. 거짓이라는 뜻은 아니에요. 판정과 이유는 AI 해석이니 직접 확인해 주세요.</p>
       <ol aria-label={stale ? "고치기 전 문장별 근거" : "문장별 근거"} className="m-0 grid list-none gap-4 p-0">
         {g.check.sentences.map((s, i) => <li key={i} className="grid min-w-0 gap-2">
-          <p className="m-0 whitespace-pre-wrap break-words text-[15px] leading-loose"><span className={`${TINT[s.status]} rounded-sm px-1 py-0.5`}>{s.text}</span></p>
+          <p className="m-0 whitespace-pre-wrap break-words text-ui leading-loose"><span className={`${TINT[s.status]} rounded-sm px-1 py-0.5`}>{s.text}</span></p>
           <p className={`m-0 text-xs font-semibold ${s.status === "UNSUPPORTED" ? "text-review" : "text-muted"}`}>{LABEL[s.status]}</p>
           {s.status === "UNSUPPORTED" && <p className="m-0 text-sm text-review">지우거나, 사실이면 근거를 더해 주세요.</p>}
           {s.note && <p className="m-0 text-sm text-muted">AI 해석 — {s.note}</p>}

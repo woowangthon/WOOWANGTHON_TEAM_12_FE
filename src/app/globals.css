@@ -15,8 +15,8 @@
   --surface-strong: #ededed;
   --ink: #000000;
   --body: #2b2b2b;
-  --muted: #7d7d7d;
-  --muted-soft: #a6a6a6;
+  --muted: #707070; /* 시안은 #7d7d7d — 작은 한글이 흐려서 흰 바탕 4.95 · surface-soft 4.54 로 어둡게(FE#182) */
+  --muted-soft: #a6a6a6; /* 선 · 점 전용. 대비가 2.4 라 글자에 쓰지 않는다 */
   --hairline: #ededed;
   --hairline-soft: #f4f4f4;
   --primary: #000000;
@@ -77,6 +77,20 @@
     "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo",
     "Malgun Gothic", sans-serif;
   --font-heading: var(--font-sans);
+
+  /*
+    글자 크기 — Tailwind 단계(xs 12 · sm 14 · base 16 · xl 20 · 2xl 24)와 아래 이름만 쓴다. 바닥은 12(FE#182):
+    날짜 · 개수 · 꼬리표 12, 보조 설명 · 안내 문장 13. 이름을 더하면 src/lib/utils.ts 의 FONT_SIZES 에도 넣는다
+  */
+  --text-note: 13px;
+  --text-ui: 15px;
+  --text-title-md: 17px;
+  --text-icon: 19px;
+  --text-title-lg: 21px;
+  --text-heading: 22px;
+  --text-display: 26px;
+  --text-hero-sm: 27px;
+  --text-hero: 34px;
 
   --color-page: var(--page);
   --color-canvas: var(--canvas);

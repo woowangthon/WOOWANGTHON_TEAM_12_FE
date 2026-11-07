@@ -5,7 +5,7 @@ import { sectionLabel } from "@/lib/source-file/sections";
 
 export function ReviewWarning({ children }: { children: string }) {
   return (
-    <p className="m-0 flex items-start gap-1.5 text-[13px] leading-normal text-review">
+    <p className="m-0 flex items-start gap-1.5 text-note leading-normal text-review">
       <WarningCircleIcon className="mt-0.5 size-[1.15em] shrink-0" aria-hidden="true" />
       <span>{children}</span>
     </p>
@@ -14,7 +14,7 @@ export function ReviewWarning({ children }: { children: string }) {
 
 export function SourceFile({ name }: { name: string }) {
   return (
-    <span className="inline-flex items-center gap-1 text-[13px] font-medium text-evidence">
+    <span className="inline-flex items-center gap-1 text-note font-medium text-evidence">
       <FileTextIcon className="size-[1.15em]" aria-hidden="true" />
       {name}
     </span>

@@ -73,7 +73,7 @@ export function ActivityLinks({ activity, readOnly = false, onOpenActivity }: {
                     {l.fromActivityId === activity.id ? "이 마음이 이어진 곳" : "이 활동을 시작한 마음"} · {otherName}
                     <ArrowRightIcon className="size-[1.1em] shrink-0" aria-hidden="true" />
                   </button>
-                  <p className="m-0 text-xs leading-relaxed text-muted">AI 해석 · {l.reason}</p>
+                  <p className="m-0 text-note leading-relaxed text-muted">AI 해석 · {l.reason}</p>
                 </li>
               );
             })}
@@ -149,7 +149,7 @@ function LinkSuggestion({ link, activityId, readOnly, onDecided }: {
           ? <>이 마음이 <b className="font-semibold">{link.toActivityName}</b>(으)로 이어졌나요?</>
           : <><b className="font-semibold">{link.fromActivityName}</b>의 마음이 이 활동으로 이어졌나요?</>}
       </p>
-      <p className="m-0 text-xs leading-relaxed text-muted">{link.reason}</p>
+      <p className="m-0 text-note leading-relaxed text-muted">{link.reason}</p>
       {!readOnly && (
         <div className="flex flex-wrap gap-2">
           <Button size="sm" className="min-h-11" disabled={busy} onClick={() => void decide("CONFIRMED")}>맞아요</Button>

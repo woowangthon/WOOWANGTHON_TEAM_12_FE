@@ -21,9 +21,9 @@ export function MoveExperienceDialog({ experience, activities, onClose, onPick }
       <DialogContent>
         <DialogHeader className="pr-10">
           <DialogTitle>다른 활동으로 옮기기</DialogTitle>
-          <DialogDescription className="line-clamp-2 text-[15px] text-body">{experience?.content}</DialogDescription>
+          <DialogDescription className="line-clamp-2 text-ui text-body">{experience?.content}</DialogDescription>
         </DialogHeader>
-        <p className="m-0 text-[13px] text-muted">내용 · 근거 · 출처 상태는 그대로 두고 묶음만 바꿔요.</p>
+        <p className="m-0 text-note text-muted">내용 · 근거 · 출처 상태는 그대로 두고 묶음만 바꿔요.</p>
         {others.length === 0 ? (
           <p className="m-0 text-sm text-muted">옮길 다른 활동이 없어요.</p>
         ) : (
@@ -35,8 +35,8 @@ export function MoveExperienceDialog({ experience, activities, onClose, onPick }
                   onClick={() => experience && onPick(experience, a.id)}
                   className="grid min-h-11 w-full gap-0.5 rounded-sm px-3 py-2.5 text-left hover:bg-surface-soft focus-visible:bg-surface-soft focus-visible:outline-none"
                 >
-                  <span className="text-[15px] font-semibold text-ink">{a.name}</span>
-                  <span className="text-[13px] text-muted tabular-nums">{periodText(a.period)} · 경험 {a.experienceCount}</span>
+                  <span className="text-ui font-semibold text-ink">{a.name}</span>
+                  <span className="text-note text-muted tabular-nums">{periodText(a.period)} · 경험 {a.experienceCount}</span>
                 </button>
               </li>
             ))}
@@ -94,7 +94,7 @@ export function MergeActivityDialog({ activity, activities, open, onOpenChange, 
       <DialogContent>
         <DialogHeader className="pr-10">
           <DialogTitle>다른 활동과 합치기</DialogTitle>
-          <DialogDescription className="text-[15px] text-body">
+          <DialogDescription className="text-ui text-body">
             같은 활동이 둘로 나뉘었으면 하나로 모아요. 경험과 근거는 하나도 잃지 않아요.
           </DialogDescription>
         </DialogHeader>
@@ -138,8 +138,8 @@ function Choice({ name, checked, onChange, title, sub }: { name: string; checked
     <label className={cn("flex min-h-11 cursor-pointer items-start gap-3 rounded-sm px-3 py-2.5 hover:bg-surface-soft", checked && "bg-surface-soft")}>
       <input type="radio" name={name} checked={checked} onChange={onChange} className="mt-1 size-4 accent-[var(--ink)]" />
       <span className="grid gap-0.5">
-        <span className="text-[15px] font-semibold text-ink">{title}</span>
-        <span className="text-[13px] text-muted tabular-nums">{sub}</span>
+        <span className="text-ui font-semibold text-ink">{title}</span>
+        <span className="text-note text-muted tabular-nums">{sub}</span>
       </span>
     </label>
   );

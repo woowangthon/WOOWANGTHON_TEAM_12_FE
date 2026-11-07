@@ -154,12 +154,12 @@ function experienceCountText(count: number) {
 function YearHead({ label, count, showMonths }: { label: string; count: number; showMonths?: boolean }) {
   return (
     <div className={cn("grid border-b border-ink pb-2 lg:items-end", rowLayout)}>
-      <b className="text-[17px] font-semibold tabular-nums">
+      <b className="text-title-md font-semibold tabular-nums">
         {label}
-        <small className="ml-2 text-[13px] font-medium text-muted">활동 {count}</small>
+        <small className="ml-2 text-note font-medium text-muted">활동 {count}</small>
       </b>
       {showMonths && (
-        <span className="hidden grid-cols-12 text-[11px] text-muted-soft tabular-nums lg:grid" aria-hidden="true">
+        <span className="hidden grid-cols-12 text-xs text-muted tabular-nums lg:grid" aria-hidden="true">
           {Array.from({ length: 12 }, (_, i) => (
             <span key={i} className={cn(i % 3 === 0 && "text-muted")}>
               {i + 1}
@@ -233,15 +233,15 @@ function Row({
           <span
             className={cn(
               "flex items-start gap-1.5 leading-snug",
-              continuing ? "text-sm font-medium text-muted lg:text-[15px]" : "text-base font-semibold lg:text-[17px]",
+              continuing ? "text-sm font-medium text-muted lg:text-ui" : "text-base font-semibold lg:text-title-md",
               selected && "text-ink",
             )}
           >
             {category && <CategoryIcon category={category} className="mt-[0.3em]" />}
             <span className="min-w-0">{activity.name}{continuing && label && <span className="sr-only"> {label}</span>}</span>
           </span>
-          {activity.mergeSuggestion && !continuing && <span className="text-xs font-medium text-muted">AI 제안 · 기존 활동과 같아 보여요</span>}
-          <span className={cn("text-muted tabular-nums", continuing ? "text-[13px]" : "text-[13px] lg:text-sm")}>
+          {activity.mergeSuggestion && !continuing && <span className="text-note font-medium text-muted">AI 제안 · 기존 활동과 같아 보여요</span>}
+          <span className={cn("text-muted tabular-nums", continuing ? "text-note" : "text-note lg:text-sm")}>
             {over ? <span className="font-medium text-ink">여기에 놓으면 이 활동으로 옮겨요</span> : <>{sub}{!continuing && label && <span className="ml-2.5 inline-block whitespace-nowrap">{label}</span>}</>}
           </span>
         </span>
@@ -269,7 +269,7 @@ function ApplicationRow({ application, year }: { application: TimelineApplicatio
             <FileTextIcon className="size-3.5 shrink-0 text-record-pink" aria-hidden="true" />
             <span className="truncate">{name}</span>
           </span>
-          <span className="text-[13px] text-muted tabular-nums">
+          <span className="text-note text-muted tabular-nums">
             {year}.{String(month + 1).padStart(2, "0")} · 지원 · {APPLICATION_STATUS_LABEL[application.status]}
           </span>
         </span>

@@ -135,7 +135,7 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
       finally { pending.current = false; setSaving(false); onSavingChange?.(false); }
     }}>
       <div className="grid gap-1.5">
-        <h2 className="m-0 text-[21px] font-[650] tracking-[-0.3px]">어디에 지원하나요?</h2>
+        <h2 className="m-0 text-title-lg font-[650] tracking-[-0.3px]">어디에 지원하나요?</h2>
         <p className="m-0 text-sm text-muted">공고나 지원서 문항, 공고 링크를 그대로 붙여 넣어 주세요. 지원처 · 종류 · 직무 · 문항은 AI 가 나눠 채우고, 고칠 수 있어요.</p>
       </div>
       <fieldset disabled={saving} className="m-0 grid min-w-0 gap-5 border-0 p-0">
@@ -148,7 +148,7 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
             <Button type="button" variant="secondary" size="sm" className="min-h-11" onClick={() => { setAskingLink(true); pasteBox.current?.focus(); }}><LinkIcon />공고 링크로 가져오기</Button>
             <span className={`ml-auto text-xs tabular-nums ${paste.length > MAX_PARSE_TEXT_LENGTH ? "text-error" : "text-muted"}`}>{paste.length > 0 && `${paste.length.toLocaleString("ko-KR")} / 20,000`}</span>
           </div>
-          {(pastedLink || askingLink) && !urlShown && <p className="m-0 text-xs text-muted">{LINK_NOTE}</p>}
+          {(pastedLink || askingLink) && !urlShown && <p className="m-0 text-note text-muted">{LINK_NOTE}</p>}
         </div>
         {parse.parsing && <p role="status" className="m-0 text-sm text-muted">{reading === "url" ? "링크를 읽고 지원처와 문항을 나누고 있어요…" : "글을 읽고 지원처와 문항을 나누고 있어요…"}</p>}
         {parse.failure && <ParseFailureNotice failure={parse.failure} onRetry={() => void fill(parse.failure!.input)}
@@ -157,7 +157,7 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
           ? <p role="status" className="m-0 text-sm text-body">링크에서 문항을 찾지 못했어요 — 문항이 지원 양식(구글폼 등) 안에 있을 수 있어요. 공고 본문이나 문항을 위 칸에 붙여 넣고 「AI 로 나누기」를 눌러 주세요.</p>
           : <p role="status" className="m-0 text-sm text-body">글에서 문항을 찾지 못했어요. 문항 칸에 직접 넣어 주세요.</p>)}
         {!filled && !paste.trim() && <div className="grid gap-2">
-          <span className="text-[13px] font-medium text-muted">예시 문항으로 시작하기</span>
+          <span className="text-note font-medium text-muted">예시 문항으로 시작하기</span>
           <div className="flex flex-wrap gap-2">
             {EXAMPLES.map(sample => (
               <Button key={sample.label} type="button" variant="secondary" size="sm" className="min-h-11" disabled={saving} onClick={() => {
@@ -169,12 +169,12 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
             ))}
           </div>
         </div>}
-        {filledAny && <p className="m-0 flex items-center gap-2 text-[13px] font-semibold text-muted"><Mascot size={18} />{isMockMode() ? (filledFrom === "url" ? "목 모드 — 링크를 읽지 않고 예시 공고로 채웠어요 · 고쳐도 돼요" : "목 모드 — AI 호출 없이 글의 번호 달린 줄만 규칙으로 나눴어요 · 고쳐도 돼요") : filledFrom === "url" ? "링크를 읽어 AI 가 나눠 채웠어요 · 고쳐도 돼요" : "AI 가 나눠 채웠어요 · 고쳐도 돼요"}</p>}
+        {filledAny && <p className="m-0 flex items-center gap-2 text-note font-semibold text-muted"><Mascot size={18} />{isMockMode() ? (filledFrom === "url" ? "목 모드 — 링크를 읽지 않고 예시 공고로 채웠어요 · 고쳐도 돼요" : "목 모드 — AI 호출 없이 글의 번호 달린 줄만 규칙으로 나눴어요 · 고쳐도 돼요") : filledFrom === "url" ? "링크를 읽어 AI 가 나눠 채웠어요 · 고쳐도 돼요" : "AI 가 나눠 채웠어요 · 고쳐도 돼요"}</p>}
         {urlShown && <div className="grid gap-1.5">
           <label htmlFor="application-url" className="text-sm font-medium">원문 링크 (선택)</label>
           <input id="application-url" type="url" inputMode="url" autoComplete="url" maxLength={MAX_POSTING_URL_LENGTH} value={postingUrl} aria-invalid={urlInvalid}
             aria-describedby="application-url-note" onChange={e => setPostingUrl(e.target.value)} className={`${field} min-h-11 py-0`} placeholder="https://… 공고 페이지 주소" />
-          <p id="application-url-note" className={`m-0 text-xs ${urlInvalid ? "text-error" : "text-muted"}`}>{urlInvalid ? "http:// 나 https:// 로 시작하는 주소 하나를 넣어 주세요." : LINK_NOTE}</p>
+          <p id="application-url-note" className={`m-0 text-note ${urlInvalid ? "text-error" : "text-muted"}`}>{urlInvalid ? "http:// 나 https:// 로 시작하는 주소 하나를 넣어 주세요." : LINK_NOTE}</p>
         </div>}
         {open && <>
           <label className="grid gap-1.5 text-sm font-medium">
@@ -217,7 +217,7 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
       <CommonQuestionPicker open={picking} onOpenChange={setPicking} room={room} onPick={insert} />
       {error && <p role="alert" className="m-0 text-sm text-error">{error}</p>}
       <div className="flex flex-wrap items-center justify-end gap-2">
-        {open && <p className="m-0 mr-auto min-w-0 flex-1 basis-60 text-[13px] text-muted">넣은 뒤엔 문항을 고치지 않아요 — 잘못 넣었으면 그 지원에 새로 더해 주세요.</p>}
+        {open && <p className="m-0 mr-auto min-w-0 flex-1 basis-60 text-note text-muted">넣은 뒤엔 문항을 고치지 않아요 — 잘못 넣었으면 그 지원에 새로 더해 주세요.</p>}
         {!open && <Button type="button" variant="link" className="mr-auto min-h-11" disabled={saving} onClick={writeQuestions}>문항 직접 쓰기</Button>}
         {onCancel && <Button type="button" variant="ghost" disabled={saving} onClick={onCancel}>취소</Button>}
         {onMoveToSource && <Button type="button" variant="secondary" disabled={saving || moveToSourceDisabled} onClick={() => onMoveToSource(paste.trim() ? paste : texts.join("\n\n"))}>자료로 쌓기</Button>}
@@ -244,7 +244,7 @@ export function AddQuestionForm({ onSubmit, onCancel }: { onSubmit: (text: strin
       catch (e) { setError(submitErrorMessage(e, "문항을 넣지 못했어요.")); }
       finally { pending.current = false; setSaving(false); }
     }}>
-      <label htmlFor="add-question" className="text-[17px] font-semibold">이 지원에 문항 더하기</label>
+      <label htmlFor="add-question" className="text-title-md font-semibold">이 지원에 문항 더하기</label>
       <textarea id="add-question" autoFocus rows={4} maxLength={MAX_QUESTION_LENGTH} value={text} disabled={saving} onChange={e => setText(e.target.value)} className={`${field} resize-y`} placeholder="더할 문항을 붙여 넣어 주세요." />
       <span className="text-right text-xs text-muted tabular-nums">{text.length.toLocaleString("ko-KR")} / 5,000</span>
       {error && <p role="alert" className="m-0 text-sm text-error">{error}</p>}

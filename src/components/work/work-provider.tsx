@@ -12,8 +12,8 @@ import { cn } from "@/lib/utils";
 import { isUnread, latestFinished, workHref, WORK_KIND, WORK_STATUS, type WorkItem } from "@/lib/api/work";
 import { useWork } from "./use-work";
 
-const ROW = "grid min-h-11 min-w-0 grid-cols-[minmax(0,1fr)] gap-1 rounded-sm border-b border-hairline-soft p-3 text-sm hover:bg-surface-soft focus-visible:outline-2 focus-visible:outline-ink lg:gap-0.5 lg:border-b-0 lg:px-3 lg:py-2.5 lg:text-[13px]";
-const GROUP_TITLE = "mt-0 text-sm font-semibold lg:mb-0 lg:px-2 lg:pt-2 lg:pb-0.5 lg:text-[11px] lg:leading-[13px] lg:text-muted";
+const ROW = "grid min-h-11 min-w-0 grid-cols-[minmax(0,1fr)] gap-1 rounded-sm border-b border-hairline-soft p-3 text-sm hover:bg-surface-soft focus-visible:outline-2 focus-visible:outline-ink lg:gap-0.5 lg:border-b-0 lg:px-3 lg:py-2.5 lg:text-note";
+const GROUP_TITLE = "mt-0 text-sm font-semibold lg:mb-0 lg:px-2 lg:pt-2 lg:pb-0.5 lg:text-xs lg:leading-[13px] lg:text-muted";
 
 const WorkContext = createContext<{ opened: boolean; toggle: (trigger: HTMLButtonElement) => void; count: number; unread: number; status: string } | null>(null);
 
@@ -45,16 +45,16 @@ export function WorkProvider({ children }: { children: ReactNode }) {
   const status = work.error ? "작업 상태를 확인하지 못했어요" : summary || (isMockMode() ? "작업 소식은 서버 연결 후 확인할 수 있어요" : "");
   const onCloseAutoFocus = (event: Event) => { event.preventDefault(); if (!navigating.current) trigger.current?.focus(); };
   const onNavigate = () => { navigating.current = true; setOpened(false); };
-  const note = <p className="mb-0 mt-2 text-xs text-muted lg:mt-0 lg:px-1.5 lg:text-[11px]">소식은 최근 24시간 · 최대 20개예요.</p>;
+  const note = <p className="mb-0 mt-2 text-note text-muted lg:mt-0 lg:px-1.5">소식은 최근 24시간 · 최대 20개예요.</p>;
   // Sheet 는 1024 미만, Popover 는 1024 이상에서만 뜬다 — 같은 내용을 lg: 로 시안 크기에 맞춘다
   const body = <div className="min-h-0 flex-1 overflow-y-auto p-5 lg:p-0">
     {work.error && <div role="alert" className="mb-4 grid gap-2"><p className="m-0 text-error">{work.error}</p><Button variant="secondary" onClick={work.refresh}>상태 다시 불러오기</Button></div>}
     {work.seenError && <div role="alert" className="mb-4 grid gap-2"><p className="m-0 text-error">읽음 상태를 저장하지 못했어요. {work.seenError}</p><Button variant="secondary" disabled={work.marking} onClick={() => void work.markSeen(displayedBoundary.current)}>읽음 저장 다시 시도</Button></div>}
     <section aria-label="진행 중인 일"><h3 className={GROUP_TITLE}>할 일 {inProgress.length}</h3>
-      {inProgress.length ? <WorkList items={inProgress} seenAt={snapshot?.seenAt ?? null} onNavigate={onNavigate} /> : <p className="text-sm text-muted lg:my-1 lg:px-3 lg:text-[13px]">진행 중인 일이 없어요.</p>}
+      {inProgress.length ? <WorkList items={inProgress} seenAt={snapshot?.seenAt ?? null} onNavigate={onNavigate} /> : <p className="text-sm text-muted lg:my-1 lg:px-3 lg:text-note">진행 중인 일이 없어요.</p>}
     </section>
     <section aria-label="최근 소식" className="mt-7 lg:mt-1"><h3 className={GROUP_TITLE}>소식 {unread > 0 && <span>· 안 읽음 {unread}</span>}</h3>
-      {recent.length ? <WorkList items={recent} seenAt={snapshot?.seenAt ?? null} onNavigate={onNavigate} /> : <p className="text-sm text-muted lg:my-1 lg:px-3 lg:text-[13px]">아직 도착한 소식이 없어요.</p>}
+      {recent.length ? <WorkList items={recent} seenAt={snapshot?.seenAt ?? null} onNavigate={onNavigate} /> : <p className="text-sm text-muted lg:my-1 lg:px-3 lg:text-note">아직 도착한 소식이 없어요.</p>}
     </section>
   </div>;
   return <WorkContext value={{ opened, toggle, count: inProgress.length, unread, status }}>
@@ -114,9 +114,9 @@ function WorkList({ items, seenAt, onNavigate }: { items: WorkItem[]; seenAt: st
       <span className={cn("justify-self-start rounded-full px-2 py-px text-xs font-bold", tagTone(item))}>{WORK_KIND[item.kind] ?? item.kind} · {WORK_STATUS[item.status] ?? item.status}{isUnread(item, seenAt) && " · 안 읽음"}</span>
       <span className="min-w-0 break-all whitespace-normal font-medium">{item.label}</span>
       {item.finishedAt && <time className="text-xs text-muted" dateTime={item.finishedAt}>{new Date(item.finishedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}</time>}
-      {item.status === "FAILED" && <span className="break-words text-xs text-error">{item.errorCode ?? "오류 코드 없음"} · 해당 화면에서 다시 시도해 주세요.</span>}
-      {item.status === "WAITING_CONFIRM" && <span className="text-xs text-muted">차곡이의 확인 카드를 열어 주세요.</span>}
-      {!href && <span className="text-xs text-muted">이동할 작업 정보가 없어요. 상태를 다시 불러와 주세요.</span>}
+      {item.status === "FAILED" && <span className="break-words text-note text-error">{item.errorCode ?? "오류 코드 없음"} · 해당 화면에서 다시 시도해 주세요.</span>}
+      {item.status === "WAITING_CONFIRM" && <span className="text-note text-muted">차곡이의 확인 카드를 열어 주세요.</span>}
+      {!href && <span className="text-note text-muted">이동할 작업 정보가 없어요. 상태를 다시 불러와 주세요.</span>}
     </>;
     return <li key={item.key} className="min-w-0">{href ? <Link href={href} prefetch={false} onClick={onNavigate} className={ROW}>{content}</Link> : <div className="grid min-w-0 gap-1 p-3 text-sm">{content}</div>}</li>;
   })}</ul>;

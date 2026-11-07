@@ -30,7 +30,7 @@ export function ProfileToggle({ experience: e, onSaved }: { experience: Experien
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 text-[13px] font-medium text-muted">
+    <div className="flex flex-wrap items-center gap-x-3 text-note font-medium text-muted">
       <button type="button" role="switch" aria-checked={shared} aria-label={`프로필에 넣기: ${e.content}`} disabled={busy || (review && !shared)} onClick={() => void toggle()}
         className="inline-flex min-h-11 items-center gap-1.5 rounded-sm disabled:cursor-default disabled:opacity-50 lg:min-h-8">
         <span aria-hidden="true" className={cn("flex h-4 w-7 items-center rounded-full p-0.5 transition-colors", shared ? "justify-end bg-primary" : "justify-start bg-surface-strong")}>

@@ -44,7 +44,7 @@ export function CompetencyPicker({ value, onChange }: { value: Competency[]; onC
               />
               {checked && (
                 <span
-                  className="grid size-4.5 place-items-center rounded-full bg-canvas text-[11px] leading-none font-bold text-ink tabular-nums"
+                  className="grid size-4.5 place-items-center rounded-full bg-canvas text-xs leading-none font-bold text-ink tabular-nums"
                   aria-hidden="true"
                 >
                   {order + 1}
@@ -55,7 +55,7 @@ export function CompetencyPicker({ value, onChange }: { value: Competency[]; onC
           );
         })}
       </div>
-      <p className="m-0 text-xs text-muted">먼저 고른 역량일수록 이 경험에 더 잘 맞는 것으로 저장돼요.</p>
+      <p className="m-0 text-note text-muted">먼저 고른 역량일수록 이 경험에 더 잘 맞는 것으로 저장돼요.</p>
     </fieldset>
   );
 }

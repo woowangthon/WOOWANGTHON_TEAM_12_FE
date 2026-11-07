@@ -15,9 +15,9 @@ export function CenterState({
   return (
     <div className="grid place-items-center px-2 py-16 lg:py-24">
       <div className="grid w-full max-w-[480px] justify-items-center gap-3.5 text-center">
-        <span className="text-[34px] text-ink [&_svg]:size-[1em]">{icon}</span>
-        <h2 className="m-0 text-[21px] leading-snug font-[650] tracking-[-0.3px] text-balance">{title}</h2>
-        {body && <p className="m-0 text-[15px] text-body">{body}</p>}
+        <span className="text-hero text-ink [&_svg]:size-[1em]">{icon}</span>
+        <h2 className="m-0 text-title-lg leading-snug font-[650] tracking-[-0.3px] text-balance">{title}</h2>
+        {body && <p className="m-0 text-ui text-body">{body}</p>}
         {children}
       </div>
     </div>
