@@ -29,19 +29,44 @@ test("AI marker survives content and actor edits, disappears on competency edit"
   await page.reload();
   await page.getByRole("button", { name: /API test activity/ }).click();
   const ai = page.getByRole("complementary").getByText("AI", { exact: true });
-  for (const field of ["content", "actor", "competencies"] as const) {
-    await page.getByRole("button", { name: /^경험 수정:/ }).click();
-    if (field === "content") await page.getByLabel("경험 내용").fill("Content only edit");
-    if (field === "actor") await pickOption(page.getByLabel("수행 주체"), "팀");
-    if (field === "competencies") await page.getByLabel("협업", { exact: true }).check();
-    await page.getByRole("button", { name: "저장", exact: true }).click();
-    await expect(page.getByLabel("경험 내용")).toHaveCount(0);
-    await expect(ai).toHaveCount(field === "competencies" ? 0 : 1);
-  }
+  await editContent(page, "Content only edit");
+  await expect(ai).toHaveCount(1);
+  await pickActor(page, "팀");
+  await expect(ai).toHaveCount(1);
+  const pop = await openCompetencies(page);
+  await pop.getByLabel("협업", { exact: true }).check();
+  await pop.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(pop).toHaveCount(0);
+  await expect(ai).toHaveCount(0);
   expect(state.patches.map((p) => p.body)).toEqual([
     { content: "Content only edit" }, { actor: "TEAM" }, { competencies: ["IMPLEMENTATION", "COLLABORATION"] },
   ]);
 });
+
+// S-10 · FE#232 — 누르면 그 자리에서 고친다. 본문은 Enter 저장 · Esc 취소, 주체는 메뉴, 역량 · 기간은 작은 창
+async function editContent(page: Page, text: string) {
+  await page.getByRole("button", { name: /^경험 고치기:/ }).click();
+  await page.getByLabel("경험 내용").fill(text);
+  await page.getByLabel("경험 내용").press("Enter");
+  await expect(page.getByLabel("경험 내용")).toHaveCount(0);
+}
+async function pickActor(page: Page, label: string) {
+  await page.getByRole("button", { name: /^수행 주체 고치기:/ }).click();
+  await page.getByRole("menuitemradio", { name: label }).click();
+  await expect(page.getByRole("button", { name: `수행 주체 고치기: ${label}` })).toBeVisible();
+}
+async function openCompetencies(page: Page) {
+  await page.getByRole("button", { name: /^역량 (고치기|붙이기)/ }).click();
+  const pop = page.getByRole("dialog", { name: "역량 고치기" });
+  await expect(pop).toBeVisible();
+  return pop;
+}
+async function openPeriod(page: Page) {
+  await page.getByRole("button", { name: /^활동 기간 고치기:/ }).click();
+  const pop = page.getByRole("dialog", { name: "활동 기간 고치기" });
+  await expect(pop).toBeVisible();
+  return pop;
+}
 
 // Test-only HTTP fixture; this is not a deployed backend or persistence verification.
 /** 기간 한쪽을 연 · 월 고르기로 정한다(FE#25). null 이면 「기간 모름」, 월이 없으면 「월 모름」 */
@@ -83,35 +108,43 @@ async function setup(page: Page) {
   return state;
 }
 
-test("activity cancel, validation, period save, timeline sync and GET after reload", async ({ page }) => {
+test("activity name: click edits in place, Esc cancels, blank is rejected, Enter saves, timeline sync and GET after reload", async ({ page }) => {
   const state = await setup(page);
-  await page.getByRole("button", { name: "활동 수정", exact: true }).click();
-  await page.getByLabel("활동 이름").fill("Discarded");
-  await page.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(page.getByRole("button", { name: "활동 수정", exact: true })).toHaveCount(0);
+  const name = () => page.getByRole("button", { name: "활동 이름 고치기", exact: true });
+  await name().click();
+  await page.getByLabel("활동 이름", { exact: true }).fill("Discarded");
+  await page.getByLabel("활동 이름", { exact: true }).press("Escape");
   await expect(page.getByRole("heading", { name: "API test activity" })).toBeVisible();
+  await expect(name()).toBeFocused();
   expect(state.patches).toHaveLength(0);
-  await page.getByRole("button", { name: "활동 수정", exact: true }).click();
-  await page.getByLabel("활동 이름").fill(" ");
-  await page.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(page.locator("form").getByRole("alert")).toContainText("활동 이름");
-  await page.getByLabel("활동 이름").fill("Updated activity");
-  await pick(page, "시작", "2026");
-  await page.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(page.locator("form").getByRole("alert")).toContainText("시작일");
+  await name().click();
+  await page.getByLabel("활동 이름", { exact: true }).fill(" ");
+  await page.getByLabel("활동 이름", { exact: true }).press("Enter");
+  await expect(page.getByRole("alert").filter({ hasText: "활동 이름" })).toBeVisible();
   expect(state.patches).toHaveLength(0);
-  await page.getByLabel("진행 중", { exact: true }).check();
-  await expect(page.getByLabel("종료 연도")).toBeDisabled();
-  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await page.getByLabel("활동 이름", { exact: true }).fill("Updated activity");
+  await page.getByLabel("활동 이름", { exact: true }).press("Enter");
   await expect(page.getByRole("heading", { name: "Updated activity" })).toBeVisible();
-  expect(state.patches[0].body).toEqual({ name: "Updated activity", period: { start: "2026", end: null, ongoing: true } });
+  expect(state.patches[0].body).toEqual({ name: "Updated activity", period: { start: "2025-03", end: "2025-06", ongoing: false } });
+  // 밖을 누르면 저장 — 같은 값이면 보내지 않는다
+  await name().click();
+  await page.getByText(/이 활동에서 한 일/).click();
+  await expect(page.getByLabel("활동 이름", { exact: true })).toHaveCount(0);
+  expect(state.patches).toHaveLength(1);
+  await name().click();
+  await page.getByLabel("활동 이름", { exact: true }).fill("Blur saved");
+  await page.getByText(/이 활동에서 한 일/).click();
+  await expect(page.getByRole("heading", { name: "Blur saved" })).toBeVisible();
+  expect(state.patches).toHaveLength(2);
   if (page.viewportSize()!.width < 1024) await page.getByRole("button", { name: "타임라인", exact: true }).click();
-  await expect(page.getByRole("button", { name: /Updated activity/ }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: /Blur saved/ }).first()).toBeVisible();
   await page.reload();
-  await page.getByRole("button", { name: /Updated activity/ }).first().click();
-  await expect(page.getByRole("heading", { name: "Updated activity" })).toBeVisible();
+  await page.getByRole("button", { name: /Blur saved/ }).first().click();
+  await expect(page.getByRole("heading", { name: "Blur saved" })).toBeVisible();
 });
 
-test("activity period is picked by year · month and applies PM partial-date rules before PATCH", async ({ page }) => {
+test("activity period is picked by year · month in a small menu and applies PM partial-date rules before PATCH", async ({ page }) => {
   const state = await setup(page);
   const valid = [
     { start: "2025-03", end: "2025", ongoing: false },
@@ -121,30 +154,34 @@ test("activity period is picked by year · month and applies PM partial-date rul
     { start: "2026", end: null, ongoing: true },
   ];
   for (const period of valid) {
-    await page.getByRole("button", { name: "활동 수정", exact: true }).click();
-    await page.getByLabel("진행 중", { exact: true }).uncheck();
+    const pop = await openPeriod(page);
+    await pop.getByLabel("진행 중", { exact: true }).uncheck();
     await pick(page, "시작", period.start);
     await pick(page, "종료", period.end);
     if (period.ongoing) {
-      await page.getByLabel("진행 중", { exact: true }).check();
+      await pop.getByLabel("진행 중", { exact: true }).check();
       await expect(page.getByLabel("종료 연도")).toBeDisabled();
     }
     const count = state.patches.length;
-    await page.getByRole("button", { name: "저장", exact: true }).click();
-    await expect(page.getByLabel("시작 연도")).toHaveCount(0);
+    await pop.getByRole("button", { name: "저장", exact: true }).click();
+    await expect(pop).toHaveCount(0);
     expect(state.patches).toHaveLength(count + 1);
     expect(state.patches.at(-1)!.body).toEqual({ name: "API test activity", period });
   }
-  await page.getByRole("button", { name: "활동 수정", exact: true }).click();
-  await page.getByLabel("진행 중", { exact: true }).uncheck();
+  const pop = await openPeriod(page);
+  await pop.getByLabel("진행 중", { exact: true }).uncheck();
   for (const [start, end] of [["2026", "2025"], ["2025-04", "2025-03"]]) {
     await pick(page, "시작", start);
     await pick(page, "종료", end);
-    await page.getByRole("button", { name: "저장", exact: true }).click();
-    await expect(page.locator("form").getByRole("alert")).toContainText("시작일은 종료일보다 늦을 수 없어요");
+    await pop.getByRole("button", { name: "저장", exact: true }).click();
+    await expect(pop.getByRole("alert")).toContainText("시작일은 종료일보다 늦을 수 없어요");
     await expect(page.getByLabel("시작 연도")).toHaveText(`${Number(start.slice(0, 4))}년`);
     expect(state.patches).toHaveLength(valid.length);
   }
+  // Esc 는 고른 것을 버린다
+  await pop.press("Escape");
+  await expect(pop).toHaveCount(0);
+  expect(state.patches).toHaveLength(valid.length);
 });
 
 test("day precision survives when year · month are unchanged; clearing the year disables the month", async ({ page }) => {
@@ -152,15 +189,14 @@ test("day precision survives when year · month are unchanged; clearing the year
   state.activity.period = { start: "2025-03-31", end: "2025-06-15", ongoing: false };
   await page.reload();
   await page.getByRole("button", { name: /API test activity/ }).first().click();
-  await page.getByRole("button", { name: "활동 수정", exact: true }).click();
+  let pop = await openPeriod(page);
   await expect(page.getByLabel("시작 연도")).toHaveText("2025년");
   await expect(page.getByLabel("시작 월")).toHaveText("3월");
-  await page.getByLabel("활동 이름").fill("Renamed");
   await pickOption(page.getByLabel("종료 월"), "7월");
-  await page.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(page.getByLabel("시작 연도")).toHaveCount(0);
-  expect(state.patches.at(-1)!.body).toEqual({ name: "Renamed", period: { start: "2025-03-31", end: "2025-07", ongoing: false } });
-  await page.getByRole("button", { name: "활동 수정", exact: true }).click();
+  await pop.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(pop).toHaveCount(0);
+  expect(state.patches.at(-1)!.body).toEqual({ name: "API test activity", period: { start: "2025-03-31", end: "2025-07", ongoing: false } });
+  pop = await openPeriod(page);
   await pickOption(page.getByLabel("시작 연도"), "기간 모름");
   await expect(page.getByLabel("시작 월")).toBeDisabled();
 });
@@ -182,29 +218,53 @@ test("source name opens stored text, marks the cited lines, and shows failure wi
   await expect(dialog.getByLabel("원문")).toContainText("셋째 줄");
 });
 
-test("experience cancel, no-op, empty validation, changed fields, source status and citations", async ({ page }) => {
+test("experience: Esc cancels, no-op, empty validation, Shift+Enter newline, source status note and citations", async ({ page }) => {
   const state = await setup(page);
-  const edit = () => page.getByRole("button", { name: /^경험 수정:/ }).click();
+  await expect(page.getByRole("button", { name: /^경험 수정:/ })).toHaveCount(0);
+  const edit = () => page.getByRole("button", { name: /^경험 고치기:/ }).click();
+  const field = page.getByLabel("경험 내용");
   await edit();
-  await page.getByLabel("경험 내용").fill("Discarded");
-  await page.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(page.getByText(/고치면 「내가 입력」이 돼요/)).toBeVisible();
+  await field.fill("Discarded");
+  await field.press("Escape");
+  await expect(page.getByText("Original experience", { exact: true })).toBeVisible();
   await edit();
-  await expect(page.getByLabel("경험 내용")).toHaveValue("Original experience");
-  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(field).toHaveValue("Original experience");
+  await field.press("Enter");
+  await expect(field).toHaveCount(0);
   expect(state.patches).toHaveLength(0);
   await edit();
-  await page.getByLabel("경험 내용").fill(" \n ");
-  await page.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(page.locator("form").getByRole("alert")).toContainText("경험 내용");
+  await field.fill(" \n ");
+  await field.press("Enter");
+  await expect(page.getByRole("alert").filter({ hasText: "경험 내용" })).toBeVisible();
   expect(state.patches).toHaveLength(0);
-  await page.getByLabel("경험 내용").fill("Updated\nexperience");
-  await pickOption(page.getByLabel("수행 주체"), "팀");
-  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await field.fill("Updated");
+  await field.press("Shift+Enter");
+  await field.pressSequentially("experience");
+  await field.press("Enter");
   await expect(page.getByText("내가 입력", { exact: true })).toBeVisible();
-  expect(state.patches[0].body).toEqual({ content: "Updated\nexperience", actor: "TEAM" });
+  expect(state.patches[0].body).toEqual({ content: "Updated\nexperience" });
+  // 이미 「내가 입력」이면 고치는 중에 다시 알리지 않는다
+  await edit();
+  await expect(page.getByText(/고치면 「내가 입력」이 돼요/)).toHaveCount(0);
+  await field.press("Escape");
+  // 근거를 눌러도 고치기가 열리지 않는다
   await page.getByRole("button", { name: /근거 1/ }).filter({ visible: true }).click();
   await expect(page.getByText("Original quote", { exact: true }).filter({ visible: true })).toBeVisible();
+  await expect(field).toHaveCount(0);
   if (page.viewportSize()!.width < 1024) await expect(page.getByRole("dialog")).toContainText("Updated");
+});
+
+test("experience menu 「고치기」 opens the inline field and clicking outside saves", async ({ page }) => {
+  const state = await setup(page);
+  await page.getByRole("button", { name: /^경험 메뉴:/ }).click();
+  await page.getByRole("menuitem", { name: "고치기", exact: true }).click();
+  const field = page.getByLabel("경험 내용");
+  await expect(field).toBeFocused();
+  await field.fill("Saved by blur");
+  await page.getByText(/이 활동에서 한 일/).click();
+  await expect(page.getByText("Saved by blur", { exact: true })).toBeVisible();
+  expect(state.patches.map((p) => p.body)).toEqual([{ content: "Saved by blur" }]);
 });
 
 test("editing content and actor keeps competencies and omits the untouched field", async ({ page }) => {
@@ -212,13 +272,13 @@ test("editing content and actor keeps competencies and omits the untouched field
   state.activity.experiences[0].competencies = ["COLLABORATION", "PROBLEM_SOLVING", "IMPLEMENTATION"];
   await page.reload();
   await page.getByRole("button", { name: /API test activity/ }).click();
-  await page.getByRole("button", { name: /^경험 수정:/ }).click();
-  await page.getByLabel("경험 내용").fill("Changed content");
-  await pickOption(page.getByLabel("수행 주체"), "알 수 없음");
-  await page.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(page.getByLabel("경험 내용")).toHaveCount(0);
-  expect(state.patches[0].body).toEqual({ content: "Changed content", actor: "UNKNOWN" });
+  await editContent(page, "Changed content");
+  await pickActor(page, "알 수 없음");
+  expect(state.patches.map((p) => p.body)).toEqual([{ content: "Changed content" }, { actor: "UNKNOWN" }]);
   expect(state.activity.experiences[0].competencies).toEqual(["COLLABORATION", "PROBLEM_SOLVING", "IMPLEMENTATION"]);
+  // 같은 주체를 고르면 보내지 않는다
+  await pickActor(page, "알 수 없음");
+  expect(state.patches).toHaveLength(2);
   await page.getByRole("button", { name: /근거 1/ }).filter({ visible: true }).click();
   await expect(page.getByText("Original quote", { exact: true }).filter({ visible: true })).toBeVisible();
 });
@@ -231,48 +291,52 @@ test("competencies: edit picks up to 3 in order, order-only change counts, clear
   await page.getByRole("button", { name: /API test activity/ }).click();
   const meta = page.getByRole("complementary").locator("li").first();
   await expect(meta).toContainText("협업 · 문제 해결 · 기술 구현");
-  const edit = () => page.getByRole("button", { name: /^경험 수정:/ }).click();
-  const save = () => page.getByRole("button", { name: "저장", exact: true }).click();
-  const pick = (label: string) => page.getByLabel(label, { exact: true });
 
   // 저장된 역량이 고른 상태로 열리고, 3개가 차면 나머지는 막힌다
-  await edit();
+  let pop = await openCompetencies(page);
+  const pick = (label: string) => pop.getByLabel(label, { exact: true });
+  const save = async () => { await pop.getByRole("button", { name: "저장", exact: true }).click(); await expect(pop).toHaveCount(0); };
   for (const label of ["협업", "문제 해결", "기술 구현"]) await expect(pick(label)).toBeChecked();
   await expect(pick("기획")).toBeDisabled();
-  await expect(page.getByText("3 / 3", { exact: true })).toBeVisible();
+  await expect(pop.getByText("3 / 3", { exact: true })).toBeVisible();
+  await expect(pop.getByText(/고치면 「내가 입력」이 돼요/)).toBeVisible();
 
   // 하나를 빼고 새로 고르면 뒤에 붙는다 — 그 순서 그대로 보낸다
   await pick("문제 해결").uncheck();
   await expect(pick("기획")).toBeEnabled();
   await pick("기획").check();
   await save();
-  await expect(page.getByLabel("경험 내용")).toHaveCount(0);
   expect(state.patches[0].body).toEqual({ competencies: ["COLLABORATION", "IMPLEMENTATION", "PLANNING"] });
   await expect(meta).toContainText("협업 · 기술 구현 · 기획");
 
   // 같은 역량이어도 순서만 바뀌면 바뀐 것이다
-  await edit();
+  pop = await openCompetencies(page);
   await pick("협업").uncheck();
   await pick("협업").check();
   await save();
-  await expect(page.getByLabel("경험 내용")).toHaveCount(0);
   expect(state.patches[1].body).toEqual({ competencies: ["IMPLEMENTATION", "PLANNING", "COLLABORATION"] });
 
-  // 다 지우면 [] 를 보내고, 메타 줄에서 역량이 사라진다
-  await edit();
+  // 다 지우면 [] 를 보내고, 메타 줄에서 역량이 사라지고 「+ 역량」이 남는다
+  pop = await openCompetencies(page);
   for (const label of ["기술 구현", "기획", "협업"]) await pick(label).uncheck();
-  await expect(page.getByText("0 / 3", { exact: true })).toBeVisible();
+  await expect(pop.getByText("0 / 3", { exact: true })).toBeVisible();
   await save();
-  await expect(page.getByLabel("경험 내용")).toHaveCount(0);
   expect(state.patches[2].body).toEqual({ competencies: [] });
   await expect(meta).not.toContainText("협업");
+  await expect(page.getByRole("button", { name: "역량 붙이기" })).toBeVisible();
 
   // 골랐다가 다시 빼서 그대로면 PATCH 를 보내지 않는다
-  await edit();
+  pop = await openCompetencies(page);
   await pick("학습").check();
   await pick("학습").uncheck();
   await save();
-  await expect(page.getByLabel("경험 내용")).toHaveCount(0);
+  expect(state.patches).toHaveLength(3);
+
+  // Esc 는 고른 것을 버린다
+  pop = await openCompetencies(page);
+  await pick("학습").check();
+  await pop.press("Escape");
+  await expect(pop).toHaveCount(0);
   expect(state.patches).toHaveLength(3);
 });
 
@@ -281,21 +345,39 @@ for (const kind of ["activity", "experience"] as const) {
     const state = await setup(page);
     state.fail = true;
     state.delay = 500;
-    await page.getByRole("button", { name: kind === "activity" ? "활동 수정" : /^경험 수정:/ }).click();
-    const field = page.getByLabel(kind === "activity" ? "활동 이름" : "경험 내용");
+    await page.getByRole("button", { name: kind === "activity" ? "활동 이름 고치기" : /^경험 고치기:/ }).click();
+    const field = page.getByLabel(kind === "activity" ? "활동 이름" : "경험 내용", { exact: true });
     await field.fill("Keep my draft");
-    await page.locator("form").evaluate((form: HTMLFormElement) => { form.requestSubmit(); form.requestSubmit(); });
-    await expect(page.getByRole("button", { name: "저장 중…" })).toBeDisabled();
-    await expect(page.getByRole("button", { name: "취소", exact: true })).toBeDisabled();
-    await expect(page.locator("form").getByRole("alert")).toHaveText("Server rejected edit");
+    await field.press("Enter");
+    await field.press("Enter");
+    await expect(field).toHaveAttribute("aria-busy", "true");
+    await expect(page.getByRole("alert").filter({ hasText: "Server rejected edit" })).toBeVisible();
     await expect(field).toHaveValue("Keep my draft");
     expect(state.patches).toHaveLength(1);
     state.fail = false;
-    await page.getByRole("button", { name: "저장", exact: true }).click();
+    await field.press("Enter");
     await expect(field).toHaveCount(0);
     expect(state.patches).toHaveLength(2);
   });
 }
+
+test("actor and competency failures keep the old value, show the error, and can be retried", async ({ page }) => {
+  const state = await setup(page);
+  state.fail = true;
+  await page.getByRole("button", { name: /^수행 주체 고치기:/ }).click();
+  await page.getByRole("menuitemradio", { name: "팀" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "수행 주체를 저장하지 못했어요" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "수행 주체 고치기: 나" })).toBeVisible();
+  const pop = await openCompetencies(page);
+  await pop.getByLabel("협업", { exact: true }).check();
+  await pop.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(pop.getByRole("alert")).toHaveText("Server rejected edit");
+  await expect(pop.getByLabel("협업", { exact: true })).toBeChecked();
+  state.fail = false;
+  await pop.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(pop).toHaveCount(0);
+  await expect(page.getByRole("complementary").locator("li").first()).toContainText("협업");
+});
 
 test("API list failure shows error and retry, without mock fallback", async ({ page }) => {
   await page.route("**/api/activities", (route) => route.fulfill({ status: 503, json: { error: { code: "UNAVAILABLE", message: "Backend unavailable" } } }));
@@ -312,7 +394,7 @@ test("detail 404 uses BE error message and retry reloads the actual response", a
   await page.reload();
   await page.getByRole("button", { name: /API test activity/ }).click();
   await expect(page.getByRole("complementary").getByRole("alert")).toHaveText("Activity missing");
-  await expect(page.getByRole("button", { name: "활동 수정", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "활동 이름 고치기", exact: true })).toHaveCount(0);
   await page.unroute("**/api/activities/7");
   await page.getByRole("button", { name: "다시 시도", exact: true }).click();
   await expect(page.getByText("Original experience", { exact: true })).toBeVisible();
@@ -327,13 +409,13 @@ test("PATCH response values replace drafts in activity, timeline and experience"
     }
     return route.fulfill({ json: { ...state.activity.experiences[0], content: "Server experience", competencies: [], sourceStatus: "USER_ENTERED" } });
   });
-  await page.getByRole("button", { name: "활동 수정", exact: true }).click();
-  await page.getByLabel("활동 이름").fill("Activity draft");
-  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await page.getByRole("button", { name: "활동 이름 고치기", exact: true }).click();
+  await page.getByLabel("활동 이름", { exact: true }).fill("Activity draft");
+  await page.getByLabel("활동 이름", { exact: true }).press("Enter");
   await expect(page.getByRole("heading", { name: "Server activity" })).toBeVisible();
-  await page.getByRole("button", { name: /^경험 수정:/ }).click();
+  await page.getByRole("button", { name: /^경험 고치기:/ }).click();
   await page.getByLabel("경험 내용").fill("Experience draft");
-  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await page.getByLabel("경험 내용").press("Enter");
   await expect(page.getByText("Server experience", { exact: true })).toBeVisible();
   await expect(page.getByText("내가 입력", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: /근거 1/ }).filter({ visible: true }).click();
@@ -342,7 +424,7 @@ test("PATCH response values replace drafts in activity, timeline and experience"
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "타임라인", exact: true }).click();
   }
-  await expect(page.getByRole("button", { name: /Server activity/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Server activity/ })).toBeVisible();
 });
 
 test("source HTTP failure keeps the text and never shows mock analysis success", async ({ page }) => {

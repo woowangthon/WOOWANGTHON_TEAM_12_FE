@@ -69,7 +69,7 @@ test("inline add validates, cancels, appends server record after collapsed items
   await expect(page.locator("form").getByRole("alert")).toContainText("경험 내용을 입력");
   expect(state.posts).toHaveLength(0);
   await page.getByLabel("경험 내용").fill("My manual experience");
-  await pickOption(page.getByLabel("수행 주체"), "팀");
+  await pickOption(page.getByLabel("수행 주체", { exact: true }), "팀");
   await page.getByLabel("협업", { exact: true }).check();
   await page.getByLabel("문제 해결", { exact: true }).check();
   await page.getByLabel("기술 구현", { exact: true }).check();

@@ -7,9 +7,9 @@ import { DropdownMenu } from "radix-ui";
 import { cn } from "@/lib/utils";
 import { COMPETENCIES, type Actor, type Experience, type SourceStatus } from "@/lib/api/types";
 import { CitationList } from "./citation-list";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ExperienceEditor } from "./experience-editor";
+import { ActorField, CompetencyField, ExperienceContentField, type InlineEditHandle } from "./inline-edit";
 import { ExperienceMcpChange } from "./experience-mcp-change";
 import { ExperienceSave } from "./experience-save";
 import { ProfileToggle } from "./profile-toggle";
@@ -49,27 +49,30 @@ const isAiCompetency = (e: Pick<Experience, "competenciesBy" | "sourceStatus">) 
   e.competenciesBy === undefined ? e.sourceStatus !== "USER_ENTERED" : e.competenciesBy === "AI";
 
 /** 수행 주체 · 출처 상태 · 역량 — AI 표시는 부가 정보라 맨 뒤 */
-export function ExperienceMeta({ experience: e, aiLabel = "AI" }: {
+export function ExperienceMeta({ experience: e, aiLabel = "AI", edit }: {
   experience: Pick<Experience, "actor" | "competencies" | "competenciesBy" | "sourceStatus" | "origin">;
   aiLabel?: string;
+  /** 주면 수행 주체 · 역량을 눌러 그 자리에서 고친다 (S-10) */
+  edit?: { experience: Experience; onSaved: (experience: Experience) => void };
 }) {
   const sep = <span className="text-hairline">·</span>;
+  const aiMark = isAiCompetency(e) && <span
+    className="ml-1 inline-block rounded-[4px] border border-hairline px-1 align-[1px] text-xs leading-[15px] font-bold tracking-[0.02em]"
+    title="AI 가 붙인 역량 — 해석이에요"
+  >
+    {aiLabel}
+  </span>;
   return (
     <>
-      <span>{ACTOR[e.actor]}</span>
+      {edit ? <ActorField experience={edit.experience} onSaved={edit.onSaved} /> : <span>{ACTOR[e.actor]}</span>}
       {sep}
       {e.origin?.type === "ANSWER" ? <Link href={`/questions?question=${e.origin.questionId}`} className="min-w-0 break-words underline-offset-3 hover:underline">내가 쓴 지원서 · {e.origin.organization || "지원처 미입력"} · {e.origin.questionText}</Link> : <SourceStatusMark status={e.sourceStatus} />}
-      {e.competencies.length > 0 && (
+      {edit ? <>{sep}<CompetencyField experience={edit.experience} aiMark={aiMark} onSaved={edit.onSaved} /></> : e.competencies.length > 0 && (
         <>
           {sep}
           <span>
             {e.competencies.map((c) => COMPETENCIES[c]).join(" · ")}
-            {isAiCompetency(e) && <span
-              className="ml-1 inline-block rounded-[4px] border border-hairline px-1 align-[1px] text-xs leading-[15px] font-bold tracking-[0.02em]"
-              title="AI 가 붙인 역량 — 해석이에요"
-            >
-              {aiLabel}
-            </span>}
+            {aiMark}
           </span>
         </>
       )}
@@ -122,6 +125,9 @@ type Props = {
 
 export function ExperienceItem({ experience, citationsOpen, onToggleCitations, onShowCitations, onSaved, onDelete, onMove, onMerge, onDragChange, dragging, readOnly = false }: Props) {
   const [editing, setEditing] = useState(false);
+  const contentEdit = useRef<InlineEditHandle>(null);
+  // 메뉴가 닫힌 뒤에 칸을 연다 — 열린 메뉴가 포커스를 붙잡고 있어서
+  const editFromMenu = useRef(false);
   const [usedInOpen, setUsedInOpen] = useState(false);
   const e = experience;
   const usedIn = e.usedIn ?? [];
@@ -149,27 +155,26 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
           <DotsSixVerticalIcon className="size-4" />
         </span>
       )}
-      {editing ? <ExperienceEditor experience={e} onCancel={() => setEditing(false)} onSaved={(result) => { onSaved({ ...result, usedIn: result.usedIn ?? e.usedIn }); setEditing(false); }} /> : (
-        <div className="flex items-start gap-2">
-          <p className="m-0 flex-1 whitespace-pre-wrap text-base leading-relaxed text-ink">{e.content}</p>
-          {!readOnly && <><Button variant="ghost" size="sm" onClick={() => setEditing(true)} aria-label={`경험 수정: ${e.content}`}>수정</Button>
+      <div className="flex items-start gap-2">
+          <ExperienceContentField experience={e} readOnly={readOnly} editRef={contentEdit} onEditingChange={setEditing}
+            onSaved={(result) => onSaved({ ...result, usedIn: result.usedIn ?? e.usedIn })} />
+          {!readOnly && <>
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
               <Button variant="ghost" size="icon" className="size-11" aria-label={`경험 메뉴: ${e.content}`}><DotsThreeIcon /></Button>
             </DropdownMenu.Trigger>
             <DropdownMenu.Portal>
-              <DropdownMenu.Content align="end" sideOffset={4} className="z-50 min-w-32 rounded-md border border-hairline bg-canvas p-1 shadow-float">
-                <DropdownMenu.Item onSelect={() => setEditing(true)} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">고치기</DropdownMenu.Item>
+              <DropdownMenu.Content align="end" sideOffset={4} onCloseAutoFocus={(ev) => { if (editFromMenu.current) { ev.preventDefault(); editFromMenu.current = false; contentEdit.current?.open(); } }} className="z-50 min-w-32 rounded-md border border-hairline bg-canvas p-1 shadow-float">
+                <DropdownMenu.Item onSelect={() => { editFromMenu.current = true; }} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">고치기</DropdownMenu.Item>
                 <DropdownMenu.Item onSelect={() => onMove(e)} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">다른 활동으로 옮기기</DropdownMenu.Item>
                 {onMerge && <DropdownMenu.Item onSelect={() => onMerge(e)} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">다른 경험과 합치기</DropdownMenu.Item>}
                 <DropdownMenu.Item onSelect={() => onDelete(e)} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm text-error outline-none focus:bg-surface-soft">지우기</DropdownMenu.Item>
               </DropdownMenu.Content>
             </DropdownMenu.Portal>
           </DropdownMenu.Root></>}
-        </div>
-      )}
+      </div>
       <div className="flex flex-wrap items-center gap-1.5 text-note font-medium text-muted">
-        <ExperienceMeta experience={e} />
+        <ExperienceMeta experience={e} edit={readOnly ? undefined : { experience: e, onSaved: (result) => onSaved({ ...result, usedIn: result.usedIn ?? e.usedIn }) }} />
         <UsedInChip usedIn={usedIn} open={usedInOpen} onToggle={() => setUsedInOpen((v) => !v)} controls={`used-in-${e.id}`} />
         {n === 0 ? (
           <span className="ml-auto text-muted">근거 없음</span>
@@ -195,8 +200,8 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
           </>
         )}
       </div>
-      {!editing && <ExperienceMcpChange experience={e} readOnly={readOnly} onSaved={onSaved} />}
-      {!editing && !readOnly && (
+      {<ExperienceMcpChange experience={e} readOnly={readOnly} onSaved={onSaved} />}
+      {!readOnly && (
         <div className="flex flex-wrap items-center gap-x-3">
           <ExperienceSave experience={e} onChange={(saved) => onSaved({ ...e, saved })} />
           <ProfileToggle experience={e} onSaved={onSaved} />
@@ -208,7 +213,7 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
           <CitationList citations={e.citations} readOnly={readOnly} />
         </div>
       )}
-      {!editing && (readOnly ? <SupplementList supplements={e.supplements ?? []} /> : <SupplementList supplements={e.supplements ?? []}
+      {(readOnly ? <SupplementList supplements={e.supplements ?? []} /> : <SupplementList supplements={e.supplements ?? []}
         onSaved={(s) => onSaved({ ...e, supplements: (e.supplements ?? []).map((x) => x.id === s.id ? s : x) })}
         onDeleted={(id) => onSaved({ ...e, supplements: (e.supplements ?? []).filter((x) => x.id !== id) })} />)}
     </li>
