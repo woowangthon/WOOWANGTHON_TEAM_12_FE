@@ -18,7 +18,7 @@ async function setup(page: Page, suggested = false) {
     { id: 9, name: "Swap deploy", period: { start: "2025-05", end: "2025-05", ongoing: false }, experiences: [experience(121, 9, "AWS setup")] },
   ];
   if (suggested) activities[2].mergeSuggestion = { activityId: 7, name: activities[0].name, period: activities[0].period };
-  const state = { activities, dismissals: [] as number[], moves: [] as { id: number; body: unknown }[], merges: [] as { keep: number; body: unknown }[], fail: 0, delay: 0 };
+  const state = { activities, dismissals: [] as number[], moves: [] as { id: number; body: unknown }[], merges: [] as { keep: number; body: unknown }[], experienceMerges: [] as { keep: number; body: unknown }[], fail: 0, delay: 0 };
   const find = (id: number) => state.activities.find((a) => a.id === id);
   const summary = (a: ActivityDetail) => ({ id: a.id, name: a.name, period: a.period, mergeSuggestion: a.mergeSuggestion, experienceCount: a.experiences.length });
 
@@ -58,6 +58,23 @@ async function setup(page: Page, suggested = false) {
       const from = find(body.fromActivityId)!;
       keep.experiences.push(...from.experiences.map((e) => ({ ...e, activityId: keep.id })));
       state.activities = state.activities.filter((a) => a.id !== from.id);
+      return route.fulfill({ json: keep });
+    }
+    // 경험 합치기(S-70 · experience-api.md) — 남길 경험의 값은 그대로, 근거 · 보완만 옮기고 다른 쪽을 지운다
+    m = path.match(/^\/api\/experiences\/(\d+)\/merge$/);
+    if (m && req.method() === "POST") {
+      const keepId = Number(m[1]);
+      const body = req.postDataJSON();
+      state.experienceMerges.push({ keep: keepId, body });
+      if (state.delay) await new Promise((r) => setTimeout(r, state.delay));
+      if (state.fail) return fail();
+      const owner = state.activities.find((x) => x.experiences.some((e) => e.id === keepId))!;
+      const keep = owner.experiences.find((e) => e.id === keepId)!;
+      const from = owner.experiences.find((e) => e.id === body.fromExperienceId);
+      if (!from) return route.fulfill({ status: 400, json: { error: { code: "INVALID_REQUEST", message: "다른 활동" } } });
+      keep.citations = [...keep.citations, ...from.citations];
+      keep.supplements = [...(keep.supplements ?? []), ...(from.supplements ?? [])];
+      owner.experiences = owner.experiences.filter((e) => e.id !== from.id);
       return route.fulfill({ json: keep });
     }
     if (path === "/api/activities") return route.fulfill({ json: { activities: state.activities.map(summary) } });
@@ -243,4 +260,83 @@ test("합치기가 실패하면 창에 이유를 남기고 타임라인은 그�
   await expect(detail(page).getByText("이 활동에서 한 일 3", { exact: true })).toBeVisible();
   await backToTimeline(page);
   await expect(row(page, "Swap deploy")).toBeVisible();
+});
+
+// FE#131 — 경험 하나로 합치기(S-70). 같은 활동 안의 둘 · 되돌릴 수 없어 확인 · 근거 둘이 남는다(S-09)
+async function mergeByMenu(page: Page, content: string) {
+  await page.getByRole("button", { name: `경험 메뉴: ${content}`, exact: true }).click();
+  await page.getByRole("menuitem", { name: "다른 경험과 합치기" }).click();
+  return page.getByRole("dialog");
+}
+
+test("경험 합치기 — 남길 경험에 근거 둘이 모이고 새로고침해도 남는다", async ({ page }) => {
+  const state = await setup(page);
+  state.activities[0].experiences[1].citations[0].sourceName = "README.md";
+  state.activities[0].experiences[1].supplements = [{ id: 401, question: "몇 명이 썼나요?", answer: "200명", questionId: null, createdAt: "2026-11-04T10:00:00+09:00", updatedAt: "2026-11-04T10:00:00+09:00" }];
+  await open(page, "Swap app");
+  const dialog = await mergeByMenu(page, "Chat fix");
+  // 같은 활동의 경험만 고를 수 있다 — 다른 활동의 경험은 없다
+  const others = dialog.getByRole("group", { name: /함께 합칠 경험/ }).getByRole("radio");
+  await expect(others).toHaveCount(2);
+  await expect(dialog).not.toContainText("Pick problems");
+  await expect(dialog.getByRole("button", { name: "하나로 합치기" })).toBeDisabled();
+  await dialog.getByRole("radio", { name: /Weekly retro/ }).first().check();
+  await expect(dialog).toContainText("「Weekly retro」의 근거 1개 · 보완 1개가 남길 경험 아래로 옮겨지고, 이 경험은 사라져요.");
+  await expect(dialog).toContainText("합친 뒤에는 되돌릴 수 없어요.");
+  await dialog.getByRole("button", { name: "하나로 합치기" }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(state.experienceMerges).toEqual([{ keep: 101, body: { fromExperienceId: 102 } }]);
+  await expect(page.getByRole("status").filter({ hasText: "경험을 하나로 합쳤어요" })).toContainText("근거 2개가 모였어요");
+  await expect(detail(page).getByText("Weekly retro", { exact: true })).toHaveCount(0);
+  await expect(detail(page).getByText("이 활동에서 한 일 2", { exact: true })).toBeVisible();
+
+  await page.reload();
+  await open(page, "Swap app");
+  const kept = detail(page).locator("li").filter({ hasText: "Chat fix" }).first();
+  await expect(kept).toContainText("200명"); // 보완도 따라왔다
+  await kept.getByRole("button", { name: /근거 2/ }).filter({ visible: true }).click();
+  // 근거를 열면 두 원본 이름이 다 보인다(S-09)
+  await expect(page.getByText("retro.md", { exact: false }).filter({ visible: true }).first()).toBeVisible();
+  await expect(page.getByText("README.md", { exact: false }).filter({ visible: true }).first()).toBeVisible();
+  if (isMobile(page)) return;
+  await backToTimeline(page);
+  await expect(row(page, "Swap app")).toContainText("경험 2");
+});
+
+test("경험 합치기 — 남길 쪽을 바꿀 수 있고, 실패하면 창에 이유를 남기고 그대로다", async ({ page }) => {
+  const state = await setup(page);
+  state.fail = 500;
+  await open(page, "Swap app");
+  const dialog = await mergeByMenu(page, "Chat fix");
+  await dialog.getByRole("radio", { name: /Deploy/ }).first().check();
+  await dialog.getByRole("group", { name: /남길 경험/ }).getByRole("radio", { name: /Deploy/ }).check();
+  await expect(dialog).toContainText("「Chat fix」의 근거 1개가 남길 경험 아래로");
+  await dialog.getByRole("button", { name: "하나로 합치기" }).click();
+  await expect(dialog.getByRole("alert")).toHaveText("Server rejected");
+  expect(state.experienceMerges).toEqual([{ keep: 103, body: { fromExperienceId: 101 } }]);
+  await dialog.getByRole("button", { name: "취소" }).click();
+  await expect(detail(page).getByText("이 활동에서 한 일 3", { exact: true })).toBeVisible();
+  await expect(detail(page).getByText("Chat fix", { exact: true })).toBeVisible();
+});
+
+test("경험이 하나뿐인 활동엔 「다른 경험과 합치기」가 없다", async ({ page }) => {
+  await setup(page);
+  await open(page, "Algo study");
+  await page.getByRole("button", { name: "경험 메뉴: Pick problems", exact: true }).click();
+  await expect(page.getByRole("menuitem", { name: "다른 활동으로 옮기기" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "다른 경험과 합치기" })).toHaveCount(0);
+});
+
+test("경험 합치기 — 세 폭에서 확인 창 배치", async ({ page }) => {
+  test.skip(isMobile(page), "한 프로젝트에서 세 폭을 확인");
+  await setup(page);
+  await open(page, "Swap app");
+  const dialog = await mergeByMenu(page, "Chat fix");
+  await dialog.getByRole("radio", { name: /Weekly retro/ }).first().check();
+  for (const width of [1440, 1024, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await expect(dialog.getByRole("button", { name: "하나로 합치기" })).toBeInViewport();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({ path: `artifacts/merge-experience-${width}.png`, style: "nextjs-portal { display: none !important; }" });
+  }
 });

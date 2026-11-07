@@ -39,6 +39,8 @@ type Props = {
   onExperienceAdded: (experience: Experience) => void;
   onExperienceDelete: (experience: Experience) => void;
   onExperienceMove: (experience: Experience) => void;
+  /** 「다른 경험과 합치기」(S-70) — 경험이 둘 이상일 때만 메뉴에 보인다 */
+  onExperienceMerge?: (experience: Experience) => void;
   onDragChange: (experience: Experience | null) => void;
   draggingId: number | null;
   /** 다른 활동이 없으면 undefined — 메뉴를 숨긴다 */
@@ -55,7 +57,7 @@ type Props = {
   addSourceStatus?: ReactNode;
 };
 
-export function ActivityDetailView({ summary, state, now, onClose, onRetry, onActivitySaved, onNoteSaved, onCategorySaved, onExperienceSaved, onExperienceAdded, onExperienceDelete, onExperienceMove, onDragChange, draggingId, onMergeRequest, onSuggestedMerge, onSuggestionDismiss, onOpenActivity, onAddSource, addSourceBusy, addSourceStatus, readOnly = false }: Props) {
+export function ActivityDetailView({ summary, state, now, onClose, onRetry, onActivitySaved, onNoteSaved, onCategorySaved, onExperienceSaved, onExperienceAdded, onExperienceDelete, onExperienceMove, onExperienceMerge, onDragChange, draggingId, onMergeRequest, onSuggestedMerge, onSuggestionDismiss, onOpenActivity, onAddSource, addSourceBusy, addSourceStatus, readOnly = false }: Props) {
   const [editing, setEditing] = useState(false);
   const activity = state.status === "ready" ? state.activity : null;
   const current = activity ?? summary;
@@ -150,19 +152,20 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
           </div>
         )}
         {activity && <ExperienceList key={activity.id} activity={activity} readOnly={readOnly} onSaved={onExperienceSaved} onAdded={onExperienceAdded} onDelete={onExperienceDelete}
-          onMove={onExperienceMove} onDragChange={onDragChange} draggingId={draggingId} />}
+          onMove={onExperienceMove} onMerge={activity.experiences.length > 1 ? onExperienceMerge : undefined} onDragChange={onDragChange} draggingId={draggingId} />}
       </div>
     </div>
   );
 }
 
-function ExperienceList({ activity, onSaved, onAdded, onDelete, onMove, onDragChange, draggingId, readOnly }: {
+function ExperienceList({ activity, onSaved, onAdded, onDelete, onMove, onMerge, onDragChange, draggingId, readOnly }: {
   readOnly: boolean;
   activity: ActivityDetail;
   onSaved: (experience: Experience) => void;
   onAdded: (experience: Experience) => void;
   onDelete: (experience: Experience) => void;
   onMove: (experience: Experience) => void;
+  onMerge?: (experience: Experience) => void;
   onDragChange: (experience: Experience | null) => void;
   draggingId: number | null;
 }) {
@@ -196,6 +199,7 @@ function ExperienceList({ activity, onSaved, onAdded, onDelete, onMove, onDragCh
             onSaved={onSaved}
             onDelete={onDelete}
             onMove={onMove}
+            onMerge={onMerge}
             onDragChange={onDragChange}
             dragging={e.id === draggingId}
             citationsOpen={openIds.has(e.id)}

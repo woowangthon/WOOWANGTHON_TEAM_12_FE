@@ -17,7 +17,7 @@ import { hasPendingAnalysis, useAnalysisJob } from "@/components/source/use-anal
 import { Button } from "@/components/ui/button";
 import { ToastCard, toastStack, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
-import { dismissMergeSuggestion, fetchActivities, fetchActivity, isMockMode, mergeActivities, moveExperience, updateActivity, type MockAnalysis, type MockMode } from "@/lib/api/experience";
+import { dismissMergeSuggestion, fetchActivities, fetchActivity, isMockMode, mergeActivities, mergeExperiences, moveExperience, updateActivity, type MockAnalysis, type MockMode } from "@/lib/api/experience";
 import { ACTIVITY_CATEGORIES, type ActivityCategory, type ActivitySummary, type Experience, type Period } from "@/lib/api/types";
 import { monthNumber, periodText, spanOf, yearsOf, type Span } from "@/lib/period";
 import { CATEGORY_KEYS, CategoryIcon, categoryOf } from "./activity-category";
@@ -25,7 +25,7 @@ import { ActivityDetailView, type DetailState } from "./activity-detail";
 import { ExperienceSearch } from "./experience-search";
 import { experienceSearchFromParams } from "@/lib/experience-search-link";
 import type { ExperienceSearch as ExperienceSearchConditions } from "@/lib/api/types";
-import { MergeActivityDialog, MoveExperienceDialog } from "./regroup-dialogs";
+import { MergeActivityDialog, MergeExperienceDialog, MoveExperienceDialog } from "./regroup-dialogs";
 import { Timeline } from "./timeline";
 import { useExperienceDeletion } from "./use-experience-deletion";
 import { useTimelineApplications, type TimelineApplicationsState } from "./use-timeline-applications";
@@ -65,6 +65,7 @@ export function TimelineScreen() {
   const { toast, showToast, clearToast } = useToast();
   const [dragging, setDragging] = useState<Experience | null>(null);
   const [moving, setMoving] = useState<Experience | null>(null);
+  const [mergingExperience, setMergingExperience] = useState<Experience | null>(null);
   const [mergeOpen, setMergeOpen] = useState(false);
   // 거르기 칩(S-57) — 받은 목록에서 FE 가 거른다. 저장하지 않아 새로고침하면 「전체」로 돌아간다
   const [categoryFilter, setCategoryFilter] = useState<ActivityCategory | null>(null);
@@ -394,6 +395,27 @@ export function TimelineScreen() {
     showToast(`활동을 합쳤어요. 「${kept.name}」에 경험 ${kept.experiences.length}개가 모였어요.`);
   };
 
+  /** 경험 합치기(S-70) — 확인 창에서 응답을 기다린다. 실패하면 던져서 창에 이유를 남기고 화면은 그대로 둔다.
+   *  응답(남긴 경험)으로 바로 바꾸고, 쓰인 지원(usedIn)은 응답에 없어 활동 세부를 조용히 다시 읽는다(계약) */
+  const mergeExperience = async (keepId: number, fromId: number) => {
+    const merged = await mergeExperiences(keepId, fromId);
+    const activityId = merged.activityId;
+    refreshSearch();
+    ++listRequest.current;
+    shiftCount({ [activityId]: -1 });
+    setDetail((prev) => prev.status === "ready" && prev.activity.id === activityId
+      ? { ...prev, activity: { ...prev.activity, experiences: prev.activity.experiences.filter((e) => e.id !== fromId)
+        .map((e) => e.id === keepId ? { ...merged, usedIn: merged.usedIn ?? e.usedIn } : e) } } : prev);
+    setMergingExperience(null);
+    showToast(`경험을 하나로 합쳤어요. 근거 ${merged.citations.length}개가 모였어요.`);
+    const request = ++detailRequest.current;
+    fetchActivity(activityId).then(
+      (activity) => request === detailRequest.current && setDetail((prev) => prev.status === "ready" && prev.activity.id === activityId
+        ? { status: "ready", activity: { ...activity, period: periodSaves.current.get(activityId)?.latest ?? activity.period } } : prev),
+      () => {}, // 다시 읽기는 덤이다 — 합친 결과는 이미 화면에 있다
+    );
+  };
+
   const dismissSuggestion = async (id: number) => {
     const previousDetailRequest = detailRequest.current;
     await dismissMergeSuggestion(id);
@@ -572,6 +594,7 @@ export function TimelineScreen() {
               onExperienceAdded={experienceAdded}
               onExperienceDelete={deletion.remove}
               onExperienceMove={setMoving}
+              onExperienceMerge={setMergingExperience}
               onDragChange={setDragging}
               draggingId={dragging?.id ?? null}
               onSuggestedMerge={merge}
@@ -589,6 +612,8 @@ export function TimelineScreen() {
 
 
       <MoveExperienceDialog experience={moving} activities={ready?.activities ?? []} onClose={() => setMoving(null)} onPick={moveTo} />
+      <MergeExperienceDialog experience={mergingExperience} experiences={detail.status === "ready" ? detail.activity.experiences.filter((e) => !hiddenIds.has(e.id)) : []}
+        onClose={() => setMergingExperience(null)} onMerge={mergeExperience} />
       {selected && ready && (
         <MergeActivityDialog key={selected.id} activity={selected} activities={ready.activities} open={mergeOpen} onOpenChange={setMergeOpen} onMerge={merge} />
       )}

@@ -133,12 +133,104 @@ export function MergeActivityDialog({ activity, activities, open, onOpenChange, 
   );
 }
 
+const evidenceCount = (e: Experience) => {
+  const supplements = e.supplements?.length ?? 0;
+  return `근거 ${e.citations.length}개${supplements ? ` · 보완 ${supplements}개` : ""}`;
+};
+
+/** 경험 하나로 합치기(S-70) — 같은 활동 안의 겹치는 경험 둘. 남길 쪽의 본문 · 역량 · 출처 상태는 그대로이고 근거 · 보완만 모인다.
+ *  되돌리는 API 가 없어 무엇이 사라지는지 보여 주고 한 번 확인받는다. 고르는 방식은 FE 몫(ADR-002) — 끌기 대신 고르기(모바일 · 키보드) */
+export function MergeExperienceDialog({ experience, experiences, onClose, onMerge }: {
+  /** 메뉴를 연 경험 — null 이면 닫힘 */
+  experience: Experience | null;
+  /** 같은 활동의 경험 전부 */
+  experiences: Experience[];
+  onClose: () => void;
+  /** 실패하면 던진다 — 창을 열어 둔 채 이유를 보여 준다 */
+  onMerge: (keepId: number, fromId: number) => Promise<void>;
+}) {
+  const others = experiences.filter((e) => e.id !== experience?.id && e.activityId === experience?.activityId);
+  const [otherId, setOtherId] = useState<number | null>(null);
+  const [keepThis, setKeepThis] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const other = others.find((e) => e.id === otherId) ?? null;
+  const keep = experience && other && (keepThis ? experience : other);
+  const from = experience && other && (keepThis ? other : experience);
+
+  const reset = () => { setOtherId(null); setKeepThis(true); setError(null); };
+  const change = (next: boolean) => {
+    if (busy || next) return;
+    reset();
+    onClose();
+  };
+
+  const submit = async () => {
+    if (!keep || !from || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await onMerge(keep.id, from.id);
+      reset();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "합치지 못했어요. 다시 시도해 주세요.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={experience != null} onOpenChange={change}>
+      <DialogContent>
+        <DialogHeader className="pr-10">
+          <DialogTitle>경험 하나로 합치기</DialogTitle>
+          <DialogDescription className="text-ui text-body">
+            같은 일을 말하는 경험이 둘이면 하나로 모아요. 근거와 보완은 하나도 잃지 않아요.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="-mx-1 grid max-h-[55dvh] gap-5 overflow-auto px-1">
+          <fieldset className="m-0 grid gap-1 border-0 p-0" disabled={busy}>
+            <legend className="mb-1.5 p-0 text-sm font-semibold text-ink">함께 합칠 경험 — 같은 활동 안에서만 골라요</legend>
+            {others.length === 0 && <p className="m-0 text-sm text-muted">이 활동에 합칠 다른 경험이 없어요.</p>}
+            {others.map((e) => (
+              <Choice key={e.id} name="merge-experience-other" checked={e.id === otherId} onChange={() => setOtherId(e.id)}
+                title={e.content} sub={evidenceCount(e)} />
+            ))}
+          </fieldset>
+
+          {experience && other && keep && from && (
+            <>
+              <fieldset className="m-0 grid gap-1 border-0 p-0" disabled={busy}>
+                <legend className="mb-1.5 p-0 text-sm font-semibold text-ink">남길 경험 — 본문 · 역량 · 출처 상태는 이 경험 것을 써요</legend>
+                <Choice name="merge-experience-keep" checked={keepThis} onChange={() => setKeepThis(true)} title={experience.content} sub={evidenceCount(experience)} />
+                <Choice name="merge-experience-keep" checked={!keepThis} onChange={() => setKeepThis(false)} title={other.content} sub={evidenceCount(other)} />
+              </fieldset>
+              <p className="m-0 rounded-sm bg-surface-soft px-3.5 py-3 text-sm leading-relaxed text-body" aria-live="polite">
+                「{from.content}」의 {evidenceCount(from)}가 남길 경험 아래로 옮겨지고, 이 경험은 사라져요. 지원 추천 · 초안에서도 남길 경험으로 바뀌어요.
+                <b className="font-semibold text-ink"> 합친 뒤에는 되돌릴 수 없어요.</b>
+              </p>
+            </>
+          )}
+        </div>
+
+        {error && <p className="m-0 text-sm font-medium text-error" role="alert">{error}</p>}
+
+        <DialogFooter>
+          <Button variant="link" onClick={() => change(false)} disabled={busy}>취소</Button>
+          <Button onClick={submit} disabled={!other || busy}>{busy ? "합치는 중…" : "하나로 합치기"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function Choice({ name, checked, onChange, title, sub }: { name: string; checked: boolean; onChange: () => void; title: string; sub: string }) {
   return (
     <label className={cn("flex min-h-11 cursor-pointer items-start gap-3 rounded-sm px-3 py-2.5 hover:bg-surface-soft", checked && "bg-surface-soft")}>
-      <input type="radio" name={name} checked={checked} onChange={onChange} className="mt-1 size-4 accent-[var(--ink)]" />
-      <span className="grid gap-0.5">
-        <span className="text-ui font-semibold text-ink">{title}</span>
+      <input type="radio" name={name} checked={checked} onChange={onChange} className="mt-1 size-4 shrink-0 accent-[var(--ink)]" />
+      <span className="grid min-w-0 gap-0.5">
+        <span className="line-clamp-3 break-words text-ui font-semibold text-ink">{title}</span>
         <span className="text-note text-muted tabular-nums">{sub}</span>
       </span>
     </label>
