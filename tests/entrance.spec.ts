@@ -207,6 +207,9 @@ test("쌓기와 파일은 가르지 않으며 세 폭에서 가로 넘침이 없
   expect(calls.sources[0]).toEqual({ kind: "TEXT", name: null, text: "쌓을 자료" });
   expect(calls.routes).toHaveLength(0);
   await expect(page.getByRole("button", { name: "보내기", exact: true })).toBeDisabled();
+  // 작업이 저장된 뒤에 지운다 — 먼저 지우면 뒤늦게 저장돼 새로고침 뒤에도 분석 중으로 잠긴다.
+  await expect.poll(() => page.evaluate(() => localStorage.length)).toBeGreaterThan(0);
+  await expect(page.getByText("자료 분석 중이에요")).toBeVisible();
   // 파일도 새 홈에서 보낸다. 진행 중인 작업을 지우는 것은 이 시험의 격리뿐이다.
   await page.evaluate(() => localStorage.clear());
   await page.reload();
