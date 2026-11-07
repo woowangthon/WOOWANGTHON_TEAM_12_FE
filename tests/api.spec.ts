@@ -275,3 +275,26 @@ test("experience mutations propagate HTTP and network errors; old perspective re
     await expect(fetchActivity(7)).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
   }
 });
+
+// FE#130 — 409 SOURCE_DUPLICATE 는 그 원본을 싣고, 그래도 넣기는 allowDuplicate 를 보낸다(S-69)
+test("SOURCE_DUPLICATE carries the existing source; allowDuplicate is sent as-is; a malformed source is dropped", async () => {
+  process.env.NEXT_PUBLIC_API_BASE_URL = "https://backend.example/api";
+  const bodies: unknown[] = [];
+  let source: unknown = { id: 12, name: "바꿔요-회고.md", createdAt: "2026-11-03T14:05:00+09:00" };
+  globalThis.fetch = async (_url, options) => {
+    const body = JSON.parse(String(options?.body));
+    bodies.push(body);
+    if (body.allowDuplicate) return Response.json({ sourceId: 13, jobId: 35, status: "ANALYZING" }, { status: 202 });
+    return Response.json({ error: { code: "SOURCE_DUPLICATE", message: "이미 넣은 자료입니다", source } }, { status: 409 });
+  };
+  const req = { kind: "TEXT" as const, name: null, text: "같은 글" };
+  const error = await submitSource(req).catch((e) => e);
+  expect(error).toBeInstanceOf(ApiError);
+  expect(error).toMatchObject({ code: "SOURCE_DUPLICATE", status: 409, source: { id: 12, name: "바꿔요-회고.md", createdAt: "2026-11-03T14:05:00+09:00" } });
+  expect(await submitSource({ ...req, allowDuplicate: true })).toEqual({ sourceId: 13, jobId: 35, status: "ANALYZING" });
+  expect(bodies).toEqual([req, { ...req, allowDuplicate: true }]);
+  source = { id: "12", name: null };
+  const malformed = await submitSource(req).catch((e) => e);
+  expect(malformed).toMatchObject({ code: "SOURCE_DUPLICATE" });
+  expect(malformed.source).toBeUndefined();
+});

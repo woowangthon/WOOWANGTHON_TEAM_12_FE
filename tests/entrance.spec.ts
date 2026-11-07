@@ -14,7 +14,7 @@ const ASKED = [{
 const PARSED = { organization: "OO 백엔드 부트캠프 4기", organizationType: "BOOTCAMP", jobRole: "BACKEND", questions: ["협업한 경험을 적어 주세요.", "지원 동기는?"] };
 
 async function setup(page: Page, kind: EntranceKind = "SOURCE", status = 200) {
-  const calls = { routes: [] as { text: string }[], parses: [] as unknown[], parseStatus: 200, parseCode: "URL_UNREADABLE", parsed: PARSED as Record<string, unknown>, sources: [] as unknown[], applications: [] as unknown[], sourceError: 0, asks: [] as unknown[], askStatus: 200, asked: ASKED as unknown[] };
+  const calls = { routes: [] as { text: string }[], parses: [] as unknown[], parseStatus: 200, parseCode: "URL_UNREADABLE", parsed: PARSED as Record<string, unknown>, sources: [] as unknown[], applications: [] as unknown[], sourceError: 0, duplicate: false, asks: [] as unknown[], askStatus: 200, asked: ASKED as unknown[] };
   await page.route("**/api/**", async route => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
@@ -40,6 +40,8 @@ async function setup(page: Page, kind: EntranceKind = "SOURCE", status = 200) {
     }
     if (path === "/api/sources") {
       calls.sources.push(req.postDataJSON());
+      // S-69 — 같은 글자면 409 와 그 원본. 그래도 넣기(allowDuplicate)면 보통처럼
+      if (calls.duplicate && !req.postDataJSON().allowDuplicate) return route.fulfill({ status: 409, json: { error: { code: "SOURCE_DUPLICATE", message: "이미 넣은 자료입니다", source: { id: 12, name: "바꿔요-회고.md", createdAt: "2026-11-03T14:05:00+09:00" } } } });
       if (calls.sourceError) return route.fulfill({ status: calls.sourceError, json: { error: { code: "DAILY_LIMIT_EXCEEDED", message: "오늘 한도" } } });
       return route.fulfill({ status: 202, json: { sourceId: 12, jobId: 34, status: "ANALYZING" } });
     }
@@ -420,4 +422,63 @@ test("링크에서 문항을 못 찾으면 지원 양식 안내와 붙여 넣기
   await page.getByLabel("문항 1", { exact: true }).fill("");
   await expect(dialog.getByText(/링크에서 문항을 찾지 못했어요 — 문항이 지원 양식\(구글폼 등\) 안에 있을 수 있어요/)).toBeVisible();
   await expect(page.getByLabel("공고 · 문항 글이나 공고 링크")).toBeVisible();
+});
+
+// FE#130 — 「이미 넣은 자료예요」(S-69). 409 는 오류가 아니라 안내 · 그만이면 입력이 남는다 · 그래도 넣기는 allowDuplicate
+test("같은 자료는 「이미 넣은 자료예요」로 묻고, 그만이면 글 · 파일을 남기고 그래도 넣기면 분석으로 잇는다", async ({ page }, info) => {
+  const calls = await setup(page);
+  calls.duplicate = true;
+  const home = page.getByRole("region", { name: "홈 입력", exact: true });
+  const notice = page.getByRole("group", { name: "이미 넣은 자료", exact: true });
+  await page.getByRole("button", { name: "쌓기", exact: true }).click();
+  await page.getByLabel("홈에 넣을 글").fill("바꿔요 회고 전문");
+  await page.getByRole("button", { name: "보내기", exact: true }).click();
+  await expect(notice).toContainText("이미 넣은 자료예요 — 바꿔요-회고.md · 2026. 11. 3.");
+  await expect(home.getByRole("alert")).toHaveCount(0); // 오류로 보이지 않는다
+  await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  // 고정된 아래 탭바가 전체 캡처에선 가운데에 찍힌다 — 안내가 보이는 화면만 찍는다
+  await notice.evaluate((el) => el.scrollIntoView({ block: "center" }));
+  await page.screenshot({ path: `artifacts/duplicate-source-home-${info.project.name}.png` });
+  await notice.getByRole("button", { name: "그만", exact: true }).click();
+  await expect(notice).toHaveCount(0);
+  await expect(page.getByLabel("홈에 넣을 글")).toHaveValue("바꿔요 회고 전문");
+  expect(calls.sources).toEqual([{ kind: "TEXT", name: null, text: "바꿔요 회고 전문" }]);
+
+  await page.getByRole("button", { name: "보내기", exact: true }).click();
+  await notice.getByRole("button", { name: "그래도 넣기", exact: true }).click();
+  await expect.poll(() => calls.sources.length).toBe(3);
+  expect(calls.sources[2]).toEqual({ kind: "TEXT", name: null, text: "바꿔요 회고 전문", allowDuplicate: true });
+  await expect(notice).toHaveCount(0);
+  await expect(page.getByLabel("홈에 넣을 글")).toHaveValue("");
+  await expect(page.getByText("자료 분석 중이에요")).toBeVisible();
+
+  // 파일도 같다 — 그만이면 첨부가 남는다
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.getByLabel("홈 첨부 파일").setInputFiles({ name: "회고.md", mimeType: "text/markdown", buffer: Buffer.from("바꿔요 회고 전문") });
+  await page.getByRole("button", { name: "보내기", exact: true }).click();
+  await expect(notice).toContainText("바꿔요-회고.md");
+  await notice.getByRole("button", { name: "그만", exact: true }).click();
+  await expect(page.getByText(/회고.md ·/)).toBeVisible();
+  await page.getByRole("button", { name: "보내기", exact: true }).click();
+  await notice.getByRole("button", { name: "그래도 넣기", exact: true }).click();
+  await expect.poll(() => calls.sources.length).toBe(6);
+  expect(calls.sources[5]).toEqual({ kind: "FILE", name: "회고.md", text: "바꿔요 회고 전문", allowDuplicate: true });
+});
+
+test("글을 고치면 「이미 넣은 자료예요」 안내를 닫고 다시 견준다", async ({ page }) => {
+  const calls = await setup(page);
+  calls.duplicate = true;
+  const notice = page.getByRole("group", { name: "이미 넣은 자료", exact: true });
+  await page.getByRole("button", { name: "쌓기", exact: true }).click();
+  await page.getByLabel("홈에 넣을 글").fill("같은 글");
+  await page.getByRole("button", { name: "보내기", exact: true }).click();
+  await expect(notice).toBeVisible();
+  await page.getByLabel("홈에 넣을 글").fill("고친 글");
+  await expect(notice).toHaveCount(0);
+  calls.duplicate = false;
+  await page.getByRole("button", { name: "보내기", exact: true }).click();
+  await expect.poll(() => calls.sources.length).toBe(2);
+  expect(calls.sources[1]).toEqual({ kind: "TEXT", name: null, text: "고친 글" });
 });

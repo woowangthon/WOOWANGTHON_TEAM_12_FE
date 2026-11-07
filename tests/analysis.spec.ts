@@ -10,7 +10,7 @@ async function setup(page: Page) {
   const state = {
     status: "ANALYZING" as Job["status"], error: null as Job["error"], empty: false,
     sources: [] as SourceRequest[], gets: 0, lists: 0, details: 0, retries: 0,
-    getError: 0, retryError: false, refreshError: false, suggestion: false,
+    getError: 0, retryError: false, refreshError: false, suggestion: false, duplicate: false,
   };
   const job = (): Job => ({ jobId: 34, sourceId: 12, status: state.status, activityIds: state.status === "COMPLETED" && !state.empty ? [70] : [], targetActivityId: null, targetMatched: null, error: state.error, createdAt: "2026-11-02T21:00:00+09:00", updatedAt: "2026-11-02T21:00:10+09:00" });
   await page.route("**/api/**", async (route) => {
@@ -20,6 +20,8 @@ async function setup(page: Page) {
     if (path === "/api/sources") {
       expect(req.method()).toBe("POST");
       state.sources.push(req.postDataJSON());
+      // S-69 — 같은 글자면 409 와 그 원본. 그래도 넣기(allowDuplicate)면 보통처럼
+      if (state.duplicate && !req.postDataJSON().allowDuplicate) return route.fulfill({ status: 409, json: { error: { code: "SOURCE_DUPLICATE", message: "이미 넣은 자료입니다", source: { id: 12, name: "note.md", createdAt: "2026-11-03T14:05:00+09:00" } } } });
       return route.fulfill({ status: 202, json: { sourceId: 12, jobId: 34, status: "ANALYZING" } });
     }
     if (path === "/api/jobs/34/retry") {
@@ -266,4 +268,27 @@ test("direct record from another screen reopens on the experience screen once", 
   await page.reload();
   await expect(page.getByRole("heading", { name: "어떤 일을 해 왔나요?" })).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
+// FE#130 — 자료 쌓기 창에서도 같다(S-69). 그만이면 창 · 글이 남고, 그래도 넣기면 allowDuplicate 로 분석이 시작된다
+test("자료 쌓기 창 — 같은 자료는 안내하고, 그만이면 글을 남기고 그래도 넣기면 분석으로 잇는다", async ({ page }) => {
+  const state = await setup(page);
+  state.duplicate = true;
+  await submit(page, "Original source");
+  const dialog = page.getByRole("dialog");
+  const notice = dialog.getByRole("group", { name: "이미 넣은 자료", exact: true });
+  await expect(notice).toContainText("이미 넣은 자료예요 — note.md · 2026. 11. 3.");
+  await expect(dialog.getByRole("alert")).toHaveCount(0);
+  await notice.getByRole("button", { name: "그만", exact: true }).click();
+  await expect(notice).toHaveCount(0);
+  await expect(dialog.getByLabel("붙여넣을 자료")).toHaveValue("Original source");
+  await dialog.getByRole("button", { name: "넣기", exact: true }).click();
+  await notice.getByRole("button", { name: "그래도 넣기", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(state.sources).toEqual([
+    { kind: "TEXT", name: null, text: "Original source" },
+    { kind: "TEXT", name: null, text: "Original source" },
+    { kind: "TEXT", name: null, text: "Original source", allowDuplicate: true },
+  ]);
+  await expect.poll(() => state.gets).toBeGreaterThan(0);
 });

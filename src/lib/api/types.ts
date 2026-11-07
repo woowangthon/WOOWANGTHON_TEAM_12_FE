@@ -39,6 +39,8 @@ export type SourceRequest = (
 ) & {
   /** 활동 세부의 「자료 더하기」(S-60) — 그 활동 id. POST /api/sources/batch 에는 싣지 않는다 */
   activityId?: number | null;
+  /** 「이미 넣은 자료예요」에서 「그래도 넣기」를 골랐다 — 같은 자료인지 견주지 않는다(S-69) */
+  allowDuplicate?: boolean;
 };
 
 /** 한 번에 넣는 파일 수 — 계약 「POST /api/sources/batch」 (S-59) */

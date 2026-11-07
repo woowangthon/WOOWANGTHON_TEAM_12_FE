@@ -1,5 +1,5 @@
 // 실제 BE 를 부르는 공통 요청 — 활동 · 경험(experience.ts)과 계정(auth.ts)이 같이 쓴다
-import { ApiError } from "./errors";
+import { ApiError, type DuplicateSource } from "./errors";
 
 /** 주소가 없으면 목 조회. 실제 API 실패 시 목으로 대체하지 않는다. */
 export function isMockMode() {
@@ -23,6 +23,14 @@ function statusMessage(status: number) {
 // Spring 기본 오류는 code 가 상태 이름, message 가 그 영어 원문이다(NOT_FOUND · Not Found — BE GlobalExceptionHandler). 계약의 오류 코드가 아니다
 function isFrameworkError(code: unknown, message: unknown) {
   return typeof message === "string" && message.toUpperCase().replaceAll(" ", "_") === code;
+}
+
+/** 409 SOURCE_DUPLICATE 의 `error.source` — 모양이 맞을 때만 싣는다. 틀리면 안내 없이 보통 오류로 보인다 */
+function duplicateSource(code: string, value: unknown): DuplicateSource | undefined {
+  if (code !== "SOURCE_DUPLICATE" || !value || typeof value !== "object") return undefined;
+  const { id, name, createdAt } = value as Record<string, unknown>;
+  if (typeof id !== "number" || typeof name !== "string" || typeof createdAt !== "string" || !Number.isFinite(Date.parse(createdAt))) return undefined;
+  return { id, name, createdAt };
 }
 
 export async function request<T>(path: string, data?: unknown, method = data === undefined ? "GET" : "PATCH", credentials: RequestCredentials = "include", signal?: AbortSignal): Promise<T> {
@@ -54,7 +62,7 @@ export async function request<T>(path: string, data?: unknown, method = data ===
     const contract = body?.error?.code && !isFrameworkError(body.error.code, body.error.message);
     const code = body?.error?.code ?? `HTTP_${response.status}`;
     if (response.status === 401 && code === "UNAUTHENTICATED") unauthenticatedListeners.forEach((listener) => listener());
-    throw new ApiError(code, (contract && body.error.message) || statusMessage(response.status), response.status);
+    throw new ApiError(code, (contract && body.error.message) || statusMessage(response.status), response.status, duplicateSource(code, body.error.source));
   }
   return body as T;
 }
