@@ -137,7 +137,7 @@ test('load error retry, zero candidates invite manual entry and account menu ope
 
 const composer = (page: Page) => page.getByRole('region', { name: '초안 설정', exact: true });
 async function openComposer(page: Page) {
-  const ask = draftScreen(page).getByRole('button', { name: /초안 부탁하기|초안 설정 열기/ });
+  const ask = page.getByRole('button', { name: /초안 부탁하기|초안 설정 열기/ });
   await expect(composer(page).or(ask).first()).toBeVisible();
   if (!(await composer(page).isVisible())) await ask.click();
   await expect(composer(page)).toBeVisible();
@@ -201,8 +201,6 @@ test('draft snapshot stays on left, panel owns generation controls and text copy
   await shot(page, 'draft-guidelines');
   const controls = await openComposer(page);
   expect(api.calls.filter(c => c.call.endsWith('/draft'))).toHaveLength(0);
-  await controls.getByRole('button', { name: '켠 작성 지침 보기', exact: true }).click();
-  await expect(controls.getByText('켠 작성 지침이 없어요.', { exact: false })).toBeVisible();
   await controls.getByRole('combobox', { name: '구성 틀', exact: true }).scrollIntoViewIfNeeded();
   await shot(page, 'draft-guidelines-panel', false);
   await closePanel(page);

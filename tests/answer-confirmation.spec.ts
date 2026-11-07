@@ -63,9 +63,9 @@ async function setup(page: Page, initial: Answer | null = null) {
 test("confirms before finding; edits, saves and dismisses; restores and opens actual saved experience", async ({ page }, info) => {
   const { state } = await setup(page);
   const s = screen(page), input = s.getByRole("textbox", { name: "내가 쓴 답", exact: true });
-  await expect(s.getByRole("button", { name: "확정", exact: true })).toBeDisabled();
+  await expect(s.getByRole("button", { name: "다 썼어요", exact: true })).toBeDisabled();
   state.hold = true;
-  await input.fill(TEXT); await s.getByRole("button", { name: "확정", exact: true }).click();
+  await input.fill(TEXT); await s.getByRole("button", { name: "다 썼어요", exact: true }).click();
   await expect(s.getByText(/새 경험 후보를 찾고 있어요/)).toBeVisible();
   expect(state.puts).toEqual([TEXT]); expect(state.finds).toBe(1);
   await page.reload(); state.hold = false;
@@ -94,7 +94,7 @@ test("confirms before finding; edits, saves and dismisses; restores and opens ac
   expect(state.decisions[0]).toEqual({ activityId: 7, content: "두 기기로 메시지를 보내 팀과 함께 확인했다", actor: "TEAM" });
   await cards.nth(1).getByRole("button", { name: "저장 안 함", exact: true }).click();
   await expect(cards.nth(1)).toContainText("저장하지 않았어요");
-  await input.fill("수정한 답"); await expect(s.getByText(/확정한 글과 달라요/)).toBeVisible();
+  await input.fill("수정한 답"); await expect(s.getByText(/고친 내용이 있어요/)).toBeVisible();
   await page.reload(); await expect(input).toHaveValue(TEXT);
   await s.getByRole("link", { name: "저장한 경험 보기" }).click();
   await expect(page).toHaveURL(/experience[?]experience=108&fromQuestion=41/);
@@ -105,12 +105,12 @@ test("confirms before finding; edits, saves and dismisses; restores and opens ac
 test("PUT failure never starts analysis; 429 retains confirmed answer and retries only finding", async ({ page }) => {
   const { state } = await setup(page); const s = screen(page);
   state.putError = "INTERNAL_ERROR";
-  await s.getByRole("textbox").fill(TEXT); await s.getByRole("button", { name: "확정", exact: true }).click();
+  await s.getByRole("textbox").fill(TEXT); await s.getByRole("button", { name: "다 썼어요", exact: true }).click();
   await expect(s.getByRole("alert")).toContainText("답 저장 실패"); expect(state.finds).toBe(0);
-  await expect(s.getByText("답을 확정했어요", { exact: true })).toHaveCount(0);
+  await expect(s.getByText("다 쓴 답으로 저장했어요", { exact: true })).toHaveCount(0);
   state.putError = ""; state.findError = "DAILY_LIMIT_EXCEEDED";
-  await s.getByRole("button", { name: "같은 답으로 다시 확정" }).click();
-  await expect(s.getByRole("alert")).toContainText("답은 확정됐어요 · 오늘 분석 횟수를 다 썼어요");
+  await s.getByRole("button", { name: "같은 답으로 다시 저장" }).click();
+  await expect(s.getByRole("alert")).toContainText("답은 저장했어요 · 오늘 분석 횟수를 다 썼어요");
   await s.getByRole("textbox").fill("아직 확정하지 않은 수정");
   state.findError = ""; state.empty = true;
   await s.getByRole("button", { name: "다시 찾기", exact: true }).click();
@@ -141,7 +141,7 @@ test("polling stops after repeated read failures and recovers with GET only", as
   // 타이머가 이미 걸린 뒤라 가짜 시계로는 못 돌린다. 폴링 간격 2초를 넘겨 실제로 기다린다(FE#170).
   await page.waitForTimeout(2500); expect(state.reads).toBe(reads);
   state.readError = false; state.hold = false;
-  await s.getByRole("button", { name: "확정 상태 다시 확인" }).click();
+  await s.getByRole("button", { name: "저장 상태 다시 확인" }).click();
   await expect(s.getByRole("textbox", { name: "경험 문장" })).toHaveCount(2);
   expect(state.puts).toHaveLength(0); expect(state.finds).toBe(1);
 });
@@ -151,7 +151,7 @@ test("late confirmation never overwrites another question; re-confirmation clear
   let release!: () => void; const gate = new Promise<void>(r => { release = r; });
   await page.route("**/api/questions/41/answer", async route => { await gate; await route.fallback(); });
   await s.getByRole("textbox", { name: "내가 쓴 답", exact: true }).fill("다시 확정할 답");
-  await s.getByRole("button", { name: "확정", exact: true }).click();
+  await s.getByRole("button", { name: "다 썼어요", exact: true }).click();
   state.empty = true;
   const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab"); await tabs.nth(1).click(); release();
   await expect.poll(() => state.puts.length).toBe(1);
@@ -194,7 +194,7 @@ test("409 finds existing job without reposting; initial read failure recovers wi
 test("confirmed answer and its candidates survive leaving the tab without reading the question again", async ({ page }) => {
   const { state } = await setup(page); const s = screen(page);
   await s.getByRole("textbox", { name: "내가 쓴 답", exact: true }).fill(TEXT);
-  await s.getByRole("button", { name: "확정", exact: true }).click();
+  await s.getByRole("button", { name: "다 썼어요", exact: true }).click();
   await expect(s.getByRole("textbox", { name: "경험 문장" })).toHaveCount(2);
   const reads = state.reads;
   const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab");
@@ -202,7 +202,7 @@ test("confirmed answer and its candidates survive leaving the tab without readin
   await expect(tabs.nth(1)).toHaveAttribute("aria-selected", "true");
   await tabs.first().click();
   await expect(s.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toHaveValue(TEXT);
-  await expect(s.getByText("답을 확정했어요", { exact: true })).toBeVisible();
+  await expect(s.getByText("다 쓴 답으로 저장했어요", { exact: true })).toBeVisible();
   await expect(s.getByRole("textbox", { name: "경험 문장" })).toHaveCount(2);
   expect(state.reads).toBe(reads);
 });

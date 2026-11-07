@@ -19,6 +19,8 @@ type Page = "home" | "timeline" | "questions" | "connections" | "guidelines";
 type HeaderProps = {
   /** 1024 미만에서 세부를 전체 화면으로 열면 아래 탭바를 숨긴다 */
   hideTabBar?: boolean; addSource?: AddSourceProps; activePage?: Page;
+  /** 스크롤해도 붙어 있는 위 막대에 둘 화면 버튼 — 지원 화면의 차곡이 */
+  panelToggle?: React.ReactNode;
   /** 지원 화면이 받아 둔 목록과 그 줄. 없으면 사이드바가 직접 받는다 */
   applicationList?: ApplicationsLoad & { rows?: React.ReactNode };
   /** 지원 화면 안에서 새 지원을 연다. 없으면 지원 화면으로 가서 연다 */
@@ -46,7 +48,7 @@ const BUSY = "지금 넣은 자료의 분석이 끝나면 더 넣을 수 있어�
 // 왼쪽 여백·아이콘 칸·줄 간격은 접어도 유지한다. 글자는 남겨 서랍의 폭으로 잘라 낸다(시안 6).
 const navItem = "flex h-11 w-full shrink-0 items-center gap-2.5 overflow-hidden rounded-full px-3 text-sm font-medium whitespace-nowrap text-ink transition-colors";
 
-export function AppHeader({ hideTabBar, addSource, applicationList, onNewApplication, experienceCount, activePage, quickFind }: HeaderProps) {
+export function AppHeader({ hideTabBar, panelToggle, addSource, applicationList, onNewApplication, experienceCount, activePage, quickFind }: HeaderProps) {
   const { wide, desktop } = useSidebar();
   const router = useRouter();
   const ownList = useSidebarApplications(desktop && !applicationList);
@@ -60,7 +62,7 @@ export function AppHeader({ hideTabBar, addSource, applicationList, onNewApplica
     {/* 1024 미만 — 한 줄. 높이는 스크롤해도 붙어 있는 줄 하나(45px)로 두어 본화면을 줄이지 않는다(FE#201) */}
     <header className="sticky top-0 z-40 flex h-11.25 items-center gap-1 border-b border-hairline bg-canvas pr-2 pl-4 lg:hidden">
       <Link href="/" aria-label="차곡 — 홈" className="shrink-0"><Logo className="h-5 w-auto" /></Link>
-      {!desktop && <WorkStatus className="min-w-0 flex-1 shrink justify-end"><QuickFindButton /></WorkStatus>}
+      {!desktop && <WorkStatus className="min-w-0 flex-1 shrink justify-end">{panelToggle}<QuickFindButton /></WorkStatus>}
       <AccountMenu />
     </header>
     <header className="hidden h-14 items-center gap-4 border-b border-hairline bg-canvas px-6 lg:sticky lg:top-0 lg:z-20 lg:flex">
@@ -70,7 +72,7 @@ export function AppHeader({ hideTabBar, addSource, applicationList, onNewApplica
         <strong aria-current="page" className="truncate font-medium text-ink">{PAGE_NAME[page]}</strong>
       </nav>
       {/* 기능이 없는 버튼은 두지 않는다 */}
-      <div data-slot="header-actions" className="ml-auto flex min-w-0 items-center gap-2">{desktop && <WorkStatus><QuickFindButton /></WorkStatus>}</div>
+      <div data-slot="header-actions" className="ml-auto flex min-w-0 items-center gap-2">{desktop && <WorkStatus>{panelToggle}<QuickFindButton /></WorkStatus>}</div>
     </header>
     <DesktopSidebar key={wide ? "wide" : desktop ? "rail" : "mobile"} activePage={page} experienceCount={experienceCount === undefined ? ownCount : experienceCount}
       onAddSource={onAddSource} onRecord={onRecord} addSourceBusy={addSource?.busy} onNewApplication={newApplication}

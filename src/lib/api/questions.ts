@@ -114,7 +114,7 @@ export async function fetchGroundingCheck(questionId: number): Promise<Grounding
 
 /** S-48: 먼저 답을 저장하고, 성공한 뒤에만 후보 찾기를 시작한다. */
 export async function confirmAnswer(questionId: number, text: string): Promise<Answer> {
-  if (!text.trim()) throw new ApiError("EMPTY_TEXT", "확정할 답을 입력해 주세요.");
+  if (!text.trim()) throw new ApiError("EMPTY_TEXT", "저장할 답을 입력해 주세요.");
   if (text.length > MAX_GROUNDING_TEXT_LENGTH) throw new ApiError("TEXT_TOO_LONG", "답은 5,000자까지 입력할 수 있어요.");
   return (await request<{ answer: Answer }>(`/questions/${questionId}/answer`, { text }, "PUT")).answer;
 }

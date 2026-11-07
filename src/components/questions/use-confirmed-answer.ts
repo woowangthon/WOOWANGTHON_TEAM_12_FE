@@ -63,8 +63,8 @@ export function useConfirmedAnswer(questionId: number, saved: Answer | null, onC
         return;
       }
       setFailure({ message: e instanceof ApiError && e.code === "DAILY_LIMIT_EXCEEDED"
-        ? "답은 확정됐어요 · 오늘 분석 횟수를 다 썼어요."
-        : "답은 확정됐어요 · " + message(e), action: "find" });
+        ? "답은 저장했어요 · 오늘 분석 횟수를 다 썼어요."
+        : "답은 저장했어요 · " + message(e), action: "find" });
     }
   };
   const confirm = (text: string) => run(async () => {

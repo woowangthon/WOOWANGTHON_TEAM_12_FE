@@ -15,23 +15,23 @@ const TINT: Record<GroundingStatus, string> = { SOURCE: "bg-evidence-soft", USER
 type AnswerChange = (id: number, answer: Answer | null) => void;
 
 /** 내가 쓴 답(S-45 · S-48): 받아 둔 문항의 확정 답으로 시작하고, 근거 점검은 독립적으로 읽는다. 문항을 못 받았으면 화면의 「다시 불러오기」를 쓴다 */
-export function AnswerInput({ questionId, question, loadFailed, onAnswerChange, checks }: { questionId: number; question: QuestionDetail | null; loadFailed: boolean; onAnswerChange: AnswerChange; checks: GroundingChecks }) {
+export function AnswerInput({ questionId, question, loadFailed, onAnswerChange, checks, onAskDraft }: { questionId: number; question: QuestionDetail | null; loadFailed: boolean; onAnswerChange: AnswerChange; checks: GroundingChecks; onAskDraft: () => void }) {
   return <section aria-labelledby={`answer-title-${questionId}`} className="mb-8 grid min-w-0 gap-3">
     <h3 id={`answer-title-${questionId}`} className="m-0 text-[17px] font-semibold">내가 쓴 답</h3>
-    {question ? <LoadedAnswer questionId={questionId} saved={question.answer ?? null} onAnswerChange={onAnswerChange} checks={checks} />
-      : !loadFailed && <p role="status" className="m-0 text-sm text-muted">확정한 답을 불러오고 있어요…</p>}
+    {question ? <LoadedAnswer questionId={questionId} saved={question.answer ?? null} onAnswerChange={onAnswerChange} checks={checks} draftLabel={question.status === "ANALYZING" || question.status === "FAILED" ? null : question.draft ? "초안 설정 열기" : "초안 부탁하기"} onAskDraft={onAskDraft} />
+      : !loadFailed && <p role="status" className="m-0 text-sm text-muted">쓴 답을 불러오고 있어요…</p>}
   </section>;
 }
 
-function LoadedAnswer({ questionId, saved, onAnswerChange, checks }: { questionId: number; saved: Answer | null; onAnswerChange: AnswerChange; checks: GroundingChecks }) {
+function LoadedAnswer({ questionId, saved, onAnswerChange, checks, draftLabel, onAskDraft }: { questionId: number; saved: Answer | null; onAnswerChange: AnswerChange; checks: GroundingChecks; draftLabel: string | null; onAskDraft: () => void }) {
   const confirmed = useConfirmedAnswer(questionId, saved, onAnswerChange);
   return <>
-    <AnswerEditor questionId={questionId} confirmed={confirmed} checks={checks} />
+    <AnswerEditor questionId={questionId} confirmed={confirmed} checks={checks} draftLabel={draftLabel} onAskDraft={onAskDraft} />
     <NewFactCandidates confirmed={confirmed} />
   </>;
 }
 
-function AnswerEditor({ questionId, confirmed: a, checks }: { questionId: number; confirmed: ReturnType<typeof useConfirmedAnswer>; checks: GroundingChecks }) {
+function AnswerEditor({ questionId, confirmed: a, checks, draftLabel, onAskDraft }: { questionId: number; confirmed: ReturnType<typeof useConfirmedAnswer>; checks: GroundingChecks; draftLabel: string | null; onAskDraft: () => void }) {
   const [initialText] = useState(a.initialText);
   const g = useGroundingCheck(questionId, checks, initialText);
   const locked = a.busy || a.answer?.newFacts?.status === "ANALYZING";
@@ -47,17 +47,20 @@ function AnswerEditor({ questionId, confirmed: a, checks }: { questionId: number
       onChange={e => g.setText(e.target.value)}
       className="block w-full min-w-0 resize-y border-0 bg-transparent p-5 text-[15px] leading-relaxed outline-none focus-visible:outline-none disabled:bg-surface-soft" />
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-hairline-soft px-3.5 py-2.5">
-      <span className="text-xs text-muted tabular-nums">{g.text.length.toLocaleString()} / 5,000자</span>
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-xs text-muted tabular-nums">{g.text.length.toLocaleString()} / 5,000자</span>
+        {draftLabel && <Button variant="secondary" className="min-h-11" onClick={onAskDraft}>{draftLabel}</Button>}
+      </div>
       <div className="flex flex-wrap items-center gap-2">
       <AnalysisCost running={g.busy || analyzing || locked} />
       <Button variant="secondary" className="min-h-11" disabled={!valid || g.loading || g.busy || analyzing || !g.initialized} onClick={() => void g.submit(g.text)}>
         {g.busy || analyzing ? "근거 점검 중…" : "근거 점검"}
       </Button>
-      <Button disabled={!valid || g.loading || g.busy || analyzing || !g.initialized || locked} onClick={() => void a.confirm(g.text)}>{a.busy ? "처리 중…" : "확정"}</Button>
+      <Button disabled={!valid || g.loading || g.busy || analyzing || !g.initialized || locked} onClick={() => void a.confirm(g.text)}>{a.busy ? "처리 중…" : "다 썼어요"}</Button>
       </div>
     </div>
     </div>
-    {a.answer && <p role="status" className="m-0 text-sm text-muted">{g.text === a.answer.text ? "답을 확정했어요" : "확정한 글과 달라요 · 다시 확정해 주세요"}</p>}
+    {a.answer && <p role="status" className="m-0 text-sm text-muted">{g.text === a.answer.text ? "다 쓴 답으로 저장했어요" : "고친 내용이 있어요 · 「다 썼어요」를 다시 눌러 주세요"}</p>}
     {g.loading && <p role="status" className="m-0 text-sm text-muted">마지막 근거 점검을 불러오고 있어요…</p>}
     {analyzing && <p role="status" className="m-0 text-sm text-muted">문장을 근거와 대조하고 있어요. 새로고침해도 점검한 글과 진행 상태를 이어서 확인해요.</p>}
     {g.failure && <div className="grid justify-items-start gap-2">

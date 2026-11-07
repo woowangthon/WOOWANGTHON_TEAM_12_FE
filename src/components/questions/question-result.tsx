@@ -44,9 +44,11 @@ const boxTitle = "m-0 text-xs font-semibold text-muted";
 
 /** 「참고 — 꺼내 쓸 경험」(시안 6 apply.html 의 접기 카드). 펼치기 전엔 활동 칩 · 경험 · 이유 한 줄, 펼치면 강조점 · 근거 · 빠진 것.
  *  요구사항 판정 · 되묻기는 차곡이 패널에 있다. elsewhere — 같은 지원의 다른 문항에도 추천된 같은 경험(FE#38 · S-21) */
-export function QuestionResult({ question, elsewhere, onGenerate, onRefresh, onOpenOmissions, savingAnswer, requestingDraft, composerOpen }: { question: QuestionDetail; elsewhere?: (experienceId: number) => OverlapUse[]; composerOpen: boolean } & DraftActions) {
-  return <><AnswerDraft key={question.id} question={question} onGenerate={onGenerate} onRefresh={onRefresh} onOpenOmissions={onOpenOmissions} savingAnswer={savingAnswer} requestingDraft={requestingDraft} composerOpen={composerOpen} /><section aria-labelledby="refs-title">
-    <h3 id="refs-title" className="m-0 text-[17px] font-semibold">참고 — 꺼내 쓸 경험</h3>
+export function QuestionResult({ question, elsewhere, onOpenOmissions, savingAnswer, requestingDraft, picks, onPick }: { question: QuestionDetail; elsewhere?: (experienceId: number) => OverlapUse[]; onPick: (experienceId: number, on: boolean) => void } & Pick<DraftActions, "onOpenOmissions" | "savingAnswer" | "requestingDraft" | "picks">) {
+  const picksLocked = savingAnswer || requestingDraft || question.draft?.status === "ANALYZING";
+  const pickedCount = picks.filter(id => question.recommendations.some(r => r.experience.id === id)).length;
+  return <><AnswerDraft key={question.id} question={question} onOpenOmissions={onOpenOmissions} requestingDraft={requestingDraft} /><section aria-labelledby="refs-title">
+    <div className="flex flex-wrap items-baseline gap-x-2"><h3 id="refs-title" className="m-0 text-[17px] font-semibold">참고 — 꺼내 쓸 경험</h3>{question.recommendations.length > 0 && <span className="text-[13px] text-muted">체크한 경험으로 초안을 만들어요</span>}</div>
     {question.recommendations.length === 0 ? <div className="mt-4 grid gap-2 rounded-sm bg-surface-soft p-5">
       <p className="m-0 font-medium">현재 자료에서 연결된 경험을 찾지 못했어요.</p>
       <p className="m-0 text-sm text-muted">경험이 없다는 뜻은 아니에요. 관련 기록을 더 확인하면 좋겠어요.</p>
@@ -54,14 +56,19 @@ export function QuestionResult({ question, elsewhere, onGenerate, onRefresh, onO
       className="scroll-mt-5 lg:scroll-mt-20" aria-label={`추천 경험 ${i + 1}`}>
       {/* 첫 추천은 기존처럼 펼쳐 근거를 바로 확인할 수 있게 둔다. */}
       <details open={i === 0} className="group rounded-[18px] border border-hairline bg-surface-faint">
-        <summary className="grid cursor-pointer list-none grid-cols-[auto_minmax(0,1fr)] items-start gap-3 px-4 py-3.5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-4.5 [&::-webkit-details-marker]:hidden">
+        <summary className="grid cursor-pointer list-none grid-cols-[auto_auto_minmax(0,1fr)] items-start gap-x-2 gap-y-2 px-3 py-3 sm:grid-cols-[auto_auto_minmax(0,1fr)_auto] sm:px-4 [&::-webkit-details-marker]:hidden">
           <CaretRightIcon aria-hidden="true" className="mt-1 size-4 text-muted transition-transform group-open:rotate-90" />
+          {/* 체크해도 카드는 접히지 않는다. 좁은 폭은 누르는 자리를 44 로 넓힌다 */}
+          <label onClick={e => e.stopPropagation()} className="-mt-3 -mb-1 flex size-11 cursor-pointer items-center justify-center lg:mt-0 lg:mb-0 lg:size-6">
+            <input type="checkbox" className="size-4 accent-primary" aria-label={`초안에 쓰기 — ${r.experience.content}`} checked={picks.includes(r.experience.id)}
+              disabled={picksLocked || (!picks.includes(r.experience.id) && pickedCount >= 3)} onChange={e => onPick(r.experience.id, e.target.checked)} />
+          </label>
           <span className="grid gap-1">
             <ActivityChip name={r.activity.name} onTint />
             <b className="text-[15px] leading-normal font-bold whitespace-pre-wrap">{r.experience.content}</b>
             <small className="text-[13px] leading-normal text-muted">{r.reason}</small>
           </span>
-          {(r.gaps.length > 0 || answered) && <span className="col-start-2 flex flex-wrap gap-1.5 justify-self-start sm:col-start-auto sm:justify-self-end">
+          {(r.gaps.length > 0 || answered) && <span className="col-start-3 flex flex-wrap gap-1.5 justify-self-start sm:col-start-auto sm:justify-self-end">
             {r.gaps.length > 0 && <span className="inline-flex items-center gap-1 rounded-full border border-dashed border-review-line bg-review-soft px-2.5 py-px text-xs font-semibold whitespace-nowrap text-review">
               <WarningCircleIcon aria-hidden="true" className="size-3.5" />빠진 것
             </span>}
@@ -70,7 +77,7 @@ export function QuestionResult({ question, elsewhere, onGenerate, onRefresh, onO
             </span>}
           </span>}
         </summary>
-        <div className="grid gap-2.5 px-4 pb-4 sm:grid-cols-2 sm:px-4.5 sm:pb-4.5 sm:pl-11.5">
+        <div className="grid gap-2.5 px-4 pb-4 sm:grid-cols-2 sm:px-4.5 sm:pb-4.5 sm:pl-[4.75rem]">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 sm:col-span-2">
             <span className="flex flex-wrap items-center gap-1.5 text-[13px] font-medium text-muted"><ExperienceMeta experience={r.experience} /></span>
             <span className="text-xs text-muted"><b className="font-semibold">AI 해석</b> — 이유 · 강조점 · 빠진 것</span>

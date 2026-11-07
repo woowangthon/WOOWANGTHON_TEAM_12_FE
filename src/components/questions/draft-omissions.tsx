@@ -87,10 +87,11 @@ function OmissionItem({ item, question, onAnswer, onRefresh, disabled }: {
 export type DraftPanelActions = {
   onGenerate: (ids: number[], frame?: DraftFrame) => Promise<void>; onRefresh: () => Promise<void>;
   savingAnswer: boolean; requestingDraft: boolean; focusRequest: number;
+  picks: number[]; onResetPicks: (questionId: number) => void;
 };
 
 /** 시안 6 mateFeed: 빠진 사실 질문 → 내 답 → 보완 저장 안내 → 초안 다시 만들기. */
-export function DraftFollowUp({ question, onAnswer, onGenerate, onRefresh, savingAnswer, requestingDraft, focusRequest }: {
+export function DraftFollowUp({ question, onAnswer, onGenerate, onRefresh, savingAnswer, requestingDraft, focusRequest, picks, onResetPicks }: {
   question: QuestionDetail; onAnswer: AnswerHandler;
 } & DraftPanelActions) {
   const target = useRef<HTMLElement>(null);
@@ -129,7 +130,7 @@ export function DraftFollowUp({ question, onAnswer, onGenerate, onRefresh, savin
       </>}
       {savingAnswer && <p role="status" className={bubble}>보완으로 쌓는 중이에요…</p>}
     </> : null}
-    <DraftComposer question={question} onGenerate={onGenerate} onRefresh={onRefresh} savingAnswer={savingAnswer} requestingDraft={requestingDraft || refreshing} />
+    <DraftComposer question={question} onGenerate={onGenerate} onRefresh={onRefresh} savingAnswer={savingAnswer} requestingDraft={requestingDraft || refreshing} picks={picks} onResetPicks={onResetPicks} />
     {error && <div className={bubble}>
       <p role="alert" className="m-0 text-error">{error}</p>
       <Button variant="secondary" size="sm" className="min-h-11 justify-self-start" disabled={disabled} onClick={() => void refresh()}>초안 상태 확인</Button>
