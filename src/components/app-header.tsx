@@ -255,7 +255,7 @@ export function RailTip({ label, enabled, children }: { label: string; enabled: 
 function Brand({ collapsed, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {
   return <Link href="/" onClick={onNavigate} aria-hidden={collapsed || undefined} tabIndex={collapsed ? -1 : undefined}
     className={cn("relative flex h-11 items-center", collapsed && "pointer-events-none w-11 justify-center group-hover/brand:invisible group-focus-within/brand:invisible")} aria-label="차곡 — 홈">
-    {collapsed ? <span className="block w-7 overflow-hidden"><Logo className="h-6.5 max-w-none" /></span> : <Logo className="h-6.5 w-auto" />}
+    {collapsed ? <Image src="/brand/mascot.svg" alt="" width={32} height={32} priority /> : <Logo className="h-6.5 w-auto" />}
   </Link>;
 }
 
@@ -264,7 +264,7 @@ function SidebarBackground() {
   return <Image src="/brand/bg-blur.svg" alt="" aria-hidden="true" className="pointer-events-none absolute -top-75 -left-90 max-w-none" width={1500} height={1630} priority />;
 }
 
-/** 「차곡」 글자 로고 — 가칭(DESIGN.md), 디자인 담당 시안의 파일 그대로 */
+/** 「차곡」 로고 — 가칭(DESIGN.md). 글자는 디자인 담당 시안, 심볼은 캐릭터(mascot.svg)와 같은 그림이다 */
 export function Logo({ className }: { className?: string }) {
   return <Image src="/brand/logo.svg" alt="차곡" width={93} height={26} className={className} style={{ width: "auto" }} priority />;
 }
