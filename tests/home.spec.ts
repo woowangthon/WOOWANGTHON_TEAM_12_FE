@@ -46,6 +46,8 @@ test("시안 6 홈은 타임라인 없이 실제 이어서·쌓인 블록·모�
   expect(state.posts).toBe(0);
   await page.getByRole("button", { name: "쌓기", exact: true }).click();
   await expect(page.getByRole("heading", { name: "어떤 경험을 쌓아볼까요?" })).toBeVisible();
+  const modeWidths = await page.getByRole("group", { name: "입력 모드" }).getByRole("button").evaluateAll(buttons => buttons.map(b => b.getBoundingClientRect().width));
+  expect(modeWidths[0]).toBe(modeWidths[1]);
   await expect(page.getByRole("group", { name: "입력 예시" })).toContainText("오늘: 스터디에서 처음 발표했다");
   await page.getByRole("button", { name: "오늘: 스터디에서 처음 발표했다", exact: true }).click();
   await expect(page.getByLabel("홈에 넣을 글")).toHaveValue("오늘: 스터디에서 처음 발표했다");

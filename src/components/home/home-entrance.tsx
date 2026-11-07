@@ -155,9 +155,9 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     <section aria-label="홈 입력" className="mx-auto max-w-[760px]">
     <div className="grid justify-items-center gap-2.5 text-center"><HomeMascot overview={overview} onRefresh={onRefresh} mode={mode} /></div>
     <form aria-label="글 보내기" aria-busy={busy} onSubmit={e => { e.preventDefault(); void send(); }}>
-      <div role="group" aria-label="입력 모드" className="mx-auto mt-5 flex w-fit gap-1 rounded-full bg-surface-soft p-1">
+      <div role="group" aria-label="입력 모드" className="mx-auto mt-5 grid w-44 grid-cols-2 gap-1 rounded-full bg-surface-soft p-1">
         {([ ["out", "꺼내기"], ["in", "쌓기"] ] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={mode === value} disabled={busy || (!!file && value === "out")} onClick={() => { setMode(value); setChoosing(false); setError(null); }}
-          className={cn("inline-flex min-h-11 items-center gap-1.75 rounded-full px-4 text-sm leading-none whitespace-nowrap transition-colors disabled:opacity-50 lg:min-h-9", mode === value ? "bg-canvas font-bold text-ink shadow-mode" : "font-normal text-muted hover:text-ink")}>
+          className={cn("inline-flex min-h-11 items-center justify-center gap-1.75 rounded-full text-sm leading-none whitespace-nowrap transition-colors disabled:opacity-50 lg:min-h-9", mode === value ? "bg-canvas font-bold text-ink shadow-mode" : "font-normal text-muted hover:text-ink")}>
           <span aria-hidden="true" className={cn("size-1.75 rounded-full", value === "out" ? "bg-mark" : "bg-record-green", mode !== value && "opacity-55")} />{label}
         </button>)}
       </div>
