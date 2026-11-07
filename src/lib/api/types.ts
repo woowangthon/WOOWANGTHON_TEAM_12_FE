@@ -103,6 +103,9 @@ export type ActivitySummary = {
   mergeSuggestion?: MergeSuggestion | null;
 };
 
+/** GET /api/sources/{sourceId} — 저장된 원문(S-74) */
+export type SourceText = { id: number; name: string; text: string; createdAt: string };
+
 export type Citation = {
   id: number;
   sourceId: number;

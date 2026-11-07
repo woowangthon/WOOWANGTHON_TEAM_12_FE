@@ -28,6 +28,7 @@ import { useChagokRun } from "./use-chagok-run";
 import { useDraftPicks } from "./use-draft-picks";
 import { ActivityCategoriesProvider } from "./activity-categories";
 import { ApplicationStatusTag, ApplicationTypeFields, QuestionTypeField } from "./type-fields";
+import { OrganizationName } from "./organization-name";
 
 const STATUS = { ANALYZING: "분석 중", COMPLETED: "완료", FAILED: "실패" } as const;
 const DOT = { ANALYZING: "bg-muted-soft", COMPLETED: "bg-mark", FAILED: "bg-error" } as const;
@@ -187,7 +188,7 @@ export function ApplicationScreen() {
             <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3">
               <div className="contents sm:block sm:min-w-0">
                 <div className="contents sm:flex sm:flex-wrap sm:items-center sm:gap-x-2">
-                  <h2 className="m-0 min-w-0 text-heading leading-snug font-bold tracking-[-0.4px] sm:mr-1">{open.application.organization || "지원처 이름 없음"}</h2>
+                  <OrganizationName key={`name-${open.application.id}`} application={open.application} onSave={req => matching.updateApplication(open.application.id, req)} />
                   <div className="col-span-2 flex flex-wrap items-center gap-x-2 sm:contents">
                     <ApplicationStatusTag key={open.application.id} application={open.application} onSave={req => matching.updateApplication(open.application.id, req)} />
                     <ApplicationTypeFields key={`type-${open.application.id}`} application={open.application}

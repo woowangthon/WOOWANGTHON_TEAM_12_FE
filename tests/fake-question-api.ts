@@ -179,7 +179,8 @@ export class FakeQuestionApi {
     if ((m = path.match(/^\/api\/applications\/(\d+)$/)) && method === "PATCH") {
       if (this.patchDown) return error(route, 503, "INTERNAL_ERROR", "잠시 뒤 다시 시도해 주세요");
       if (!this.applications.has(+m[1])) return error(route, 404, "APPLICATION_NOT_FOUND");
-      const { applicationStatus, submittedMonth, ...types } = body;
+      const { applicationStatus, submittedMonth, organization, ...types } = body;
+      if (organization !== undefined) this.applications.set(+m[1], organization);
       if (!Object.keys(body).length || applicationStatus === null || submittedMonth === null) return error(route, 400, "INVALID_REQUEST");
       if (submittedMonth !== undefined && !/^\d{4}-(0[1-9]|1[0-2])$/.test(submittedMonth)) return error(route, 400, "INVALID_REQUEST");
       // 낸 달 규칙(question-api.md 「지원 Application」) — 작성 중을 벗어날 때 값이 없으면 그 달, 되돌리면 null, 보낸 달이 이긴다

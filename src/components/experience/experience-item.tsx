@@ -205,7 +205,7 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
       {usedInOpen && usedIn.length > 0 && <UsedInList usedIn={usedIn} id={`used-in-${e.id}`} />}
       {citationsOpen && (
         <div className="mt-1.5 hidden lg:block">
-          <CitationList citations={e.citations} />
+          <CitationList citations={e.citations} readOnly={readOnly} />
         </div>
       )}
       {!editing && (readOnly ? <SupplementList supplements={e.supplements ?? []} /> : <SupplementList supplements={e.supplements ?? []}

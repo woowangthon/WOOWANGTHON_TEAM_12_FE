@@ -17,6 +17,7 @@ import { ActivityNote } from "./activity-note";
 import { ActivityLinks } from "./activity-links";
 import { ExperienceEditor } from "./experience-editor";
 import { MergeSuggestionView } from "./merge-suggestion";
+import { SourceFileButton } from "./source-viewer";
 
 const FIRST_COUNT = 3;
 
@@ -64,7 +65,7 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
   const period = current.period;
   const canAddSource = !!activity && !readOnly && !!onAddSource;
   const sources = activity
-    ? [...new Set(activity.experiences.flatMap((e) => e.citations.map((c) => c.sourceName)))]
+    ? [...new Map(activity.experiences.flatMap((e) => e.citations).map((c) => [c.sourceId, c.sourceName])).entries()]
     : [];
 
   return (
@@ -113,9 +114,7 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
         {(sources.length > 0 || canAddSource) && (
           <p className="m-0 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-note text-muted">
             {sources.length > 0 && "이 활동을 만든 자료"}
-            {sources.map((s) => (
-              <SourceFile key={s} name={s} />
-            ))}
+            {sources.map(([id, name]) => readOnly ? <SourceFile key={id} name={name} /> : <SourceFileButton key={id} sourceId={id} name={name} />)}
             {canAddSource && (
               <button
                 type="button"
@@ -252,7 +251,7 @@ function ExperienceList({ activity, onSaved, onAdded, onDelete, onMove, onMerge,
               <div className="flex flex-wrap items-center gap-1.5 text-note font-medium text-muted">
                 <ExperienceMeta experience={sheetExp} />
               </div>
-              <CitationList citations={sheetExp.citations} />
+              <CitationList citations={sheetExp.citations} readOnly={readOnly} />
             </>
           )}
         </SheetContent>
