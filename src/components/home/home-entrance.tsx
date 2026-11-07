@@ -14,7 +14,8 @@ import { ParseFailureNotice, useApplicationParse, type ParseFailure } from "@/co
 import { AddSourceDialog } from "@/components/source/add-source-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ApiError } from "@/lib/api/errors";
+import { ApiError, type DuplicateSource } from "@/lib/api/errors";
+import { DuplicateSourceNotice } from "@/components/source/duplicate-source-notice";
 import { ENTRANCE_KINDS, routeEntrance, singleLink, type EntranceKind, type ParsedApplication } from "@/lib/api/entrance";
 import { isMockMode } from "@/lib/api/http";
 import { submitApplication } from "@/lib/api/questions";
@@ -23,7 +24,7 @@ import { dailyLimitMessage } from "@/lib/api/auth";
 import { useAuth } from "@/components/auth/auth-gate";
 import { LowAnalysisNotice } from "@/components/auth/analysis-cost";
 import { readSourceFile, SOURCE_FILE_ACCEPT, SourceFileError, type SourceFile } from "@/lib/source-file/read";
-import { MAX_TEXT_LENGTH } from "@/lib/api/types";
+import { MAX_TEXT_LENGTH, type SourceRequest } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 import type { MockAskResult } from "@/lib/mock/ask";
 
@@ -67,6 +68,8 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
   const [readingFile, setReadingFile] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [sourceSubmitting, setSourceSubmitting] = useState(false);
+  /** 「이미 넣은 자료예요」 — 글 · 파일 · 모드를 바꾸면 닫는다 */
+  const [duplicate, setDuplicate] = useState<DuplicateSource | null>(null);
   const parse = useApplicationParse();
   const fileInput = useRef<HTMLInputElement>(null);
   const fileVersion = useRef(0);
@@ -77,7 +80,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
   const pickFile = async (picked: File | undefined) => {
     if (!picked) return;
     const version = ++fileVersion.current;
-    setFile(null); setError(null); setFileError(null); setChoosing(false); setReadingFile(true); setMode("in");
+    setFile(null); setError(null); setDuplicate(null); setFileError(null); setChoosing(false); setReadingFile(true); setMode("in");
     try {
       const read = await readSourceFile(picked);
       if (read.text.length > MAX_TEXT_LENGTH) throw new SourceFileError(`파일은 50,000자까지 넣을 수 있어요. 지금 ${read.text.length.toLocaleString("ko-KR")}자예요 — 나눠서 넣어 주세요.`);
@@ -115,18 +118,29 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
 
   const makeApplication = (value: string) => { clearAsk(); void fillApplication(value); };
 
+  /** 자료 넣기. 409 SOURCE_DUPLICATE 면 오류 대신 「이미 넣은 자료예요」를 보이고 입력은 그대로 둔다(S-69) */
+  const sendSource = async (allowDuplicate = false) => {
+    if (pending.current || sourceBusy || readingFile || (!file && (!text.trim() || tooLong))) return;
+    pending.current = true; setSourceSubmitting(true); setError(null); setChoosing(false);
+    try {
+      const base: SourceRequest = file ? { kind: "FILE", name: file.name, text: file.text, ...(file.sections && { sections: file.sections }) } : { kind: "TEXT", name: null, text };
+      const result = await submitSource(allowDuplicate ? { ...base, allowDuplicate: true } : base, mockAnalysis);
+      onSourceSubmitted([{ jobId: result.jobId, name: file?.name ?? "붙여넣은 텍스트" }]);
+      refreshAccount();
+      setText(""); setFile(null); setDuplicate(null);
+    } catch (e) {
+      if (e instanceof ApiError && e.code === "SOURCE_DUPLICATE" && e.source) { setDuplicate(e.source); return; }
+      setDuplicate(null);
+      setError(e instanceof ApiError && e.code === "DAILY_LIMIT_EXCEEDED" ? dailyLimitMessage("new") : e instanceof Error ? e.message : "자료를 보내지 못했어요. 다시 시도해 주세요.");
+    }
+    finally { pending.current = false; setSourceSubmitting(false); }
+  };
+
   const send = async () => {
     if (pending.current || readingFile || (!file && (!text.trim() || tooLong))) return;
     if (mode === "in" || file) {
-      if (sourceBusy) return;
-      pending.current = true; setSourceSubmitting(true); setError(null); setChoosing(false);
-      try {
-        const result = await submitSource(file ? { kind: "FILE", name: file.name, text: file.text, ...(file.sections && { sections: file.sections }) } : { kind: "TEXT", name: null, text }, mockAnalysis);
-        onSourceSubmitted([{ jobId: result.jobId, name: file?.name ?? "붙여넣은 텍스트" }]);
-        refreshAccount();
-        setText(""); setFile(null);
-      } catch (e) { setError(e instanceof ApiError && e.code === "DAILY_LIMIT_EXCEEDED" ? dailyLimitMessage("new") : e instanceof Error ? e.message : "자료를 보내지 못했어요. 다시 시도해 주세요."); }
-      finally { pending.current = false; setSourceSubmitting(false); }
+      // 다시 시도는 처음 넣기와 같다 — 안내에서 「그래도 넣기」를 고른 뒤 실패했으면 다시 견준다
+      await sendSource();
       return;
     }
     const link = singleLink(text);
@@ -156,15 +170,15 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     <div className="grid justify-items-center gap-2.5 text-center"><HomeMascot overview={overview} onRefresh={onRefresh} mode={mode} /></div>
     <form aria-label="글 보내기" aria-busy={busy} onSubmit={e => { e.preventDefault(); void send(); }}>
       <div role="group" aria-label="입력 모드" className="mx-auto mt-5 grid w-44 grid-cols-2 gap-1 rounded-full bg-surface-soft p-1">
-        {([ ["out", "꺼내기"], ["in", "쌓기"] ] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={mode === value} disabled={busy || (!!file && value === "out")} onClick={() => { setMode(value); setChoosing(false); setError(null); }}
+        {([ ["out", "꺼내기"], ["in", "쌓기"] ] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={mode === value} disabled={busy || (!!file && value === "out")} onClick={() => { setMode(value); setChoosing(false); setError(null); setDuplicate(null); }}
           className={cn("inline-flex min-h-11 items-center justify-center gap-1.75 rounded-full text-sm leading-none whitespace-nowrap transition-colors disabled:opacity-50 lg:min-h-9", mode === value ? "bg-canvas font-bold text-ink shadow-mode" : "font-normal text-muted hover:text-ink")}>
           <span aria-hidden="true" className={cn("size-1.75 rounded-full", value === "out" ? "bg-mark" : "bg-record-green", mode !== value && "opacity-55")} />{label}
         </button>)}
       </div>
       <div className="mt-3 rounded-lg border border-hairline bg-canvas pt-4 pr-3.5 pb-3 pl-5.5 shadow-home-input focus-within:border-ink">
-        {file && <span className="mb-2 inline-flex max-w-full items-center gap-2 rounded-full bg-surface-soft px-3 py-1 text-xs text-body"><span className="min-w-0 break-all">{file.name} · {file.text.length.toLocaleString("ko-KR")}자</span><button type="button" aria-label="첨부 파일 빼기" disabled={busy} className="flex size-11 shrink-0 items-center justify-center" onClick={() => { ++fileVersion.current; setFile(null); setError(null); }}><XIcon aria-hidden="true" /></button></span>}
+        {file && <span className="mb-2 inline-flex max-w-full items-center gap-2 rounded-full bg-surface-soft px-3 py-1 text-xs text-body"><span className="min-w-0 break-all">{file.name} · {file.text.length.toLocaleString("ko-KR")}자</span><button type="button" aria-label="첨부 파일 빼기" disabled={busy} className="flex size-11 shrink-0 items-center justify-center" onClick={() => { ++fileVersion.current; setFile(null); setError(null); setDuplicate(null); }}><XIcon aria-hidden="true" /></button></span>}
         <textarea aria-label="홈에 넣을 글" aria-describedby={mode === "in" ? "entrance-note entrance-length" : "entrance-length"} aria-invalid={tooLong}
-          id="home-text" rows={2} value={text} disabled={busy || !!file} onChange={e => { setText(e.target.value); setChoosing(false); setError(null); parse.clear(); }}
+          id="home-text" rows={2} value={text} disabled={busy || !!file} onChange={e => { setText(e.target.value); setChoosing(false); setError(null); setDuplicate(null); parse.clear(); }}
           placeholder={mode === "out" ? "한 줄로 물어보거나, 지원 문항 · 공고(링크도 돼요)를 그대로 붙여 넣어 보세요" : "오늘 한 일 한 줄이나, README · 회고를 붙여 넣어 보세요"}
           className="min-h-14 w-full resize-none border-0 bg-transparent text-base leading-relaxed outline-none placeholder:text-muted focus-visible:outline-none" />
         <div className="mt-3 flex items-center justify-between gap-3">
@@ -211,6 +225,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
       }} />}
     {tooLong && !file && <p role="alert" className="mt-4 text-sm text-error">한 번에 50,000자까지 넣을 수 있어요. 나눠서 넣어 주세요.</p>}
     {error && <div role="alert" className="mt-4 text-sm text-error">{error} <Button variant="link" disabled={busy || (!file && !text.trim())} onClick={() => void send()}>다시 시도</Button></div>}
+    {duplicate && <div className="mt-4"><DuplicateSourceNotice source={duplicate} busy={sourceSubmitting} onInsert={() => void sendSource(true)} onCancel={() => setDuplicate(null)} /></div>}
     {choosing && <div className="mt-5 rounded-md border border-hairline p-4" aria-label="사용자가 종류 고르기">
       <p className="mt-0 mb-3 font-medium">자료로 쌓을까요, 지원으로 만들까요?</p>
       <div className="flex flex-wrap gap-2"><Button variant="secondary" className="min-h-11" disabled={sourceBusy} onClick={() => openDestination("source")}>자료로 쌓기</Button><Button className="min-h-11" onClick={() => openDestination("application")}>지원으로 만들기</Button></div>

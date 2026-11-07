@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-gate";
 import { dailyLimitMessage } from "@/lib/api/auth";
 import { ApiError, submitSource, submitSources, type MockAnalysis } from "@/lib/api/experience";
+import type { DuplicateSource } from "@/lib/api/errors";
+import { DuplicateSourceNotice } from "./duplicate-source-notice";
 import { MAX_BATCH_SOURCES, MAX_TEXT_LENGTH, type SourceRequest } from "@/lib/api/types";
 import { SOURCE_FILE_ACCEPT, SOURCE_FILE_LABEL } from "@/lib/source-file/read";
 import type { PendingJob } from "./use-analysis-job";
@@ -51,6 +53,9 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
   const [text, setText] = useState(initialText);
   const { picks, reading, pick, remove, clear } = useFilePicks(maxFiles);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  /** 「이미 넣은 자료예요」(S-69) — 하나만 · 활동 없이 넣을 때만 온다. 글 · 파일을 바꾸면 닫는다 */
+  const [duplicate, setDuplicate] = useState<DuplicateSource | null>(null);
+  const clearNotice = () => { setSubmitError(null); setDuplicate(null); };
   // 오늘 남은 분석 횟수(S-15) — 로그인했을 때만. 열 때마다 다시 읽는다
   const { me, refresh } = useAuth();
   const left = me ? Math.max(0, me.dailyAnalysis.limit - me.dailyAnalysis.used) : null;
@@ -64,7 +69,7 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
   const reset = () => {
     setText("");
     clear();
-    setSubmitError(null);
+    clearNotice();
     setDragging(false);
   };
 
@@ -75,7 +80,7 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
   };
 
   const pickFiles = (files: File[]) => {
-    setSubmitError(null);
+    clearNotice();
     void pick(files);
   };
 
@@ -96,16 +101,16 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
       : picks.flatMap(({ file }) => (file ? [{ kind: "FILE" as const, name: file.name, text: file.text, ...(file.sections && { sections: file.sections }) }] : []));
   const rejected = usingFiles ? picks.length - requests.length : 0;
 
-  const submit = async () => {
+  const submit = async (allowDuplicate = false) => {
     if (!requests.length || pending.current) return;
     pending.current = true;
     setSubmitting(true);
-    setSubmitError(null);
+    clearNotice();
     const batch = requests.length > 1;
     try {
       const submitted = batch
         ? await submitSources(requests, mock)
-        : [await submitSource({ ...requests[0], ...(target && { activityId: target.id }) }, mock)];
+        : [await submitSource({ ...requests[0], ...(target && { activityId: target.id }), ...(allowDuplicate && { allowDuplicate: true }) }, mock)];
       onSubmitted(submitted.map(({ jobId }, index) => {
         const { kind, name } = requests[index];
         return { jobId, name: kind === "FILE" ? name : "붙여넣은 텍스트", ...(target && { targetActivityId: target.id }) };
@@ -114,6 +119,11 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
       reset();
       onOpenChange(false);
     } catch (e) {
+      // 같은 자료 — 오류가 아니라 안내다. 입력은 그대로 둔다(S-69)
+      if (!batch && e instanceof ApiError && e.code === "SOURCE_DUPLICATE" && e.source) {
+        setDuplicate(e.source);
+        return;
+      }
       // 묶음의 오류는 서버 말에 몇째 파일인지가 들어 있다. 어떤 오류든 하나도 들어가지 않았다
       const message = !(e instanceof ApiError) ? null
         : e.code === "DAILY_LIMIT_EXCEEDED" && batch ? dailyLimitMessage("batch")
@@ -154,7 +164,7 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
               disabled={usingFiles}
               onChange={(e) => {
                 setText(e.target.value);
-                setSubmitError(null);
+                clearNotice();
               }}
               placeholder={line ? "예) 오늘 스터디에서 처음 발표했다" : "예) 바꿔요 — 캠퍼스 중고거래 앱 회고\n기간: 2025-03 ~ 2025-06, 4명 팀. 나는 백엔드를 맡았다.\n- 채팅이 늦게 오는 문제를 WebSocket 으로 바꿔 해결했다"}
               aria-label={line ? "기록할 내용" : "붙여넣을 자료"}
@@ -203,7 +213,7 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
           {picks.length > 0 && (
             <div className="grid max-h-44 gap-1.5 overflow-y-auto">
               <ul className="m-0 flex list-none flex-wrap gap-1.5 p-0" aria-label="고른 파일">
-                {picks.filter((p) => p.file).map((p) => <PickChip key={p.id} pick={p} onRemove={() => remove(p.id)} />)}
+                {picks.filter((p) => p.file).map((p) => <PickChip key={p.id} pick={p} onRemove={() => { remove(p.id); clearNotice(); }} />)}
               </ul>
               {picks.flatMap((p) => (p.file?.notice ? [<p key={p.id} className="m-0 text-note text-review">{p.name} — {p.file.notice}</p>] : []))}
               {rejected > 0 && (
@@ -237,13 +247,14 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
             {submitError}
           </p>
         )}
+        {duplicate && <DuplicateSourceNotice source={duplicate} busy={submitting} onInsert={() => void submit(true)} onCancel={() => setDuplicate(null)} />}
 
         <DialogFooter>
           {onMoveToApplication && !usingFiles && <Button variant="link" disabled={submitting || !text.trim()} onClick={() => onMoveToApplication(text)}>지원으로 만들기</Button>}
           <Button variant="link" onClick={() => changeOpen(false)} disabled={submitting}>
             취소
           </Button>
-          <Button onClick={submit} disabled={!requests.length || submitting || !!reading}>
+          <Button onClick={() => void submit()} disabled={!requests.length || submitting || !!reading}>
             {submitting ? "보내는 중…" : requests.length > 1 ? `${requests.length}개 넣기` : "넣기"}
           </Button>
         </DialogFooter>
