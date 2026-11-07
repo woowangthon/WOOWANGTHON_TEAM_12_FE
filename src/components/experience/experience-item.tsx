@@ -65,7 +65,7 @@ export function ExperienceMeta({ experience: e, aiLabel = "AI" }: {
           <span>
             {e.competencies.map((c) => COMPETENCIES[c]).join(" · ")}
             {isAiCompetency(e) && <span
-              className="ml-1 inline-block rounded-[4px] border border-hairline px-1 align-[1px] text-[10px] leading-[15px] font-bold tracking-[0.02em]"
+              className="ml-1 inline-block rounded-[4px] border border-hairline px-1 align-[1px] text-xs leading-[15px] font-bold tracking-[0.02em]"
               title="AI 가 붙인 역량 — 해석이에요"
             >
               {aiLabel}
@@ -92,7 +92,7 @@ export function ExperienceProperties({ experience: e, period }: {
     {isAiCompetency(e) && <span className="ml-1.5 text-xs text-muted">AI 해석</span>}
   </>]);
   return (
-    <dl className="m-0 grid w-full grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 py-1 text-[13px]">
+    <dl className="m-0 grid w-full grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 py-1 text-note">
       {rows.map(([label, value]) => <div key={label} className="contents">
         <dt className="text-muted">{label}</dt>
         <dd className="m-0 min-w-0 break-words text-body">{value}</dd>
@@ -125,7 +125,7 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
   const usedIn = e.usedIn ?? [];
   const n = e.citations.length;
   const citeBtn =
-    "ml-auto inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-[13px] font-semibold text-evidence hover:bg-evidence-soft";
+    "ml-auto inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-note font-semibold text-evidence hover:bg-evidence-soft";
   return (
     <li id={`experience-${e.id}`} className={cn("group relative grid gap-1.5 border-b border-hairline py-4", dragging && "opacity-40")}>
       {!editing && !readOnly && (
@@ -165,11 +165,11 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
           </DropdownMenu.Root></>}
         </div>
       )}
-      <div className="flex flex-wrap items-center gap-1.5 text-[13px] font-medium text-muted">
+      <div className="flex flex-wrap items-center gap-1.5 text-note font-medium text-muted">
         <ExperienceMeta experience={e} />
         <UsedInChip usedIn={usedIn} open={usedInOpen} onToggle={() => setUsedInOpen((v) => !v)} controls={`used-in-${e.id}`} />
         {n === 0 ? (
-          <span className="ml-auto text-muted-soft">근거 없음</span>
+          <span className="ml-auto text-muted">근거 없음</span>
         ) : (
           <>
             <button

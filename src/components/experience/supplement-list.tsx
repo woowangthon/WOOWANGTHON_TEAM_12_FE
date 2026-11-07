@@ -11,7 +11,7 @@ import { MAX_ANSWER_LENGTH } from "@/lib/api/question-types";
 import type { Supplement } from "@/lib/api/types";
 
 export function UserEnteredLabel({ children = "내가 입력" }: { children?: ReactNode }) {
-  return <span className="inline-flex items-center gap-1 text-[13px] font-medium text-muted">
+  return <span className="inline-flex items-center gap-1 text-note font-medium text-muted">
     <PencilSimpleIcon className="size-[1.15em]" aria-hidden="true" />{children}
   </span>;
 }
@@ -65,7 +65,7 @@ export function SupplementList({ supplements, onSaved, onDeleted }: { supplement
   return <div className="mt-1 grid gap-2">
     {visible.length > 0 && <ul aria-label="내가 입력한 보완" className="m-0 grid list-none gap-2 p-0">{visible.map(s =>
       <SupplementItem key={s.id} supplement={s} handlers={handlers} onDelete={() => void remove(s)} />)}</ul>}
-    {error && <p role="alert" className="m-0 text-[13px] text-error">{error}</p>}
+    {error && <p role="alert" className="m-0 text-note text-error">{error}</p>}
   </div>;
 }
 
@@ -92,7 +92,7 @@ function SupplementItem({ supplement: s, handlers, onDelete }: { supplement: Sup
     } finally { pending.current = false; setSaving(false); }
   };
 
-  return <li className="grid gap-1 rounded-[14px] border border-hairline px-3.5 py-2.5 text-[13px] leading-relaxed">
+  return <li className="grid gap-1 rounded-[14px] border border-hairline px-3.5 py-2.5 text-note leading-relaxed">
     <div className="flex flex-wrap items-center gap-x-2">
       <UserEnteredLabel>내가 입력 · {sourceOf(s) ?? "되묻기에 답함"}</UserEnteredLabel>
       {handlers && mode === "view" && <span className="ml-auto flex">

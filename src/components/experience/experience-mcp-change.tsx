@@ -24,7 +24,7 @@ export function ExperienceMcpChange({ experience: e, readOnly, onSaved }: {
   if (!info) return outcome ? <p role="status" className="text-sm leading-relaxed text-body">{outcome}</p> : null;
 
   const label = `${mcpClientName(info.client)} 가 고침`;
-  if (readOnly) return <p className="text-[13px] font-medium text-muted">{label}</p>;
+  if (readOnly) return <p className="text-note font-medium text-muted">{label}</p>;
 
   const { changeId } = info;
   function load() {
@@ -51,7 +51,7 @@ export function ExperienceMcpChange({ experience: e, readOnly, onSaved }: {
   const open = panel.status !== "closed";
   return <div>
     <button type="button" aria-expanded={open} onClick={() => { if (open) setPanel({ status: "closed" }); else load(); }}
-      className="inline-flex min-h-11 items-center gap-1 rounded-md text-[13px] font-semibold text-ink underline-offset-3 hover:underline">
+      className="inline-flex min-h-11 items-center gap-1 rounded-md text-note font-semibold text-ink underline-offset-3 hover:underline">
       {label}
       <CaretDownIcon className={cn("size-[1.15em] transition-transform", open && "rotate-180")} aria-hidden="true" />
     </button>

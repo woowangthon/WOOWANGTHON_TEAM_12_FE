@@ -9,6 +9,6 @@
     { "name": "알림 버튼", "design": "[data-menu=bell]", "app": "button[aria-label^='진행 중인 일']" },
     { "name": "패널", "design": "#menu-bell", "app": "[role=dialog]" },
     { "name": "제목", "design": "#menu-bell h3", "app": "[role=dialog] h2" },
-    { "name": "묶음 이름", "design": ".pop__group", "app": "[role=dialog] h3" }
+    { "name": "묶음 이름", "design": ".pop__group", "app": "[role=dialog] h3", "intent": { "글자 크기": "글자 바닥 12px(FE#182)" } }
   ]
 }

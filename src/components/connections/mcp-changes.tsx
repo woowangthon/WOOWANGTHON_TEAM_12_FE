@@ -45,7 +45,7 @@ function blockedText(change: McpChange) {
 
 function Text({ label, children }: { label: string; children: ReactNode }) {
   return <div>
-    <p className="text-[13px] font-medium text-muted">{label}</p>
+    <p className="text-note font-medium text-muted">{label}</p>
     <p className="mt-0.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-ink">{children}</p>
   </div>;
 }
@@ -124,8 +124,8 @@ export function McpChangeCard({ change, onChange, onStale, inActivity = false }:
   return <>
     <p className="flex flex-wrap items-center gap-x-2 text-sm">
       <span className="font-semibold">{mcpClientName(change.client)} · {VERB[change.type]}</span>
-      <span className="text-[13px] font-medium text-muted">{STATUS[change.status]}</span>
-      <time dateTime={change.createdAt} className="text-[13px] text-muted">{timestamp(change.createdAt)}</time>
+      <span className="text-note font-medium text-muted">{STATUS[change.status]}</span>
+      <time dateTime={change.createdAt} className="text-note text-muted">{timestamp(change.createdAt)}</time>
     </p>
     <Body change={change} inActivity={inActivity} />
     {blocked && <p className="mt-2 text-sm leading-relaxed text-muted">{blocked}</p>}
@@ -177,8 +177,8 @@ export function McpChangeLog({ writeEnabled }: { writeEnabled: boolean }) {
   return <details className="group mt-4 rounded-md border border-hairline-soft px-4 sm:px-5">
     <summary className="flex min-h-14 cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
       <CaretRightIcon aria-hidden="true" className="size-4 text-muted transition-transform group-open:rotate-90" />
-      <h2 className="text-[15px] font-semibold">변경 기록</h2>
-      {changes.length > 0 && <span className="text-[13px] text-muted tabular-nums">{changes.length}건</span>}
+      <h2 className="text-ui font-semibold">변경 기록</h2>
+      {changes.length > 0 && <span className="text-note text-muted tabular-nums">{changes.length}건</span>}
     </summary>
     <div className="pb-4">
       <div className="flex flex-wrap items-center justify-between gap-x-3">

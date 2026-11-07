@@ -26,19 +26,19 @@ export function AskAnswer({ answer, onMakeApplication, busy, onOpenActivity }: {
   return <section aria-label="꺼내기 답" className="mt-6 rounded-lg border border-hairline bg-canvas p-4 sm:p-5">
     <p className="m-0 text-xs text-muted">물어본 것</p>
     <p className="mt-0.5 mb-0 font-medium whitespace-pre-wrap break-words">{answer.text}</p>
-    {answer.mock && <p className="mt-2 mb-0 text-xs text-review">목 모드 예시예요 — 질문을 읽지 않은 고정 답이고 AI 판단이 아니에요.</p>}
+    {answer.mock && <p className="mt-2 mb-0 text-note text-review">목 모드 예시예요 — 질문을 읽지 않은 고정 답이고 AI 판단이 아니에요.</p>}
     {list.length === 0 ? <div className="mt-4 grid gap-1.5 rounded-sm bg-surface-soft p-4">
       <p className="m-0 font-medium">쌓인 자료에서 찾지 못했어요.</p>
       <p className="m-0 text-sm text-muted">경험이 없다는 뜻은 아니에요. 관련 자료를 더 쌓으면 다시 찾아볼게요.</p>
     </div> : <>
-      <p className="mt-4 mb-2 text-sm text-body">쌓인 경험에서 {list.length}개를 찾았어요 <span className="text-xs text-muted">· 이유는 <b className="font-semibold">AI 해석</b>, 근거는 원문 · 내가 입력한 그대로예요</span></p>
+      <p className="mt-4 mb-2 text-sm text-body">쌓인 경험에서 {list.length}개를 찾았어요 <span className="text-note text-muted">· 이유는 <b className="font-semibold">AI 해석</b>, 근거는 원문 · 내가 입력한 그대로예요</span></p>
       <ol className="m-0 grid list-none gap-2.5 p-0">{list.map((r, i) => <li key={r.experience.id} aria-label={`꺼낸 경험 ${i + 1}`} className="grid gap-2.5 rounded-[18px] bg-mark-soft px-4 py-3.5 sm:px-4.5">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <span className="text-sm font-semibold text-evidence">{r.activity.name}</span>
           <span className="text-xs text-muted tabular-nums">{periodText(r.activity.period)}</span>
         </div>
-        <b className="text-[15px] leading-normal font-bold whitespace-pre-wrap">{r.experience.content}</b>
-        <span className="flex flex-wrap items-center gap-1.5 text-[13px] font-medium text-muted"><ExperienceMeta experience={r.experience} /></span>
+        <b className="text-ui leading-normal font-bold whitespace-pre-wrap">{r.experience.content}</b>
+        <span className="flex flex-wrap items-center gap-1.5 text-note font-medium text-muted"><ExperienceMeta experience={r.experience} /></span>
         <div className={box}>
           <p className={boxTitle}>왜 이 경험인지 — AI 해석</p>
           <p className="m-0 text-body">{r.reason}</p>

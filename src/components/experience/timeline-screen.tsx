@@ -468,7 +468,7 @@ export function TimelineScreen() {
       <AppHeader hideTabBar={!!selected} addSource={addSource} experienceCount={ready ? countExperiences(ready.activities) : null} quickFind={{ openActivity: select, search: searchFor }} />
       {Number(params.get("workJob")) > 0 && !isMockMode() && <SourceWorkDetail key={params.get("workJob")} jobId={Number(params.get("workJob"))} />}
       {/* 실제 API 모드엔 안내 줄을 두지 않는다 — 목 모드 표시(대회 규칙 1)와 지원에서 온 길만 (FE#174) */}
-      {(isMockMode() || fromQuestion) && <p className="m-0 border-b border-hairline px-4 py-2 text-xs text-muted" role="note">
+      {(isMockMode() || fromQuestion) && <p className="m-0 border-b border-hairline px-4 py-2 text-note text-muted" role="note">
         {isMockMode() && "목 모드 · 예시 데이터이며 서버에 저장할 수 없어요. 자료 쌓기·분석도 목 기능이에요."}
         {fromQuestion && <>{isMockMode() && " "}<Link href={`/questions?question=${fromQuestion}`} className="font-medium text-ink underline underline-offset-4">지원 화면으로 돌아가기</Link></>}
       </p>}
@@ -502,7 +502,7 @@ export function TimelineScreen() {
             <>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                 <div className="flex items-baseline gap-3">
-                  <h1 className="m-0 text-2xl font-bold tracking-[-0.4px] lg:text-[26px]">내 경험</h1>
+                  <h1 className="m-0 text-2xl font-bold tracking-[-0.4px] lg:text-display">내 경험</h1>
                   <span className="text-sm text-muted tabular-nums">
                     활동 {ready.activities.length}
                     <span className="hidden lg:inline">
@@ -674,7 +674,7 @@ function CategoryChips({ value, onChange }: { value: ActivityCategory | null; on
       data-category={id ?? undefined}
       onClick={() => onChange(id)}
       className={cn(
-        "inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3.5 text-[13px] whitespace-nowrap lg:min-h-9",
+        "inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3.5 text-note whitespace-nowrap lg:min-h-9",
         value === id ? "border-ink bg-ink font-semibold text-on-primary" : "border-hairline bg-canvas text-muted hover:bg-surface-soft",
       )}
     >
@@ -696,16 +696,16 @@ function ApplicationsToggle({ shown, onChange, state, onRetry }: {
 }) {
   return (
     <div className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1">
-      <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 text-[13px] text-muted">
+      <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 text-note text-muted">
         <input type="checkbox" checked={shown} onChange={(e) => onChange(e.target.checked)} className="size-4 accent-record-pink" />
         지원도 같이 보기
       </label>
-      {state.status === "loading" && <span className="text-xs text-muted" role="status">지원을 불러오고 있어요…</span>}
+      {state.status === "loading" && <span className="text-note text-muted" role="status">지원을 불러오고 있어요…</span>}
       {state.status === "ready" && state.items.length === 0 && (
-        <span className="text-xs text-muted" role="status">낸 지원이 아직 없어요. 작성 중인 지원은 내면 그 달에 놓여요.</span>
+        <span className="text-note text-muted" role="status">낸 지원이 아직 없어요. 작성 중인 지원은 내면 그 달에 놓여요.</span>
       )}
       {state.status === "error" && (
-        <span className="inline-flex flex-wrap items-center gap-2 text-xs text-error" role="alert">
+        <span className="inline-flex flex-wrap items-center gap-2 text-note text-error" role="alert">
           지원을 불러오지 못했어요. {state.message}
           <Button variant="secondary" size="sm" onClick={onRetry}>
             <ArrowsClockwiseIcon />
@@ -727,13 +727,13 @@ function EmptyState({ addSource }: { addSource: AddSourceProps }) {
     >
       <div className="flex flex-wrap justify-center gap-1.5">
         {["README.md", "프로젝트 회고", "노션에서 복사한 활동 목록", ".md · .pdf · .pptx · 붙여넣기"].map((t) => (
-          <span key={t} className="rounded-full border border-hairline px-2.5 py-0.5 text-[13px] text-muted">
+          <span key={t} className="rounded-full border border-hairline px-2.5 py-0.5 text-note text-muted">
             {t}
           </span>
         ))}
       </div>
       <AddSourceButton {...addSource} />
-      <p className="m-0 text-[13px] text-muted">한 번에 다 넣지 않아도 돼요. 생각날 때 하나씩 넣으면 쌓여요.</p>
+      <p className="m-0 text-note text-muted">한 번에 다 넣지 않아도 돼요. 생각날 때 하나씩 넣으면 쌓여요.</p>
     </CenterState>
   );
 }

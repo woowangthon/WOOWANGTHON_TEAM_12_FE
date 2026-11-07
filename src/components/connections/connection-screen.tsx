@@ -33,8 +33,8 @@ const CONNECTION_CARD = "grid gap-4 rounded-md border border-hairline-soft p-4 s
 /** 연결하면 무엇을 할 수 있는지 보이는 그림(시안 6) — 실제 대화가 아니라 예시라고 밝힌다 */
 function ChatExample() {
   // SAMPLE(connection-chat-example): 시안 6 의 대화 예시. 고정 글이고 서버를 부르지 않는다.
-  return <figure className="m-0 grid gap-1.5 rounded-sm bg-surface-soft p-3 text-[13px] leading-relaxed">
-    <figcaption className="text-xs font-medium text-muted">예시 — 연결하면 이렇게 물어볼 수 있어요</figcaption>
+  return <figure className="m-0 grid gap-1.5 rounded-sm bg-surface-soft p-3 text-note leading-relaxed">
+    <figcaption className="text-note font-medium text-muted">예시 — 연결하면 이렇게 물어볼 수 있어요</figcaption>
     <span className="max-w-[85%] justify-self-end rounded-sm bg-ink px-2.5 py-1.5 text-on-primary">Claude 에게: 차곡에서 협업 경험 3개만 찾아 줘</span>
     <span className="flex items-start gap-1.5 rounded-sm border border-hairline-soft bg-canvas px-2.5 py-1.5"><Mascot size={18} />OO 프로젝트에서 설계 방향이 갈렸을 때 … — 회고.md 발췌</span>
   </figure>;
@@ -154,7 +154,7 @@ export function ConnectionScreen() {
   return <>
     <AppHeader activePage="connections" />
     <main className="mx-auto w-full max-w-3xl px-5 py-8 lg:px-8 lg:py-12">
-      <h1 className="text-[26px] font-bold tracking-tight">연결 · 내보내기</h1>
+      <h1 className="text-display font-bold tracking-tight">연결 · 내보내기</h1>
       <p className="mt-2 text-sm leading-relaxed text-muted">쌓아 둔 경험을 필요한 곳에서 꺼내 쓰세요.</p>
       {mock && <p role="note" className="mt-6 rounded-sm border border-hairline bg-surface-soft p-4 text-sm leading-relaxed">
         목 모드 · 연결 관리 화면을 미리 보는 중이에요. 표시되는 임시 주소는 Claude에서 사용할 수 없어요. 실제 연결은 만들어지지 않아요.
@@ -184,7 +184,7 @@ export function ConnectionScreen() {
           </div>
           <p className="text-sm leading-relaxed text-muted">지금 복사해 두세요. 화면을 떠나거나 새로고침하면 다시 볼 수 없어요.</p>
         </div> : connection?.connected && <p className="rounded-sm bg-surface-soft p-3 text-sm leading-relaxed text-muted">주소는 만들 때 한 번만 보여요. 주소를 잃어버렸다면 「다시 만들기」로 새 주소를 받으세요.</p>}
-        <p className="text-[13px] leading-relaxed text-muted">연결하면 내 경험 · 근거가 AI 서비스(Claude 등)로 전송돼요. 기본은 읽기만 해요. 연결 주소는 비밀번호와 같아요 — 남에게 보여 주지 마세요.</p>
+        <p className="text-note leading-relaxed text-muted">연결하면 내 경험 · 근거가 AI 서비스(Claude 등)로 전송돼요. 기본은 읽기만 해요. 연결 주소는 비밀번호와 같아요 — 남에게 보여 주지 마세요.</p>
 
         {connection && (connection.connected
           ? <div className="flex flex-wrap gap-2">

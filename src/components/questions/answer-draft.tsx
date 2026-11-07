@@ -30,14 +30,14 @@ export function AnswerDraft({ question, onOpenOmissions, requestingDraft }: { qu
   if (!draft && !analyzing) return null;
 
   return <section aria-labelledby={`draft-title-${question.id}`} className="mb-8 grid min-w-0 gap-4 rounded-[18px] border border-hairline bg-canvas p-4 sm:p-5">
-    <h3 id={`draft-title-${question.id}`} className="m-0 text-[17px] font-semibold">답변 초안</h3>
+    <h3 id={`draft-title-${question.id}`} className="m-0 text-title-md font-semibold">답변 초안</h3>
     {analyzing && <p role="status" className="m-0 text-sm text-muted">고른 경험으로 초안을 만드는 중이에요…</p>}
     {draft?.status === "FAILED" && !analyzing && <p role="alert" className="m-0 text-sm text-error">{failureReason(draft.error)} 차곡이에서 다시 만들 수 있어요.</p>}
     {draft?.status === "COMPLETED" && !analyzing && <>
       <DraftGuidance draft={draft} />
       <p role="status" className="m-0 text-sm font-medium">초안을 확인해 주세요. 최종 문장은 직접 정해요.</p>
       {draft.sentences.length ? <ol aria-label="초안 문장" className="m-0 grid list-none gap-4 p-0">{draft.sentences.map((sentence, i) => <li key={i} className="grid min-w-0 gap-2 border-t border-hairline-soft pt-4">
-        <p className="m-0 break-words text-[15px] leading-relaxed"><span className="mr-2 text-xs text-muted">{i + 1}</span>{sentence.text}</p>
+        <p className="m-0 break-words text-ui leading-relaxed"><span className="mr-2 text-xs text-muted">{i + 1}</span>{sentence.text}</p>
         {sentence.kind === "OPINION" ? <span className="inline-flex max-w-full items-center gap-1 justify-self-start rounded-full border border-dashed border-review-line bg-review-soft px-2.5 py-1 text-xs font-semibold text-review">
           <WarningCircleIcon className="size-[1.15em] shrink-0" aria-hidden="true" />
           AI 제안 — 확인 필요
@@ -46,9 +46,9 @@ export function AnswerDraft({ question, onOpenOmissions, requestingDraft }: { qu
       </li>)}</ol> : <p className="m-0 text-sm text-muted">고른 기록에서 받칠 내용을 찾지 못해 문장을 쓰지 않았어요. 경험이 없다는 뜻은 아니에요.</p>}
       {draft.omitted.length > 0 && <div className="grid gap-2 rounded-sm bg-surface-soft p-3.5">
         <p className="m-0 text-sm font-semibold">자료에 없어 쓰지 않았어요</p>
-        <p className="m-0 text-xs text-muted">AI 해석이에요. 현재 기록에서 확인하지 못한 내용은 지어내지 않았어요.</p>
+        <p className="m-0 text-note text-muted">AI 해석이에요. 현재 기록에서 확인하지 못한 내용은 지어내지 않았어요.</p>
         <ul className="m-0 grid gap-1 pl-4 text-sm text-body">{draft.omitted.map((item, i) => <li key={i}>{item.text}</li>)}</ul>
-        <p className="m-0 text-xs leading-relaxed text-muted">기억나는 내용은 차곡이에게 알려 주세요. 답은 선택이고, 건너뛰어도 초안을 복사할 수 있어요.</p>
+        <p className="m-0 text-note leading-relaxed text-muted">기억나는 내용은 차곡이에게 알려 주세요. 답은 선택이고, 건너뛰어도 초안을 복사할 수 있어요.</p>
         <Button variant="secondary" className="min-h-11 justify-self-start" onClick={onOpenOmissions}>차곡이에서 확인</Button>
       </div>}
       <Button variant="secondary" className="min-h-11 justify-self-start" disabled={!draft.sentences.length} onClick={() => void copyText()}>텍스트로 복사</Button>

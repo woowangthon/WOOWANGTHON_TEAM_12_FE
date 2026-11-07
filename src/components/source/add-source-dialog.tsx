@@ -131,7 +131,7 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
       <DialogContent>
         <DialogHeader className="pr-10">
           <DialogTitle>{target ? `「${target.name}」에 자료 더하기` : line ? "직접 기록하기" : "자료 쌓기"}</DialogTitle>
-          <DialogDescription className="text-[15px] text-body">
+          <DialogDescription className="text-ui text-body">
             {target
               ? "이 활동에 대한 새 자료(회고 · 발표 자료 · README)를 넣으면, 이 활동의 경험으로 붙이고 근거를 더해요. 다른 활동 얘기가 섞여 있으면 새 활동으로 남기고 따로 알려 줄게요."
               : line ? "오늘 한 일이나 든 생각을 한 줄로 적어 주세요. 활동과 그 안에서 한 일을 찾아 정리해 둘게요."
@@ -159,12 +159,12 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
               placeholder={line ? "예) 오늘 스터디에서 처음 발표했다" : "예) 바꿔요 — 캠퍼스 중고거래 앱 회고\n기간: 2025-03 ~ 2025-06, 4명 팀. 나는 백엔드를 맡았다.\n- 채팅이 늦게 오는 문제를 WebSocket 으로 바꿔 해결했다"}
               aria-label={line ? "기록할 내용" : "붙여넣을 자료"}
               aria-invalid={!!pasteError}
-              className={cn("w-full resize-y rounded-sm border border-hairline px-3.5 py-3 text-base leading-relaxed outline-none placeholder:text-muted-soft focus:border-ink focus:shadow-[0_0_0_1px_var(--ink)] disabled:bg-surface-soft disabled:text-muted", line ? "min-h-24" : "min-h-[150px]")}
+              className={cn("w-full resize-y rounded-sm border border-hairline px-3.5 py-3 text-base leading-relaxed outline-none placeholder:text-muted focus:border-ink focus:shadow-[0_0_0_1px_var(--ink)] disabled:bg-surface-soft disabled:text-muted", line ? "min-h-24" : "min-h-[150px]")}
             />
             {usingFiles ? (
-              text.trim() && <p className="m-0 text-[13px] text-muted">파일을 빼면 적어 둔 글을 넣을 수 있어요.</p>
+              text.trim() && <p className="m-0 text-note text-muted">파일을 빼면 적어 둔 글을 넣을 수 있어요.</p>
             ) : (
-              <div className="flex items-start justify-between gap-3 text-[13px]">
+              <div className="flex items-start justify-between gap-3 text-note">
                 <span className="text-error">{pasteError}</span>
                 <span className={cn("shrink-0 tabular-nums", pasteError ? "text-error" : "text-muted")}>
                   {text.length.toLocaleString()} / {MAX_TEXT_LENGTH.toLocaleString()}자
@@ -190,11 +190,11 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
               파일 올리기
             </label>
             {reading ? (
-              <span className="text-[13px] text-muted tabular-nums" role="status">
+              <span className="text-note text-muted tabular-nums" role="status">
                 이 기기 안에서 글자를 읽는 중…{reading.total > 1 && ` ${reading.done} / ${reading.total}`}
               </span>
             ) : (
-              <span className="text-[13px] text-muted">
+              <span className="text-note text-muted">
                 {SOURCE_FILE_LABEL} {maxFiles > 1 ? `${maxFiles}개까지` : "하나"} · 스캔한 PDF 는 읽지 못해요
               </span>
             )}
@@ -205,21 +205,21 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
               <ul className="m-0 flex list-none flex-wrap gap-1.5 p-0" aria-label="고른 파일">
                 {picks.filter((p) => p.file).map((p) => <PickChip key={p.id} pick={p} onRemove={() => remove(p.id)} />)}
               </ul>
-              {picks.flatMap((p) => (p.file?.notice ? [<p key={p.id} className="m-0 text-[13px] text-review">{p.name} — {p.file.notice}</p>] : []))}
+              {picks.flatMap((p) => (p.file?.notice ? [<p key={p.id} className="m-0 text-note text-review">{p.name} — {p.file.notice}</p>] : []))}
               {rejected > 0 && (
                 <ul className="m-0 grid list-none gap-1 p-0" aria-label="넣지 못하는 파일">
                   {picks.filter((p) => !p.file).map((p) => <PickError key={p.id} pick={p} onRemove={() => remove(p.id)} />)}
                 </ul>
               )}
               {rejected > 0 && requests.length > 0 && (
-                <p className="m-0 text-[13px] text-muted">못 넣는 파일 {rejected}개는 빼고 {requests.length}개만 넣어요.</p>
+                <p className="m-0 text-note text-muted">못 넣는 파일 {rejected}개는 빼고 {requests.length}개만 넣어요.</p>
               )}
             </div>
           )}
         </div>
 
         {/* S-16 — 분석을 시작하기 전에, 외부 AI 로 보내진다는 것을 보인다 */}
-        <p className="m-0 flex gap-2.5 rounded-sm bg-surface-soft px-3.5 py-3 text-[13px] leading-relaxed text-body">
+        <p className="m-0 flex gap-2.5 rounded-sm bg-surface-soft px-3.5 py-3 text-note leading-relaxed text-body">
           <LockSimpleIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <span>
             넣은 자료는 분석을 위해 외부 AI 제공사(<b className="font-semibold">OpenAI</b>)로 보내져요. OpenAI API 는 보낸 내용을
@@ -227,7 +227,7 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
           </span>
         </p>
         {left !== null && (
-          <p className="m-0 text-[13px] text-muted tabular-nums">
+          <p className="m-0 text-note text-muted tabular-nums">
             오늘 남은 분석 {left}회{left === 0 ? " — 한국 시간 자정에 다시 채워져요" : requests.length > left && ` — 파일 ${requests.length}개를 넣기엔 모자라요`}
           </p>
         )}
@@ -277,7 +277,7 @@ function PickChip({ pick, onRemove }: { pick: FilePick; onRemove: () => void }) 
 function PickError({ pick, onRemove }: { pick: FilePick; onRemove: () => void }) {
   const { name, error } = pick;
   return (
-    <li className="flex items-start gap-1.5 text-[13px] text-error">
+    <li className="flex items-start gap-1.5 text-note text-error">
       <span className="min-w-0 flex-1 break-words" role="alert">{error?.includes(name) ? error : `${name} — ${error}`}</span>
       <button type="button" onClick={onRemove} aria-label={`${name} 빼기`} className={REMOVE}>
         <XIcon className="size-3" aria-hidden="true" />

@@ -157,7 +157,7 @@ export function ApplicationScreen() {
     <div className="min-w-0 flex-1">
     <main className="mx-auto max-w-[1280px] px-4.5 py-5 lg:px-8 lg:py-6">
       {working ? <h1 className="sr-only">지원</h1> : <div className="mb-7 flex items-start justify-between gap-3">
-        <div><h1 className="m-0 text-[26px] leading-snug font-bold tracking-[-0.4px]">지원</h1><p className="mt-2 mb-0 text-sm text-muted">지원서의 문항마다 꺼내 볼 경험을 찾아요. 같은 경험도 문항마다 다른 점을 보여 줄 수 있어요.</p></div>
+        <div><h1 className="m-0 text-display leading-snug font-bold tracking-[-0.4px]">지원</h1><p className="mt-2 mb-0 text-sm text-muted">지원서의 문항마다 꺼내 볼 경험을 찾아요. 같은 경험도 문항마다 다른 점을 보여 줄 수 있어요.</p></div>
         {(empty || matching.error) && restoreRun !== null && <Button variant="secondary" onClick={() => setPanelChoice(!panelOpen)} aria-expanded={panelOpen}>차곡이</Button>}
         {!empty && <Button disabled={composing || !!matching.error} onClick={startNew}><PlusIcon aria-hidden="true" />지원 넣기</Button>}
       </div>}
@@ -187,14 +187,14 @@ export function ApplicationScreen() {
             <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3">
               <div className="contents sm:block sm:min-w-0">
                 <div className="contents sm:flex sm:flex-wrap sm:items-center sm:gap-x-2">
-                  <h2 className="m-0 min-w-0 text-[22px] leading-snug font-bold tracking-[-0.4px] sm:mr-1">{open.application.organization || "지원처 이름 없음"}</h2>
+                  <h2 className="m-0 min-w-0 text-heading leading-snug font-bold tracking-[-0.4px] sm:mr-1">{open.application.organization || "지원처 이름 없음"}</h2>
                   <div className="col-span-2 flex flex-wrap items-center gap-x-2 sm:contents">
                     <ApplicationStatusTag key={open.application.id} application={open.application} onSave={req => matching.updateApplication(open.application.id, req)} />
                     <ApplicationTypeFields key={`type-${open.application.id}`} application={open.application}
                       onSave={req => matching.updateApplication(open.application.id, req)} />
                   </div>
                 </div>
-                <p className="col-span-2 m-0 flex flex-wrap items-center gap-x-2 text-[13px] text-muted tabular-nums">
+                <p className="col-span-2 m-0 flex flex-wrap items-center gap-x-2 text-note text-muted tabular-nums">
                   <span>{progressText(open.application)} · {dateText(open.application.createdAt)}에 넣음</span>
                   {/* 공고 원문 링크(S-46) — 새 탭으로. http(s) 주소일 때만 링크로 만든다 */}
                   {open.application.postingUrl && isPostingUrl(open.application.postingUrl) && <a href={open.application.postingUrl} target="_blank" rel="noopener noreferrer"
@@ -256,8 +256,8 @@ function ApplicationList({ applications, activeId, onPick, onSave, sidebar = fal
 }) {
   return <>
     {!sidebar && <div className="mb-3 flex items-baseline justify-between">
-      <h2 className="m-0 text-[17px] font-semibold">넣었던 지원</h2>
-      <span className="text-[13px] text-muted tabular-nums">{applications.length}곳</span>
+      <h2 className="m-0 text-title-md font-semibold">넣었던 지원</h2>
+      <span className="text-note text-muted tabular-nums">{applications.length}곳</span>
     </div>}
     <ul className={cn("m-0 grid list-none content-start gap-1 overflow-y-auto p-0", sidebar ? "min-h-0" : "max-h-72 lg:max-h-[calc(100dvh-240px)] xl:max-h-72")}>{applications.map(a => {
       const active = activeId === a.id;
@@ -267,7 +267,7 @@ function ApplicationList({ applications, activeId, onPick, onSave, sidebar = fal
             : cn("grid w-full gap-1 rounded-sm px-3.5 py-3 text-left transition-colors", active ? "bg-mark-soft" : "hover:bg-surface-soft")}>
           {sidebar ? <SidebarApplicationText application={a} /> : <>
             <span className="pr-16 text-sm font-semibold">{a.organization || "지원처 이름 없음"}</span>
-            <span className="line-clamp-1 text-[13px] text-body">{a.questions[0].text}</span>
+            <span className="line-clamp-1 text-note text-body">{a.questions[0].text}</span>
             <span className="text-xs text-muted tabular-nums">{progressText(a)} · {a.submittedMonth ? `${monthText(a.submittedMonth)} 냄` : dateText(a.createdAt)}</span>
           </>}
         </button>
@@ -287,7 +287,7 @@ function QuestionTabs({ questions, selectedId, adding, canAdd, onPick, onAdd }: 
       {questions.map((q, i) => {
         const active = q.id === selectedId;
         return <button key={q.id} type="button" role="tab" aria-selected={active} aria-controls="question-panel" title={q.text}
-          className={cn("inline-flex min-h-11 items-center gap-1.5 border-b-2 px-3 text-[15px] whitespace-nowrap", active ? "border-ink font-bold" : "border-transparent text-muted hover:text-ink")}
+          className={cn("inline-flex min-h-11 items-center gap-1.5 border-b-2 px-3 text-ui whitespace-nowrap", active ? "border-ink font-bold" : "border-transparent text-muted hover:text-ink")}
           onClick={() => onPick(q.id)}>
           문항 {i + 1}<i className={cn("size-1.5 rounded-full", DOT[q.status])} aria-hidden="true" /><span className="sr-only">{STATUS[q.status]}</span>
         </button>;
@@ -304,17 +304,17 @@ function QuestionTabs({ questions, selectedId, adding, canAdd, onPick, onAdd }: 
 function OverlapPanel({ overlaps, onPick }: { overlaps: Overlap[]; onPick: (questionId: number) => void }) {
   return <section aria-labelledby="overlap-title" className="mt-8 grid gap-3 rounded-md bg-surface-soft p-4.5">
     <div>
-      <h3 id="overlap-title" className="m-0 text-[15px] font-semibold">여러 문항에 추천된 활동</h3>
-      <p className="mt-1 mb-0 text-[13px] text-muted">같은 활동이라도 문항마다 강조하는 점이 달라요. 겹쳐 보이면 문항마다 다른 경험을 골라도 돼요. 강조점은 AI 해석이에요.</p>
+      <h3 id="overlap-title" className="m-0 text-ui font-semibold">여러 문항에 추천된 활동</h3>
+      <p className="mt-1 mb-0 text-note text-muted">같은 활동이라도 문항마다 강조하는 점이 달라요. 겹쳐 보이면 문항마다 다른 경험을 골라도 돼요. 강조점은 AI 해석이에요.</p>
     </div>
     <ul className="m-0 grid list-none gap-3 p-0">{overlaps.map(g => <li key={g.activity.id} className="grid gap-1.5">
       <span className="text-sm font-semibold">{g.activity.name}</span>
       <ul className="m-0 grid list-none gap-1.5 p-0">{g.uses.map(u => <li key={`${u.questionId}-${u.recommendation.experience.id}`}>
         <button type="button" onClick={() => onPick(u.questionId)} className="grid w-full gap-0.5 rounded-sm bg-canvas px-3 py-2 text-left hover:shadow-[inset_0_0_0_1px_var(--hairline)] sm:grid-cols-[64px_minmax(0,1fr)] sm:gap-3">
-          <span className="text-[13px] font-semibold">문항 {u.index + 1}</span>
+          <span className="text-note font-semibold">문항 {u.index + 1}</span>
           <span className="grid gap-0.5">
             <span className="text-sm text-body">{u.recommendation.emphasis}</span>
-            <span className="line-clamp-1 text-xs text-muted">{u.recommendation.experience.content}</span>
+            <span className="line-clamp-1 text-note text-muted">{u.recommendation.experience.content}</span>
           </span>
         </button>
       </li>)}</ul>
@@ -335,10 +335,10 @@ function SelectedQuestion({ summary, question, application, index, loadError, on
   return <section id="question-panel" role="tabpanel" aria-label="선택한 문항" className="min-w-0">
     <header className="mb-5">
       <div className="flex flex-wrap items-center gap-x-2">
-        <p className="m-0 text-[13px] font-medium text-muted">문항 {index + 1} · {STATUS[status]}</p>
+        <p className="m-0 text-note font-medium text-muted">문항 {index + 1} · {STATUS[status]}</p>
         <QuestionTypeField question={question ?? summary} onSave={type => onTypeChange(summary.id, type)} />
       </div>
-      <h3 className="m-0 max-h-36 overflow-y-auto whitespace-pre-wrap text-[20px] leading-relaxed font-[650] tracking-[-0.3px]">{summary.text}</h3>
+      <h3 className="m-0 max-h-36 overflow-y-auto whitespace-pre-wrap text-xl leading-relaxed font-[650] tracking-[-0.3px]">{summary.text}</h3>
     </header>
     <AnswerInput key={`answer-${summary.id}`} questionId={summary.id} question={question} loadFailed={!!loadError} onAnswerChange={onAnswerChange} checks={groundingChecks} onAskDraft={onOpenOmissions} />
     {question && <SimilarAnswers question={question} application={application} />}

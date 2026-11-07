@@ -58,7 +58,7 @@ export function ExperienceFilterBar({ value, onChange, years, clearable, onDone,
                 onSelect={(e) => e.preventDefault()} // 여러 개 고르는 동안 닫지 않는다
                 className="flex min-h-11 cursor-pointer items-center gap-2 rounded-sm px-3 text-sm outline-none focus:bg-surface-soft"
               >
-                <span className="grid size-4 place-items-center rounded-[4px] border border-hairline text-[11px] leading-none" aria-hidden="true">
+                <span className="grid size-4 place-items-center rounded-[4px] border border-hairline text-xs leading-none" aria-hidden="true">
                   <DropdownMenu.ItemIndicator>✓</DropdownMenu.ItemIndicator>
                 </span>
                 {COMPETENCIES[c]}

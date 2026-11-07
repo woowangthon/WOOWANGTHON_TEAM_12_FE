@@ -63,7 +63,7 @@ export function ExperienceSearch({ initial, years, mock, version, hiddenIds, onO
       )}
       {state.status === "ready" && total > 0 && (
         <div aria-busy={state.refreshing}>
-          <p role="status" className="mt-4 mb-0 text-[13px] text-muted tabular-nums">
+          <p role="status" className="mt-4 mb-0 text-note text-muted tabular-nums">
             {total > shown.length ? `${total}개 중 ${shown.length}개를 보여 드려요. 낱말이나 거르기로 더 좁혀 보세요.` : `경험 ${total}개`}
           </p>
           <ul className="m-0 list-none p-0">

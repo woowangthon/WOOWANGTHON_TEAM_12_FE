@@ -18,10 +18,10 @@ export function SimilarAnswers({ question, application }: { question: QuestionDe
   if (!answers.length) return null;
   return <section aria-labelledby={`similar-title-${question.id}`} className="mb-8 min-w-0">
     <div className="flex flex-wrap items-center gap-2">
-      <h3 id={`similar-title-${question.id}`} className="m-0 text-[17px] font-semibold">예전에 쓴 답</h3>
+      <h3 id={`similar-title-${question.id}`} className="m-0 text-title-md font-semibold">예전에 쓴 답</h3>
       <span className="rounded-full bg-surface-soft px-2.5 py-px text-xs font-semibold text-body">참고 — 근거 아님</span>
     </div>
-    <p className="mt-1 mb-0 text-[13px] leading-relaxed text-muted">다른 문항에서 다 쓴 답이에요. 그 지원처 이야기가 섞여 있을 수 있어요.</p>
+    <p className="mt-1 mb-0 text-note leading-relaxed text-muted">다른 문항에서 다 쓴 답이에요. 그 지원처 이야기가 섞여 있을 수 있어요.</p>
     <ul className="m-0 mt-3 grid list-none gap-2 p-0">{answers.map(a => <SimilarAnswerCard key={a.questionId} answer={a} />)}</ul>
   </section>;
 }
@@ -36,7 +36,7 @@ function SimilarAnswerCard({ answer }: { answer: SimilarAnswer }) {
           <span className="text-xs text-muted tabular-nums">{dateText(answer.confirmedAt)} 작성</span>
         </span>
         <b className="line-clamp-2 text-sm leading-normal font-bold break-words whitespace-pre-wrap group-open:line-clamp-none">{answer.questionText}</b>
-        <span className="line-clamp-2 text-[13px] leading-normal break-words text-muted group-open:hidden">{answer.text}</span>
+        <span className="line-clamp-2 text-note leading-normal break-words text-muted group-open:hidden">{answer.text}</span>
       </span>
     </summary>
     <p className="m-0 px-4 pb-4 pl-11 text-sm leading-relaxed break-words whitespace-pre-wrap text-body">{answer.text}</p>

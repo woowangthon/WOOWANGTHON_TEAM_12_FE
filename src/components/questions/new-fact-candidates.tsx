@@ -76,7 +76,7 @@ function CandidateCard({ candidate: c, activities, unavailable, busy, decide, qu
         <label className="grid min-w-0 gap-1 text-xs text-muted">붙일 활동<Select value={validActivity ? activity : ""} disabled={busy || unavailable} onChange={setActivity} className="min-h-10" placeholder="활동을 골라 주세요" options={activities.map(a => ({ value: String(a.id), label: a.name }))} /></label>
       </div>
       {!unavailable && !activities.length && <p className="m-0 text-sm text-muted">저장할 활동이 없어요. 내 경험에서 활동을 준비한 뒤 다시 열어 주세요.</p>}
-      {c.activityName && <p className="m-0 break-words text-xs text-muted">AI가 제안한 활동 — {c.activityName}</p>}
+      {c.activityName && <p className="m-0 break-words text-note text-muted">AI가 제안한 활동 — {c.activityName}</p>}
       {error && <p role="alert" className="m-0 text-sm text-error">{error}</p>}
       <div className="flex flex-wrap gap-2"><Button disabled={busy || unavailable || !validActivity || !content.trim()} onClick={() => void submit({ activityId, content, actor })}>경험으로 저장</Button><Button variant="secondary" disabled={busy} onClick={() => void submit()}>저장 안 함</Button></div>
     </> : c.status === "SAVED" ? <>

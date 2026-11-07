@@ -47,7 +47,7 @@ export function UsedInList({ usedIn, id }: { usedIn: UsedIn[]; id: string }) {
             </div>
             {u.questions.map((q) => (
               <Link key={q.id} href={`/questions?question=${q.id}`}
-                className="block text-[13px] leading-snug text-body underline-offset-3 hover:underline">
+                className="block text-note leading-snug text-body underline-offset-3 hover:underline">
                 <span className="text-muted">문항 · </span>{q.text}
               </Link>
             ))}

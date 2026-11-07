@@ -39,7 +39,7 @@ export function ActivityNote({ activity, onSaved, readOnly = false }: {
   return <section aria-labelledby={`${inputId}-title`} className="border-b border-hairline bg-surface-soft px-4.5 py-4 lg:px-7">
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
       <h3 id={`${inputId}-title`} className="m-0 text-sm font-semibold">그때의 나</h3>
-      <span className="text-xs text-muted">계기 · 생각 — 남기고 싶을 때만</span>
+      <span className="text-note text-muted">계기 · 생각 — 남기고 싶을 때만</span>
     </div>
     {editing ? <form className="mt-3 grid gap-2" aria-label="그때의 나 편집" aria-busy={saving} onSubmit={e => { e.preventDefault(); void save(text); }}>
       <label htmlFor={inputId} className="sr-only">계기 · 그때 든 생각</label>
@@ -51,7 +51,7 @@ export function ActivityNote({ activity, onSaved, readOnly = false }: {
             e.preventDefault(); setError("줄바꿈 없이 한 줄로 적어 주세요."); setRetryNote(undefined);
           }
         }} />
-      <p id={`${inputId}-hint`} className="m-0 text-xs text-muted">앞뒤 공백을 뺀 {MAX_ACTIVITY_NOTE_LENGTH}자까지 · 줄바꿈 없이 한 줄</p>
+      <p id={`${inputId}-hint`} className="m-0 text-note text-muted">앞뒤 공백을 뺀 {MAX_ACTIVITY_NOTE_LENGTH}자까지 · 줄바꿈 없이 한 줄</p>
       {invalid && <p role="alert" className="m-0 text-sm text-error">{invalid}</p>}
       <div className="flex flex-wrap gap-2">
         <Button type="submit" className="min-h-11" disabled={saving || !!invalid}>{saving ? "저장 중…" : "저장"}</Button>

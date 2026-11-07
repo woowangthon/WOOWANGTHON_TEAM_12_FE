@@ -28,11 +28,11 @@ export function ExperienceSave({ experience: e, onChange }: { experience: Pick<E
   return (
     <>
       <button type="button" aria-pressed={saved} aria-label={`${label}: ${e.content}`} disabled={busy} onClick={() => void toggle()}
-        className={cn("inline-flex min-h-11 items-center gap-1 rounded-md px-1 text-[13px] hover:bg-surface-soft disabled:cursor-default disabled:opacity-50 lg:min-h-8", saved ? "font-semibold text-ink" : "font-medium text-muted")}>
+        className={cn("inline-flex min-h-11 items-center gap-1 rounded-md px-1 text-note hover:bg-surface-soft disabled:cursor-default disabled:opacity-50 lg:min-h-8", saved ? "font-semibold text-ink" : "font-medium text-muted")}>
         <BookmarkSimpleIcon className="size-[1.15em]" weight={saved ? "fill" : "regular"} aria-hidden="true" />
         {label}
       </button>
-      {error && <span role="alert" className="text-[13px] font-medium text-error">저장을 바꾸지 못했어요. 다시 시도해 주세요.</span>}
+      {error && <span role="alert" className="text-note font-medium text-error">저장을 바꾸지 못했어요. 다시 시도해 주세요.</span>}
     </>
   );
 }

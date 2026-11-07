@@ -25,7 +25,7 @@ function useSaving<T>(onSave: (value: T) => Promise<void>) {
 
 /** 저장 실패 한 줄 — what 은 「직무을(를)」처럼 조사까지 */
 function SaveFailed({ what, message, onRetry, className }: { what: string; message: string; onRetry: () => void; className?: string }) {
-  return <p role="alert" className={cn("m-0 flex flex-wrap items-center gap-x-1 text-[13px] text-error", className)}>
+  return <p role="alert" className={cn("m-0 flex flex-wrap items-center gap-x-1 text-note text-error", className)}>
     {what} 저장하지 못했어요 — {message}
     <Button type="button" variant="link" size="sm" onClick={onRetry}>다시 시도</Button>
   </p>;
@@ -51,8 +51,8 @@ function SavingSelect<T extends string>({ label, value, options, placeholder, cl
   return <>
     <Select<T> variant="chip" aria-label={label} aria-describedby={note ? `${id}-note` : undefined} value={shown ?? ""} disabled={!!pending} placeholder={placeholder}
       options={clearable && shown !== null ? [{ value: "", label: "고르지 않음" }, ...items] : items} onChange={next => void save(next || null)} />
-    {note && <span id={`${id}-note`} className="text-xs text-muted">{note}</span>}
-    {pending && <span role="status" className="text-xs text-muted">저장하고 있어요…</span>}
+    {note && <span id={`${id}-note`} className="text-note text-muted">{note}</span>}
+    {pending && <span role="status" className="text-note text-muted">저장하고 있어요…</span>}
     {failed && <SaveFailed what={`${label}을(를)`} message={failed.message} onRetry={() => void save(failed.value)} className="w-full" />}
   </>;
 }
@@ -92,7 +92,7 @@ function SubmittedMonthField({ value, onSave }: { value: string; onSave: (submit
         onChange={next => void save(`${year}-${next}`)} />
       <span className="text-xs text-muted">에 냄</span>
     </span>
-    {pending && <span role="status" className="text-xs text-muted">저장하고 있어요…</span>}
+    {pending && <span role="status" className="text-note text-muted">저장하고 있어요…</span>}
     {failed && <SaveFailed what="낸 달을" message={failed.message} onRetry={() => void save(failed.value)} className="w-full" />}
   </>;
 }

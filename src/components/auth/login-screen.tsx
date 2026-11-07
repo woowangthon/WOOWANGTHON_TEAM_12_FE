@@ -97,7 +97,7 @@ export function LoginScreen({ notice, onSignedIn }: { notice?: string; onSignedI
               />
             </label>
             {signingUp && (
-              <p className="m-0 text-xs leading-relaxed text-muted">
+              <p className="m-0 text-note leading-relaxed text-muted">
                 아이디는 영문 · 숫자 · _ . - 로 3 ~ 30자(대소문자는 가리지 않아요), 비밀번호는 8자 이상이에요.
               </p>
             )}
@@ -122,7 +122,7 @@ export function LoginScreen({ notice, onSignedIn }: { notice?: string; onSignedI
             {signingUp ? "로그인" : "가입하기"}
           </button>
         </p>
-        <p className="m-0 text-center text-xs leading-relaxed text-muted">심사위원께서는 제출 폼에 적힌 테스트 계정으로 들어와 주세요.</p>
+        <p className="m-0 text-center text-note leading-relaxed text-muted">심사위원께서는 제출 폼에 적힌 테스트 계정으로 들어와 주세요.</p>
       </div>
     </main>
   );

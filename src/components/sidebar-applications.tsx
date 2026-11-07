@@ -72,7 +72,7 @@ export function SidebarApplications({ applications, loading, error, onRetry, onN
   rows?: ReactNode;
   showAll: boolean;
 }) {
-  const note = "m-0 px-3.5 py-1 text-[13px] leading-relaxed text-muted";
+  const note = "m-0 px-3.5 py-1 text-note leading-relaxed text-muted";
   return <section aria-label="지원서" className="flex min-h-0 flex-1 flex-col">
     <div className="flex h-8 shrink-0 items-center justify-between pr-1.5 pl-3.5">
       <h2 className="m-0 text-xs font-semibold text-muted">지원서</h2>
@@ -83,7 +83,7 @@ export function SidebarApplications({ applications, loading, error, onRetry, onN
     {isMockMode() ? <p className={note}>목 모드에서는 지원서를 불러올 수 없어요.</p>
       : loading ? <div aria-busy="true" aria-label="지원서를 불러오고 있어요" className="grid gap-2 px-3.5 py-1"><Skeleton className="h-9 w-full" /><Skeleton className="h-9 w-full" /></div>
       : error ? <div role="alert" className="grid justify-items-start gap-1 px-3.5 py-1">
-        <p className="m-0 text-[13px] leading-relaxed text-error">{LOAD_FAILED}</p>
+        <p className="m-0 text-note leading-relaxed text-error">{LOAD_FAILED}</p>
         <Button type="button" variant="link" size="sm" className="px-0" onClick={onRetry}>다시 시도</Button>
       </div>
       : !applications.length ? <p className={note}>아직 넣은 지원서가 없어요.</p>
@@ -91,6 +91,6 @@ export function SidebarApplications({ applications, loading, error, onRetry, onN
         <Link href={`/questions?question=${a.questions[0].id}`} className={`${sidebarApplicationRow} hover:bg-canvas/60`}><SidebarApplicationText application={a} /></Link>
         <span className="pointer-events-none absolute top-2 right-1.5 inline-flex h-6 items-center rounded-full bg-surface-soft px-2.5 text-xs font-medium whitespace-nowrap text-body">{APPLICATION_STATUS_LABEL[a.applicationStatus]}</span>
       </li>)}</ul>}
-    {showAll && <Link href="/questions" className="mt-1 inline-flex min-h-8 shrink-0 items-center self-start px-3.5 text-[13px] text-muted hover:text-ink">모든 지원서</Link>}
+    {showAll && <Link href="/questions" className="mt-1 inline-flex min-h-8 shrink-0 items-center self-start px-3.5 text-note text-muted hover:text-ink">모든 지원서</Link>}
   </section>;
 }

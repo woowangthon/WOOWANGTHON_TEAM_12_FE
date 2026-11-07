@@ -40,8 +40,8 @@ export function ChagokPanel({ question, index, originOf, onAnswer, onClose, draf
   return <div className="flex h-full min-h-0 flex-col bg-surface-soft">
     <header className="flex items-center gap-2 border-b border-hairline bg-canvas px-4 py-3">
       <Mascot />
-      <b className="text-[15px]">차곡이</b><small className="text-xs text-muted">경험 동료</small>
-      {question && <span className="ml-auto text-[13px] text-muted">문항 {index + 1}</span>}
+      <b className="text-ui">차곡이</b><small className="text-xs text-muted">경험 동료</small>
+      {question && <span className="ml-auto text-note text-muted">문항 {index + 1}</span>}
       <Button variant="ghost" size="icon" className={question ? "" : "ml-auto"} onClick={onClose} aria-label="차곡이 닫기"><XIcon /></Button>
     </header>
     <div ref={body} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
@@ -71,19 +71,19 @@ function Feed({ question: q, originOf, onAnswer, draftActions }: { question: Que
       <p className="m-0">문항을 읽어 봤어요. 이 문항이 보려는 건 {q.requirements.length}가지예요.</p>
       <ul className="m-0 grid list-none gap-1.5 p-0">{q.requirements.map((r, i) => {
         const { label, icon: Icon, tone } = JUDGMENT[r.status];
-        return <li key={i} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 border-t border-hairline-soft pt-1.5 text-[13px]">
+        return <li key={i} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 border-t border-hairline-soft pt-1.5 text-note">
           <span>{r.text}</span>
           <span className={`inline-flex items-center gap-0.5 font-medium whitespace-nowrap ${tone}`}><Icon aria-hidden="true" className="size-3.5" />{label}</span>
         </li>;
       })}</ul>
-      <p className="m-0 text-[13px] text-muted">자료에 없다고 경험이 없는 건 아니에요.{q.clarifications.length > 0 && " 몇 가지만 물어볼게요."}</p>
+      <p className="m-0 text-note text-muted">자료에 없다고 경험이 없는 건 아니에요.{q.clarifications.length > 0 && " 몇 가지만 물어볼게요."}</p>
     </section>
     <p className={bubble}>{top ? <>「{shortName(top.activity.name)}」 경험이 가장 잘 맞아요. 「참고」에 {q.recommendations.length}개 골라 뒀어요.</>
       : <>지금 자료에서 이 문항에 연결할 경험을 찾지 못했어요. 경험이 없다는 뜻은 아니에요.</>}</p>
     {reused.map(({ activity, supplement }) => <div key={supplement.id} className={bubble}>
       <p className="m-0">{originOf(supplement)}에서 알려 준 답을 「{shortName(activity)}」 경험의 근거로 같이 썼어요.</p>
-      <p className="m-0 border-l-2 border-hairline pl-3 text-[13px] whitespace-pre-wrap text-muted">{supplement.answer}</p>
-      {!q.clarifications.some(c => c.question === supplement.question) && <p className="m-0 text-[13px] text-muted">그 부분은 다시 묻지 않을게요.</p>}
+      <p className="m-0 border-l-2 border-hairline pl-3 text-note whitespace-pre-wrap text-muted">{supplement.answer}</p>
+      {!q.clarifications.some(c => c.question === supplement.question) && <p className="m-0 text-note text-muted">그 부분은 다시 묻지 않을게요.</p>}
     </div>)}
     {q.clarifications.length > 0 && <ul aria-label="차곡이의 질문" className="m-0 grid list-none gap-2.5 p-0">{q.clarifications.map(c => {
       const experience = q.recommendations.find(r => r.experience.id === c.experienceId)?.experience;

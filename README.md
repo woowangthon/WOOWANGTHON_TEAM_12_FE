@@ -128,7 +128,7 @@ BE #4·#5의 조회·수정·자료 등록·작업 조회·재시도 연결 코�
 시안 HTML 과 앱을 같은 폭(1440 · 1024)으로 열어, 브라우저가 계산한 값으로 견준다. 코드를 읽어 옮기면 뒤에서 덮어쓴 규칙을 놓친다. **UI PR 에는 이 표를 붙인다.**
 
 ```bash
-npm run design:diff -- home   # 화면: home · quick-find · add-menu · notifications · experience
+npm run design:diff -- home   # 화면: home · quick-find · add-menu · notifications · experience · apply
 ```
 
 - 시안은 `../WOOWANGTHON_TEAM_12_ETC/docs/design/chagok`(옆에 클론), 앱은 API 주소를 비운 목 모드로 스스로 띄운다. 실제 서버에 닿지 않는다.

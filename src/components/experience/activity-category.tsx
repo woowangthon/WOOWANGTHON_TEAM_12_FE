@@ -43,7 +43,7 @@ export function ActivityCategoryField({ activity, onSaved, readOnly = false }: {
 
   if (readOnly) {
     const text = categoryText(activity);
-    return text && <p data-category={category ?? undefined} className="m-0 inline-flex items-center gap-1.5 text-[13px] text-muted">{category && <CategoryIcon category={category} />}{text}</p>;
+    return text && <p data-category={category ?? undefined} className="m-0 inline-flex items-center gap-1.5 text-note text-muted">{category && <CategoryIcon category={category} />}{text}</p>;
   }
 
   const save = async (value: ActivityCategory | null) => {

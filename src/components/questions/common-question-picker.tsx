@@ -50,8 +50,8 @@ export function CommonQuestionPicker({ open, onOpenChange, room, onPick }: {
       <label key={key} className={cn("flex min-h-11 cursor-pointer items-start gap-3 rounded-sm px-3 py-2.5 hover:bg-surface-soft has-disabled:cursor-default has-disabled:opacity-50", checked && "bg-surface-soft")}>
         <input type="checkbox" checked={checked} disabled={!checked && full} onChange={() => toggle(text)} className="mt-1 size-4 shrink-0 accent-[var(--ink)]" />
         <span className="grid gap-0.5">
-          <span className="text-[15px] leading-relaxed text-ink">{text}</span>
-          {sub && <span className="text-[13px] text-muted">{sub}</span>}
+          <span className="text-ui leading-relaxed text-ink">{text}</span>
+          {sub && <span className="text-note text-muted">{sub}</span>}
         </span>
       </label>
     );
@@ -62,7 +62,7 @@ export function CommonQuestionPicker({ open, onOpenChange, room, onPick }: {
       <DialogContent>
         <DialogHeader className="pr-10">
           <DialogTitle>문항 고르기</DialogTitle>
-          <DialogDescription className="text-[15px] text-body">
+          <DialogDescription className="text-ui text-body">
             예전에 넣었던 문항이나 자주 나오는 문항을 골라 넣어요. 넣은 뒤 칸에서 고칠 수 있어요.
           </DialogDescription>
         </DialogHeader>
@@ -88,7 +88,7 @@ export function CommonQuestionPicker({ open, onOpenChange, room, onPick }: {
             ))}
           </fieldset>
 
-          <p className="m-0 border-t border-hairline pt-4 text-[13px] text-muted">자주 나오는 문항 — 실제 지원서에서 모았어요. 지원처 이름은 지웠어요.</p>
+          <p className="m-0 border-t border-hairline pt-4 text-note text-muted">자주 나오는 문항 — 실제 지원서에서 모았어요. 지원처 이름은 지웠어요.</p>
           {COMMON_QUESTIONS.map(group => (
             <fieldset key={group.kind} className="m-0 grid gap-1 border-0 p-0">
               <legend className="mb-1.5 p-0 text-sm font-semibold text-ink">{group.kind}</legend>
@@ -97,7 +97,7 @@ export function CommonQuestionPicker({ open, onOpenChange, room, onPick }: {
           ))}
         </div>
 
-        <p className="m-0 text-[13px] text-muted" aria-live="polite">
+        <p className="m-0 text-note text-muted" aria-live="polite">
           {room === 0 ? `문항은 한 번에 ${MAX_QUESTIONS_PER_SUBMIT}개까지 넣을 수 있어요. 칸을 비우거나 빼면 더 고를 수 있어요.`
             : full ? `${room}개를 다 골랐어요 — 문항은 한 번에 ${MAX_QUESTIONS_PER_SUBMIT}개까지 넣을 수 있어요.`
             : picked.length ? `${picked.length}개 골랐어요 · ${room - picked.length}개 더 고를 수 있어요.`

@@ -40,9 +40,9 @@ function OmissionItem({ item, question, onAnswer, onRefresh, disabled }: {
     finally { pending.current = false; }
   };
   const ask = <>
-    <p className="m-0 text-xs leading-relaxed text-muted">{item.text}</p>
+    <p className="m-0 text-note leading-relaxed text-muted">{item.text}</p>
     {recommendation && <Link href={`/experience?activity=${recommendation.activity.id}&fromQuestion=${question.id}`}
-      className="grid min-w-0 gap-1 text-xs leading-relaxed text-evidence underline-offset-4 hover:underline">
+      className="grid min-w-0 gap-1 text-note leading-relaxed text-evidence underline-offset-4 hover:underline">
       <ActivityChip name={recommendation.activity.name} />
       <span className="break-words">{recommendation.experience.content}</span>
     </Link>}
@@ -51,7 +51,7 @@ function OmissionItem({ item, question, onAnswer, onRefresh, disabled }: {
 
   if (!canAnswer) return <li className={bubble}>
     <p className="m-0 font-medium">{item.text}</p>
-    <p className="m-0 text-xs text-muted">직접 쓸 거리예요. 경험에 연결된 질문이 아니라 보완으로 저장하지 않아요.</p>
+    <p className="m-0 text-note text-muted">직접 쓸 거리예요. 경험에 연결된 질문이 아니라 보완으로 저장하지 않아요.</p>
   </li>;
   if (item.supplementId !== null) return <li className="grid min-w-0 gap-2.5">
     <div className={bubble}>{ask}</div>
@@ -60,11 +60,11 @@ function OmissionItem({ item, question, onAnswer, onRefresh, disabled }: {
     </p>}
     <div role="status" className={bubble}>
       <p className="m-0">내가 입력 · 경험에 보완으로 쌓았어요.</p>
-      <p className="m-0 text-xs text-muted">다른 문항에서도 이 답을 근거로 쓸 수 있어요. 답은 활동 세부에서 확인하고 고칠 수 있어요.</p>
+      <p className="m-0 text-note text-muted">다른 문항에서도 이 답을 근거로 쓸 수 있어요. 답은 활동 세부에서 확인하고 고칠 수 있어요.</p>
     </div>
   </li>;
   if (skipped) return <li className="grid min-w-0 gap-1 px-1">
-    <p className="m-0 break-words text-xs leading-relaxed text-muted">건너뛴 질문 · {item.question}</p>
+    <p className="m-0 break-words text-note leading-relaxed text-muted">건너뛴 질문 · {item.question}</p>
     <Button variant="link" size="sm" className="min-h-11 justify-self-start" onClick={() => setSkipped(false)} disabled={disabled}>다시 보기</Button>
   </li>;
 
@@ -121,7 +121,7 @@ export function DraftFollowUp({ question, onAnswer, onGenerate, onRefresh, savin
           <p className="m-0">{draft?.omitted.length ? "초안을 써 봤어요. 아래 내용은 자료에서 확인하지 못해 쓰지 않았어요." : "초안을 만들었어요. 답변 초안에서 문장과 근거를 확인해 주세요."}</p>
           {!!draft?.omitted.length && <>
             <p className="m-0 text-xs font-semibold">자료에 없어 쓰지 않았어요 · AI 해석</p>
-            <p className="m-0 text-xs text-muted">기억나는 것만 알려 주세요. 답은 선택이에요. 건너뛰어도 초안을 복사할 수 있어요.</p>
+            <p className="m-0 text-note text-muted">기억나는 것만 알려 주세요. 답은 선택이에요. 건너뛰어도 초안을 복사할 수 있어요.</p>
           </>}
         </div>
         <ul aria-label="초안의 빠진 사실" className="m-0 grid list-none gap-2.5 p-0">

@@ -19,7 +19,7 @@ const PRESETS = [
 ];
 const CARDS_AT_FIRST = 3;
 const card = "m-0 grid gap-3 rounded-[4px_16px_16px_16px] border border-hairline bg-canvas p-3.5 text-sm leading-relaxed";
-const notice = "m-0 grid gap-2 rounded-md border border-hairline bg-canvas p-3 text-[13px] leading-relaxed";
+const notice = "m-0 grid gap-2 rounded-md border border-hairline bg-canvas p-3 text-note leading-relaxed";
 const mark = "mt-0.5 grid size-[18px] place-items-center rounded-full text-on-primary";
 const resultLink = "font-semibold text-evidence underline underline-offset-3";
 
@@ -43,7 +43,7 @@ function ToolStep({ step }: { step: ChagokToolCallStep }) {
     <span className={`${mark} ${step.ok ? "bg-primary" : "bg-error"}`}>
       {step.ok ? <CheckIcon aria-hidden="true" className="size-3" weight="bold" /> : <XIcon aria-hidden="true" className="size-3" weight="bold" />}
     </span>
-    <div className="min-w-0 text-[13px] leading-relaxed">
+    <div className="min-w-0 text-note leading-relaxed">
       <p className="m-0 font-medium break-words text-ink">{step.label}</p>
       {step.summary && <p className="m-0 break-words text-muted">{step.summary}</p>}
       {!step.ok && step.error && <p className="m-0 break-words text-error">{step.error.message}</p>}
@@ -62,11 +62,11 @@ function ConfirmContent({ step }: { step: ChagokConfirmStep }) {
   const args = (step.arguments ?? {}) as { organization?: string | null; organizationType?: OrganizationType | null; jobRole?: JobRole | null; postingUrl?: string | null; questions?: { text: string }[]; text?: string };
   if (step.tool === "add_source") return <div className="grid gap-1">
     <p className="m-0 text-xs text-muted">넣을 글 · {(args.text ?? "").length.toLocaleString("ko-KR")}자</p>
-    <p className="m-0 line-clamp-4 border-l-2 border-hairline pl-3 text-[13px] break-words whitespace-pre-wrap text-body">{args.text}</p>
+    <p className="m-0 line-clamp-4 border-l-2 border-hairline pl-3 text-note break-words whitespace-pre-wrap text-body">{args.text}</p>
   </div>;
   if (step.tool !== "create_application") return null;
   const kinds = [args.organizationType && ORGANIZATION_TYPE_LABEL[args.organizationType], args.jobRole && JOB_ROLE_LABEL[args.jobRole]].filter(Boolean).join(" · ");
-  return <div className="grid gap-2 text-[13px]">
+  return <div className="grid gap-2 text-note">
     <div>
       <p className="m-0 text-xs text-muted">지원처</p>
       <p className="m-0 font-medium break-words text-ink">{args.organization || "지원처 미입력"}{kinds && <span className="font-normal text-muted"> · {kinds}</span>}</p>
@@ -88,7 +88,7 @@ function ConfirmCard({ step, control }: { step: ChagokConfirmStep; control: Chag
       <Button size="sm" disabled={!!control.acting} onClick={() => void control.confirm()}>{step.tool === "add_source" ? "넣기" : "만들기"}</Button>
       <Button size="sm" variant="secondary" disabled={!!control.acting} onClick={() => void control.cancel()}>안 함</Button>
     </div>}
-    {waiting && control.actionError && <p role="alert" className="m-0 text-[13px] text-error">{control.actionError}</p>}
+    {waiting && control.actionError && <p role="alert" className="m-0 text-note text-error">{control.actionError}</p>}
   </li>;
 }
 
@@ -113,7 +113,7 @@ export function ChagokRunFeed({ control, currentQuestionId }: { control: ChagokR
   return <section aria-label="차곡이의 일" className="mt-2.5 grid gap-2.5 border-t border-hairline-soft pt-3">
     <div className="grid justify-items-end gap-1">
       <p className="m-0 line-clamp-4 max-w-[92%] rounded-[16px_4px_16px_16px] bg-primary px-3.5 py-2.5 text-sm leading-relaxed break-words whitespace-pre-wrap text-on-primary">{run.text}</p>
-      {run.questionId !== null && run.questionId !== currentQuestionId && <small className="text-xs text-muted">다른 문항에서 한 부탁이에요</small>}
+      {run.questionId !== null && run.questionId !== currentQuestionId && <small className="text-note text-muted">다른 문항에서 한 부탁이에요</small>}
     </div>
     <ol aria-live="polite" className="m-0 grid list-none gap-3 p-0">
       {run.steps.map(step => step.type === "TOOL_CALL" ? <ToolStep key={step.seq} step={step} />
@@ -121,13 +121,13 @@ export function ChagokRunFeed({ control, currentQuestionId }: { control: ChagokR
         : <ConfirmCard key={step.seq} step={step} control={control} />)}
     </ol>
     {run.status === "RUNNING" && <div className="grid gap-2">
-      <div role="status" className="flex items-center gap-2 text-[13px] font-medium text-ink">
+      <div role="status" className="flex items-center gap-2 text-note font-medium text-ink">
         <span aria-hidden="true" className="size-[18px] shrink-0 rounded-full border-2 border-ink border-r-transparent motion-safe:animate-spin" />
         <span className="min-w-0 flex-1">차곡이가 일하고 있어요</span>
         <Button size="sm" variant="secondary" disabled={!!acting} onClick={() => void control.cancel()}>그만</Button>
       </div>
-      {actionError && <p role="alert" className="m-0 text-[13px] text-error">{actionError}</p>}
-      {pollState === "retrying" && <p className="m-0 text-[13px] text-muted">진행 상황을 불러오지 못했어요. 다시 시도하고 있어요.</p>}
+      {actionError && <p role="alert" className="m-0 text-note text-error">{actionError}</p>}
+      {pollState === "retrying" && <p className="m-0 text-note text-muted">진행 상황을 불러오지 못했어요. 다시 시도하고 있어요.</p>}
       {pollState === "stopped" && <div role="alert" className={notice}>
         <p className="m-0 text-error">진행 상황을 불러오지 못해 확인을 멈췄어요. 일은 서버에서 이어지고 있을 수 있어요.</p>
         <Button size="sm" variant="secondary" className="justify-self-start" onClick={control.resumePolling}>다시 불러오기</Button>
@@ -137,7 +137,7 @@ export function ChagokRunFeed({ control, currentQuestionId }: { control: ChagokR
       <p className="m-0 text-error">{whyFailed(run.error)}</p>
       <Button size="sm" variant="secondary" className="justify-self-start" disabled={starting} onClick={() => void control.retry()}>다시 시도</Button>
     </div>}
-    {run.status === "CANCELED" && <p className="m-0 text-[13px] text-muted">그만뒀어요.</p>}
+    {run.status === "CANCELED" && <p className="m-0 text-note text-muted">그만뒀어요.</p>}
     {run.status === "DONE" && <ResultLink run={run} />}
   </section>;
 }
@@ -165,7 +165,7 @@ export function ChagokComposer({ control, hasQuestion }: { control: ChagokRunCon
       <p className="m-0 text-error">{whyFailed(failure.error)}</p>
       {failure.error.code !== "TEXT_TOO_LONG" && <Button size="sm" variant="secondary" className="justify-self-start" disabled={starting} onClick={() => void control.retry()}>다시 시도</Button>}
     </div>}
-    {waitingConfirm && <p className="m-0 text-[13px] text-muted">확인 카드에 답하면 새 부탁을 할 수 있어요.</p>}
+    {waitingConfirm && <p className="m-0 text-note text-muted">확인 카드에 답하면 새 부탁을 할 수 있어요.</p>}
     {hasQuestion && <div className="flex flex-wrap gap-1.5">
       {PRESETS.map(p => <button key={p.label} type="button" disabled={blocked} onClick={() => void control.send(p.text)}
         className="rounded-full border border-hairline-soft bg-surface-soft px-2.5 py-1 text-xs text-ink transition-colors hover:bg-surface-strong disabled:opacity-50">{p.label}</button>)}
@@ -173,7 +173,7 @@ export function ChagokComposer({ control, hasQuestion }: { control: ChagokRunCon
     <form className="flex items-end gap-1.5 rounded-[20px] border border-hairline py-1 pr-1 pl-3.5" onSubmit={e => { e.preventDefault(); submit(); }}>
       <textarea rows={1} value={draft} onChange={e => control.setDraft(e.target.value)} onKeyDown={onKeyDown} aria-label="차곡이에게 부탁하기"
         placeholder="차곡이에게 부탁하기 — 예: WebSocket 경험 찾아 줘"
-        className="field-sizing-content max-h-32 min-h-[34px] min-w-0 flex-1 resize-none border-0 bg-transparent py-1.5 text-[13px] leading-[22px] outline-0 placeholder:text-muted" />
+        className="field-sizing-content max-h-32 min-h-[34px] min-w-0 flex-1 resize-none border-0 bg-transparent py-1.5 text-note leading-[22px] outline-0 placeholder:text-muted" />
       <Button size="icon" className="size-[34px] shrink-0 rounded-full" type="submit" disabled={blocked || !draft.trim()} aria-label="보내기"><ArrowUpIcon aria-hidden="true" /></Button>
     </form>
   </div>;

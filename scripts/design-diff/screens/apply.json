@@ -1,0 +1,7 @@
+{
+  "design": "apply.html",
+  "app": "/questions",
+  "pairs": [
+    { "name": "제목", "design": "h1", "app": "main h1" }
+  ]
+}

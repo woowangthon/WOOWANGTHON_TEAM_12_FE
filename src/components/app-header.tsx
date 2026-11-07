@@ -153,7 +153,7 @@ function SideLink({ href, label, icon, active, collapsed, count, railOnly, onNav
   return <RailTip label={label} enabled={collapsed}>
     <Link href={href} onClick={onNavigate} aria-label={label} aria-current={active ? "page" : undefined} data-rail-only={railOnly || undefined}
       className={cn(navItem, active ? "bg-canvas font-bold" : "hover:bg-canvas/60")}>
-      <span className="flex size-5 shrink-0 items-center justify-center text-[19px]" aria-hidden="true">{icon}</span>
+      <span className="flex size-5 shrink-0 items-center justify-center text-icon" aria-hidden="true">{icon}</span>
       <span className="sidebar-label shrink-0" aria-hidden={collapsed || undefined}>{label}</span>
       {count != null && <span className="sidebar-label ml-auto text-xs font-medium text-muted tabular-nums" aria-hidden={collapsed || undefined}>{count}</span>}
     </Link>
@@ -165,8 +165,8 @@ function AddMenu({ side, align, busy, onAddSource, onRecord, onNewApplication, c
   side: "right" | "bottom" | "top"; align: "start" | "center"; busy?: boolean; onAddSource: () => void; onRecord: () => void; onNewApplication: () => void; children: React.ReactNode;
 }) {
   const item = "flex cursor-pointer gap-3 rounded-sm px-3 py-2.5 outline-none focus:bg-surface-soft data-disabled:cursor-default data-disabled:opacity-60";
-  const text = (title: string, detail: string) => <span className="grid"><span className="text-sm leading-4 font-semibold text-ink">{title}</span><span className="text-[11px] leading-normal text-muted">{detail}</span></span>;
-  const label = "px-3 pt-2 pb-1 text-[11px] font-medium text-muted";
+  const text = (title: string, detail: string) => <span className="grid"><span className="text-sm leading-4 font-semibold text-ink">{title}</span><span className="text-note leading-normal text-muted">{detail}</span></span>;
+  const label = "px-3 pt-2 pb-1 text-xs font-medium text-muted";
   return <DropdownMenu.Root modal={false}>
     {children}
     <DropdownMenu.Portal>
@@ -197,7 +197,7 @@ function TabBar({ page, busy, onAddSource, onRecord, onNewApplication }: { page:
   const tab = "flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 text-xs font-medium";
   const link = ({ page: target, href, label, icon }: (typeof tabs)[number]) => <Link key={target} href={href} aria-current={page === target ? "page" : undefined}
     className={cn(tab, page === target ? "font-bold text-ink" : "text-muted")}>
-    <span className="text-[22px] leading-none" aria-hidden="true">{icon}</span>{label}
+    <span className="text-heading leading-none" aria-hidden="true">{icon}</span>{label}
   </Link>;
   // 화면 키보드가 떠 있는 동안은 숨긴다. 입력칸에서 버튼을 누르는 순간 초점이 빠져도 그 자리에 탭바가
   // 바로 나오면 누르기가 탭바에 끝나 버튼이 안 눌린다 — 나오기를 200ms 늦춘다

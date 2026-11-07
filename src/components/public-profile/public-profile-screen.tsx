@@ -17,13 +17,13 @@ type State = { status: "loading" } | { status: "notFound" } | { status: "error" 
 const sep = <span className="text-hairline">·</span>;
 
 function AiMark() {
-  return <span className="mr-1 inline-block rounded-[4px] border border-hairline px-1 align-[1px] text-[11px] leading-[16px] font-semibold">AI 해석</span>;
+  return <span className="mr-1 inline-block rounded-[4px] border border-hairline px-1 align-[1px] text-xs leading-[16px] font-semibold">AI 해석</span>;
 }
 
 function ExperienceRow({ experience: e }: { experience: PublicExperience }) {
   return <li className="grid gap-1.5 border-b border-hairline py-4 last:border-b-0">
     <p className="m-0 text-base leading-relaxed break-words whitespace-pre-wrap text-ink">{e.content}</p>
-    <div className="flex flex-wrap items-center gap-1.5 text-[13px] font-medium text-muted">
+    <div className="flex flex-wrap items-center gap-1.5 text-note font-medium text-muted">
       <SourceStatusMark status={e.sourceStatus} />
       {e.competencies.length > 0 && <>{sep}<span>{e.competenciesBy === "AI" && <AiMark />}{e.competencies.map((c) => COMPETENCIES[c]).join(" · ")}</span></>}
       {e.sourceNames.length > 0 && <>{sep}<span className="min-w-0 break-words">근거 원본 {e.sourceNames.join(", ")}</span></>}
@@ -67,12 +67,12 @@ export function PublicProfileScreen({ token }: { token: string }) {
         <Button className="min-h-11" onClick={() => { setState({ status: "loading" }); load(); }}>다시 시도</Button>
       </CenterState>}
       {state.status === "ready" && <>
-        <h1 className="m-0 text-[26px] leading-snug font-bold tracking-tight break-words">{state.profile.title ?? "공개 프로필"}</h1>
+        <h1 className="m-0 text-display leading-snug font-bold tracking-tight break-words">{state.profile.title ?? "공개 프로필"}</h1>
         {state.profile.activities.length === 0
-          ? <p className="mt-8 border-t border-hairline pt-6 text-[15px] text-body">아직 실린 경험이 없어요.</p>
+          ? <p className="mt-8 border-t border-hairline pt-6 text-ui text-body">아직 실린 경험이 없어요.</p>
           : <>
             {state.profile.activities.map((a, i) => <ActivitySection key={i} activity={a} />)}
-            <p className="mt-10 text-[13px] leading-relaxed text-muted">「AI 해석」은 AI 가 붙인 해석이에요. 근거 원본의 글은 공개되지 않아요.</p>
+            <p className="mt-10 text-note leading-relaxed text-muted">「AI 해석」은 AI 가 붙인 해석이에요. 근거 원본의 글은 공개되지 않아요.</p>
           </>}
       </>}
     </main>

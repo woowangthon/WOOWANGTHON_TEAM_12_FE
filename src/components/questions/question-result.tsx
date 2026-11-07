@@ -22,13 +22,13 @@ export function RecommendationEvidence({ recommendation }: { recommendation: Pic
     const experience = recommendation.experience;
     if (ref.type === "CITATION") {
       const citation = experience.citations.find(c => c.id === ref.id);
-      return citation ? <div key={`${ref.type}-${ref.id}-${i}`}><p className="mt-0 mb-2 text-[13px] font-medium text-evidence">원문 발췌</p><CitationList citations={[citation]} /></div>
+      return citation ? <div key={`${ref.type}-${ref.id}-${i}`}><p className="mt-0 mb-2 text-note font-medium text-evidence">원문 발췌</p><CitationList citations={[citation]} /></div>
         : <p key={i} className="m-0 text-sm text-muted">연결된 원문 근거를 찾지 못했어요.</p>;
     }
     const supplement = experience.supplements.find(s => s.id === ref.id);
     return supplement ? <figure key={`${ref.type}-${ref.id}-${i}`} className="m-0 grid gap-2 rounded-sm border border-hairline bg-canvas p-3.5">
       <figcaption><UserEnteredLabel>내가 입력한 보완</UserEnteredLabel></figcaption>
-      <p className="m-0 text-[13px] text-muted">{supplement.question}</p>
+      <p className="m-0 text-note text-muted">{supplement.question}</p>
       <blockquote className="m-0 whitespace-pre-wrap border-l-2 border-hairline pl-3 text-sm text-body">{supplement.answer}</blockquote>
     </figure> : <p key={i} className="m-0 text-sm text-muted">연결된 보완을 찾지 못했어요.</p>;
   })}</div>;
@@ -48,7 +48,7 @@ export function QuestionResult({ question, elsewhere, onOpenOmissions, savingAns
   const picksLocked = savingAnswer || requestingDraft || question.draft?.status === "ANALYZING";
   const pickedCount = picks.filter(id => question.recommendations.some(r => r.experience.id === id)).length;
   return <><AnswerDraft key={question.id} question={question} onOpenOmissions={onOpenOmissions} requestingDraft={requestingDraft} /><section aria-labelledby="refs-title">
-    <div className="flex flex-wrap items-baseline gap-x-2"><h3 id="refs-title" className="m-0 text-[17px] font-semibold">참고 — 꺼내 쓸 경험</h3>{question.recommendations.length > 0 && <span className="text-[13px] text-muted">체크한 경험으로 초안을 만들어요</span>}</div>
+    <div className="flex flex-wrap items-baseline gap-x-2"><h3 id="refs-title" className="m-0 text-title-md font-semibold">참고 — 꺼내 쓸 경험</h3>{question.recommendations.length > 0 && <span className="text-note text-muted">체크한 경험으로 초안을 만들어요</span>}</div>
     {question.recommendations.length === 0 ? <div className="mt-4 grid gap-2 rounded-sm bg-surface-soft p-5">
       <p className="m-0 font-medium">현재 자료에서 연결된 경험을 찾지 못했어요.</p>
       <p className="m-0 text-sm text-muted">경험이 없다는 뜻은 아니에요. 관련 기록을 더 확인하면 좋겠어요.</p>
@@ -65,8 +65,8 @@ export function QuestionResult({ question, elsewhere, onOpenOmissions, savingAns
           </label>
           <span className="grid gap-1">
             <ActivityChip name={r.activity.name} onTint />
-            <b className="text-[15px] leading-normal font-bold whitespace-pre-wrap">{r.experience.content}</b>
-            <small className="text-[13px] leading-normal text-muted">{r.reason}</small>
+            <b className="text-ui leading-normal font-bold whitespace-pre-wrap">{r.experience.content}</b>
+            <small className="text-note leading-normal text-muted">{r.reason}</small>
           </span>
           {(r.gaps.length > 0 || answered) && <span className="col-start-3 flex flex-wrap gap-1.5 justify-self-start sm:col-start-auto sm:justify-self-end">
             {r.gaps.length > 0 && <span className="inline-flex items-center gap-1 rounded-full border border-dashed border-review-line bg-review-soft px-2.5 py-px text-xs font-semibold whitespace-nowrap text-review">
@@ -79,13 +79,13 @@ export function QuestionResult({ question, elsewhere, onOpenOmissions, savingAns
         </summary>
         <div className="grid gap-2.5 px-4 pb-4 sm:grid-cols-2 sm:px-4.5 sm:pb-4.5 sm:pl-[4.75rem]">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 sm:col-span-2">
-            <span className="flex flex-wrap items-center gap-1.5 text-[13px] font-medium text-muted"><ExperienceMeta experience={r.experience} /></span>
+            <span className="flex flex-wrap items-center gap-1.5 text-note font-medium text-muted"><ExperienceMeta experience={r.experience} /></span>
             <span className="text-xs text-muted"><b className="font-semibold">AI 해석</b> — 이유 · 강조점 · 빠진 것</span>
           </div>
           <div className={box}>
             <p className={boxTitle}>강조하면 좋은 점</p>
             <p className="m-0 text-body">{r.emphasis}</p>
-            {(elsewhere?.(r.experience.id) ?? []).map(u => <p key={u.questionId} className="m-0 text-[13px] text-body"><span className="font-semibold">문항 {u.index + 1}에도 추천</span> — 거기선 「{u.recommendation.emphasis}」</p>)}
+            {(elsewhere?.(r.experience.id) ?? []).map(u => <p key={u.questionId} className="m-0 text-note text-body"><span className="font-semibold">문항 {u.index + 1}에도 추천</span> — 거기선 「{u.recommendation.emphasis}」</p>)}
           </div>
           <section aria-label={`추천 경험 ${i + 1}의 근거`} className={box}>
             <p className={boxTitle}>추천을 뒷받침하는 기록</p>
@@ -94,7 +94,7 @@ export function QuestionResult({ question, elsewhere, onOpenOmissions, savingAns
           {r.gaps.length > 0 && <div className={`${box} border border-dashed border-review-line sm:col-span-2`}>
             <p className={boxTitle}>빠진 것 — 자료에서 더 확인할 부분</p>
             <ul className="m-0 list-disc space-y-1 pl-4 text-body">{r.gaps.map((gap, j) => <li key={j}>{gap}</li>)}</ul>
-            {answered && <p className="m-0 flex items-start gap-1.5 text-[13px] text-body">
+            {answered && <p className="m-0 flex items-start gap-1.5 text-note text-body">
               <CheckIcon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-primary" />
               <span><b className="font-semibold">차곡이 질문에 답했어요</b> — 보완으로 쌓여 다음 문항부터 근거로 써요. 이 추천은 문항을 넣을 때 만든 거라 위 목록은 그대로예요.</span>
             </p>}

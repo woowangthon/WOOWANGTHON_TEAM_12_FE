@@ -10,7 +10,7 @@ export function AnswerEvidence({ evidence: e, questionId, question }: { evidence
       {e.type === "CITATION" ? `원문 · ${citation?.sourceName ?? "연결된 발췌"}` : e.type === "SUPPLEMENT" ? `내가 입력 · ${supplement?.question ?? "보완"}` : "내가 입력 · 직접 넣거나 고친 경험"}
     </summary>
     <div className="grid gap-2 pt-3">
-      {supplement && <p className="m-0 text-xs text-muted">질문 · {supplement.question}</p>}
+      {supplement && <p className="m-0 text-note text-muted">질문 · {supplement.question}</p>}
       <blockquote className="m-0 whitespace-pre-wrap break-words border-l-2 border-hairline pl-3 leading-relaxed text-body">{e.text}</blockquote>
       <a href={`/experience?activity=${e.activityId}&fromQuestion=${questionId}`} className="inline-flex min-h-11 items-center text-xs underline underline-offset-3">타임라인에서 활동 보기 →</a>
     </div>
