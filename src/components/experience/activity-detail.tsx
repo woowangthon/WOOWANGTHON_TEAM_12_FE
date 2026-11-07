@@ -2,17 +2,17 @@
 
 // 활동 세부 — 이름 · 기간 · 이 활동을 만든 자료 · 경험들 (SPEC S-08 · S-09 · DESIGN.md 「활동 세부」)
 // PC 는 타임라인 옆 패널, 모바일은 전체 화면 + 근거는 하단 시트
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { ArrowsClockwiseIcon, CaretLeftIcon, DotsThreeIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { DropdownMenu } from "radix-ui";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { ActivityDetail, ActivitySummary, Experience } from "@/lib/api/types";
-import { durationText, periodText } from "@/lib/period";
+import { durationText } from "@/lib/period";
 import { CitationList, SourceFile } from "./citation-list";
 import { ExperienceItem, ExperienceMeta } from "./experience-item";
 import { ActivityCategoryField } from "./activity-category";
-import { ActivityEditor } from "./activity-editor";
+import { ActivityNameField, PeriodField, type InlineEditHandle } from "./inline-edit";
 import { ActivityNote } from "./activity-note";
 import { ActivityLinks } from "./activity-links";
 import { ExperienceEditor } from "./experience-editor";
@@ -59,7 +59,9 @@ type Props = {
 };
 
 export function ActivityDetailView({ summary, state, now, onClose, onRetry, onActivitySaved, onNoteSaved, onCategorySaved, onExperienceSaved, onExperienceAdded, onExperienceDelete, onExperienceMove, onExperienceMerge, onDragChange, draggingId, onMergeRequest, onSuggestedMerge, onSuggestionDismiss, onOpenActivity, onAddSource, addSourceBusy, addSourceStatus, readOnly = false }: Props) {
-  const [editing, setEditing] = useState(false);
+  const nameEdit = useRef<InlineEditHandle>(null);
+  // 메뉴가 닫힌 뒤에 칸을 연다 — 열린 메뉴가 포커스를 붙잡고 있어서
+  const editFromMenu = useRef(false);
   const activity = state.status === "ready" ? state.activity : null;
   const current = activity ?? summary;
   const period = current.period;
@@ -84,17 +86,15 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
 
       <header className="grid gap-2.5 border-b border-hairline px-4.5 pt-5 pb-4 lg:px-7 lg:pt-7 lg:pb-5">
         <div className="flex items-start gap-2">
-          <h2 className="m-0 flex-1 text-title-lg leading-snug font-[650] tracking-[-0.3px] text-balance">
-            {current.name}
-          </h2>
+          <ActivityNameField key={current.id} activity={{ ...summary, name: current.name, period }} readOnly={readOnly || !activity} onSaved={onActivitySaved} editRef={nameEdit} />
           {activity && onMergeRequest && !readOnly && (
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild>
                 <Button variant="ghost" size="icon" className="size-11 lg:size-9" aria-label="활동 메뉴"><DotsThreeIcon /></Button>
               </DropdownMenu.Trigger>
               <DropdownMenu.Portal>
-                <DropdownMenu.Content align="end" sideOffset={4} className="z-50 min-w-40 rounded-md border border-hairline bg-canvas p-1 shadow-float">
-                  <DropdownMenu.Item onSelect={() => setEditing(true)} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">활동 고치기</DropdownMenu.Item>
+                <DropdownMenu.Content align="end" sideOffset={4} onCloseAutoFocus={(e) => { if (!editFromMenu.current) return; e.preventDefault(); editFromMenu.current = false; nameEdit.current?.open(); }} className="z-50 min-w-40 rounded-md border border-hairline bg-canvas p-1 shadow-float">
+                  <DropdownMenu.Item onSelect={() => { editFromMenu.current = true; }} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">이름 고치기</DropdownMenu.Item>
                   <DropdownMenu.Item onSelect={onMergeRequest} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">다른 활동과 합치기</DropdownMenu.Item>
                 </DropdownMenu.Content>
               </DropdownMenu.Portal>
@@ -104,12 +104,11 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
             <XIcon />
           </Button>
         </div>
-        {activity && !editing && !readOnly && <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>활동 수정</Button>}
-        {editing && <ActivityEditor activity={{ ...summary, name: current.name, period }} onCancel={() => setEditing(false)} onSaved={(result) => { onActivitySaved(result); setEditing(false); }} />}
         <ActivityCategoryField activity={summary} onSaved={onCategorySaved} readOnly={readOnly} />
         <p className="m-0 flex flex-wrap items-center gap-2.5 text-sm text-body tabular-nums">
-          {periodText(period)}
-          <span className="text-muted">{durationText(period, now)}</span>
+          <PeriodField activity={{ ...summary, name: current.name, period }} readOnly={readOnly || !activity} onSaved={onActivitySaved}>
+            <span className="text-muted">{durationText(period, now)}</span>
+          </PeriodField>
         </p>
         {(sources.length > 0 || canAddSource) && (
           <p className="m-0 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-note text-muted">

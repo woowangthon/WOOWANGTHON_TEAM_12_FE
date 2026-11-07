@@ -1,0 +1,13 @@
+{
+  "design": "experience.html",
+  "app": "/experience",
+  "open": {
+    "design": [{ "click": ".row[data-a]:has-text('졸업 프로젝트')" }],
+    "app": [{ "click": "main button[aria-pressed]:has-text('졸업 프로젝트')" }]
+  },
+  "pairs": [
+    { "name": "활동 이름", "design": ".dt__top h2", "app": "aside:has(li[id^=experience-]) h2" },
+    { "name": "경험 본문", "design": ".x__text", "app": "li[id^=experience-] button[aria-label^='경험 고치기']", "intent": { "안쪽 여백": "누르면 고치는 자리 — 마우스를 올리면 옅은 배경(FE#232). 바깥 여백으로 상쇄해 글자 자리는 같다", "바깥 여백": "안쪽 여백 상쇄(FE#232)", "모서리": "올렸을 때 배경의 모서리(FE#232)" } },
+    { "name": "경험 메타", "design": ".x__meta", "app": "li[id^=experience-] > div:nth-of-type(2)" }
+  ]
+}
