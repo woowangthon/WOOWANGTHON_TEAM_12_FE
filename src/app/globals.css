@@ -186,6 +186,10 @@
     word-break: keep-all;
     overflow-wrap: anywhere;
   }
+  /* 기본값(글자색의 50%)은 대비가 3.98 이라 보조 글자색으로 맞춘다(FE#182) */
+  ::placeholder {
+    color: var(--muted);
+  }
   button:not(:disabled),
   [role="button"]:not(:disabled) {
     cursor: pointer;
