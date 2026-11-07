@@ -5,6 +5,7 @@ import { CaretRightIcon } from "@phosphor-icons/react";
 import { AppHeader } from "@/components/app-header";
 import { Mascot } from "@/components/questions/chagok-panel";
 import { Button } from "@/components/ui/button";
+import { Toast, useToast } from "@/components/ui/toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { createMcpConnection, deleteMcpConnection, fetchMcpConnection, setMcpWrite, type McpConnection } from "@/lib/api/mcp";
@@ -45,7 +46,7 @@ export function ConnectionScreen() {
   const [url, setUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState("");
+  const { toast, showToast, clearToast } = useToast();
   const [confirm, setConfirm] = useState<Action | "write" | null>(null);
   const generation = useRef(0);
   const locked = useRef(false);
@@ -69,7 +70,7 @@ export function ConnectionScreen() {
   useEffect(() => {
     void load();
     // 브라우저의 뒤로 가기 캐시에서도 주소를 다시 표시하지 않는다.
-    const hide = () => { generation.current++; setUrl(null); setNotice(""); };
+    const hide = () => { generation.current++; setUrl(null); clearToast(); };
     const restore = (event: PageTransitionEvent) => { if (event.persisted) { hide(); setBusy(true); void load(); } };
     window.addEventListener("pagehide", hide);
     window.addEventListener("pageshow", restore);
@@ -78,7 +79,7 @@ export function ConnectionScreen() {
       window.removeEventListener("pagehide", hide);
       window.removeEventListener("pageshow", restore);
     };
-  }, [load]);
+  }, [clearToast, load]);
 
   async function mutate(action: "create" | Action) {
     if (locked.current) return;
@@ -87,14 +88,14 @@ export function ConnectionScreen() {
     setBusy(true);
     setConfirm(null);
     setUrl(null);
-    setNotice("");
+    clearToast();
     setError(null);
     try {
       if (action === "disconnect") {
         await deleteMcpConnection();
         if (generation.current !== current) return;
         setConnection({ connected: false, writeEnabled: false, createdAt: null, lastUsedAt: null });
-        setNotice("연결을 끊었어요.");
+        showToast("연결을 끊었어요.");
       } else {
         const created = await createMcpConnection();
         if (generation.current !== current) return;
@@ -121,13 +122,13 @@ export function ConnectionScreen() {
     const current = ++generation.current;
     setBusy(true);
     setConfirm(null);
-    setNotice("");
+    clearToast();
     setError(null);
     try {
       const next = await setMcpWrite(writeEnabled);
       if (generation.current !== current) return;
       setConnection(next);
-      setNotice(next.writeEnabled ? "쓰기를 켰어요. 다음 요청부터 적용돼요." : "쓰기를 껐어요. 다음 요청부터 적용돼요.");
+      showToast(next.writeEnabled ? "쓰기를 켰어요. 다음 요청부터 적용돼요." : "쓰기를 껐어요. 다음 요청부터 적용돼요.");
     } catch {
       if (generation.current !== current) return;
       // 응답을 받지 못해도 바뀌었을 수 있다 — 켜짐 · 꺼짐을 짐작해 보이지 않는다.
@@ -144,9 +145,9 @@ export function ConnectionScreen() {
     const current = generation.current;
     try {
       await navigator.clipboard.writeText(url);
-      if (generation.current === current) setNotice("주소를 복사했어요.");
+      if (generation.current === current) showToast("주소를 복사했어요.");
     } catch {
-      if (generation.current === current) setNotice("복사하지 못했어요. 표시된 주소를 직접 선택해서 복사해 주세요.");
+      if (generation.current === current) setError("복사하지 못했어요. 표시된 주소를 직접 선택해서 복사해 주세요.");
     }
   }
 
@@ -191,7 +192,6 @@ export function ConnectionScreen() {
             <Button className="min-h-11 text-error" variant="ghost" disabled={busy} onClick={() => setConfirm("disconnect")}>연결 끊기</Button>
           </div>
           : <Button className="min-h-11 justify-self-start" disabled={busy} onClick={() => void mutate("create")}>연결 주소 만들기</Button>)}
-        <p role="status" aria-live="polite" className="text-sm text-body empty:hidden">{notice}</p>
 
         {connection?.connected && <div className="flex items-center justify-between gap-4 border-t border-hairline-soft pt-4">
           <div className="min-w-0">
@@ -240,5 +240,6 @@ export function ConnectionScreen() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    <Toast toast={toast} />
   </>;
 }

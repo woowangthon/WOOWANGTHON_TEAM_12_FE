@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { AppHeader } from '@/components/app-header';
 import { AnalysisCost } from '@/components/auth/analysis-cost';
 import { Button } from '@/components/ui/button';
+import { Toast, useToast } from '@/components/ui/toast';
 import { deleteGuideline, extractGuidelines, fetchGuidelines, guidelineError, saveGuidelines, updateGuideline, type Guideline, type GuidelineInput } from '@/lib/api/guidelines';
 
 const inputClass = 'min-h-11 w-full min-w-0 rounded-sm border border-hairline bg-canvas px-3 py-2 text-sm text-ink';
@@ -23,7 +24,7 @@ export function GuidelineScreen() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState('');
+  const { toast, showToast, clearToast } = useToast();
   const locked = useRef(false);
   const [raw, setRaw] = useState<GuidelineInput>({ text: '', source: '' });
   const [candidates, setCandidates] = useState<(GuidelineInput & { key: number })[] | null>(null);
@@ -41,7 +42,7 @@ export function GuidelineScreen() {
 
   async function act(action: () => Promise<void>) {
     if (locked.current) return;
-    locked.current = true; setBusy(true); setError(null); setNotice('');
+    locked.current = true; setBusy(true); setError(null); clearToast();
     try { await action(); }
     catch (e) { setError(guidelineError(e)); }
     finally { locked.current = false; setBusy(false); }
@@ -59,7 +60,8 @@ export function GuidelineScreen() {
     await act(async () => {
       const saved = await saveGuidelines(lines);
       setItems(previous => [...previous, ...saved]); after();
-      setNotice(saved.some(g => !g.enabled) ? '지침을 저장했어요. 켠 지침이 10개라 일부는 꺼진 채 저장했어요. 목록에서 확인해 주세요.' : '지침을 저장했어요. 다음에 만드는 초안부터 써요.');
+      if (saved.some(g => !g.enabled)) showToast('지침을 저장했어요. 켠 지침이 10개라 일부는 꺼진 채 저장했어요. 목록에서 확인해 주세요.', true);
+      else showToast('지침을 저장했어요. 다음에 만드는 초안부터 써요.');
     });
   }
 
@@ -72,7 +74,6 @@ export function GuidelineScreen() {
           <h1 className="m-0 text-2xl font-bold">작성 지침</h1>
           <p className="m-0 text-sm leading-relaxed text-muted">들었던 작성법을 내 지침으로 쌓아 두세요. 켠 지침은 모든 답변 초안의 문체 · 구성 · 강조에 써요. 근거에 없는 사실은 만들지 않아요.</p>
         </header>
-        {notice && <p role="status" className="m-0 rounded-sm bg-surface-soft p-4 text-sm">{notice}</p>}
         {error && <p role="alert" className="m-0 text-sm text-error">{error}</p>}
         <div className="grid items-start gap-6 md:grid-cols-2">
           <section aria-labelledby="extract-title" className={card}>
@@ -112,14 +113,14 @@ export function GuidelineScreen() {
           {loading ? <p role="status" className="m-0 text-sm text-muted">지침을 불러오고 있어요…</p> : loadError ? <div className="grid justify-items-start gap-2"><p role="alert" className="m-0 text-sm text-error">{loadError}</p><Button variant="secondary" onClick={() => { setLoading(true); void load(); }}>다시 불러오기</Button></div> : <>
             {!items.length && <p className="m-0 py-6 text-sm text-muted">아직 작성 지침이 없어요. 들었던 작성법을 붙여 넣거나 직접 한 줄 써 주세요.</p>}
             <ul className="m-0 grid list-none gap-4 p-0">{items.map(g => <li key={g.id} aria-label={'작성 지침 ' + g.id} className="grid min-w-0 gap-3 border-t border-hairline pt-4">
-              {editing === g.id ? <form className="grid gap-3" onSubmit={e => { e.preventDefault(); void act(async () => { const updated = await updateGuideline(g.id, edit); setItems(previous => previous.map(item => item.id === g.id ? updated : item)); setEditing(null); setNotice('지침을 고쳤어요. 다음에 만드는 초안부터 써요.'); }); }}>
+              {editing === g.id ? <form className="grid gap-3" onSubmit={e => { e.preventDefault(); void act(async () => { const updated = await updateGuideline(g.id, edit); setItems(previous => previous.map(item => item.id === g.id ? updated : item)); setEditing(null); showToast('지침을 고쳤어요. 다음에 만드는 초안부터 써요.'); }); }}>
                 <fieldset disabled={busy} className="m-0 grid min-w-0 gap-3 border-0 p-0"><LineFields value={edit} onChange={setEdit} /><div className="flex gap-2"><Button type="submit" className="min-h-11">저장</Button><Button type="button" variant="ghost" className="min-h-11" onClick={() => setEditing(null)}>취소</Button></div></fieldset>
               </form> : <>
                 <p className="m-0 break-words text-sm leading-relaxed">{g.text}</p><p className="m-0 break-words text-xs text-muted">출처 · {g.source}</p>
                 <div className="flex flex-wrap items-center gap-3">
                   <label className="inline-flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" role="switch" className="size-5 accent-primary" checked={g.enabled} disabled={busy} aria-label={'지침 켜기: ' + g.text} onChange={() => void act(async () => { const updated = await updateGuideline(g.id, { enabled: !g.enabled }); setItems(previous => previous.map(item => item.id === g.id ? updated : item)); })} />{g.enabled ? '켬' : '끔'}</label>
                   <Button variant="ghost" className="min-h-11" disabled={busy} onClick={() => { setEditing(g.id); setEdit({ text: g.text, source: g.source }); setError(null); }}>고치기</Button>
-                  <Button variant="ghost" className="min-h-11" disabled={busy} onClick={() => void act(async () => { await deleteGuideline(g.id); setItems(previous => previous.filter(item => item.id !== g.id)); setNotice('지침을 지웠어요. 이미 만든 초안에는 만들 때의 지침이 남아 있어요.'); })}>지우기</Button>
+                  <Button variant="ghost" className="min-h-11" disabled={busy} onClick={() => void act(async () => { await deleteGuideline(g.id); setItems(previous => previous.filter(item => item.id !== g.id)); showToast('지침을 지웠어요. 이미 만든 초안에는 만들 때의 지침이 남아 있어요.'); })}>지우기</Button>
                 </div>
               </>}
             </li>)}</ul>
@@ -127,5 +128,6 @@ export function GuidelineScreen() {
         </section>
       </div>
     </main>
+    <Toast toast={toast} />
   </>;
 }

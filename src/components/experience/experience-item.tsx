@@ -44,36 +44,60 @@ export function SourceStatusMark({ status }: { status: SourceStatus }) {
   );
 }
 
-/** 수행 주체 · 역량 · 출처 상태 */
+// BE 전환 기간에만 필드 누락 시 기존 규칙을 사용한다.
+const isAiCompetency = (e: Pick<Experience, "competenciesBy" | "sourceStatus">) =>
+  e.competenciesBy === undefined ? e.sourceStatus !== "USER_ENTERED" : e.competenciesBy === "AI";
+
+/** 수행 주체 · 출처 상태 · 역량 — AI 표시는 부가 정보라 맨 뒤 */
 export function ExperienceMeta({ experience: e, aiLabel = "AI" }: {
   experience: Pick<Experience, "actor" | "competencies" | "competenciesBy" | "sourceStatus" | "origin">;
   aiLabel?: string;
 }) {
-  // BE 전환 기간에만 필드 누락 시 기존 규칙을 사용한다.
-  const isAiCompetency = e.competenciesBy === undefined
-    ? e.sourceStatus !== "USER_ENTERED"
-    : e.competenciesBy === "AI";
   const sep = <span className="text-hairline">·</span>;
   return (
     <>
       <span>{ACTOR[e.actor]}</span>
+      {sep}
+      {e.origin?.type === "ANSWER" ? <Link href={`/questions?question=${e.origin.questionId}`} className="min-w-0 break-words underline-offset-3 hover:underline">내가 쓴 지원서 · {e.origin.organization || "지원처 미입력"} · {e.origin.questionText}</Link> : <SourceStatusMark status={e.sourceStatus} />}
       {e.competencies.length > 0 && (
         <>
           {sep}
           <span>
-            {isAiCompetency && <span
-              className="mr-1 inline-block rounded-[4px] border border-hairline px-1 align-[1px] text-[10px] leading-[15px] font-bold tracking-[0.02em]"
+            {e.competencies.map((c) => COMPETENCIES[c]).join(" · ")}
+            {isAiCompetency(e) && <span
+              className="ml-1 inline-block rounded-[4px] border border-hairline px-1 align-[1px] text-[10px] leading-[15px] font-bold tracking-[0.02em]"
               title="AI 가 붙인 역량 — 해석이에요"
             >
               {aiLabel}
             </span>}
-            {e.competencies.map((c) => COMPETENCIES[c]).join(" · ")}
           </span>
         </>
       )}
-      {sep}
-      {e.origin?.type === "ANSWER" ? <Link href={`/questions?question=${e.origin.questionId}`} className="min-w-0 break-words underline-offset-3 hover:underline">내가 쓴 지원서 · {e.origin.organization || "지원처 미입력"} · {e.origin.questionText}</Link> : <SourceStatusMark status={e.sourceStatus} />}
     </>
+  );
+}
+
+/** 미리 보기의 속성 목록 — 한 줄에 몰지 않고 칸마다 나눈다. 역량이 AI 해석이면 그 칸에만 적는다 */
+export function ExperienceProperties({ experience: e, period }: {
+  experience: Pick<Experience, "actor" | "competencies" | "competenciesBy" | "sourceStatus" | "origin">;
+  period: string;
+}) {
+  const rows: [string, React.ReactNode][] = [
+    ["기간", <span key="period" className="tabular-nums">{period}</span>],
+    ["수행", ACTOR[e.actor]],
+    ["출처", <SourceStatusMark key="source" status={e.sourceStatus} />],
+  ];
+  if (e.competencies.length > 0) rows.push(["역량", <>
+    {e.competencies.map((c) => COMPETENCIES[c]).join(" · ")}
+    {isAiCompetency(e) && <span className="ml-1.5 text-xs text-muted">AI 해석</span>}
+  </>]);
+  return (
+    <dl className="m-0 grid w-full grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 py-1 text-[13px]">
+      {rows.map(([label, value]) => <div key={label} className="contents">
+        <dt className="text-muted">{label}</dt>
+        <dd className="m-0 min-w-0 break-words text-body">{value}</dd>
+      </div>)}
+    </dl>
   );
 }
 

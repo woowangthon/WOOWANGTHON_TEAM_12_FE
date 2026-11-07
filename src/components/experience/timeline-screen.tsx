@@ -15,6 +15,7 @@ import { AddSourceDialog, type SourceMode } from "@/components/source/add-source
 import { AnalysisBanner, AnalysisBatch, AnalysisCenter, analysisView } from "@/components/source/analysis-status";
 import { hasPendingAnalysis, useAnalysisJob } from "@/components/source/use-analysis-job";
 import { Button } from "@/components/ui/button";
+import { ToastCard, toastStack, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { dismissMergeSuggestion, fetchActivities, fetchActivity, isMockMode, mergeActivities, moveExperience, updateActivity, type MockAnalysis, type MockMode } from "@/lib/api/experience";
 import { ACTIVITY_CATEGORIES, type ActivityCategory, type ActivitySummary, type Experience, type Period } from "@/lib/api/types";
@@ -61,7 +62,7 @@ export function TimelineScreen() {
   const [addOpen, setAddOpen] = useState(false);
   const [addMode, setAddMode] = useState<SourceMode>("material");
   const [addToActivity, setAddToActivity] = useState(false);
-  const [toast, setToast] = useState<{ text: string; alert: boolean } | null>(null);
+  const { toast, showToast, clearToast } = useToast();
   const [dragging, setDragging] = useState<Experience | null>(null);
   const [moving, setMoving] = useState<Experience | null>(null);
   const [mergeOpen, setMergeOpen] = useState(false);
@@ -80,7 +81,6 @@ export function TimelineScreen() {
   const listRequest = useRef(0);
   const selectedRef = useRef<number | null>(null);
   const listScrollY = useRef(0);
-  const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const periodSaves = useRef(new Map<number, PeriodSave>());
   const active = useRef(false);
 
@@ -90,11 +90,10 @@ export function TimelineScreen() {
       active.current = false;
       ++listRequest.current;
       ++detailRequest.current;
-      clearTimeout(toastTimer.current);
-      setToast(null);
+      clearToast();
     };
     return () => deactivate();
-  }, []);
+  }, [clearToast]);
 
   const loadList = (mode: MockMode) => {
     const request = ++listRequest.current;
@@ -123,12 +122,6 @@ export function TimelineScreen() {
       .then((questions) => setSourceOf(() => supplementSource(new Map(questions.map((q) => [q.id, q.organization])))))
       .catch(() => { sourceRequested.current = false; });
   }, [needsSource]);
-
-  const showToast = (text: string, alert = false) => {
-    clearTimeout(toastTimer.current);
-    setToast({ text, alert });
-    toastTimer.current = setTimeout(() => setToast(null), alert ? 7000 : 4000);
-  };
 
   const loadDetail = (id: number) => {
     const request = ++detailRequest.current;
@@ -198,7 +191,7 @@ export function TimelineScreen() {
     }, 0);
     return () => clearTimeout(timer);
     // 이 화면이 이미 떠 있을 때 들어온 ?add=1(빠른 찾기 창이 화면이 뜨는 도중에 보낸 것)도 받는다
-  }, [addRequested]);
+  }, [addRequested, showToast]);
 
   const analysis = useAnalysisJob(async (job, { batch }) => {
     const activities = await loadList(mock);
@@ -620,7 +613,7 @@ export function TimelineScreen() {
 
       {/* 알림 — ink 면 · 흰 글 (DESIGN.md 「떠 있는 것」) */}
       {(deletion.pending.length > 0 || deletion.error || toast) && (
-        <div className="fixed bottom-[calc(84px+env(safe-area-inset-bottom,0px))] left-1/2 z-40 grid w-max max-w-[calc(100%-32px)] -translate-x-1/2 gap-2 lg:bottom-6">
+        <div className={toastStack}>
           {deletion.pending.map(({ experience, saving }) => (
             <div key={experience.id} role="status" className="flex items-center gap-3 rounded-sm bg-ink px-4 py-2 text-sm text-canvas shadow-float">
               <span>{saving ? "경험을 지우고 있어요…" : "경험을 지웠어요."}</span>
@@ -633,7 +626,7 @@ export function TimelineScreen() {
           {deletion.error && <div role="alert" className="flex items-center gap-3 rounded-sm bg-ink px-4 py-2 text-sm text-canvas shadow-float">
             <span>{deletion.error}</span><button type="button" className="min-h-11 shrink-0" onClick={deletion.dismissError}>닫기</button>
           </div>}
-          {toast && <div role={toast.alert ? "alert" : "status"} className="rounded-sm bg-ink px-4 py-3 text-sm text-canvas shadow-float">{toast.text}</div>}
+          {toast && <ToastCard toast={toast} />}
         </div>
       )}
     </div>

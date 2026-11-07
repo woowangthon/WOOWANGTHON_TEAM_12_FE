@@ -55,8 +55,16 @@ async function expand(page: Page, n: number) {
   const card = recommendation(page, n);
   if (!(await card.locator("details").evaluate(e => (e as HTMLDetailsElement).open))) await card.locator("summary").click();
 }
+/** 지원을 연 머리엔 입구가 없다 — 시안과 같이 추가 메뉴로 들어간다(FE#210). 지원이 없으면 입력칸이 이미 떠 있다 */
+async function startApplication(page: Page) {
+  const write = page.getByRole("button", { name: "문항 직접 쓰기", exact: true });
+  await expect(page.getByRole("button", { name: "추가", exact: true }).first().or(write).first()).toBeVisible();
+  if (await write.isVisible()) return;
+  await page.getByRole("button", { name: "추가", exact: true }).first().click();
+  await page.getByRole("menuitem", { name: /^새 지원서/ }).click();
+}
 async function compose(page: Page, text: string) {
-  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await startApplication(page);
   await page.getByRole("button", { name: "문항 직접 쓰기", exact: true }).click();
   await page.getByLabel("문항 1", { exact: true }).fill(text);
   await page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true }).click();
@@ -110,7 +118,7 @@ test("question 41/42 switch shows contract judgments, actors and supplemental ev
 test("question input validates whitespace before calling the server and sends limits as typed", async ({ page }) => {
   const api = await fake(page);
   await page.goto("/questions");
-  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await startApplication(page);
   await page.getByRole("button", { name: "문항 직접 쓰기", exact: true }).click();
   await page.getByLabel("문항 1", { exact: true }).fill(" \n ");
   await page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true }).click();
@@ -128,7 +136,7 @@ test("question input validates whitespace before calling the server and sends li
 test("analysis is polled until done, survives reload and keeps the new application first", async ({ page }) => {
   await fake(page);
   await page.goto("/questions");
-  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await startApplication(page);
   await page.getByRole("button", { name: "팀 역할·협업 예시", exact: true }).click();
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(QUESTION_EXAMPLES[1].text);
   await page.getByLabel("지원처 이름 (선택)").fill("");
@@ -204,7 +212,7 @@ test("three recommendations, UNKNOWN actor and missing evidence never invent quo
 test("application with several questions keeps order, analyzes each and shows the same activity side by side", async ({ page }) => {
   const api = await fake(page);
   await page.goto("/questions");
-  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await startApplication(page);
   await page.getByRole("button", { name: "기술 문제 해결 예시", exact: true }).click();
   await page.getByRole("button", { name: "팀 역할·협업 예시", exact: true }).click();
   await page.getByRole("button", { name: "문항 칸 더하기", exact: true }).click();
@@ -240,7 +248,7 @@ test("application with several questions keeps order, analyzes each and shows th
 test("common questions fill blank slots first, stay editable and stop at the submit limit", async ({ page }) => {
   const api = await fake(page);
   await page.goto("/questions");
-  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await startApplication(page);
   await page.getByRole("button", { name: "문항 직접 쓰기", exact: true }).click();
   await page.getByRole("button", { name: "문항 칸 더하기", exact: true }).click();
   await page.getByLabel("문항 2", { exact: true }).fill("직접 쓴 문항");
@@ -290,7 +298,7 @@ test("past questions show newest first with organization and type, once per text
   const [q41] = api.questions.filter(q => q.detail.id === 41);
   api.questions.push({ ...q41, detail: { ...structuredClone(q41.detail), id: 99, applicationId: 30, organization: "OO 교내 동아리", createdAt: new Date().toISOString() } });
   await page.goto("/questions");
-  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await startApplication(page);
   await page.getByRole("button", { name: "넣었던 · 자주 나오는 문항에서 고르기", exact: true }).click();
   const past = page.getByRole("dialog", { name: "문항 고르기" }).getByRole("group", { name: "내가 넣었던 문항" });
   const boxes = past.getByRole("checkbox");
@@ -331,7 +339,7 @@ const patches = (api: FakeQuestionApi) => api.calls.filter(c => c.call.startsWit
 test("application form sends only the chosen kind and role; the header changes and clears them and they survive reload", async ({ page }) => {
   const api = await fake(page);
   await page.goto("/questions");
-  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await startApplication(page);
   await page.getByRole("button", { name: "문항 직접 쓰기", exact: true }).click();
   await pickOption(page.getByLabel("지원처 종류 (선택)"), "부트캠프 · 교육 과정");
   await page.getByLabel("문항 1", { exact: true }).fill("지원 동기를 적어 주세요.");
@@ -470,7 +478,7 @@ test("question type shows the AI reading, can be corrected, and a choice made wh
 test("a question can be added to an existing application and blank slots are named", async ({ page }) => {
   const api = await fake(page);
   await page.goto("/questions");
-  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await startApplication(page);
   await page.getByRole("button", { name: "문항 직접 쓰기", exact: true }).click();
   await page.getByRole("button", { name: "문항 칸 더하기", exact: true }).click();
   await page.getByLabel("문항 1", { exact: true }).fill("첫 문항");
@@ -492,7 +500,7 @@ test("a question can be added to an existing application and blank slots are nam
 test("daily limit (429) keeps the draft and says nothing was saved", async ({ page }) => {
   await fake(page, { limit: true });
   await page.goto("/questions");
-  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await startApplication(page);
   await page.getByRole("button", { name: "기술 문제 해결 예시", exact: true }).click();
   await page.getByRole("button", { name: "팀 역할·협업 예시", exact: true }).click();
   await page.getByRole("button", { name: "문항 2개 넣고 경험 찾기", exact: true }).click();
@@ -658,7 +666,7 @@ test("while one question is analyzing only that question is polled and the chose
   await page.goto("/questions");
   await expect(recommendation(page, 1)).toContainText("매주 금요일");
   api.calls = [];
-  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await startApplication(page);
   await page.getByRole("button", { name: "기술 문제 해결 예시", exact: true }).click();
   await page.getByRole("button", { name: "팀 역할·협업 예시", exact: true }).click();
   await page.getByRole("button", { name: "문항 2개 넣고 경험 찾기", exact: true }).click();
@@ -787,7 +795,7 @@ test("a new application starts with one input and opens the fields only after sp
     return r.fulfill({ json: { organization: "OO 연합 동아리", organizationType: "CLUB", jobRole: null, questions: ["지원 동기를 적어 주세요."] } });
   });
   await page.goto("/questions");
-  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await startApplication(page);
   const input = page.getByLabel("공고 · 문항 글이나 공고 링크");
   await expect(input).toBeFocused();
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveCount(0);
@@ -816,7 +824,7 @@ test("a new application starts with one input and opens the fields only after sp
 test("write questions opens the fields at once, keeping a pasted link as the original link", async ({ page }) => {
   await fake(page);
   await page.goto("/questions");
-  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await startApplication(page);
   await page.getByRole("button", { name: "공고 링크로 가져오기", exact: true }).click();
   const input = page.getByLabel("공고 · 문항 글이나 공고 링크");
   await expect(input).toBeFocused();
@@ -831,7 +839,7 @@ test("write questions opens the fields at once, keeping a pasted link as the ori
 test("the posting link is sent with the application and opens in a new tab from the header; no link, no row", async ({ page }) => {
   const api = await fake(page);
   await page.goto("/questions");
-  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await startApplication(page);
   await page.getByRole("button", { name: "문항 직접 쓰기", exact: true }).click();
   await page.getByLabel("원문 링크 (선택)").fill("javascript:alert(1)");
   await page.getByLabel("문항 1", { exact: true }).fill("지원 동기를 적어 주세요.");
@@ -859,7 +867,7 @@ test("opening an application shows the question and answer box on the first scre
   await fake(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/questions");
-  await page.getByRole("button", { name: "지원 넣기", exact: true }).click();
+  await startApplication(page);
   await page.getByRole("button", { name: "기술 문제 해결 예시", exact: true }).click();
   await page.getByRole("button", { name: "팀 역할·협업 예시", exact: true }).click();
   await page.getByLabel("지원처 이름 (선택)").fill("OO 백엔드 부트캠프 · 2기");
@@ -886,7 +894,6 @@ test("opening an application shows the question and answer box on the first scre
       page.getByRole("tablist", { name: "문항" }),
       result(page).getByRole("heading", { level: 3 }).first(),
       answer,
-      page.getByRole("heading", { name: "답변 초안", exact: true }),
       page.getByRole("heading", { name: "참고 — 꺼내 쓸 경험", exact: true }),
       page.getByRole("heading", { name: "여러 문항에 추천된 활동", exact: true }),
     ].map(top));
