@@ -288,3 +288,31 @@ test("맞아요를 누른 생각 문장 카드에는 경고가 없다", async ({
   await expect(card).toBeVisible();
   await expect(card.getByText("맞는지 보고 고치거나 빼 주세요", { exact: false })).toHaveCount(0);
 });
+
+// FE#260 — 정한 주체는 카드를 다시 열어도 · 새로고침해도 보이고, 「다시 만들면 바뀌어요」는 방금 정한 자리에서만
+test("근거 문장에서 내가 했어요를 누른 뒤 다시 열어도 · 새로고침해도 주체 줄이 남는다", async ({ page }) => {
+  await open(page, q => { q.draft!.sentences[0].evidence = q.draft!.sentences[0].evidence.map(e => ({ ...e, actor: "UNKNOWN" as const })); });
+  const fact = () => page.getByRole("button", { name: /^근거 — 「바꿔요」 프로젝트에서/ }).first();
+  await fact().click();
+  await sentenceCard(page).getByRole("button", { name: "내가 했어요", exact: true }).click();
+  await expect(sentenceCard(page).getByText("주체 · 내가 한 일", { exact: false })).toBeVisible();
+  await expect(sentenceCard(page).getByText("다시 만들면 확인된 문장으로 바뀌어요", { exact: false })).toBeVisible();
+  // 카드를 닫았다 다시 연다 — 넓은 폭은 「닫기」, 좁은 폭은 시트를 Escape 로
+  if (page.viewportSize()!.width >= 1024) await sentenceCard(page).getByRole("button", { name: "닫기", exact: true }).click();
+  else await closeCard(page);
+  await expect(sentenceCard(page)).toHaveCount(0);
+  await fact().click();
+  await expect(sentenceCard(page).getByText("주체 · 내가 한 일", { exact: false })).toBeVisible();
+  await expect(sentenceCard(page).getByText("다시 만들면 확인된 문장으로 바뀌어요", { exact: false })).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByText(/확인할 곳 \d|모두 확인했어요/)).toBeVisible();
+  await fact().click();
+  await expect(sentenceCard(page).getByText("주체 · 내가 한 일", { exact: false })).toBeVisible();
+});
+
+test("원래 정해진 주체도 중립 문구로 보인다", async ({ page }) => {
+  await open(page);
+  await page.getByRole("button", { name: /^근거 — 서버에 STOMP/ }).first().click();
+  await expect(sentenceCard(page).getByText("주체 · 내가 한 일", { exact: false })).toBeVisible();
+  await expect(sentenceCard(page).getByRole("button", { name: "내가 했어요", exact: true })).toHaveCount(0);
+});
