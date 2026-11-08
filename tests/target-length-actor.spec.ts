@@ -9,7 +9,7 @@ import type { ActivityDetail } from "../src/lib/api/types";
 
 const SHOTS = process.env.FE233_SHOTS === "1";
 // PR 스크린샷(FE233_SHOTS=1) — desktop 은 1440 과 1024 를 함께, mobile 은 390
-const shot = async (page: Page, name: string) => {
+const shot = async (page: Page, name: string, reopen?: () => Promise<unknown>) => {
   if (!SHOTS) return;
   const size = page.viewportSize()!;
   const options = { animations: "disabled", caret: "hide", style: "nextjs-portal { visibility: hidden; }" } as const;
@@ -17,6 +17,7 @@ const shot = async (page: Page, name: string) => {
   await page.screenshot({ path: `test-results/fe233/${name}-${size.width}.png`, ...options });
   if (size.width !== 1440) return;
   await page.setViewportSize({ width: 1024, height: size.height });
+  await reopen?.(); // 1024 는 차곡이 패널이 닫혀 있다 — 사용자처럼 다시 연다
   await page.waitForTimeout(400);
   await page.screenshot({ path: `test-results/fe233/${name}-1024.png`, ...options });
   await page.setViewportSize(size);
@@ -98,7 +99,8 @@ test("재료가 목표의 절반이 안 되면 알리되 막지 않고, 무료 �
   await expect(composer.getByRole("button", { name: "다시 만들기", exact: true })).toBeEnabled();
   await expect(composer).toContainText("이번 다시 만들기는 분석 횟수를 쓰지 않아요");
   await expect(composer).not.toContainText("분석 1회");
-  await shot(page, "composer-free-thin");
+  await composer.scrollIntoViewIfNeeded(); // 넓은 폭은 패널 아래쪽 — 「초안 설정 열기」를 누르면 여기로 내려온다(FE#249)
+  await shot(page, "composer-free-thin", async () => (await openDraftComposer(page)).scrollIntoViewIfNeeded());
 });
 
 test("무료가 아니면 「분석 1회」를 그대로 보이고, 재료가 넉넉하면 안내하지 않는다", async ({ page }) => {
