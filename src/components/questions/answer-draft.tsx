@@ -193,8 +193,8 @@ function ActorLine({ sentence, onDecided }: { sentence: DraftSentence; onDecided
   if (!actors.length) return null;
   const unknownActivities = [...new Set(sentence.evidence.filter(e => e.actor === "UNKNOWN").map(e => e.activityId))];
   if (!unknownActivities.length) {
-    if (sentence.kind !== "ELABORATED" && !decided) return null;
-    return <p className="m-0 text-note text-body">{actors.includes("TEAM") ? "팀이 한 일" : "내가 한 일로 확인했어요 ✓"}
+    // 정해진 주체는 늘 조용히 보인다(새로고침해도 서버 값). 「다시 만들면 바뀌어요」는 방금 정한 자리에서만 — 초안 이후에 정했는지 화면이 알 수 없다(FE#260)
+    return <p className="m-0 text-note text-body">주체 · {actors.includes("TEAM") ? "팀이 한 일" : "내가 한 일"}
       {decided && <span className="block text-muted">다시 만들면 확인된 문장으로 바뀌어요(분석 횟수 안 씀).</span>}</p>;
   }
   const decide = async (actor: "ME" | "TEAM") => {
