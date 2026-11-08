@@ -4,7 +4,7 @@
 // 밖을 누르거나 Enter 면 저장, Esc 면 취소. 기간 · 수행 주체 · 역량은 눌러 작은 메뉴로 고친다.
 // 저장이 실패하면 고치던 글을 그대로 두고 오류를 보인다 — Enter(또는 밖을 누르기)로 다시 저장한다
 import { useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react";
-import { CheckIcon } from "@phosphor-icons/react";
+import { CheckIcon, PencilSimpleIcon } from "@phosphor-icons/react";
 import { DropdownMenu, Popover } from "radix-ui";
 import { Button } from "@/components/ui/button";
 import { updateActivity, updateExperience } from "@/lib/api/experience";
@@ -23,7 +23,7 @@ const message = (e: unknown) => e instanceof Error ? e.message : "저장하지 �
 /** 고치는 중에 「내가 입력」이 된다는 것을 보인다(S-10). 이미 「내가 입력」이면 말할 게 없다 */
 function UserEnteredNote({ experience }: { experience: Pick<Experience, "sourceStatus"> }) {
   if (experience.sourceStatus === "USER_ENTERED") return null;
-  return <>고치면 「내가 입력」이 돼요 — 원래 근거는 그대로 남아요.</>;
+  return <>고치면 「내가 입력」이 돼요 · 원래 근거는 남아요</>;
 }
 
 /** 메뉴의 「고치기」가 칸을 연다 */
@@ -111,9 +111,12 @@ export function ExperienceContentField({ experience: e, readOnly, editRef, onEdi
   if (f.text === null) return <button ref={displayRef} type="button" aria-label={`경험 고치기: ${e.content}`} title="눌러서 고치기"
     onClick={() => { if (window.getSelection()?.toString()) return; act.open(); }}
     className={cn(TEXT, HOVER, "-mx-1.5 -my-0.5 min-w-0 px-1.5 py-0.5 text-left break-words")}>{e.content}</button>;
-  const hint = `experience-hint-${e.id}`;
+  // 안내는 두 줄(FE#241) — 위: 출처 상태가 바뀐다는 것(S-10, 이미 「내가 입력」이면 없음), 아래: 키. 한 문장으로 이으면 중간에서 꺾여 지저분했다
+  const note = `experience-note-${e.id}`;
+  const keys = `experience-keys-${e.id}`;
+  const showNote = e.sourceStatus !== "USER_ENTERED";
   return <div className="grid min-w-0 flex-1 gap-1">
-    <textarea autoFocus aria-label="경험 내용" value={f.text} aria-busy={f.saving} readOnly={f.saving} aria-describedby={hint} aria-invalid={!!f.error}
+    <textarea autoFocus aria-label="경험 내용" value={f.text} aria-busy={f.saving} readOnly={f.saving} aria-describedby={showNote ? `${note} ${keys}` : keys} aria-invalid={!!f.error}
       onChange={(ev) => act.setText(ev.target.value)} onBlur={() => void act.commit()}
       onFocus={(ev) => { const el = ev.currentTarget; el.setSelectionRange(el.value.length, el.value.length); }}
       onKeyDown={(ev) => {
@@ -122,9 +125,12 @@ export function ExperienceContentField({ experience: e, readOnly, editRef, onEdi
         if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); act.cancel(); }
       }}
       className={cn(TEXT, "-mx-1.5 -my-0.5 field-sizing-content min-h-[1lh] w-full min-w-0 resize-none rounded-sm border-0 bg-surface-soft px-1.5 py-0.5 outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--ink)]")} />
-    <p id={hint} className="m-0 text-note text-muted">
-      {f.saving ? "저장 중…" : <>Enter 저장 · Shift+Enter 줄 바꿈 · Esc 취소. <UserEnteredNote experience={e} /></>}
-    </p>
+    <div className="grid gap-0.5">
+      {showNote && <p id={note} className="m-0 flex items-start gap-1 text-note text-body">
+        <PencilSimpleIcon className="mt-[0.25em] size-[1.1em] shrink-0" aria-hidden="true" /><span><UserEnteredNote experience={e} /></span>
+      </p>}
+      <p id={keys} className="m-0 text-xs text-muted">{f.saving ? "저장 중…" : "Enter 저장 · Shift+Enter 줄 바꿈 · Esc 취소"}</p>
+    </div>
     {f.error && <p role="alert" className="m-0 text-note font-medium text-error">{f.error} 고친 글은 그대로 있어요 — Enter 로 다시 저장해 주세요.</p>}
   </div>;
 }
