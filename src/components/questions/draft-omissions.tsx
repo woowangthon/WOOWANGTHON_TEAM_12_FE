@@ -137,7 +137,7 @@ export function DraftFollowUp({ question, onAnswer, onGenerate, onRefresh, savin
     {analyzing ? <p role="status" className={bubble}>고른 경험과 보완을 읽고 초안을 만드는 중이에요…</p> : draft ? <>
       {draft?.status === "FAILED" ? <p className={bubble}>초안을 완성하지 못했어요. 아래 설정에서 다시 요청해 주세요.</p> : <>
         <div className={bubble}>
-          <p className="m-0">{draft?.omitted.length ? "초안을 답칸에 넣었어요. 아래 내용은 자료에서 확인하지 못해 쓰지 않았어요." : "초안을 답칸에 넣었어요. 밑줄 · 빈칸을 눌러 근거와 이유를 확인해 주세요."}</p>
+          <p className="m-0">{!draft?.sentences.length ? "고른 기록에서 받칠 내용을 찾지 못해 문장을 쓰지 않았어요. 경험이 없다는 뜻은 아니에요." : draft.omitted.length ? "초안을 답칸에 넣었어요. 아래 내용은 자료에서 확인하지 못해 쓰지 않았어요." : "초안을 답칸에 넣었어요. 밑줄 · 빈칸을 눌러 근거와 이유를 확인해 주세요."}</p>
           {!!draft?.omitted.length && <>
             <p className="m-0 text-xs font-semibold">자료에 없어 쓰지 않았어요 · AI 해석</p>
             <p className="m-0 text-note text-muted">기억나는 것만 알려 주세요. 답은 선택이에요. 건너뛰어도 초안을 복사할 수 있어요.</p>

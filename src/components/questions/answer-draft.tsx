@@ -3,7 +3,7 @@
 // 답칸 안의 초안 — 보기 상태(S-79). 글 하나로 놓고, 근거 문장은 조용히 · AI 보탬은 밑줄 · 생각은 점선 밑줄 · 빈칸은 칩으로 구분한다.
 // 표시를 누르면 카드(넓은 폭은 글 아래, 좁은 폭은 하단 시트)에 근거 · 이유 · 주체와 맞아요 · 고치기 · 빼기가 보인다.
 // 편집기 라이브러리 없이 간다(FE#235 「편집기 교체가 늦어지면」) — 고치기를 누르면 일반 입력칸으로 바뀌고 다시 만들기 전까지 돌아오지 않는다
-import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { WarningCircleIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -123,7 +123,8 @@ export function DraftReview(props: ReviewProps) {
     <p className="m-0 p-5 text-ui leading-[2.1] break-words" aria-label="초안 — 표시를 누르면 근거와 이유가 보여요">
       {draft.sentences.map((s, i) => removed.has(i) ? null : <span key={i}>{sentenceText(s, i)}{" "}</span>)}
     </p>
-    {card && <div className="hidden border-t border-hairline-soft lg:block">{card}</div>}
+    {/* 카드는 한 곳에만 그린다 — 넓은 폭은 글 아래, 좁은 폭은 하단 시트(두 곳에 그리면 입력칸 id 가 겹친다) */}
+    {card && !sheet && <div className="border-t border-hairline-soft">{card}</div>}
     <Sheet open={sheet && !!selected} onOpenChange={open => { if (!open) { setSheet(false); onSelect(null); } }}>
       <SheetContent side="bottom" className="max-h-[78dvh] gap-3 overflow-auto rounded-t-lg border-t-0 px-5 pt-2.5 pb-7 lg:hidden">
         <span className="h-1 w-9 self-center justify-self-center rounded-full bg-hairline" aria-hidden="true" />
@@ -131,7 +132,7 @@ export function DraftReview(props: ReviewProps) {
           <SheetTitle className="text-title-md font-semibold">{selected?.kind === "blank" ? "빈칸" : selected ? LABEL[draft.sentences[selected.index]?.kind ?? "FACT"] : ""}</SheetTitle>
           <SheetDescription className="sr-only">초안의 표시를 확인해요</SheetDescription>
         </SheetHeader>
-        {card}
+        {sheet && card}
       </SheetContent>
     </Sheet>
   </>;
@@ -223,6 +224,7 @@ function BlankCard({ question, omission, local, onAnswer, onEdit, disabled }: {
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const pending = useRef(false);
+  const inputId = useId();
   const done = answered(omission, local);
   const answer = blankAnswer(question, omission, local);
   const canAnswer = omission.clarificationId != null && omission.question != null;
@@ -239,9 +241,9 @@ function BlankCard({ question, omission, local, onAnswer, onEdit, disabled }: {
     <p className="m-0 text-note leading-relaxed text-muted">{omission.text} — 자료에 없어 지어내지 않고 비워 뒀어요.</p>
     {done ? <p role="status" className="m-0 text-note text-body">{answer ? `답 · ${answer}` : "답했어요."} 경험에 보완으로 쌓였고, 다시 만들면 초안에 반영돼요.</p>
       : canAnswer ? <form className="grid gap-2" onSubmit={e => { e.preventDefault(); void save(); }}>
-        <label className="m-0 text-sm font-semibold" htmlFor={`blank-${omission.clarificationId}`}>{omission.question}</label>
+        <label className="m-0 text-sm font-semibold" htmlFor={inputId}>{omission.question}</label>
         <div className="flex flex-wrap gap-1.5">
-          <input id={`blank-${omission.clarificationId}`} type="text" value={text} maxLength={MAX_ANSWER_LENGTH} disabled={disabled}
+          <input id={inputId} type="text" value={text} maxLength={MAX_ANSWER_LENGTH} disabled={disabled}
             onChange={e => { setText(e.target.value); setError(null); }} placeholder="짧게 답해 주세요"
             className="h-11 min-w-0 flex-[1_1_160px] rounded-full bg-surface-soft px-3.5 text-base text-body outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--ink)] sm:text-sm" />
           <Button type="submit" size="sm" className="min-h-11" disabled={disabled}>답하기</Button>

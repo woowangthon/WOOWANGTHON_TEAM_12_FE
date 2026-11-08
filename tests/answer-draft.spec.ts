@@ -1,12 +1,31 @@
 // 시험 전용 HTTP 응답으로 실제 초안 POST·GET 흐름을 확인한다. 실제 BE/AI 검증과 구분한다.
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import { FakeQuestionApi } from "./fake-question-api";
 import { QUESTION_EXAMPLES } from "./fixtures/question-examples";
 import type { Draft, QuestionDetail } from "../src/lib/api/question-types";
 import { DRAFT_EXAMPLE } from "./fixtures/draft-example";
 
-const draftScreen = (page: Page) => page.getByRole("region", { name: "답변 초안", exact: true });
+// FE#235 — 초안은 따로 구역이 아니라 답칸(내가 쓴 답) 안의 읽기 상태다: 글 하나(표시 버튼들)와 표시를 누르면 열리는 카드
+const draftBody = (page: Page) => page.locator('p[aria-label^="초안 —"]');
+const draftSentences = (page: Page) => draftBody(page).locator('button:not([aria-label^="빈칸"])');
+const sentenceCard = (page: Page) => page.getByRole("group", { name: "문장 카드" }).filter({ visible: true });
+const copyButton = (page: Page) => page.getByRole("button", { name: "복사", exact: true });
+/** 좁은 폭은 카드가 하단 시트로 떠서 뒤 화면을 가린다 — 닫고 다음으로 간다. 넓은 폭은 다른 문장을 누르면 카드가 바뀐다 */
+async function closeCard(page: Page) {
+  if (page.viewportSize()!.width < 1024) { await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toHaveCount(0); }
+}
+/** n 번째 문장의 카드를 연다 */
+async function openSentence(page: Page, index: number) {
+  await draftSentences(page).nth(index).click();
+  return sentenceCard(page);
+}
+/** 다시 만들기 — 덮이는 것이 있으면(답하지 않은 빠진 사실 질문 · 고친 글) 확인 대화상자가 먼저 뜬다 */
+async function regenerate(page: Page, scope: Locator) {
+  await scope.getByRole("button", { name: "다시 만들기", exact: true }).click();
+  const confirm = page.getByRole("dialog", { name: "다시 만들면 답칸이 새 초안으로 바뀌어요" }).getByRole("button", { name: "그래도 다시 만들기", exact: true });
+  if (await confirm.waitFor({ state: "visible", timeout: 1500 }).then(() => true, () => false)) await confirm.click();
+}
 const draftFollowUp = (page: Page) => page.getByRole("region", { name: "차곡이의 초안", exact: true });
 async function openDraftFollowUp(page: Page) {
   const ask = page.getByRole("button", { name: /초안 부탁하기|초안 설정 열기/ });
@@ -52,48 +71,52 @@ async function generate(page: Page) {
   await controls.getByRole("button", { name: "초안 만들기", exact: true }).click();
   await expect(controls.getByRole("button", { name: "초안 만드는 중…" })).toBeDisabled();
   await closeDraftPanel(page);
-  await expect(draftScreen(page).getByRole("list", { name: "초안 문장" })).toBeVisible();
+  await expect(draftBody(page)).toBeVisible();
 }
 
 test("default selection, zero-selection guard, generating, evidence details and text-only copy", async ({ page }, info) => {
   const api = await setup(page);
-  const screen = draftScreen(page);
   await closeDraftPanel(page);
-  await expect(screen.getByText("초안 목 모드", { exact: true })).toHaveCount(0);
-  await expect(screen.getByRole("checkbox")).toHaveCount(0);
-  await expect(screen.getByRole("combobox")).toHaveCount(0);
-  await expect(screen.getByRole("button", { name: "초안 만들기", exact: true })).toHaveCount(0);
+  await expect(page.getByText("초안 목 모드", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "답변 초안", exact: true })).toHaveCount(0); // 별도 구역은 없다 — 초안은 답칸 안에 들어온다
+  await expect(draftBody(page)).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toBeVisible();
   await expect((await referenceChoices(page))).toBeChecked();
   await (await referenceChoices(page)).uncheck();
   await expect((await openDraftComposer(page)).getByRole("button", { name: "초안 만들기", exact: true })).toBeDisabled();
   await (await referenceChoices(page)).check();
   await generate(page);
-  const sentences = screen.getByRole("list", { name: "초안 문장" });
   await closeDraftPanel(page);
-  await expect(sentences.getByRole("listitem")).toHaveCount(2);
-  await sentences.locator("summary").nth(0).click();
-  await expect(sentences.locator("blockquote").nth(0)).toHaveText(QUESTION_EXAMPLES[0].recommendations[0].experience.citations[0].quote);
-  await sentences.locator("summary").nth(1).click();
-  await expect(sentences.locator("blockquote").nth(1)).toHaveText(QUESTION_EXAMPLES[0].recommendations[0].experience.supplements[0].answer);
-  await expect(sentences).toContainText("내가 입력 · 폴링을");
-  await expect(screen.getByText("자료에 없어 쓰지 않았어요", { exact: true })).toBeVisible();
-  await screen.getByRole("button", { name: "텍스트로 복사", exact: true }).click();
-  await expect(screen.getByRole("status").last()).toContainText("문장만 복사했어요");
+  await expect(draftSentences(page)).toHaveCount(2);
+  let card = await openSentence(page, 0);
+  await card.locator("summary").click();
+  await expect(card.locator("blockquote")).toHaveText(QUESTION_EXAMPLES[0].recommendations[0].experience.citations[0].quote);
+  await closeCard(page);
+  card = await openSentence(page, 1);
+  await card.locator("summary").click();
+  await expect(card.locator("blockquote")).toHaveText(QUESTION_EXAMPLES[0].recommendations[0].experience.supplements[0].answer);
+  await expect(card).toContainText("내가 입력 · 폴링을");
+  await closeCard(page);
+  await openDraftFollowUp(page); // 쓰지 않은 빠진 사실은 차곡이 패널에 남는다
+  await expect(draftFollowUp(page)).toContainText("자료에 없어 쓰지 않았어요");
+  await closeDraftPanel(page);
+  await copyButton(page).click();
+  await expect(page.getByRole("status").filter({ hasText: "답칸의 글을 복사했어요" })).toBeVisible();
   expect(await page.evaluate(() => (window as unknown as { copied: string }).copied)).toBe("「바꿔요」 프로젝트에서 채팅 메시지가 늦게 도착하는 문제가 있었고, 제가 폴링을 WebSocket 으로 바꿔 해결했습니다. 서버에 STOMP 엔드포인트를 만들고, 앱의 3초 폴링 코드를 구독 방식으로 바꿨습니다.");
-  expect(api.calls.filter(c => c.call.endsWith("/draft"))).toEqual([{ call: "POST /api/questions/41/draft", body: { experienceIds: [101], frame: "STAR" } }]);
+  expect(api.calls.filter(c => c.call.endsWith("/draft"))).toMatchObject([{ call: "POST /api/questions/41/draft", body: { experienceIds: [101], frame: "STAR" } }]);
   // 화면과 기존 추천은 함께 남는다. 문항을 오가도 최신 초안 하나만 유지한다.
   const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab");
   await tabs.nth(1).click();
   await expect((await referenceChoices(page))).toHaveCount(2);
   await closeDraftPanel(page);
-  await expect(draftScreen(page).getByRole("list", { name: "초안 문장" })).toHaveCount(0);
+  await expect(draftBody(page)).toHaveCount(0);
   await tabs.first().click();
-  await expect(screen.getByRole("list", { name: "초안 문장" })).toBeVisible();
+  await expect(draftBody(page)).toBeVisible();
   await expect(page.getByRole("listitem", { name: "추천 경험 1", exact: true })).toContainText("WebSocket");
   if (process.env.UPDATE_DRAFT_SCREENSHOTS === "1") {
     for (const width of info.project.name === "desktop" ? [1440, 1024] : [390]) {
       await page.setViewportSize({ width, height: 1000 });
-      await screen.scrollIntoViewIfNeeded();
+      await draftBody(page).scrollIntoViewIfNeeded();
       await page.screenshot({ path: `docs/fe-75/http-draft-${width}.png`, fullPage: true, style: "nextjs-portal { display: none !important; }" });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     }
@@ -120,33 +143,36 @@ test("three selected by default, a fourth cannot be selected, and only recommend
 
 test("failure shows its reason without success text; retry uses the same POST flow", async ({ page }) => {
   const api = await setup(page);
-  const screen = draftScreen(page);
   api.failDraft = true;
   await (await openDraftComposer(page)).getByRole("button", { name: "초안 만들기", exact: true }).click();
   await expect((await openDraftComposer(page)).getByRole("alert")).toContainText("시간이 초과됐어요");
   await closeDraftPanel(page);
-  await expect(screen.getByRole("list", { name: "초안 문장" })).toHaveCount(0);
+  await expect(draftBody(page)).toHaveCount(0);
   api.failDraft = false;
-  await (await openDraftComposer(page)).getByRole("button", { name: "다시 만들기", exact: true }).click();
+  await regenerate(page, await openDraftComposer(page));
   await closeDraftPanel(page);
-  await expect(screen.getByRole("list", { name: "초안 문장" }).getByRole("listitem")).toHaveCount(2);
+  await expect(draftSentences(page)).toHaveCount(2);
   await expect((await openDraftComposer(page)).getByRole("alert")).toHaveCount(0);
-  expect(api.calls.filter(c => c.call.endsWith("/draft")).map(c => c.body)).toEqual([{ experienceIds: [101], frame: "STAR" }, { experienceIds: [101], frame: "STAR" }]);
+  expect(api.calls.filter(c => c.call.endsWith("/draft")).map(c => c.body)).toMatchObject([{ experienceIds: [101], frame: "STAR" }, { experienceIds: [101], frame: "STAR" }]);
 });
 
 test("missing evidence preserves the sentence and shows a careful notice", async ({ page }) => {
   await setup(page, q => { q.draft = exampleDraft(); });
-  await expect(draftScreen(page)).toContainText("연결된 근거가");
   await closeDraftPanel(page);
-  await expect(draftScreen(page).getByRole("button", { name: "텍스트로 복사", exact: true })).toBeEnabled();
+  await expect(await openSentence(page, 0)).toContainText("연결된 근거가 지금은 없어요");
+  await closeCard(page);
+  await expect(copyButton(page)).toBeEnabled();
 });
 
 test("zero sentences with omitted only disables copying", async ({ page }) => {
   await setup(page, q => { q.draft = exampleDraft({ sentences: [] }); });
-  await expect(draftScreen(page)).toContainText("문장을 쓰지 않았어요");
-  await expect(draftScreen(page)).toContainText("자료에 없어 쓰지 않았어요");
+  // 쓴 문장이 없으면 답칸은 보기 상태가 아니라 빈 입력칸이다 — 복사할 글이 없고, 쓰지 않은 사실은 패널에 남는다
   await closeDraftPanel(page);
-  await expect(draftScreen(page).getByRole("button", { name: "텍스트로 복사", exact: true })).toBeDisabled();
+  await expect(draftBody(page)).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toHaveValue("");
+  await expect(copyButton(page)).toBeDisabled();
+  await openDraftFollowUp(page);
+  await expect(draftFollowUp(page)).toContainText("자료에 없어 쓰지 않았어요");
 });
 
 test("EXPERIENCE is labeled as user input and its original content is inspectable", async ({ page }) => {
@@ -155,20 +181,20 @@ test("EXPERIENCE is labeled as user input and its original content is inspectabl
     const text = "백엔드 API 중 채팅 · 거래 API 를 설계했다";
     q.draft = exampleDraft({ sentences: [{ kind: "FACT", text, evidence: [{ type: "EXPERIENCE", id: 104, experienceId: 104, activityId: 7, text }] }] });
   });
-  const screen = draftScreen(page);
   await closeDraftPanel(page);
-  await screen.locator("summary").click();
-  await expect(screen.locator("summary")).toHaveText("내가 입력 · 직접 넣거나 고친 경험");
-  await expect(screen.locator("blockquote")).toHaveText("백엔드 API 중 채팅 · 거래 API 를 설계했다");
+  const card = await openSentence(page, 0);
+  await card.locator("summary").click();
+  await expect(card.locator("summary")).toHaveText("내가 입력 · 직접 넣거나 고친 경험");
+  await expect(card.locator("blockquote")).toHaveText("백엔드 API 중 채팅 · 거래 API 를 설계했다");
 });
 
 test("clipboard rejection is visible and can be retried", async ({ page }) => {
   await setup(page, q => { q.draft = exampleDraft(); });
   await page.evaluate(() => { Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => { throw new Error("denied"); } } }); });
   await closeDraftPanel(page);
-  await draftScreen(page).getByRole("button", { name: "텍스트로 복사", exact: true }).click();
-  await expect(draftScreen(page).getByRole("alert")).toContainText("복사하지 못했어요");
-  await expect(draftScreen(page).getByRole("button", { name: "텍스트로 복사", exact: true })).toBeEnabled();
+  await copyButton(page).click();
+  await expect(page.getByRole("alert").filter({ hasText: "복사하지 못했어요" })).toBeVisible();
+  await expect(copyButton(page)).toBeEnabled();
 });
 
 test("no recommended experiences cannot generate a draft", async ({ page }) => {
@@ -186,12 +212,12 @@ for (const [status, code, text] of [
   test(`${status} ${code} is visible and preserves the previous completed draft`, async ({ page }) => {
     const api = await setup(page, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
     api.draftError = { status, code };
-    await (await openDraftComposer(page)).getByRole("button", { name: "다시 만들기", exact: true }).click();
+    await regenerate(page, await openDraftComposer(page));
     await expect((await openDraftComposer(page)).getByRole("alert")).toContainText(text);
     await expect((await openDraftComposer(page)).getByRole("button", { name: "초안 상태 확인", exact: true })).toBeEnabled();
     await expect((await referenceChoices(page))).toBeChecked();
     await closeDraftPanel(page);
-    await expect(draftScreen(page).getByRole("list", { name: "초안 문장" }).getByRole("listitem")).toHaveCount(2);
+    await expect(draftSentences(page)).toHaveCount(2);
   });
 }
 
@@ -206,7 +232,7 @@ test("409 DRAFT_IN_PROGRESS re-reads current draft and continues polling without
   await expect.poll(() => api.calls.filter(c => c.call === "GET /api/questions/41").length).toBeGreaterThan(before);
   api.edit(41, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
   await closeDraftPanel(page);
-  await expect(draftScreen(page).getByRole("list", { name: "초안 문장" })).toBeVisible();
+  await expect(draftBody(page)).toBeVisible();
   expect(api.calls.filter(c => c.call.endsWith("/draft"))).toHaveLength(1);
 });
 
@@ -215,12 +241,13 @@ test("analyzing draft survives reload, resumes GET polling and stops on completi
   api.holdDraft = true;
   await (await openDraftComposer(page)).getByRole("button", { name: "초안 만들기", exact: true }).click();
   await closeDraftPanel(page);
-  await expect(draftScreen(page).getByRole("status")).toContainText("만드는 중");
+  const making = page.getByRole("status").filter({ hasText: "차곡이가 초안을 만들고 있어요" });
+  await expect(making).toBeVisible();
   await page.reload();
   await closeDraftPanel(page);
-  await expect(draftScreen(page).getByRole("status")).toContainText("만드는 중");
+  await expect(making).toBeVisible();
   api.edit(41, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
-  await expect(draftScreen(page).getByRole("list", { name: "초안 문장" })).toBeVisible();
+  await expect(draftBody(page)).toBeVisible();
   await page.clock.install();
   const gets = api.calls.filter(c => c.call === "GET /api/questions/41").length;
   await page.clock.runFor(6000);
@@ -231,10 +258,10 @@ test("analyzing draft survives reload, resumes GET polling and stops on completi
 test("regeneration hides old sentences and duplicate submissions are blocked", async ({ page }) => {
   const api = await setup(page, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
   api.holdDraft = true;
-  await (await openDraftComposer(page)).getByRole("button", { name: "다시 만들기", exact: true }).click();
+  await regenerate(page, await openDraftComposer(page));
   await expect((await openDraftComposer(page)).getByRole("button", { name: "초안 만드는 중…", exact: true })).toBeDisabled();
   await closeDraftPanel(page);
-  await expect(draftScreen(page).getByRole("list", { name: "초안 문장" })).toHaveCount(0);
+  await expect(draftBody(page)).toHaveCount(0);
   await expect((await referenceChoices(page))).toBeDisabled();
   expect(api.calls.filter(c => c.call.endsWith("/draft"))).toHaveLength(1);
 });
@@ -258,7 +285,7 @@ test("three failed draft polls stop, manual reload recovers, and recommendations
   api.edit(41, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
   await page.getByRole("button", { name: "다시 불러오기", exact: true }).click();
   await page.clock.runFor(2000);
-  await expect(draftScreen(page).getByRole("list", { name: "초안 문장" })).toBeVisible();
+  await expect(draftBody(page)).toBeVisible();
   await expect(page.getByRole("alert", { name: /문항 1/ })).toHaveCount(0);
 });
 
@@ -272,7 +299,7 @@ test("an interrupted draft POST shows a network error and permits querying serve
   await expect(controls.getByRole("alert")).toHaveCount(0);
   await expect(controls.getByRole("button", { name: "초안 만들기", exact: true })).toBeEnabled();
   await closeDraftPanel(page);
-  await expect(draftScreen(page).getByRole("list", { name: "초안 문장" })).toHaveCount(0);
+  await expect(draftBody(page)).toHaveCount(0);
 });
 
 test("a late POST updates its question only after switching tabs", async ({ page }) => {
@@ -299,22 +326,21 @@ test("retry uses server experienceIds and UNKNOWN sentences are shown verbatim w
     q.recommendations = structuredClone(QUESTION_EXAMPLES[1].recommendations);
     q.draft = { ...structuredClone(DRAFT_EXAMPLE), status: "FAILED", experienceIds: [101], error: { code: "AI_FAILED", message: "실패" }, sentences: [], omitted: [] };
   });
-  await (await openDraftComposer(page)).getByRole("button", { name: "다시 만들기", exact: true }).click();
+  await regenerate(page, await openDraftComposer(page));
   await expect.poll(() => api.calls.filter(c => c.call.endsWith("/draft")).length).toBe(1);
-  expect(api.calls.find(c => c.call.endsWith("/draft"))!.body).toEqual({ experienceIds: [101], frame: "NONE" });
+  expect(api.calls.find(c => c.call.endsWith("/draft"))!.body).toMatchObject({ experienceIds: [101], frame: "NONE" });
   api.holdDraft = true;
   api.edit(41, q => {
     q.recommendations.find(r => r.experience.id === 101)!.experience.actor = "UNKNOWN";
     q.draft = { ...structuredClone(DRAFT_EXAMPLE), sentences: [{ kind: "FACT", text: "코드가 수정됐습니다.", evidence: [structuredClone(DRAFT_EXAMPLE.sentences[0].evidence[0])] }] };
   });
   await closeDraftPanel(page);
-  await expect(draftScreen(page).getByRole("list", { name: "초안 문장" })).toContainText("코드가 수정됐습니다.");
-  await expect(draftScreen(page).getByRole("list", { name: "초안 문장" })).not.toContainText("팀은");
+  await expect(draftBody(page)).toContainText("코드가 수정됐습니다.");
+  await expect(draftBody(page)).not.toContainText("팀은");
 });
 
 test("omitted facts have optional experience questions, while unlinked gaps stay manual; skipping permits copy", async ({ page }, info) => {
   const api = await setup(page, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
-  const screen = draftScreen(page);
   const panel = await openDraftFollowUp(page);
   const omissions = panel.getByRole("list", { name: "초안의 빠진 사실" });
   await expect(omissions.getByRole("listitem")).toHaveCount(3);
@@ -330,8 +356,8 @@ test("omitted facts have optional experience questions, while unlinked gaps stay
   await first.getByRole("button", { name: "다시 보기", exact: true }).click();
   await expect(first.getByRole("textbox")).toHaveAttribute("maxlength", "2000");
   await closeDraftPanel(page);
-  await expect(screen.getByRole("textbox")).toHaveCount(0);
-  await screen.getByRole("button", { name: "텍스트로 복사", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toHaveCount(0); // 보기 상태 — 입력칸이 아니다
+  await copyButton(page).click();
   expect(await page.evaluate(() => (window as unknown as { copied: string }).copied)).toBe(DRAFT_EXAMPLE.sentences.map(s => s.text).join(" "));
   expect(api.calls.filter(c => c.call.startsWith("POST"))).toEqual([]);
   await openDraftFollowUp(page);
@@ -347,7 +373,6 @@ test("omitted facts have optional experience questions, while unlinked gaps stay
 
 test("saving an omitted answer uses its server ID, persists after reload and regenerates only on click", async ({ page }, info) => {
   const api = await setup(page, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
-  const screen = draftScreen(page);
   const panel = await openDraftFollowUp(page);
   const omissions = panel.getByRole("list", { name: "초안의 빠진 사실" });
   const first = omissions.getByRole("listitem").first();
@@ -364,15 +389,15 @@ test("saving an omitted answer uses its server ID, persists after reload and reg
     { call: "POST /api/clarifications/64/answer", body: { answer } },
   ]);
   await closeDraftPanel(page);
-  await expect(screen.getByRole("list", { name: "초안 문장" })).toContainText(DRAFT_EXAMPLE.sentences[0].text);
+  await expect(draftBody(page)).toContainText(DRAFT_EXAMPLE.sentences[0].text);
   await page.reload();
   await openDraftFollowUp(page);
   await expect(first).toContainText(answer);
   await expect(first.getByRole("textbox")).toHaveCount(0);
-  await panel.getByRole("button", { name: "다시 만들기", exact: true }).click();
+  await regenerate(page, panel);
   await expect(panel.getByRole("button", { name: "다시 만들기", exact: true })).toBeEnabled();
   await expect(omissions).not.toContainText(DRAFT_EXAMPLE.omitted[0].text);
-  expect(api.calls.filter(c => c.call.endsWith("/draft"))).toEqual([
+  expect(api.calls.filter(c => c.call.endsWith("/draft"))).toMatchObject([
     { call: "POST /api/questions/41/draft", body: { experienceIds: [101], frame: "NONE" } },
   ]);
   expect(api.supplements.get(101)?.some(s => s.answer === answer && s.questionId === 41)).toBe(true);
@@ -385,7 +410,6 @@ test("saving blocks regeneration and duplicate answers until the save response a
   let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
   await page.route("**/api/clarifications/64/answer", async route => { await gate; await route.fallback(); });
-  const screen = draftScreen(page);
   const panel = await openDraftFollowUp(page);
   const omissions = panel.getByRole("list", { name: "초안의 빠진 사실" });
   await omissions.getByRole("textbox").first().fill("메시지가 도착하는지 확인했다");
@@ -396,7 +420,7 @@ test("saving blocks regeneration and duplicate answers until the save response a
   await closeDraftPanel(page);
   await expect((await openDraftComposer(page)).getByRole("button", { name: "다시 만들기", exact: true })).toBeDisabled();
   await closeDraftPanel(page);
-  await expect(screen.getByRole("button", { name: "텍스트로 복사", exact: true })).toBeEnabled();
+  await expect(copyButton(page)).toBeEnabled();
   await openDraftFollowUp(page);
   await expect(panel.getByRole("button", { name: "다시 만들기", exact: true })).toBeDisabled();
   release();
@@ -413,7 +437,6 @@ test("save errors preserve the answer and draft, and retry stores it once", asyn
   await page.route("**/api/clarifications/64/answer", route => down
     ? route.fulfill({ status: 503, json: { error: { code: "INTERNAL_ERROR", message: "보완을 저장하지 못했어요." } } })
     : route.fallback());
-  const screen = draftScreen(page);
   const panel = await openDraftFollowUp(page);
   const first = panel.getByRole("list", { name: "초안의 빠진 사실" }).getByRole("listitem").first();
   const answer = "두 기기에서 메시지를 확인했다";
@@ -427,7 +450,7 @@ test("save errors preserve the answer and draft, and retry stores it once", asyn
   await expect(first).toContainText("내가 입력 · 경험에 보완으로 쌓았어요");
   expect(api.calls.filter(c => c.call.endsWith("/answer"))).toHaveLength(1);
   await closeDraftPanel(page);
-  await expect(screen.getByRole("button", { name: "텍스트로 복사", exact: true })).toBeEnabled();
+  await expect(copyButton(page)).toBeEnabled();
 });
 
 for (const [status, code, note] of [
@@ -456,8 +479,9 @@ test("a completed draft restores its selected experiences for regeneration", asy
   });
   await expect((await referenceChoices(page)).first()).toBeChecked();
   await expect((await referenceChoices(page)).last()).not.toBeChecked();
-  await (await openDraftComposer(page)).getByRole("button", { name: "다시 만들기", exact: true }).click();
-  expect(api.calls.filter(c => c.call.endsWith("/draft"))).toEqual([
+  await regenerate(page, await openDraftComposer(page));
+  await expect.poll(() => api.calls.filter(c => c.call.endsWith("/draft")).length).toBe(1);
+  expect(api.calls.filter(c => c.call.endsWith("/draft"))).toMatchObject([
     { call: "POST /api/questions/41/draft", body: { experienceIds: [102], frame: "NONE" } },
   ]);
 });
@@ -466,14 +490,14 @@ test("the panel reports a rejected regeneration and keeps the draft available fo
   const api = await setup(page, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
   const panel = await openDraftFollowUp(page);
   api.draftError = { status: 429, code: "DAILY_LIMIT_EXCEEDED" };
-  await panel.getByRole("button", { name: "다시 만들기", exact: true }).click();
+  await regenerate(page, panel);
   await expect(panel.getByRole("alert")).toContainText("오늘 분석 횟수를 다 썼어요");
   await expect(panel.getByRole("list", { name: "초안의 빠진 사실" }).getByRole("textbox")).toHaveCount(2);
   await closeDraftPanel(page);
-  await expect(draftScreen(page).getByRole("list", { name: "초안 문장" })).toContainText(DRAFT_EXAMPLE.sentences[0].text);
+  await expect(draftBody(page)).toContainText(DRAFT_EXAMPLE.sentences[0].text);
   await openDraftFollowUp(page);
   api.draftError = null;
-  await panel.getByRole("button", { name: "다시 만들기", exact: true }).click();
+  await regenerate(page, panel);
   await expect(panel.getByRole("status")).toContainText("초안을 만드는 중");
   await expect(panel.getByRole("button", { name: "다시 만들기", exact: true })).toBeEnabled();
   expect(api.calls.filter(c => c.call.endsWith("/draft"))).toHaveLength(2);
@@ -483,14 +507,14 @@ test("the panel shows an AI failure and retries with the same experiences", asyn
   const api = await setup(page, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
   const panel = await openDraftFollowUp(page);
   api.failDraft = true;
-  await panel.getByRole("button", { name: "다시 만들기", exact: true }).click();
+  await regenerate(page, panel);
   await expect(panel.getByRole("alert")).toContainText("시간이 초과됐어요");
   await expect(panel.getByRole("list", { name: "초안의 빠진 사실" })).toHaveCount(0);
   api.failDraft = false;
-  await panel.getByRole("button", { name: "다시 만들기", exact: true }).click();
+  await regenerate(page, panel);
   await expect(panel.getByRole("button", { name: "다시 만들기", exact: true })).toBeEnabled();
   await expect(panel.getByRole("alert")).toHaveCount(0);
-  expect(api.calls.filter(c => c.call.endsWith("/draft")).map(c => c.body)).toEqual([{ experienceIds: [101], frame: "NONE" }, { experienceIds: [101], frame: "NONE" }]);
+  expect(api.calls.filter(c => c.call.endsWith("/draft")).map(c => c.body)).toMatchObject([{ experienceIds: [101], frame: "NONE" }, { experienceIds: [101], frame: "NONE" }]);
 });
 
 test("a pending panel regeneration blocks a second request and hides old result sentences", async ({ page }) => {
@@ -500,17 +524,19 @@ test("a pending panel regeneration blocks a second request and hides old result 
   const gate = new Promise<void>(resolve => { release = resolve; });
   await page.route("**/api/questions/41/draft", async route => { await gate; await route.fallback(); });
   const panel = await openDraftFollowUp(page);
-  await panel.getByRole("button", { name: "다시 만들기", exact: true }).click();
+  await regenerate(page, panel);
   await expect(panel.getByRole("status")).toContainText("초안을 만드는 중");
   await closeDraftPanel(page);
   await expect((await openDraftComposer(page)).getByRole("button", { name: "초안 만드는 중…", exact: true })).toBeDisabled();
   await expect((await referenceChoices(page))).toBeDisabled();
   await closeDraftPanel(page);
-  await expect(draftScreen(page).getByRole("list", { name: "초안 문장" })).toHaveCount(0);
+  // 요청이 가는 동안 답칸은 만드는 중임을 알린다(옛 초안은 서버가 ANALYZING 으로 바꾸면 내려간다)
+  await expect(page.getByRole("status").filter({ hasText: "차곡이가 초안을 만들고 있어요" })).toBeVisible();
   release();
   await expect.poll(() => api.calls.filter(c => c.call.endsWith("/draft")).length).toBe(1);
+  await expect(draftBody(page)).toHaveCount(0);
   api.edit(41, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
-  await expect(draftScreen(page).getByRole("list", { name: "초안 문장" })).toBeVisible();
+  await expect(draftBody(page)).toBeVisible();
 });
 
 test("opinion labels stay separate from facts and text-only copy across reload and responsive widths", async ({ page }, info) => {
@@ -524,32 +550,35 @@ test("opinion labels stay separate from facts and text-only copy across reload a
     { kind: "OPINION", text: "앞으로도 사용자에게 필요한 기능을 고민하고 싶습니다.", evidence: [] },
   ];
   await setup(page, q => { q.draft = draft; });
-  const screen = draftScreen(page);
-  const sentences = screen.getByRole("list", { name: "초안 문장" });
-  const items = sentences.getByRole("listitem");
+  const marks = draftSentences(page);
+  const opinionMarks = draftBody(page).getByRole("button", { name: /^AI 제안 — 확인 필요 — / });
   await closeDraftPanel(page);
-  await expect(items).toHaveCount(draft.sentences.length);
+  await expect(marks).toHaveCount(draft.sentences.length);
   for (const [index, sentence] of draft.sentences.entries()) {
-    await expect(items.nth(index)).toContainText(sentence.text);
-    await expect(items.nth(index).getByText("AI 제안 — 확인 필요", { exact: true })).toHaveCount(sentence.kind === "OPINION" ? 1 : 0);
+    // 글 안의 표시 이름이 종류를 말한다 — 생각(OPINION)은 「AI 제안」, 사실은 「근거」
+    await expect(marks.nth(index)).toHaveAccessibleName(`${sentence.kind === "OPINION" ? "AI 제안 — 확인 필요" : "근거"} — ${sentence.text}`);
+    const card = await openSentence(page, index);
     if (sentence.kind === "OPINION") {
-      await expect(items.nth(index).locator("details")).toHaveCount(0);
-      await expect(items.nth(index)).not.toContainText("연결된 근거가 지금은 없어요");
+      await expect(card.locator("details")).toHaveCount(0);
+      await expect(card).not.toContainText("연결된 근거가 지금은 없어요");
+      await expect(card).toContainText("사실이 아니라 문항에 잇는 제안이에요");
+    } else if (index === 3) await expect(card).toContainText("연결된 근거가 지금은 없어요");
+    else {
+      await expect(card.locator("summary")).toHaveCount(1);
+      await card.locator("summary").click();
+      await expect(card.locator("blockquote")).toBeVisible();
     }
+    await closeCard(page);
   }
-  await expect(items.nth(3)).toContainText("연결된 근거가 지금은 없어요");
-  await expect(sentences.locator("summary")).toHaveCount(2);
-  await sentences.locator("summary").first().click();
-  await expect(sentences.locator("blockquote").first()).toBeVisible();
   await page.reload();
   await closeDraftPanel(page);
-  await expect(sentences.getByText("AI 제안 — 확인 필요", { exact: true })).toHaveCount(3);
-  await screen.getByRole("button", { name: "텍스트로 복사", exact: true }).click();
+  await expect(opinionMarks).toHaveCount(3);
+  await copyButton(page).click();
   expect(await page.evaluate(() => (window as unknown as { copied: string }).copied)).toBe(draft.sentences.map(s => s.text).join(" "));
   for (const width of info.project.name === "desktop" ? [1440, 1024] : [390]) {
     await page.setViewportSize({ width, height: 1000 });
-    await items.nth(1).scrollIntoViewIfNeeded();
-    await expect(sentences.getByText("AI 제안 — 확인 필요", { exact: true }).first()).toBeVisible();
+    await marks.nth(1).scrollIntoViewIfNeeded();
+    await expect(opinionMarks.first()).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     if (process.env.UPDATE_OPINION_SCREENSHOTS === "1") {
       await page.screenshot({ path: `docs/fe-104/ai-opinion-${width}.png`, fullPage: true, style: "nextjs-portal { display: none !important; }" });
@@ -561,7 +590,7 @@ test("opinion labels stay separate from facts and text-only copy across reload a
         await page.screenshot({ path: "docs/fe-104/ai-opinion-panel-1024.png", fullPage: true, style: "nextjs-portal { display: none !important; }" });
       }
       await closeDraftPanel(page);
-      await expect(sentences.getByText("AI 제안 — 확인 필요", { exact: true }).first()).toBeVisible();
+      await expect(opinionMarks.first()).toBeVisible();
     }
   }
 });

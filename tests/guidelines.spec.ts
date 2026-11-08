@@ -54,7 +54,9 @@ class GuidelineApi {
     });
   }
 }
-const draftScreen = (page: Page) => page.getByRole('region', { name: '답변 초안', exact: true });
+// FE#235 — 초안은 답칸(내가 쓴 답) 안의 읽기 상태다. 틀과 지침 요약도 그 아래에 붙는다
+const answerBox = (page: Page) => page.getByRole('region', { name: '내가 쓴 답', exact: true });
+const draftBody = (page: Page) => page.locator('p[aria-label^="초안 —"]');
 const extractScreen = (page: Page) => page.getByRole('region', { name: '붙여 넣고 정리하기', exact: true });
 const manualScreen = (page: Page) => page.getByRole('region', { name: '직접 한 줄 쓰기', exact: true });
 async function shot(page: Page, name: string, fullPage = true) {
@@ -158,25 +160,27 @@ test('type suggestion table, explicit NONE and saved CARL survive panel regenera
     await expect(controls.getByRole('combobox', { name: '구성 틀', exact: true })).toHaveText(DRAFT_FRAMES[frame].name);
     await expect(controls.getByText('문항 유형에 맞춘 제안', { exact: false })).toBeVisible();
   }
-  const screen = draftScreen(page), controls = composer(page);
+  const controls = composer(page);
   await pickOption(controls.getByRole('combobox', { name: '구성 틀', exact: true }), '틀 없이');
   await controls.getByRole('button', { name: '초안 만들기', exact: true }).click();
   await closePanel(page);
-  await expect(screen.getByRole('list', { name: '초안 문장' })).toBeVisible();
-  expect(api.calls.find(c => c.call.endsWith('/draft'))!.body).toEqual({ experienceIds: [101], frame: 'NONE' });
+  await expect(draftBody(page)).toBeVisible();
+  expect(api.calls.find(c => c.call.endsWith('/draft'))!.body).toMatchObject({ experienceIds: [101], frame: 'NONE' });
   api.edit(41, q => { q.draft = { ...structuredClone(DRAFT_EXAMPLE), frame: 'CARL', status: 'FAILED', sentences: [], omitted: [] }; });
   await page.reload(); await openComposer(page);
   await expect(controls.getByRole('combobox', { name: '구성 틀', exact: true })).toHaveText(DRAFT_FRAMES.CARL.name);
   await expect(controls.getByText('문항 유형에 맞춘 제안', { exact: false })).toHaveCount(0);
   await controls.getByRole('button', { name: '다시 만들기', exact: true }).click();
   await closePanel(page);
-  await expect(screen.getByRole('list', { name: '초안 문장' })).toBeVisible();
-  expect(api.calls.filter(c => c.call.endsWith('/draft')).at(-1)!.body).toEqual({ experienceIds: [101], frame: 'CARL' });
+  await expect(draftBody(page)).toBeVisible();
+  expect(api.calls.filter(c => c.call.endsWith('/draft')).at(-1)!.body).toMatchObject({ experienceIds: [101], frame: 'CARL' });
   await page.reload(); await openComposer(page);
   await expect(controls.getByRole('combobox', { name: '구성 틀', exact: true })).toHaveText(DRAFT_FRAMES.CARL.name);
   await controls.getByRole('button', { name: '다시 만들기', exact: true }).click();
+  // 답하지 않은 빠진 사실 질문이 남은 초안을 덮으니 확인 대화상자가 먼저 뜬다
+  await page.getByRole('dialog', { name: '다시 만들면 답칸이 새 초안으로 바뀌어요' }).getByRole('button', { name: '그래도 다시 만들기', exact: true }).click();
   await expect.poll(() => api.calls.filter(c => c.call.endsWith('/draft')).length).toBe(3);
-  expect(api.calls.filter(c => c.call.endsWith('/draft')).at(-1)!.body).toEqual({ experienceIds: [101], frame: 'CARL' });
+  expect(api.calls.filter(c => c.call.endsWith('/draft')).at(-1)!.body).toMatchObject({ experienceIds: [101], frame: 'CARL' });
 });
 
 test('draft snapshot stays on left, panel owns generation controls and text copy excludes guidance', async ({ page }) => {
@@ -188,11 +192,11 @@ test('draft snapshot stays on left, panel owns generation controls and text copy
   await api.install(page); const guidelines = new GuidelineApi(); await guidelines.install(page);
   await page.addInitScript(() => { Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (text: string) => { (window as unknown as { copied: string }).copied = text; } } }); });
   await page.goto('/questions?question=41'); await closePanel(page);
-  const screen = draftScreen(page);
-  await expect(screen.getByRole('combobox')).toHaveCount(0);
-  await expect(screen.getByRole('checkbox')).toHaveCount(0);
-  await expect(screen.getByRole('button', { name: '다시 만들기', exact: true })).toHaveCount(0);
-  const snapshot = screen.getByRole('complementary', { name: '초안에 쓴 틀과 지침', exact: true });
+  const answer = answerBox(page);
+  await expect(answer.getByRole('combobox')).toHaveCount(0);
+  await expect(answer.getByRole('checkbox')).toHaveCount(0);
+  await expect(answer.getByRole('button', { name: '다시 만들기', exact: true })).toHaveCount(0);
+  const snapshot = answer.getByRole('complementary', { name: '초안에 쓴 틀과 지침', exact: true });
   await expect(snapshot).toContainText('PREP 기법(두괄식)');
   await expect(snapshot).toContainText('결론 → 이유 → 사례 → 결론');
   await expect(snapshot.getByRole('link')).toHaveCount(0);
@@ -204,7 +208,7 @@ test('draft snapshot stays on left, panel owns generation controls and text copy
   await controls.getByRole('combobox', { name: '구성 틀', exact: true }).scrollIntoViewIfNeeded();
   await shot(page, 'draft-guidelines-panel', false);
   await closePanel(page);
-  await screen.getByRole('button', { name: '텍스트로 복사', exact: true }).click();
+  await answer.getByRole('button', { name: '복사', exact: true }).click();
   expect(await page.evaluate(() => (window as unknown as { copied: string }).copied)).toBe(DRAFT_EXAMPLE.sentences.map(s => s.text).join(' '));
   await openComposer(page);
   await controls.getByRole('link', { name: '작성 지침 관리 →', exact: true }).click();

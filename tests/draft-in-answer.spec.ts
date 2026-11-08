@@ -51,3 +51,30 @@ test("빈칸 카드와 주체 확인 카드", async ({ page }) => {
   await expect(page.getByText("누가 했는지 확인 안 됨", { exact: false }).filter({ visible: true })).toBeVisible();
   await shot(page, "card-actor");
 });
+
+test("고치기 — 빈칸이 남았으면 먼저 묻고, 일반 입력칸 아래에 빠진 사실 질문이 남는다", async ({ page }) => {
+  await open(page);
+  await page.getByRole("button", { name: /^근거 — 「바꿔요」 프로젝트에서/ }).first().click();
+  await page.getByRole("group", { name: "문장 카드" }).filter({ visible: true }).getByRole("button", { name: "고치기", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "직접 고치면 빈칸 표시가 사라져요" });
+  await expect(dialog).toBeVisible();
+  await shot(page, "edit-ask");
+  await dialog.getByRole("button", { name: "고치기", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toHaveValue(/\[줄어든 정도\]/);
+  await expect(page.getByRole("region", { name: "초안의 빠진 사실" })).toBeVisible();
+  await page.getByRole("region", { name: "초안의 빠진 사실" }).scrollIntoViewIfNeeded();
+  await shot(page, "edit-mode");
+});
+
+test("초안 설정 — 보조 재료 체크와 다시 만들기 전 경고", async ({ page }) => {
+  await open(page);
+  const ask = page.getByRole("button", { name: "초안 설정 열기" });
+  await ask.click();
+  const composer = page.getByRole("region", { name: "초안 설정", exact: true });
+  await expect(composer.getByRole("checkbox", { name: /같은 활동의 다른 경험도 뒷받침 재료로 쓰기/ })).toBeChecked();
+  await composer.scrollIntoViewIfNeeded();
+  await shot(page, "composer");
+  await composer.getByRole("button", { name: "다시 만들기", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "다시 만들면 답칸이 새 초안으로 바뀌어요" })).toBeVisible();
+  await shot(page, "regenerate-warning");
+});
