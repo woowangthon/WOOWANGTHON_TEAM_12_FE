@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowUpIcon, LockSimpleIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { ContinueCards, HomeMascot } from "./home-overview";
@@ -46,11 +46,13 @@ const EXAMPLES = {
 } as const;
 
 /** 시안 6 홈 — S-28 가르기 → S-29 꺼내기 답 · S-30 지원 나누기로 잇는다(entrance-api 「흐름」). */
-export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, overview, onRefresh, showMockControls = false }: {
+export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, overview, onRefresh, showMockControls = false, analysisStatus }: {
   sourceBusy: boolean; mockAnalysis: MockAnalysis;
   onSourceSubmitted: (jobs: { jobId: number; name: string }[]) => void;
   overview: HomeOverview; onRefresh: () => void;
   showMockControls?: boolean;
+  /** 분석 중 띠 · 완료 문구 — 입력 바로 아래에 둔다 */
+  analysisStatus?: ReactNode;
 }) {
   const router = useRouter();
   const { refresh: refreshAccount } = useAuth();
@@ -190,6 +192,9 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
         </div>
       </div>
     </form>
+    {/* 분석 중 띠 · 완료 문구는 입력칸 바로 아래 — 예시 · 안내 · 「이어서」 밑에 두면 390 에선 스크롤해야 보였다(FE#244) */}
+    {analysisStatus && <div className="mt-3 grid gap-2">{analysisStatus}</div>}
+    {sourceBusy && <p className="mt-3 text-center text-sm text-muted">자료 분석 중이에요. 분석이 끝나면 더 쌓을 수 있어요.</p>}
     <div role="group" aria-label="입력 예시" className="mt-3 flex flex-wrap justify-center gap-2">
       {EXAMPLES[mode].map(([label, value]) => <button key={label} type="button" disabled={busy || !!file} onClick={() => { setText(value); setError(null); setChoosing(false); document.getElementById("home-text")?.focus(); }} className="inline-flex min-h-11 items-center rounded-full border border-hairline bg-canvas px-3 text-xs text-body hover:border-muted-soft disabled:opacity-50">{label}</button>)}
     </div>
@@ -201,7 +206,6 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     {readingFile && <p role="status" className="mt-3 text-sm text-muted">파일에서 글자를 읽는 중…</p>}
     {file?.notice && <p className="mt-3 text-sm text-review">{file.notice}</p>}
     {sourceSubmitting && <p role="status" className="mt-4 text-center text-sm text-muted">자료를 보내고 있어요…</p>}
-    {sourceBusy && <p className="mt-3 text-center text-sm text-muted">자료 분석 중이에요. 분석이 끝나면 더 쌓을 수 있어요.</p>}
     {isMockMode() && showMockControls && <label className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs text-muted">목 분류 결과 (AI 호출 없음)
       <Select<EntranceKind> aria-label="목 분류 결과" value={mockKind} disabled={routing} onChange={next => { if (next) setMockKind(next); }} className="w-auto min-w-32"
         options={ENTRANCE_KINDS.map(kind => ({ value: kind, label: MOCK_LABEL[kind] }))} />

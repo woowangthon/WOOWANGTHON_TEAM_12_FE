@@ -25,9 +25,12 @@ export function useWork() {
     let current: AbortController | null = null;
     let activeCount = 0;
     let unauthorized = false;
+    // 읽는 중에 새로 읽어 달라는 요청이 왔다 — 그 응답은 자료를 넣기 전 상태일 수 있어 끝나는 대로 한 번 더 읽는다(FE#244)
+    let again = false;
     const read = async () => {
       clearTimeout(timer);
-      if (!scope.alive || current || document.hidden || unauthorized) return;
+      if (current) { again = true; return; }
+      if (!scope.alive || document.hidden || unauthorized) return;
       const controller = new AbortController();
       current = controller;
       try {
@@ -45,13 +48,15 @@ export function useWork() {
       } finally {
         if (current === controller) {
           current = null;
-          if (scope.alive && !document.hidden && !unauthorized) timer = setTimeout(read, activeCount ? 3000 : 30000);
+          const now = again;
+          again = false;
+          if (scope.alive && !document.hidden && !unauthorized) timer = setTimeout(read, now ? 0 : activeCount ? 3000 : 30000);
         }
       }
     };
     const visibility = () => {
       clearTimeout(timer);
-      if (document.hidden) { current?.abort(); current = null; }
+      if (document.hidden) { current?.abort(); current = null; again = false; }
       else void read();
     };
     refreshRef.current = () => { void read(); };

@@ -11,6 +11,8 @@ async function setup(page: Page) {
     status: "ANALYZING" as Job["status"], error: null as Job["error"], empty: false,
     sources: [] as SourceRequest[], gets: 0, lists: 0, details: 0, retries: 0,
     getError: 0, retryError: false, refreshError: false, suggestion: false, duplicate: false,
+    // 완료 뒤 활동 목록 응답을 붙잡아 둔다 — 토스트가 목록보다 먼저 뜨는지 본다(FE#244)
+    listGate: null as Promise<void> | null, listsWaiting: 0,
   };
   const job = (): Job => ({ jobId: 34, sourceId: 12, status: state.status, activityIds: state.status === "COMPLETED" && !state.empty ? [70] : [], targetActivityId: null, targetMatched: null, error: state.error, createdAt: "2026-11-02T21:00:00+09:00", updatedAt: "2026-11-02T21:00:10+09:00" });
   await page.route("**/api/**", async (route) => {
@@ -42,6 +44,7 @@ async function setup(page: Page) {
     }
     if (path === "/api/activities") {
       state.lists++;
+      if (state.listGate && state.status === "COMPLETED") { state.listsWaiting++; await state.listGate; state.listsWaiting--; }
       if (state.refreshError && state.status === "COMPLETED") return route.fulfill({ status: 503, json: { error: { code: "INTERNAL_ERROR", message: "Activity refresh failed" } } });
       return route.fulfill({ json: { activities: state.status === "COMPLETED" && !state.empty ? [{ id: 70, name: detail.name, period: detail.period, experienceCount: 1, mergeSuggestion: state.suggestion ? { activityId: 7, name: "기존 활동", period: detail.period } : null }] : [] } });
     }
@@ -291,4 +294,21 @@ test("자료 쌓기 창 — 같은 자료는 안내하고, 그만이면 글을 �
     { kind: "TEXT", name: null, text: "Original source", allowDuplicate: true },
   ]);
   await expect.poll(() => state.gets).toBeGreaterThan(0);
+});
+
+// FE#244 — 완료 알림은 활동 목록을 다시 읽기 전에 뜬다(읽는 동안 화면을 옮겨도 놓치지 않게). 같은 활동 제안 수는 읽은 뒤 덧붙인다
+test("완료 토스트는 활동 목록을 다시 읽기 전에 뜨고, 같은 활동 제안 수는 읽은 뒤 덧붙인다", async ({ page }) => {
+  const state = await setup(page);
+  state.suggestion = true;
+  await submit(page);
+  await expect(page.getByRole("progressbar", { name: "분석 중" })).toBeVisible();
+  let release!: () => void;
+  state.listGate = new Promise<void>((resolve) => { release = resolve; });
+  state.status = "COMPLETED";
+  const toast = page.getByRole("status").filter({ hasText: "분석이 완료됐어요" });
+  await expect(toast).toContainText("활동 1개를 확인해 보세요", { timeout: 10000 });
+  expect(state.listsWaiting).toBeGreaterThan(0); // 목록은 아직 오는 중
+  await expect(toast).not.toContainText("같아 보이는 활동");
+  release();
+  await expect(toast).toContainText("기존 활동과 같아 보이는 활동 1개가 있어요");
 });

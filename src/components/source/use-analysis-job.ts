@@ -4,6 +4,7 @@
 // 작업 하나면 끝날 때 사라지고, 묶음(여러 파일)이면 파일마다 상태가 보이도록 사용자가 닫을 때까지 남는다
 import { useEffect, useRef, useState } from "react";
 import { ApiError, fetchJob, retryJob, isMockMode } from "@/lib/api/experience";
+import { useWorkRefresh } from "@/components/work/work-provider";
 import type { Job } from "@/lib/api/types";
 
 const POLL_MS = 2000;
@@ -73,6 +74,8 @@ export function useAnalysisJob(onCompleted: (job: Job, context: { batch: boolean
   useEffect(() => {
     onCompletedRef.current = onCompleted;
   });
+  // 우측 상단 「할 일 · 소식」을 이 화면의 띠와 같은 때에 맞춘다(FE#244) — 넣은 직후 · 다시 시도 · 끝난 직후
+  const refreshWork = useWorkRefresh();
 
   useEffect(() => {
     // 서버 렌더링과 첫 클라이언트 렌더링을 같게 두고 저장소를 복원한다.
@@ -103,6 +106,7 @@ export function useAnalysisJob(onCompleted: (job: Job, context: { batch: boolean
       const current = jobsRef.current;
       const batch = current.length > 1;
       const completed: Job[] = [];
+      let finished = false;
       commit(current.flatMap((t): TrackedJob[] => {
         const index = ids.indexOf(t.jobId);
         if (index < 0) return [t];
@@ -114,15 +118,17 @@ export function useAnalysisJob(onCompleted: (job: Job, context: { batch: boolean
           return [{ ...t, gone, checkFailed: true, checkError: e instanceof Error ? e.message : "분석 상태를 확인하지 못했어요." }];
         }
         const job = result.value;
+        if ((job.status === "COMPLETED" || job.status === "FAILED") && t.job?.status !== job.status) finished = true;
         if (job.status !== "COMPLETED") return [{ ...t, job }];
         if (!t.notified) completed.push(job);
         return !batch && nothingToShow(job) ? [] : [{ ...t, job, notified: true }];
       }));
       setTick((n) => n + 1);
+      if (finished) refreshWork();
       completed.forEach((job) => void onCompletedRef.current(job, { batch }));
     }, unknown ? 0 : POLL_MS);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [waitingIds, unknown, tick]);
+  }, [waitingIds, unknown, tick, refreshWork]);
 
   function commit(next: TrackedJob[]) {
     jobsRef.current = next;
@@ -141,6 +147,7 @@ export function useAnalysisJob(onCompleted: (job: Job, context: { batch: boolean
       const job = await retryJob(jobId);
       ++generation.current;
       commit(jobsRef.current.map((t) => (t.jobId === jobId ? { ...t, job, gone: false, checkFailed: false, checkError: undefined } : t)));
+      refreshWork();
     } finally {
       retrying.current.delete(jobId);
     }
@@ -161,6 +168,7 @@ export function useAnalysisJob(onCompleted: (job: Job, context: { batch: boolean
     start(pending: PendingJob[]) {
       ++generation.current;
       commit(pending.map((p) => ({ ...p, job: null, checkFailed: false })));
+      refreshWork();
     },
     async retry() {
       if (jobsRef.current.length === 1) await retryOne(jobsRef.current[0].jobId);
