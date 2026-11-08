@@ -152,3 +152,31 @@ test("the tab bar hides while scrolling down, returns on the way up, and stays o
   await page.getByRole("textbox").first().blur();
   await expect(tabs).toBeVisible();
 });
+
+// FE#243 — 지원서가 0개면 「모든 지원서」 대신 넣으러 가는 곳이라는 이름. 있으면 그대로 「모든 지원서」
+test("with no applications the sidebar link says where it goes, not 「모든 지원서」", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop");
+  await page.route("https://cdn.jsdelivr.net/**", route => route.abort());
+  await new FakeQuestionApi({ empty: true }).install(page);
+  await page.goto("/experience");
+  await expect(applications(page).getByText("아직 넣은 지원서가 없어요.")).toBeVisible();
+  await expect(applications(page).getByRole("link", { name: "모든 지원서", exact: true })).toHaveCount(0);
+  const first = applications(page).getByRole("link", { name: "첫 지원서 넣기", exact: true });
+  await expect(first).toHaveAttribute("href", "/questions");
+  await page.screenshot({ path: "artifacts/sidebar-applications-empty-1440.png", style: "nextjs-portal { display: none !important; }" });
+  await first.click();
+  await expect(page).toHaveURL(/\/questions$/);
+});
+
+test("with applications the sidebar keeps 「모든 지원서」; a load failure does not claim there are none", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop");
+  const api = await install(page);
+  await page.goto("/experience");
+  await expect(applications(page).getByRole("link", { name: "모든 지원서", exact: true })).toBeVisible();
+  await expect(applications(page).getByRole("link", { name: "첫 지원서 넣기", exact: true })).toHaveCount(0);
+  await page.screenshot({ path: "artifacts/sidebar-applications-filled-1440.png", style: "nextjs-portal { display: none !important; }" });
+  api.listDown = true;
+  await page.reload();
+  await expect(applications(page).getByRole("alert")).toContainText("지원서를 불러오지 못했어요.");
+  await expect(applications(page).getByRole("link", { name: "첫 지원서 넣기", exact: true })).toHaveCount(0);
+});
