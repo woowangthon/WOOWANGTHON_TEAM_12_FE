@@ -47,7 +47,8 @@ function AnswerEditor({ questionId, confirmed: a, checks, draftLabel, onAskDraft
       onChange={e => g.setText(e.target.value)}
       className="block w-full min-w-0 resize-y border-0 bg-transparent p-5 text-ui leading-relaxed outline-none focus-visible:outline-none disabled:bg-surface-soft" />
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-hairline-soft px-3.5 py-2.5">
-      {/* 왼쪽은 글을 살피는 일, 오른쪽은 다음 행동 — 초안 부탁을 더 많이 쓴다(FE#215). 「다 썼어요」가 줄 끝이다. 「분석 1회」는 줄에 한 번, 오른쪽 묶음 앞에(S-15) */}
+      {/* 왼쪽은 글을 살피는 일, 오른쪽은 다음 행동 — 초안 부탁을 더 많이 쓴다(FE#215). 「다 썼어요」가 줄 끝이다.
+          「분석 1회」는 줄에 한 번, 「다 썼어요」 바로 앞에(S-15 · #217) — 「초안 부탁하기」는 분석을 쓰지 않아 그 옆에 두지 않는다(FE#249) */}
       <div className="flex flex-wrap items-center gap-2">
         <span className="mr-1 text-xs text-muted tabular-nums">{g.text.length.toLocaleString()} / 5,000자</span>
         <Button variant="ghost" className="min-h-11" title="분석 1회를 써요" disabled={!valid || g.loading || g.busy || analyzing || !g.initialized} onClick={() => void g.submit(g.text)}>
@@ -55,8 +56,8 @@ function AnswerEditor({ questionId, confirmed: a, checks, draftLabel, onAskDraft
         </Button>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <AnalysisCost running={g.busy || analyzing || locked} />
         {draftLabel && <Button variant="secondary" className="min-h-11" onClick={onAskDraft}>{draftLabel}</Button>}
+        <AnalysisCost running={g.busy || analyzing || locked} />
         <Button disabled={!valid || g.loading || g.busy || analyzing || !g.initialized || locked} onClick={() => void a.confirm(g.text)}>{a.busy ? "처리 중…" : "다 썼어요"}</Button>
       </div>
     </div>

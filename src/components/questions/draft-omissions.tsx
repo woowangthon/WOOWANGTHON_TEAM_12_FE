@@ -12,6 +12,8 @@ import { bubble, type AnswerHandler } from "./clarifications";
 import { DraftComposer } from "./draft-composer";
 import { ActivityChip } from "./question-result";
 import { requestError } from "./draft-errors";
+import { scrollWithinContainer } from "@/lib/scroll";
+import { cn } from "@/lib/utils";
 
 function answerError(e: unknown) {
   if (e instanceof ApiError) {
@@ -103,10 +105,19 @@ export function DraftFollowUp({ question, onAnswer, onGenerate, onRefresh, savin
   const pending = useRef(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 「초안 부탁하기」(FE#249) — 패널이 이미 열려 있어도 반응이 보이게: 패널 안에서만 「초안 준비」로 옮기고, 카드를 한 번 강조하고,
+  // 초점은 「초안 만들기」로(못 누르는 상태면 카드로). 메인 페이지는 움직이지 않는다
+  const [highlight, setHighlight] = useState(false);
   useEffect(() => {
-    if (!focusRequest) return;
-    target.current?.scrollIntoView({ block: "start" });
-    target.current?.focus({ preventScroll: true });
+    if (!focusRequest || !target.current) return;
+    const section = target.current;
+    scrollWithinContainer(section);
+    const generate = section.querySelector<HTMLButtonElement>("[data-draft-generate]");
+    (generate && !generate.disabled ? generate : section).focus({ preventScroll: true });
+    // 렌더 중이 아니라 효과 안에서 한 번 켰다가 끈다 — 같은 요청을 여러 번 눌러도 다시 강조한다
+    const on = setTimeout(() => setHighlight(true), 0);
+    const off = setTimeout(() => setHighlight(false), 1200);
+    return () => { clearTimeout(on); clearTimeout(off); setHighlight(false); };
   }, [focusRequest]);
   const draft = question.draft;
   const analyzing = requestingDraft || draft?.status === "ANALYZING";
@@ -118,7 +129,10 @@ export function DraftFollowUp({ question, onAnswer, onGenerate, onRefresh, savin
     catch (e) { setError(requestError(e)); }
     finally { pending.current = false; setRefreshing(false); }
   };
-  return <section ref={target} tabIndex={-1} aria-label="차곡이의 초안" className="mt-3 grid min-w-0 scroll-mt-4 gap-2.5 border-t border-hairline pt-4 outline-none">
+  return <section ref={target} tabIndex={-1} aria-label="차곡이의 초안" data-highlight={highlight || undefined}
+    // 강조는 테두리 한 번 — 움직임 줄이기면 서서히 사라지지 않고 바로 켜졌다 꺼진다
+    className={cn("mt-3 grid min-w-0 scroll-mt-4 gap-2.5 rounded-sm border-t border-hairline pt-4 outline-2 outline-offset-4 motion-safe:transition-[outline-color] motion-safe:duration-700",
+      highlight ? "outline-ink" : "outline-transparent")}>
     <h3 className="m-0 text-xs font-semibold text-muted">{draft ? "초안 보완" : "초안 준비"}</h3>
     {analyzing ? <p role="status" className={bubble}>고른 경험과 보완을 읽고 초안을 만드는 중이에요…</p> : draft ? <>
       {draft?.status === "FAILED" ? <p className={bubble}>초안을 완성하지 못했어요. 아래 설정에서 다시 요청해 주세요.</p> : <>
