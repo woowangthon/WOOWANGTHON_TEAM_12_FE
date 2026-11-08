@@ -71,6 +71,18 @@ export function updateApplication(id: number, req: UpdateApplicationRequest): Pr
   return request(`/applications/${id}`, req, "PATCH");
 }
 
+/** 지원 칸(이름 · 종류 · 직무 · 상태 · 낸 달) 저장 실패의 이유 한 문장 — 사용자 말로(FE#240).
+ *  서버의 검증 문구(400 INVALID_REQUEST)엔 필드 이름이 들어 있어 그대로 보이지 않는다. 연결 · 서버 오류 문구는 공통 요청이 이미 사용자 말로 만든다.
+ *  「○○을 저장하지 못했어요.」는 부르는 쪽이 앞에 붙인다. 늘 마침표로 끝난다 */
+export function applicationSaveError(e: unknown): string {
+  if (e instanceof ApiError) {
+    if (e.code === "APPLICATION_NOT_FOUND") return "이 지원을 찾지 못했어요. 지원 목록을 새로고침해 주세요.";
+    if (e.code === "INVALID_REQUEST" || e.status === 400) return "서버가 이 값을 받지 않았어요.";
+    if (e.code === "NETWORK_ERROR" || e.code === "INVALID_RESPONSE" || e.code.startsWith("HTTP_")) return e.message;
+  }
+  return "잠시 뒤 다시 시도해 주세요.";
+}
+
 /** PATCH /api/questions/{id} — 문항 유형 고치기(S-41). 고친 유형은 다시 시도 · 매칭이 덮어쓰지 않는다 */
 export function updateQuestionType(id: number, questionType: QuestionType): Promise<QuestionDetail> {
   return request(`/questions/${id}`, { questionType }, "PATCH");
