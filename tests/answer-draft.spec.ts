@@ -584,3 +584,45 @@ test("an unconfirmed answer relayed by external AI is labelled apart and the dra
   await expect(page.getByText("다른 지원서에서도 이 답을 근거로 같이 써요", { exact: false }).first()).toBeVisible();
   await expect(page.getByText("Claude가 전한 답이에요.", { exact: false })).toHaveCount(0);
 });
+
+// FE#249 — 「초안 부탁하기」: 패널이 열려 있어도 반응이 보이고(강조 · 초점), 메인 페이지는 움직이지 않는다. 「분석 1회」는 「다 썼어요」 옆
+test("초안 부탁하기 — 열린 패널에서도 「초안 준비」를 강조하고 「초안 만들기」로 초점을 옮기며 메인 스크롤은 그대로다", async ({ page }, info) => {
+  await setup(page);
+  const ask = page.getByRole("button", { name: /초안 부탁하기|초안 설정 열기/ });
+  const wide = page.viewportSize()!.width >= 1280;
+  if (wide) await expect(page.getByRole("complementary", { name: "차곡이", exact: true })).toBeVisible(); // 넓은 화면은 패널이 처음부터 열려 있다
+  await ask.scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollBy(0, 120));
+  const before = await page.evaluate(() => window.scrollY);
+  expect(before).toBeGreaterThan(0);
+  for (let i = 0; i < 3; i++) {
+    if (!wide && i > 0) { await page.keyboard.press("Escape"); await expect(draftFollowUp(page)).toBeHidden(); }
+    await ask.click();
+    const follow = draftFollowUp(page);
+    await expect(follow).toBeVisible();
+    await expect(follow.getByRole("button", { name: "초안 만들기", exact: true })).toBeFocused();
+    if (wide) await expect(follow).toHaveAttribute("data-highlight", "true");
+    expect(await page.evaluate(() => window.scrollY)).toBe(before);
+  }
+  if (wide) await expect(draftFollowUp(page)).not.toHaveAttribute("data-highlight", "true"); // 강조는 한 번 — 곧 사라진다
+  await page.screenshot({ path: `artifacts/draft-ask-${info.project.name}.png`, style: "nextjs-portal { display: none !important; }" });
+  if (!wide) return;
+  // 1024 는 패널이 Sheet 로 올라온다(넓은 배치는 1280 부터) — 지금처럼 열리고 「초안 준비」로 간다
+  await page.getByRole("button", { name: "차곡이 닫기", exact: true }).click();
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await ask.click();
+  await expect(draftFollowUp(page).getByRole("button", { name: "초안 만들기", exact: true })).toBeFocused();
+  await page.waitForTimeout(600); // Sheet 가 다 올라온 뒤 찍는다
+  await page.screenshot({ path: "artifacts/draft-ask-1024.png", style: "nextjs-portal { display: none !important; }" });
+});
+
+test("답 칸 줄의 「분석 1회」는 「다 썼어요」 바로 앞에 있다 (#217 · FE#249)", async ({ page }) => {
+  await setup(page);
+  await closeDraftPanel(page);
+  const order = await page.getByRole("button", { name: "다 썼어요", exact: true }).evaluate((done) =>
+    [...done.parentElement!.children].map((el) => el.textContent?.trim()));
+  const cost = order.findIndex((text) => text?.startsWith("분석 1회"));
+  expect(order[cost + 1]).toBe("다 썼어요");
+  expect(order.slice(0, cost).some((text) => /초안 부탁하기|초안 설정 열기/.test(text ?? ""))).toBe(true);
+  expect(order.filter((text) => text?.startsWith("분석 1회"))).toHaveLength(1);
+});
