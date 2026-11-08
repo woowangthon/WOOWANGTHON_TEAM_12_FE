@@ -438,3 +438,26 @@ test("source HTTP failure keeps the text and never shows mock analysis success",
   await expect(page.getByRole("dialog").getByRole("textbox")).toHaveValue("Mock source text");
   await expect(page.getByText(/목 분석 결과/)).toHaveCount(0);
 });
+
+// FE#241 — 바로 고치기 안내는 두 줄: 위 「내가 입력」이 된다는 것(S-10), 아래 키. 한 문장으로 이어 붙여 중간에서 꺾이지 않는다
+test("바로 고치기 안내는 「내가 입력」 줄과 키 줄로 나뉘고 세 폭에서 각 줄이 꺾이지 않는다", async ({ page }, info) => {
+  await setup(page);
+  await page.getByRole("button", { name: /^경험 고치기:/ }).click();
+  const field = page.getByLabel("경험 내용");
+  const note = page.getByText("고치면 「내가 입력」이 돼요 · 원래 근거는 남아요", { exact: true });
+  const keys = page.getByText("Enter 저장 · Shift+Enter 줄 바꿈 · Esc 취소", { exact: true });
+  await expect(note).toBeVisible();
+  await expect(keys).toBeVisible();
+  await expect(field).toHaveAccessibleDescription("고치면 「내가 입력」이 돼요 · 원래 근거는 남아요 Enter 저장 · Shift+Enter 줄 바꿈 · Esc 취소");
+  const widths = info.project.name === "desktop" ? [1440, 1024, 390] : [page.viewportSize()!.width];
+  for (const width of widths) {
+    if (info.project.name === "desktop") await page.setViewportSize({ width, height: 1000 });
+    // 위 줄이 아래 줄보다 위 · 각 줄은 한 줄 높이를 넘지 않는다
+    const [n, k] = [(await note.boundingBox())!, (await keys.boundingBox())!];
+    expect(n.y + n.height).toBeLessThanOrEqual(k.y + 1);
+    const lineHeight = (el: typeof note) => el.evaluate((x) => parseFloat(getComputedStyle(x).lineHeight));
+    expect(n.height).toBeLessThan((await lineHeight(note)) * 1.5);
+    expect(k.height).toBeLessThan((await lineHeight(keys)) * 1.5);
+    if (info.project.name === "desktop") await page.screenshot({ path: `artifacts/inline-edit-hint-${width}.png`, style: "nextjs-portal { display: none !important; }" });
+  }
+});
