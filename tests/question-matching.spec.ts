@@ -91,8 +91,38 @@ test("organization name edits in place: Enter saves, Esc cancels, failure keeps 
   await name.click();
   await input.fill("실패할 이름");
   await input.press("Enter");
-  await expect(page.getByRole("alert").filter({ hasText: "글자를 고치거나" })).toContainText("잠시 뒤 다시 시도해 주세요");
+  const failure = page.getByRole("alert").filter({ hasText: "이름을 저장하지 못했어요." });
+  await expect(failure).toContainText("잠시 뒤 다시 시도해 주세요.");
   await expect(input).toHaveValue("실패할 이름");
+
+  // FE#240 — 서버 검증 문구(필드 이름)는 보이지 않고, 「다시 시도」로 같은 글자를 다시 저장한다
+  api.patchDown = false;
+  api.patchInvalid = true;
+  await failure.getByRole("button", { name: "다시 시도", exact: true }).click();
+  await expect(failure).toContainText("서버가 이 값을 받지 않았어요.");
+  await expect(failure).not.toContainText(/organizationType|jobRole|applicationStatus|submittedMonth/);
+  await expect(input).toHaveValue("실패할 이름");
+  const shot = test.info().project.name === "desktop" ? [1440, 1024] : [page.viewportSize()!.width];
+  for (const width of shot) {
+    if (width !== page.viewportSize()!.width) await page.setViewportSize({ width, height: 1000 });
+    await failure.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `artifacts/organization-name-error-${width}.png`, style: "nextjs-portal { display: none !important; }" });
+  }
+  api.patchInvalid = false;
+  await failure.getByRole("button", { name: "다시 시도", exact: true }).click();
+  await expect(name).toContainText("실패할 이름");
+  await expect(failure).toHaveCount(0);
+  expect(api.calls.filter(c => c.call.startsWith("PATCH")).map(c => c.body).slice(-3)).toEqual([{ organization: "실패할 이름" }, { organization: "실패할 이름" }, { organization: "실패할 이름" }]);
+});
+
+test("a type save rejected by server validation shows a user message, not field names (FE#240)", async ({ page }) => {
+  const api = await fake(page);
+  await page.goto("/questions?question=41");
+  api.patchInvalid = true;
+  await pickOption(page.getByLabel("직무", { exact: true }), "프론트엔드 · 웹");
+  const failure = page.getByRole("alert").filter({ hasText: "직무을(를) 저장하지 못했어요." });
+  await expect(failure).toContainText("서버가 이 값을 받지 않았어요.");
+  await expect(failure).not.toContainText(/organizationType|jobRole|applicationStatus|submittedMonth/);
 });
 
 test("question 41/42 switch shows contract judgments, actors and supplemental evidence; selection lives in the URL", async ({ page }, info) => {
