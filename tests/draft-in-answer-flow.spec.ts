@@ -269,3 +269,22 @@ test("근거 칩 — 추천 밖(보조 재료) 경험의 근거도 원문 이름
   await card.getByText("원문 · 맥락-회고.md", { exact: true }).click();
   await expect(card.getByText("같은 활동의 다른 기록에서 가져온 발췌입니다.")).toBeVisible();
 });
+
+// FE#258 — 근거 문장은 누가 했는지 쓰지 않았으니 주체 줄이 선택으로만 보인다
+test("근거 문장의 주체 줄은 고칠 일이 아니라 선택으로 보인다", async ({ page }) => {
+  await open(page, q => { q.draft!.sentences[0].evidence = q.draft!.sentences[0].evidence.map(e => ({ ...e, actor: "UNKNOWN" as const })); });
+  await page.getByRole("button", { name: /^근거 — 「바꿔요」 프로젝트에서/ }).first().click();
+  const card = sentenceCard(page);
+  await expect(card.getByText("이 문장은 누가 했는지 쓰지 않았어요.", { exact: false })).toBeVisible();
+  await expect(card.getByText("누가 했는지 확인 안 됨", { exact: false })).toHaveCount(0);
+  await expect(card.getByRole("button", { name: "내가 했어요", exact: true })).toBeVisible();
+});
+
+// FE#258 — 맞아요를 누른 생각 문장에는 확인하라는 경고가 없다
+test("맞아요를 누른 생각 문장 카드에는 경고가 없다", async ({ page }) => {
+  await open(page, q => { q.draft!.sentences[4].confirmed = true; });
+  await page.getByRole("button", { name: /^근거 — 앞으로도/ }).first().click();
+  const card = sentenceCard(page);
+  await expect(card).toBeVisible();
+  await expect(card.getByText("맞는지 보고 고치거나 빼 주세요", { exact: false })).toHaveCount(0);
+});
