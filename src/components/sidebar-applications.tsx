@@ -91,6 +91,10 @@ export function SidebarApplications({ applications, loading, error, onRetry, onN
         <Link href={`/questions?question=${a.questions[0].id}`} className={`${sidebarApplicationRow} hover:bg-canvas/60`}><SidebarApplicationText application={a} /></Link>
         <span className="pointer-events-none absolute top-2 right-1.5 inline-flex h-6 items-center rounded-full bg-surface-soft px-2.5 text-xs font-medium whitespace-nowrap text-body">{APPLICATION_STATUS_LABEL[a.applicationStatus]}</span>
       </li>)}</ul>}
-    {showAll && <Link href="/questions" className="mt-1 inline-flex min-h-8 shrink-0 items-center self-start px-3.5 text-note text-muted hover:text-ink">모든 지원서</Link>}
+    {/* 0개로 확인됐으면 「모든 지원서」가 아니라 넣으러 가는 곳이라는 이름으로(FE#243) — 같은 /questions 의 지원서 넣는 칸.
+        불러오는 중 · 실패 · 목 모드는 개수를 모르니 지금처럼 「모든 지원서」 */}
+    {showAll && <Link href="/questions" className="mt-1 inline-flex min-h-8 shrink-0 items-center self-start px-3.5 text-note text-muted hover:text-ink">
+      {!isMockMode() && !loading && !error && !applications.length ? "첫 지원서 넣기" : "모든 지원서"}
+    </Link>}
   </section>;
 }
