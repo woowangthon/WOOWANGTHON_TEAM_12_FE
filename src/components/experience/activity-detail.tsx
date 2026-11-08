@@ -15,6 +15,7 @@ import { ActivityCategoryField } from "./activity-category";
 import { ActivityNameField, PeriodField, type InlineEditHandle } from "./inline-edit";
 import { ActivityNote } from "./activity-note";
 import { ActivityLinks } from "./activity-links";
+import { ActivityActorDecision } from "./activity-actor";
 import { ExperienceEditor } from "./experience-editor";
 import { MergeSuggestionView } from "./merge-suggestion";
 import { SourceFileButton } from "./source-viewer";
@@ -149,6 +150,7 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
             </Button>
           </div>
         )}
+        {activity && !readOnly && <ActivityActorDecision key={`actor-${activity.id}`} activity={activity} onSaved={onExperienceSaved} />}
         {activity && <ExperienceList key={activity.id} activity={activity} readOnly={readOnly} onSaved={onExperienceSaved} onAdded={onExperienceAdded} onDelete={onExperienceDelete}
           onMove={onExperienceMove} onMerge={activity.experiences.length > 1 ? onExperienceMerge : undefined} onDragChange={onDragChange} draggingId={draggingId} />}
       </div>

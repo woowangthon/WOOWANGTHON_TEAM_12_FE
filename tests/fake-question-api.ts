@@ -125,7 +125,7 @@ export class FakeQuestionApi {
   private summary({ detail }: Stored): QuestionSummary {
     return {
       id: detail.id, applicationId: detail.applicationId, organization: detail.organization, text: detail.text,
-      questionType: detail.questionType ?? null, questionTypeBy: detail.questionTypeBy ?? null, status: detail.status, createdAt: detail.createdAt,
+      questionType: detail.questionType ?? null, questionTypeBy: detail.questionTypeBy ?? null, targetLength: detail.targetLength ?? null, status: detail.status, createdAt: detail.createdAt,
     };
   }
 
@@ -203,9 +203,14 @@ export class FakeQuestionApi {
       if (this.patchDown) return error(route, 503, "INTERNAL_ERROR", "잠시 뒤 다시 시도해 주세요");
       const q = this.questions.find(x => x.detail.id === +m![1]);
       if (!q) return error(route, 404, "QUESTION_NOT_FOUND");
-      if (!body?.questionType) return error(route, 400, "INVALID_REQUEST");
-      q.detail.questionType = body.questionType;
-      q.detail.questionTypeBy = "USER";
+      // question-api 「PATCH /api/questions」 — questionType · targetLength 중 하나 이상, 보낸 필드만
+      const hasType = body && "questionType" in body, hasLength = body && "targetLength" in body;
+      if (!hasType && !hasLength) return error(route, 400, "INVALID_REQUEST");
+      if (hasType && !body.questionType) return error(route, 400, "INVALID_REQUEST");
+      const length = hasLength ? body.targetLength : undefined;
+      if (length !== undefined && length !== null && (!Number.isInteger(length) || length < 100 || length > 5000)) return error(route, 400, "INVALID_REQUEST");
+      if (hasType) { q.detail.questionType = body.questionType; q.detail.questionTypeBy = "USER"; }
+      if (hasLength) q.detail.targetLength = length;
       return json(route, this.now(q.detail));
     }
     if (method === "POST" && path === "/api/applications") {

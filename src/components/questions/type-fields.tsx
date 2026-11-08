@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, optionsOf } from "@/components/ui/select";
+import { isTargetLength, MAX_TARGET_LENGTH, MIN_TARGET_LENGTH } from "@/lib/target-length";
 import { cn } from "@/lib/utils";
 import { applicationSaveError } from "@/lib/api/questions";
 import {
@@ -110,6 +111,46 @@ export function ApplicationTypeFields({ application, onSave }: {
     <SavingSelect<JobRole> label="직무" value={application.jobRole ?? null} options={JOB_ROLE_LABEL}
       placeholder="직무 고르기" clearable onSave={jobRole => onSave({ jobRole })} />
     {application.submittedMonth && <SubmittedMonthField value={application.submittedMonth} onSave={submittedMonth => onSave({ submittedMonth })} />}
+  </>;
+}
+
+/** 문항 머리 — 목표 글자 수(S-77). 칸을 벗어나거나 Enter 로 저장, 비우면 null. 100 ~ 5000 밖이면 저장하지 않고 알린다.
+ *  눈에는 알약 하나(「목표 500자」 · 「목표 글자 수」), 누르면 숫자 칸이 된다 */
+export function TargetLengthField({ value, onSave }: { value: number | null; onSave: (targetLength: number | null) => Promise<void> }) {
+  const id = useId();
+  const { pending, failed, save } = useSaving(onSave);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [invalid, setInvalid] = useState(false);
+  const shown = pending ? pending.value : value;
+  const open = () => { setDraft(shown === null ? "" : String(shown)); setInvalid(false); setEditing(true); };
+  const commit = () => {
+    const text = draft.trim();
+    const next = text === "" ? null : Number(text);
+    if (next !== null && !isTargetLength(next)) { setInvalid(true); return; }
+    setEditing(false);
+    setInvalid(false);
+    if (next !== shown) void save(next);
+  };
+  return <>
+    {editing ? <span className="inline-flex min-h-11 items-center gap-1 text-xs">
+      <label htmlFor={id} className="sr-only">목표 글자 수</label>
+      <input id={id} autoFocus inputMode="numeric" value={draft} placeholder="500" aria-invalid={invalid} aria-describedby={invalid ? `${id}-invalid` : undefined}
+        onChange={e => { setDraft(e.target.value.replace(/[^\d]/g, "")); setInvalid(false); }}
+        onBlur={commit}
+        onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") { setEditing(false); setInvalid(false); } }}
+        className="h-6 w-16 rounded-full border border-hairline bg-canvas px-2.5 text-xs tabular-nums text-ink outline-none focus-visible:border-ink aria-invalid:border-error" />
+      <span className="text-muted">자</span>
+    </span>
+      : <button type="button" onClick={open} disabled={!!pending} aria-label={shown === null ? "목표 글자 수 정하기" : `목표 ${shown}자 — 고치기`}
+        className="group inline-flex min-h-11 shrink-0 cursor-pointer items-center rounded-full disabled:cursor-default disabled:opacity-60">
+        <span className={cn("inline-flex h-6 items-center rounded-full bg-surface-soft px-2.5 text-xs font-medium whitespace-nowrap tabular-nums", shown === null ? "text-muted" : "text-body")}>
+          {shown === null ? "목표 글자 수" : `목표 ${shown.toLocaleString("ko-KR")}자`}
+        </span>
+      </button>}
+    {invalid && <span id={`${id}-invalid`} role="alert" className="text-note text-error">{MIN_TARGET_LENGTH} ~ {MAX_TARGET_LENGTH.toLocaleString("ko-KR")}자로 적어 주세요</span>}
+    {pending && <span role="status" className="text-note text-muted">저장하고 있어요…</span>}
+    {failed && <SaveFailed what="목표 글자 수를" message={failed.message} onRetry={() => void save(failed.value)} className="w-full" />}
   </>;
 }
 

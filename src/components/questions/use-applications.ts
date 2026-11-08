@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { addApplicationQuestion, answerClarification, createQuestionDraft, fetchApplications, fetchQuestion, retryQuestion, submitApplication, updateApplication, updateQuestionType } from "@/lib/api/questions";
+import { addApplicationQuestion, answerClarification, createQuestionDraft, fetchApplications, fetchQuestion, retryQuestion, submitApplication, updateApplication, updateQuestionTargetLength, updateQuestionType } from "@/lib/api/questions";
 import { ApiError } from "@/lib/api/errors";
 import type { DraftFrame } from "@/lib/draft-frames";
 import type { Answer, Application, CreateApplicationRequest, QuestionDetail, QuestionSummary, QuestionType, UpdateApplicationRequest } from "@/lib/api/question-types";
@@ -42,8 +42,8 @@ function keepInUrl(id: number) {
   window.history.replaceState(window.history.state, "", url);
 }
 
-const summaryOf = ({ id, applicationId, organization, text, questionType, questionTypeBy, status, createdAt }: QuestionDetail): QuestionSummary =>
-  ({ id, applicationId, organization, text, questionType, questionTypeBy, status, createdAt });
+const summaryOf = ({ id, applicationId, organization, text, questionType, questionTypeBy, targetLength, status, createdAt }: QuestionDetail): QuestionSummary =>
+  ({ id, applicationId, organization, text, questionType, questionTypeBy, targetLength, status, createdAt });
 /** 새로 받은 문항의 상태를 지원 목록에도 — 목록을 다시 받지 않고 「분석 중 N」 · 점 색을 맞춘다. 더한 문항은 끝에 붙인다 */
 function patch(applications: Application[], fresh: QuestionDetail[]): Application[] {
   if (!fresh.length) return applications;
@@ -298,6 +298,16 @@ export function useApplications() {
         const kept = prev.details[questionId];
         // 응답은 문항 전체지만 유형만 바뀐 것 — 받아 둔 추천이 있으면 그대로 두고 유형만 옮긴다
         const detail = kept ? { ...kept, questionType: saved.questionType, questionTypeBy: saved.questionTypeBy } : saved;
+        return { ...prev, details: { ...prev.details, [questionId]: detail }, applications: patch(prev.applications, [detail]) };
+      });
+    },
+    /** 목표 글자 수(S-77) — 유형과 같이 칸만 옮긴다. 실패는 부르는 쪽에 던진다 */
+    updateTargetLength: async (questionId: number, targetLength: number | null) => {
+      ++generation.current;
+      const saved = await updateQuestionTargetLength(questionId, targetLength);
+      setState(prev => {
+        const kept = prev.details[questionId];
+        const detail = kept ? { ...kept, targetLength: saved.targetLength ?? null } : saved;
         return { ...prev, details: { ...prev.details, [questionId]: detail }, applications: patch(prev.applications, [detail]) };
       });
     },
