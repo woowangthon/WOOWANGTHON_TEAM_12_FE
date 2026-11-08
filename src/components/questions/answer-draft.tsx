@@ -66,6 +66,18 @@ export function openBlanks(draft: Draft, removed: Set<number>, local: Record<num
   return blanksOf(draft).filter(b => !removed.has(b.omission.sentenceIndex!) && !answered(b.omission, local));
 }
 
+/** 남은 확인할 곳 중 글에서 맨 앞 — 고치기 전 경고의 「먼저 확인하기」가 연다(FE#262) */
+export function firstCheck(draft: Draft, removed: Set<number>, local: Record<number, string>): Selection {
+  const blanks = openBlanks(draft, removed, local);
+  for (const [i, s] of draft.sentences.entries()) {
+    if (removed.has(i)) continue;
+    const blank = blanks.find(b => b.omission.sentenceIndex === i);
+    if (blank) return { kind: "blank", at: blank.at };
+    if (marked(s)) return { kind: "sentence", index: i };
+  }
+  return null;
+}
+
 const LABEL: Record<DraftSentence["kind"], string> = { FACT: "근거", ELABORATED: "AI 보탬 — 확인 필요", OPINION: "AI 제안 — 확인 필요" };
 
 type ReviewProps = {
@@ -163,7 +175,6 @@ function DraftCard({ question, draft, removed, local, selected, onRemove, onEdit
     {s.kind !== "OPINION" && <ActorLine sentence={s} onDecided={onActorDecided} />}
     <div className="flex flex-wrap gap-2">
       {marked(s) && s.id != null && <ConfirmButton sentence={s} onConfirm={onConfirm} disabled={disabled} />}
-      <Button size="sm" variant="secondary" className="min-h-11" disabled={disabled} onClick={onEdit}>고치기</Button>
       <Button size="sm" variant="ghost" className="min-h-11" disabled={disabled} onClick={() => { onRemove(index); onClose(); }}>빼기</Button>
       <Button size="sm" variant="ghost" className="ml-auto hidden min-h-11 lg:inline-flex" onClick={onClose}>닫기</Button>
     </div>

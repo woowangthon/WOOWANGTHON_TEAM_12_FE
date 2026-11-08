@@ -33,8 +33,8 @@ async function open(page: Page) {
 
 test("초안이 답칸에 표시와 함께 들어오고, 표시를 누르면 카드가 열린다", async ({ page }) => {
   await open(page);
-  await expect(page.getByText("확인할 곳 4")).toBeVisible();
-  await page.getByText("확인할 곳 4").scrollIntoViewIfNeeded();
+  await expect(page.getByText("확인할 곳 4군데")).toBeVisible();
+  await page.getByText("확인할 곳 4군데").scrollIntoViewIfNeeded();
   await shot(page, "view");
   await page.getByRole("button", { name: /^AI 보탬 — 확인 필요 — 메시지가 늦게/ }).first().click();
   await expect(page.getByText("왜 확인이 필요한가요 — 대화가 끊긴 불편은 자료에 없어 AI 가 풀어 썼어요").filter({ visible: true })).toBeVisible();
@@ -54,12 +54,11 @@ test("빈칸 카드와 주체 확인 카드", async ({ page }) => {
 
 test("고치기 — 빈칸이 남았으면 먼저 묻고, 일반 입력칸 아래에 빠진 사실 질문이 남는다", async ({ page }) => {
   await open(page);
-  await page.getByRole("button", { name: /^근거 — 「바꿔요」 프로젝트에서/ }).first().click();
-  await page.getByRole("group", { name: "문장 카드" }).filter({ visible: true }).getByRole("button", { name: "고치기", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "직접 고치면 빈칸 표시가 사라져요" });
+  await page.getByRole("button", { name: "직접 고치기", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "확인할 곳 4군데가 남았어요" });
   await expect(dialog).toBeVisible();
   await shot(page, "edit-ask");
-  await dialog.getByRole("button", { name: "고치기", exact: true }).click();
+  await dialog.getByRole("button", { name: "직접 고치기", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toHaveValue(/\[줄어든 정도\]/);
   await expect(page.getByRole("region", { name: "초안의 빠진 사실" })).toBeVisible();
   await page.getByRole("region", { name: "초안의 빠진 사실" }).scrollIntoViewIfNeeded();
