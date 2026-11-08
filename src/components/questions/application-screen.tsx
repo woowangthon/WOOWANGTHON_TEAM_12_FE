@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { MAX_QUESTIONS_PER_APPLICATION, type Answer, type Application, type QuestionDetail, type QuestionSummary, type QuestionType, type UpdateApplicationRequest } from "@/lib/api/question-types";
+import { markPrefilled, targetLengthFromText, wasPrefilled } from "@/lib/target-length";
 import { AddQuestionForm, ApplicationForm } from "./application-form";
 import { overlapsOf, sameExperienceElsewhere, type Overlap } from "./overlap";
 import { AnswerInput } from "./answer-input";
@@ -27,7 +28,7 @@ import { useApplications } from "./use-applications";
 import { useChagokRun } from "./use-chagok-run";
 import { useDraftPicks } from "./use-draft-picks";
 import { ActivityCategoriesProvider } from "./activity-categories";
-import { ApplicationStatusTag, ApplicationTypeFields, QuestionTypeField } from "./type-fields";
+import { ApplicationStatusTag, ApplicationTypeFields, QuestionTypeField, TargetLengthField } from "./type-fields";
 import { OrganizationName } from "./organization-name";
 
 const STATUS = { ANALYZING: "분석 중", COMPLETED: "완료", FAILED: "실패" } as const;
@@ -214,7 +215,7 @@ export function ApplicationScreen() {
                 if (saved) setAdding(false);
               }} /> : <SelectedQuestion key={matching.questionId} summary={summary} question={selected} application={open.application} index={selectedIndex}
                 loadError={matching.detailError} onReload={matching.reloadQuestion}
-                overlaps={overlaps} onPickOverlap={id => { matching.selectQuestion(id); scrollToDetail(); }} onRetry={id => matching.retry(id)} onTypeChange={(id, type) => matching.updateQuestionType(id, type)} onAnswerChange={matching.keepAnswer} groundingChecks={groundingChecks}
+                overlaps={overlaps} onPickOverlap={id => { matching.selectQuestion(id); scrollToDetail(); }} onRetry={id => matching.retry(id)} onTypeChange={(id, type) => matching.updateQuestionType(id, type)} onTargetLengthChange={(id, length) => matching.updateTargetLength(id, length)} onAnswerChange={matching.keepAnswer} groundingChecks={groundingChecks}
                 {...draftActions} onPick={picks.toggle} onOpenOmissions={openDraftQuestions} />}
             </div>
           </> : null}
@@ -323,14 +324,31 @@ function OverlapPanel({ overlaps, onPick }: { overlaps: Overlap[]; onPick: (ques
   </section>;
 }
 
+/** 목표 글자 수가 비어 있고 문항 글에 「500자」가 있으면 한 번 채워 저장한다(S-77 — 코드, LLM 안 씀). 이 브라우저에서 한 번 채운 문항은
+ *  다시 채우지 않는다 — 사용자가 지운 칸을 되살리지 않게. 저장에 실패하면 다음에 다시 시도한다 */
+function useTargetLengthPrefill(question: QuestionSummary | null, save: (id: number, targetLength: number | null) => Promise<void>) {
+  const tried = useRef<number | null>(null);
+  const id = question?.id ?? null;
+  const empty = question ? (question.targetLength ?? null) === null : false;
+  const text = question?.text ?? "";
+  useEffect(() => {
+    if (id === null || !empty || tried.current === id || wasPrefilled(id)) return;
+    const length = targetLengthFromText(text);
+    if (length === null) return;
+    tried.current = id;
+    save(id, length).then(() => markPrefilled(id), () => { tried.current = null; });
+  }, [id, empty, text, save]);
+}
+
 /** 고른 문항 — 받아 둔 내용이 있으면 바로, 처음 보는 문항이면 받는 동안 자리만(FE#60). 문항 글 · 상태는 지원 목록에 이미 있다 */
-function SelectedQuestion({ summary, question, application, index, loadError, onReload, overlaps, onPickOverlap, onRetry, onTypeChange, onAnswerChange, groundingChecks, onOpenOmissions, savingAnswer, requestingDraft, picks, onPick }: {
+function SelectedQuestion({ summary, question, application, index, loadError, onReload, overlaps, onPickOverlap, onRetry, onTypeChange, onTargetLengthChange, onAnswerChange, groundingChecks, onOpenOmissions, savingAnswer, requestingDraft, picks, onPick }: {
   summary: QuestionSummary | null; question: QuestionDetail | null; application: Application; index: number; loadError: string | null; onReload: (id: number) => void;
-  overlaps: Overlap[]; onPickOverlap: (questionId: number) => void; onRetry: (id: number) => Promise<unknown>; onTypeChange: (id: number, type: QuestionType) => Promise<void>; onAnswerChange: (id: number, answer: Answer | null) => void; groundingChecks: GroundingChecks; onPick: (experienceId: number, on: boolean) => void;
+  overlaps: Overlap[]; onPickOverlap: (questionId: number) => void; onRetry: (id: number) => Promise<unknown>; onTypeChange: (id: number, type: QuestionType) => Promise<void>; onTargetLengthChange: (id: number, targetLength: number | null) => Promise<void>; onAnswerChange: (id: number, answer: Answer | null) => void; groundingChecks: GroundingChecks; onPick: (experienceId: number, on: boolean) => void;
 } & DraftActions) {
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
   const retryPending = useRef(false);
+  useTargetLengthPrefill(question ?? summary, onTargetLengthChange);
   if (!summary) return null;
   const status = question?.status ?? summary.status;
   return <section id="question-panel" role="tabpanel" aria-label="선택한 문항" className="min-w-0">
@@ -338,6 +356,7 @@ function SelectedQuestion({ summary, question, application, index, loadError, on
       <div className="flex flex-wrap items-center gap-x-2">
         <p className="m-0 text-note font-medium text-muted">문항 {index + 1} · {STATUS[status]}</p>
         <QuestionTypeField question={question ?? summary} onSave={type => onTypeChange(summary.id, type)} />
+        <TargetLengthField value={(question ?? summary).targetLength ?? null} onSave={length => onTargetLengthChange(summary.id, length)} />
       </div>
       <h3 className="m-0 max-h-36 overflow-y-auto whitespace-pre-wrap text-xl leading-relaxed font-[650] tracking-[-0.3px]">{summary.text}</h3>
     </header>

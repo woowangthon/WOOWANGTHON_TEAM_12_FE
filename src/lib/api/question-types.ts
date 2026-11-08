@@ -52,6 +52,8 @@ export type QuestionSummary = {
   /** 매칭이 끝나면 AI 가 붙이고(`AI`), 사용자가 고치면 `USER`. 분석 중 · 실패면 null */
   questionType?: QuestionType | null;
   questionTypeBy?: "AI" | "USER" | null;
+  /** 목표 글자 수(S-77) — 100 ~ 5000, 없으면 null. 이전 서버 응답에는 없을 수 있다 */
+  targetLength?: number | null;
   status: JobStatus;
   createdAt: string;
 };
@@ -77,6 +79,8 @@ export type Draft = {
   /** 전환 전 서버의 저장 초안은 NONE / []로 표시한다. */
   frame?: DraftFrame; guidelines?: DraftGuideline[];
   questionId: number; status: JobStatus; error: Job["error"]; experienceIds: number[];
+  /** 지금 다시 만들면 분석 횟수를 쓰지 않는가 — 빠진 사실에 답했거나 주체를 정함(S-77, BE 가 판단) */
+  freeRegenerate?: boolean;
   sentences: { kind: "FACT" | "OPINION"; text: string; evidence: DraftEvidence[] }[]; omitted: DraftOmission[];
   createdAt: string; updatedAt: string;
 };

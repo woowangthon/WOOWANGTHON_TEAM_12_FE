@@ -76,6 +76,11 @@ export function updateQuestionType(id: number, questionType: QuestionType): Prom
   return request(`/questions/${id}`, { questionType }, "PATCH");
 }
 
+/** PATCH /api/questions/{id} — 목표 글자 수(S-77). null 이면 비운다. 유형 출처(questionTypeBy)는 그대로 */
+export function updateQuestionTargetLength(id: number, targetLength: number | null): Promise<QuestionDetail> {
+  return request(`/questions/${id}`, { targetLength }, "PATCH");
+}
+
 /** POST /api/applications/{id}/questions — 그 지원에 문항 더하기 */
 export async function addApplicationQuestion(applicationId: number, req: AddQuestionRequest): Promise<QuestionAdded> {
   checkText(req.text);
