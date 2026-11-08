@@ -35,8 +35,6 @@ export class FakeQuestionApi {
   listDown = false;
   /** 켜 두면 PATCH(지원처 종류 · 직무 · 상태 · 낸 달 · 문항 유형)가 503 — 저장 실패 */
   patchDown = false;
-  /** 켜 두면 지원 PATCH 가 400 INVALID_REQUEST — 서버 검증 문구(필드 이름)가 그대로 온다(FE#240) */
-  patchInvalid = false;
   /** 지원 ID → 지원처 종류 · 직무(S-42) */
   types = new Map<number, { organizationType: OrganizationType | null; jobRole: JobRole | null }>();
   /** 지원 ID → 상태 · 낸 달(S-36 · S-37). 없으면 새 지원처럼 작성 중 */
@@ -180,7 +178,6 @@ export class FakeQuestionApi {
     }
     if ((m = path.match(/^\/api\/applications\/(\d+)$/)) && method === "PATCH") {
       if (this.patchDown) return error(route, 503, "INTERNAL_ERROR", "잠시 뒤 다시 시도해 주세요");
-      if (this.patchInvalid) return error(route, 400, "INVALID_REQUEST", "organizationType · jobRole · applicationStatus · submittedMonth 중 하나는 보내야 합니다");
       if (!this.applications.has(+m[1])) return error(route, 404, "APPLICATION_NOT_FOUND");
       const { applicationStatus, submittedMonth, organization, ...types } = body;
       if (organization !== undefined) this.applications.set(+m[1], organization);

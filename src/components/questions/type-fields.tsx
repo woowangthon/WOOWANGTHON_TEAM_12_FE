@@ -4,7 +4,6 @@ import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, optionsOf } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { applicationSaveError } from "@/lib/api/questions";
 import {
   APPLICATION_STATUS_LABEL, JOB_ROLE_LABEL, ORGANIZATION_TYPE_LABEL, QUESTION_TYPE_LABEL,
   type Application, type ApplicationStatus, type JobRole, type OrganizationType, type QuestionSummary, type QuestionType, type UpdateApplicationRequest,
@@ -18,8 +17,7 @@ function useSaving<T>(onSave: (value: T) => Promise<void>) {
     setPending({ value: next });
     setFailed(null);
     try { await onSave(next); }
-    // 서버 검증 문구(필드 이름)를 그대로 보이지 않는다(FE#240)
-    catch (e) { setFailed({ value: next, message: applicationSaveError(e) }); }
+    catch (e) { setFailed({ value: next, message: e instanceof Error ? e.message : "잠시 뒤 다시 시도해 주세요." }); }
     finally { setPending(null); }
   };
   return { pending, failed, save };
@@ -28,7 +26,7 @@ function useSaving<T>(onSave: (value: T) => Promise<void>) {
 /** 저장 실패 한 줄 — what 은 「직무을(를)」처럼 조사까지 */
 function SaveFailed({ what, message, onRetry, className }: { what: string; message: string; onRetry: () => void; className?: string }) {
   return <p role="alert" className={cn("m-0 flex flex-wrap items-center gap-x-1 text-note text-error", className)}>
-    {what} 저장하지 못했어요. {message}
+    {what} 저장하지 못했어요 — {message}
     <Button type="button" variant="link" size="sm" onClick={onRetry}>다시 시도</Button>
   </p>;
 }
