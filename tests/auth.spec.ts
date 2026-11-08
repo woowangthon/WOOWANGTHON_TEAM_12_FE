@@ -134,12 +134,29 @@ test("account menu shows today's analyses and logs out", async ({ page }) => {
   const state = await setup(page, { signedIn: true });
   await timelineReady(page);
   await page.getByRole("button", { name: "계정 메뉴: test" }).click();
-  await expect(page.getByRole("menu")).toContainText("오늘 분석 3 / 200회");
+  // FE#242 — 쓴 횟수(3 / 200)가 아니라 남은 횟수
+  await expect(page.getByRole("menu")).toContainText("오늘 남은 분석 197회 · 한국 시간 자정에 다시 채워져요");
+  await expect(page.getByRole("menu")).not.toContainText("/ 200");
   await page.getByRole("menuitem", { name: "로그아웃" }).click();
   await expect(page.getByRole("heading", { name: "로그인", exact: true })).toBeVisible();
   expect(state.posts.map((p) => p.path)).toContain("/api/auth/logout");
   await page.reload();
   await expect(page.getByRole("heading", { name: "로그인", exact: true })).toBeVisible();
+});
+
+test("account menu says when today's analyses are used up and when few are left (FE#242)", async ({ page }, info) => {
+  const state = await setup(page, { signedIn: true, me: { ...ME, dailyAnalysis: { used: 200, limit: 200 } } });
+  await timelineReady(page);
+  const open = async () => { await page.getByRole("button", { name: "계정 메뉴: test" }).click(); return page.getByRole("menu"); };
+  let menu = await open();
+  await expect(menu).toContainText("오늘 분석을 모두 썼어요 · 한국 시간 자정에 다시 채워져요");
+  await expect(menu).not.toContainText("남은 분석 0회");
+  await page.screenshot({ path: `artifacts/account-menu-used-up-${info.project.name}.png`, style: "nextjs-portal { display: none !important; }" });
+  await page.keyboard.press("Escape");
+  state.me = { ...ME, dailyAnalysis: { used: 197, limit: 200 } };
+  menu = await open(); // 열 때마다 다시 읽는다
+  await expect(menu).toContainText("오늘 남은 분석 3회");
+  await page.screenshot({ path: `artifacts/account-menu-low-${info.project.name}.png`, style: "nextjs-portal { display: none !important; }" });
 });
 
 test("daily limit: remaining count in the dialog, and a 429 keeps the text with the reason", async ({ page }) => {
