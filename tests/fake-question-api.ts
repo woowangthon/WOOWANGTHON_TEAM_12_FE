@@ -253,9 +253,23 @@ export class FakeQuestionApi {
       if (q.detail.status !== "COMPLETED") return error(route, 409, "QUESTION_NOT_COMPLETED");
       if (q.detail.draft?.status === "ANALYZING") return error(route, 409, "DRAFT_IN_PROGRESS");
       const now = new Date().toISOString();
-      q.detail.draft = { questionId: q.detail.id, status: "ANALYZING", error: null, experienceIds: ids, frame: body.frame ?? "NONE", guidelines: [], sentences: [], omitted: [], createdAt: now, updatedAt: now };
+      q.detail.draft = { questionId: q.detail.id, status: "ANALYZING", error: null, experienceIds: ids, frame: body.frame ?? "NONE", useContext: body.useContext ?? true, guidelines: [], sentences: [], omitted: [], createdAt: now, updatedAt: now };
       this.draftStarted.set(q.detail.id, Date.now());
       return json(route, q.detail.draft, 202);
+    }
+    // 초안 문장 「맞아요」(S-79) — 다시 눌러도 204, 없는 문장은 404
+    if ((m = path.match(/^\/api\/draft-sentences\/(\d+)\/confirm$/)) && method === "POST") {
+      const sentence = this.questions.flatMap(q => q.detail.draft?.sentences ?? []).find(s => s.id === +m![1]);
+      if (!sentence) return error(route, 404, "DRAFT_SENTENCE_NOT_FOUND");
+      sentence.confirmed = true;
+      return route.fulfill({ status: 204 });
+    }
+    // 활동의 수행 주체 한 번에(S-76) — 초안 근거의 지금 주체(actor)도 같이 바뀐다
+    if ((m = path.match(/^\/api\/activities\/(\d+)\/actor$/)) && method === "POST") {
+      let changed = 0;
+      for (const q of this.questions) for (const s of q.detail.draft?.sentences ?? []) for (const e of s.evidence)
+        if (e.activityId === +m![1] && e.actor === "UNKNOWN") { e.actor = body.actor; changed++; }
+      return json(route, { changed });
     }
     if ((m = path.match(/^\/api\/questions\/(\d+)\/retry$/)) && method === "POST") {
       const q = this.find(+m[1]);

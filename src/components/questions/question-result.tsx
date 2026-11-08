@@ -6,7 +6,7 @@ import { McpAnswerLabel, UserEnteredLabel } from "@/components/experience/supple
 import type { QuestionDetail, Recommendation } from "@/lib/api/question-types";
 import type { OverlapUse } from "./overlap";
 import { useActivityCategory } from "./activity-categories";
-import { AnswerDraft, type DraftActions } from "./answer-draft";
+import type { DraftActions } from "./answer-draft";
 
 /** 「바꿔요 — 캠퍼스 중고거래 앱」 → 「바꿔요」 (시안의 활동 칩) */
 export const shortName = (name: string) => name.split(" — ")[0];
@@ -45,10 +45,11 @@ const boxTitle = "m-0 text-xs font-semibold text-muted";
 
 /** 「참고 — 꺼내 쓸 경험」(시안 6 apply.html 의 접기 카드). 펼치기 전엔 활동 칩 · 경험 · 이유 한 줄, 펼치면 강조점 · 근거 · 빠진 것.
  *  요구사항 판정 · 되묻기는 차곡이 패널에 있다. elsewhere — 같은 지원의 다른 문항에도 추천된 같은 경험(FE#38 · S-21) */
-export function QuestionResult({ question, elsewhere, onOpenOmissions, savingAnswer, requestingDraft, picks, onPick }: { question: QuestionDetail; elsewhere?: (experienceId: number) => OverlapUse[]; onPick: (experienceId: number, on: boolean) => void } & Pick<DraftActions, "onOpenOmissions" | "savingAnswer" | "requestingDraft" | "picks">) {
+export function QuestionResult({ question, elsewhere, savingAnswer, requestingDraft, picks, onPick }: { question: QuestionDetail; elsewhere?: (experienceId: number) => OverlapUse[]; onPick: (experienceId: number, on: boolean) => void } & Pick<DraftActions, "onOpenOmissions" | "savingAnswer" | "requestingDraft" | "picks">) {
   const picksLocked = savingAnswer || requestingDraft || question.draft?.status === "ANALYZING";
   const pickedCount = picks.filter(id => question.recommendations.some(r => r.experience.id === id)).length;
-  return <><AnswerDraft key={question.id} question={question} onOpenOmissions={onOpenOmissions} requestingDraft={requestingDraft} /><section aria-labelledby="refs-title">
+  // 초안은 답칸 안에 있다(S-79 · FE#235) — 여기는 참고 경험만
+  return <><section aria-labelledby="refs-title">
     <div className="flex flex-wrap items-baseline gap-x-2"><h3 id="refs-title" className="m-0 text-title-md font-semibold">참고 — 꺼내 쓸 경험</h3>{question.recommendations.length > 0 && <span className="text-note text-muted">체크한 경험으로 초안을 만들어요</span>}</div>
     {question.recommendations.length === 0 ? <div className="mt-4 grid gap-2 rounded-sm bg-surface-soft p-5">
       <p className="m-0 font-medium">현재 자료에서 연결된 경험을 찾지 못했어요.</p>

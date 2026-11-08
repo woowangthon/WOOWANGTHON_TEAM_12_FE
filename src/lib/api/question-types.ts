@@ -69,11 +69,19 @@ export type QuestionDetail = QuestionSummary & {
   updatedAt: string;
 };
 /** ETC question-api.md S-27 / GroundingCheck와 같은 근거 모양 */
-export type DraftEvidence = { type: "CITATION" | "SUPPLEMENT" | "EXPERIENCE"; id: number; experienceId: number; activityId: number; text: string };
+export type DraftEvidence = {
+  type: "CITATION" | "SUPPLEMENT" | "EXPERIENCE"; id: number; experienceId: number; activityId: number; text: string;
+  /** CITATION 이면 자료 이름, SUPPLEMENT 면 보완 질문(S-75) — 추천 밖 경험의 근거도 이것으로 그린다. 이전 응답엔 없다 */
+  sourceName?: string | null; question?: string | null;
+  /** 그 경험의 지금 수행 주체(S-79) — 카드의 주체 줄 */
+  actor?: Actor;
+};
 /** 초안 전용 빠진 사실. 추천 clarification과 섞지 않고 서버 ID로 답한다(S-27). */
 export type DraftOmission = {
   text: string; question: string | null; experienceId: number | null;
   clarificationId: number | null; supplementId: number | null;
+  /** 문장 속 빈칸(S-78) — 그 문장 text 에 글자 그대로 한 번 있는 「[결과]」와 문장 순번. 빈칸이 아니면 둘 다 null(이전 응답엔 없다) */
+  placeholder?: string | null; sentenceIndex?: number | null;
 };
 export type Draft = {
   /** 전환 전 서버의 저장 초안은 NONE / []로 표시한다. */
@@ -81,10 +89,17 @@ export type Draft = {
   questionId: number; status: JobStatus; error: Job["error"]; experienceIds: number[];
   /** 지금 다시 만들면 분석 횟수를 쓰지 않는가 — 빠진 사실에 답했거나 주체를 정함(S-77, BE 가 판단) */
   freeRegenerate?: boolean;
-  sentences: { kind: "FACT" | "OPINION"; text: string; evidence: DraftEvidence[] }[]; omitted: DraftOmission[];
+  /** 같은 활동의 다른 경험도 재료로 썼나(S-75) — 다시 만들 때 골라 둔다. 이전 응답엔 없다(켠 것) */
+  useContext?: boolean;
+  sentences: DraftSentence[]; omitted: DraftOmission[];
   createdAt: string; updatedAt: string;
 };
-export type CreateDraftRequest = { experienceIds: number[]; frame?: DraftFrame };
+/** 초안 문장 — 근거(FACT) · AI 보탬(ELABORATED, note 필수) · 생각(OPINION). id · confirmed 는 「맞아요」(S-79) — 이전 응답엔 없다 */
+export type DraftSentence = {
+  id?: number; kind: "FACT" | "OPINION" | "ELABORATED"; text: string; evidence: DraftEvidence[];
+  note?: string | null; confirmed?: boolean;
+};
+export type CreateDraftRequest = { experienceIds: number[]; frame?: DraftFrame; useContext?: boolean };
 /** S-43 비슷한 확정 답변 — 참고만, 근거가 아니다. 지원 · 문항의 지금 값을 함께 싣는다 */
 export type SimilarAnswer = {
   questionId: number; questionText: string; questionType: QuestionType | null;

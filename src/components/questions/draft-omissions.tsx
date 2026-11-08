@@ -24,7 +24,7 @@ function answerError(e: unknown) {
   return e instanceof Error ? e.message : "보완을 저장하지 못했어요. 다시 시도해 주세요.";
 }
 
-function OmissionItem({ item, question, onAnswer, onRefresh, disabled }: {
+export function OmissionItem({ item, question, onAnswer, onRefresh, disabled }: {
   item: DraftOmission; question: QuestionDetail; onAnswer: AnswerHandler;
   onRefresh: () => Promise<void>; disabled: boolean;
 }) {
@@ -92,7 +92,7 @@ function OmissionItem({ item, question, onAnswer, onRefresh, disabled }: {
 }
 
 export type DraftPanelActions = {
-  onGenerate: (ids: number[], frame?: DraftFrame) => Promise<void>; onRefresh: () => Promise<void>;
+  onGenerate: (ids: number[], frame?: DraftFrame, useContext?: boolean) => Promise<void>; onRefresh: () => Promise<void>;
   savingAnswer: boolean; requestingDraft: boolean; focusRequest: number;
   picks: number[]; onResetPicks: (questionId: number) => void;
 };
@@ -137,7 +137,7 @@ export function DraftFollowUp({ question, onAnswer, onGenerate, onRefresh, savin
     {analyzing ? <p role="status" className={bubble}>고른 경험과 보완을 읽고 초안을 만드는 중이에요…</p> : draft ? <>
       {draft?.status === "FAILED" ? <p className={bubble}>초안을 완성하지 못했어요. 아래 설정에서 다시 요청해 주세요.</p> : <>
         <div className={bubble}>
-          <p className="m-0">{draft?.omitted.length ? "초안을 써 봤어요. 아래 내용은 자료에서 확인하지 못해 쓰지 않았어요." : "초안을 만들었어요. 답변 초안에서 문장과 근거를 확인해 주세요."}</p>
+          <p className="m-0">{draft?.omitted.length ? "초안을 답칸에 넣었어요. 아래 내용은 자료에서 확인하지 못해 쓰지 않았어요." : "초안을 답칸에 넣었어요. 밑줄 · 빈칸을 눌러 근거와 이유를 확인해 주세요."}</p>
           {!!draft?.omitted.length && <>
             <p className="m-0 text-xs font-semibold">자료에 없어 쓰지 않았어요 · AI 해석</p>
             <p className="m-0 text-note text-muted">기억나는 것만 알려 주세요. 답은 선택이에요. 건너뛰어도 초안을 복사할 수 있어요.</p>
