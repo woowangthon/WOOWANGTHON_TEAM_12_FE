@@ -233,13 +233,13 @@ export function useApplications() {
       const fresh = await fetchQuestion(id);
       if (mounted.current) commit(version, [fresh]);
     },
-    createDraft: async (question: QuestionDetail, experienceIds: number[], frame?: DraftFrame) => {
+    createDraft: async (question: QuestionDetail, experienceIds: number[], frame?: DraftFrame, useContext?: boolean) => {
       if (drafting.current.has(question.id)) throw new ApiError("DRAFT_IN_PROGRESS", "이미 초안을 만들고 있어요.", 409);
       if (answering.current.has(question.id)) throw new ApiError("ANSWER_IN_PROGRESS", "보완을 쌓는 중이에요. 답 저장이 끝나면 다시 만들어 주세요.");
       drafting.current.add(question.id);
       setDraftingIds([...drafting.current]);
       try {
-        const draft = await createQuestionDraft(question, { experienceIds, frame });
+        const draft = await createQuestionDraft(question, { experienceIds, frame, useContext });
         if (!mounted.current) return;
         // 먼저 출발한 GET은 버리고, POST 응답의 draft만 옮겨 기존 추천·보완은 보존한다.
         ++generation.current;

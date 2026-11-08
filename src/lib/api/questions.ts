@@ -115,7 +115,14 @@ export async function createQuestionDraft(question: QuestionDetail, req: CreateD
   }
   if (question.status !== "COMPLETED") throw new ApiError("QUESTION_NOT_COMPLETED", "문항 분석이 끝난 뒤 초안을 만들 수 있어요.", 409);
   if (req.frame !== undefined && !['STAR', 'CARL', 'PREP', 'NONE'].includes(req.frame)) throw new ApiError('INVALID_REQUEST', '구성 틀을 골라 주세요.', 400);
-  return request(`/questions/${question.id}/draft`, { experienceIds: ids, ...(req.frame === undefined ? {} : { frame: req.frame }) }, "POST");
+  return request(`/questions/${question.id}/draft`, {
+    experienceIds: ids, ...(req.frame === undefined ? {} : { frame: req.frame }), ...(req.useContext === undefined ? {} : { useContext: req.useContext }),
+  }, "POST");
+}
+
+/** POST /api/draft-sentences/{id}/confirm — 카드의 「맞아요」(S-79). 204, 다시 눌러도 같다. 다시 만들어 사라진 문장이면 404 */
+export function confirmDraftSentence(sentenceId: number): Promise<void> {
+  return request(`/draft-sentences/${sentenceId}/confirm`, undefined, "POST");
 }
 
 /** S-45: 실패를 고정 결과로 대체하지 않고, 공백과 길이는 HTTP 전에 확인한다. */

@@ -3,12 +3,14 @@
 import { useRef, useState } from "react";
 import { AnalysisCost } from "@/components/auth/analysis-cost";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { ApiError } from "@/lib/api/errors";
 import { suggestedFrame, type DraftFrame } from "@/lib/draft-frames";
 import type { QuestionDetail } from "@/lib/api/question-types";
 import { FramePicker } from "./draft-guidance";
 import { requestError, failureReason } from "./draft-errors";
 import type { DraftActions } from "./answer-draft";
+import { hasEditedAnswer } from "./answer-box-state";
 
 /** 시안 6 mateFeed: 경험은 참고 카드에서 고르고, 틀을 정해 여기서 부탁한다. 결과는 왼쪽에서 확인한다. */
 export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, requestingDraft, picks, onResetPicks }: { question: QuestionDetail } & Pick<DraftActions, "onGenerate" | "onRefresh" | "savingAnswer" | "requestingDraft" | "picks" | "onResetPicks">) {
@@ -16,6 +18,10 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
   const [chosenFrame, setChosenFrame] = useState<DraftFrame | null>(null);
   const frame = chosenFrame ?? (draft ? draft.frame ?? 'NONE' : suggestedFrame(question.questionType));
   const [busy, setBusy] = useState(false);
+  // 같은 활동의 다른 경험도 재료로(S-75) — 기본 켬, 다시 만들 땐 그 초안의 값
+  const [useContext, setUseContext] = useState(draft?.useContext ?? true);
+  // 다시 만들기 전 경고 — 덮이는 것이 있을 때만(고친 글 · 답하지 않은 빠진 사실 질문 · 다 쓴 답)
+  const [warning, setWarning] = useState<string[] | null>(null);
   const [error, setError] = useState<{ text: string; code?: string } | null>(null);
   const pending = useRef(false);
 
@@ -36,12 +42,27 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
   const thin = target !== null && count > 0 && material < target / 2;
   // 다시 만들기가 무료인지는 BE 가 정한다(freeRegenerate — 빠진 사실에 답함 · 주체를 정함, S-77)
   const free = !!draft?.freeRegenerate && !analyzing;
+  const losses = () => {
+    if (!draft) return hasEditedAnswer(question.id) ? ["답칸에 쓴 글이 새 초안으로 바뀌어요."] : [];
+    const open = draft.status === "COMPLETED" ? draft.omitted.filter(o => o.clarificationId !== null && o.supplementId === null).length : 0;
+    return [
+      ...(hasEditedAnswer(question.id) ? ["답칸에서 고친 글이 새 초안으로 바뀌어요."] : []),
+      ...(open ? [`답하지 않은 빠진 사실 질문 ${open}개가 사라져요. 새 초안이 필요한 것을 다시 물어요.`] : []),
+      ...(question.answer ? ["다 쓴 답은 저장돼 있어요 — 답칸 아래 「다 쓴 답 불러오기」로 돌아갈 수 있어요."] : []),
+    ];
+  };
+  const ask = () => {
+    if (pending.current || savingAnswer || analyzing || !allowed) return;
+    const list = losses();
+    if (list.length) setWarning(list); else void generate();
+  };
   const generate = async () => {
+    setWarning(null);
     if (pending.current || savingAnswer || analyzing || !allowed) return;
     pending.current = true; setBusy(true); setError(null);
     try {
       // 실패 재시도는 저장된 experienceIds로 같은 POST. 새 선택은 완료 뒤 재생성에 사용한다.
-      await onGenerate(ids, frame);
+      await onGenerate(ids, frame, useContext);
       setChosenFrame(null);
       onResetPicks(question.id);
     } catch (e) { setError({ text: requestError(e), code: e instanceof ApiError ? e.code : undefined }); }
@@ -66,8 +87,14 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
       외부 AI 를 거친 답 {pendingAnswers}개는 아직 확인 전이라 초안 근거로 쓰이지 않아요. 활동 세부에서 맞아요를 눌러야 근거로 쓰여요.
     </p>}
     <FramePicker frame={frame} disabled={analyzing || savingAnswer} proposed={!draft && chosenFrame === null} onChange={setChosenFrame} />
+    <label className="flex min-h-11 cursor-pointer items-start gap-2.5 text-sm text-body">
+      <input type="checkbox" className="mt-1 size-4 shrink-0 accent-ink" checked={useContext} disabled={analyzing || savingAnswer} onChange={e => setUseContext(e.target.checked)} />
+      <span className="grid gap-0.5">같은 활동의 다른 경험도 뒷받침 재료로 쓰기
+        <span className="text-note text-muted">{useContext ? "고른 경험이 뼈대고, 같은 활동의 기록으로 맥락을 채워요." : "고른 경험만으로 써서 짧거나 부실할 수 있어요."}</span>
+      </span>
+    </label>
     <div className="flex flex-wrap items-center gap-3">
-      <Button data-draft-generate className="min-h-11" onClick={() => void generate()} disabled={!allowed || analyzing || savingAnswer}>{analyzing ? "초안 만드는 중…" : draft ? "다시 만들기" : "초안 만들기"}</Button>
+      <Button data-draft-generate className="min-h-11" onClick={ask} disabled={!allowed || analyzing || savingAnswer}>{analyzing ? "초안 만드는 중…" : draft ? "다시 만들기" : "초안 만들기"}</Button>
       {free ? <span className="text-xs text-muted">이번 다시 만들기는 분석 횟수를 쓰지 않아요</span> : <AnalysisCost running={analyzing} />}
     </div>
     {error && (error.code !== "DRAFT_IN_PROGRESS" || analyzing) && <div className="grid justify-items-start gap-2">
@@ -75,6 +102,16 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
       <Button variant="secondary" className="min-h-11" disabled={busy || savingAnswer} onClick={() => void refresh()}>초안 상태 확인</Button>
     </div>}
     {draft?.status === "FAILED" && !analyzing && <p role="alert" className="m-0 text-sm text-error">{failureReason(draft.error)} 「다시 만들기」로 같은 경험을 다시 요청할 수 있어요.</p>}
+    <Dialog open={warning !== null} onOpenChange={o => { if (!o) setWarning(null); }}>
+      <DialogContent>
+        <DialogTitle>{draft ? "다시 만들면 답칸이 새 초안으로 바뀌어요" : "초안을 만들면 답칸이 초안으로 바뀌어요"}</DialogTitle>
+        <DialogDescription asChild><ul className="m-0 grid gap-1.5 pl-4">{warning?.map(w => <li key={w}>{w}</li>)}</ul></DialogDescription>
+        <DialogFooter>
+          <Button className="min-h-11" variant="secondary" onClick={() => setWarning(null)}>취소</Button>
+          <Button className="min-h-11" onClick={() => void generate()}>{draft ? "그래도 다시 만들기" : "그래도 만들기"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
   </section>;
 }

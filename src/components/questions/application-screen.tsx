@@ -21,6 +21,7 @@ import { AnswerInput } from "./answer-input";
 import { createGroundingChecks, type GroundingChecks } from "./use-grounding-check";
 import type { DraftFrame } from "@/lib/draft-frames";
 import type { DraftActions } from "./answer-draft";
+import type { AnswerHandler } from "./clarifications";
 import { QuestionResult } from "./question-result";
 import { SimilarAnswers } from "./similar-answers";
 import { ChagokPanel, Mascot, type SupplementOrigin } from "./chagok-panel";
@@ -116,7 +117,7 @@ export function ApplicationScreen() {
   const picks = useDraftPicks(selected);
   const draftActions = {
     picks: picks.ids, onResetPicks: picks.reset,
-    onGenerate: (ids: number[], frame?: DraftFrame) => selected ? matching.createDraft(selected, ids, frame) : Promise.resolve(),
+    onGenerate: (ids: number[], frame?: DraftFrame, useContext?: boolean) => selected ? matching.createDraft(selected, ids, frame, useContext) : Promise.resolve(),
     onRefresh: () => selected ? matching.refreshDraft(selected.id) : Promise.resolve(),
     savingAnswer: matching.savingAnswer, requestingDraft: matching.requestingDraft,
   };
@@ -216,7 +217,8 @@ export function ApplicationScreen() {
               }} /> : <SelectedQuestion key={matching.questionId} summary={summary} question={selected} application={open.application} index={selectedIndex}
                 loadError={matching.detailError} onReload={matching.reloadQuestion}
                 overlaps={overlaps} onPickOverlap={id => { matching.selectQuestion(id); scrollToDetail(); }} onRetry={id => matching.retry(id)} onTypeChange={(id, type) => matching.updateQuestionType(id, type)} onTargetLengthChange={(id, length) => matching.updateTargetLength(id, length)} onAnswerChange={matching.keepAnswer} groundingChecks={groundingChecks}
-                {...draftActions} onPick={picks.toggle} onOpenOmissions={openDraftQuestions} />}
+                {...draftActions} onPick={picks.toggle} onOpenOmissions={openDraftQuestions}
+                onAnswerClarification={(clarificationId, answer) => selected ? matching.answer(selected.id, clarificationId, answer) : Promise.resolve()} />}
             </div>
           </> : null}
         </section>
@@ -341,9 +343,9 @@ function useTargetLengthPrefill(question: QuestionSummary | null, save: (id: num
 }
 
 /** 고른 문항 — 받아 둔 내용이 있으면 바로, 처음 보는 문항이면 받는 동안 자리만(FE#60). 문항 글 · 상태는 지원 목록에 이미 있다 */
-function SelectedQuestion({ summary, question, application, index, loadError, onReload, overlaps, onPickOverlap, onRetry, onTypeChange, onTargetLengthChange, onAnswerChange, groundingChecks, onOpenOmissions, savingAnswer, requestingDraft, picks, onPick }: {
+function SelectedQuestion({ summary, question, application, index, loadError, onReload, overlaps, onPickOverlap, onRetry, onTypeChange, onTargetLengthChange, onAnswerChange, onAnswerClarification, groundingChecks, onOpenOmissions, onRefresh, savingAnswer, requestingDraft, picks, onPick }: {
   summary: QuestionSummary | null; question: QuestionDetail | null; application: Application; index: number; loadError: string | null; onReload: (id: number) => void;
-  overlaps: Overlap[]; onPickOverlap: (questionId: number) => void; onRetry: (id: number) => Promise<unknown>; onTypeChange: (id: number, type: QuestionType) => Promise<void>; onTargetLengthChange: (id: number, targetLength: number | null) => Promise<void>; onAnswerChange: (id: number, answer: Answer | null) => void; groundingChecks: GroundingChecks; onPick: (experienceId: number, on: boolean) => void;
+  overlaps: Overlap[]; onPickOverlap: (questionId: number) => void; onRetry: (id: number) => Promise<unknown>; onTypeChange: (id: number, type: QuestionType) => Promise<void>; onTargetLengthChange: (id: number, targetLength: number | null) => Promise<void>; onAnswerChange: (id: number, answer: Answer | null) => void; groundingChecks: GroundingChecks; onPick: (experienceId: number, on: boolean) => void; onAnswerClarification: AnswerHandler;
 } & DraftActions) {
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
@@ -360,7 +362,8 @@ function SelectedQuestion({ summary, question, application, index, loadError, on
       </div>
       <h3 className="m-0 max-h-36 overflow-y-auto whitespace-pre-wrap text-xl leading-relaxed font-[650] tracking-[-0.3px]">{summary.text}</h3>
     </header>
-    <AnswerInput key={`answer-${summary.id}`} questionId={summary.id} question={question} loadFailed={!!loadError} onAnswerChange={onAnswerChange} checks={groundingChecks} onAskDraft={onOpenOmissions} />
+    <AnswerInput key={`answer-${summary.id}`} questionId={summary.id} question={question} loadFailed={!!loadError} onAnswerChange={onAnswerChange} checks={groundingChecks} onAskDraft={onOpenOmissions}
+      onAnswer={onAnswerClarification} onRefresh={onRefresh} draftBusy={savingAnswer || requestingDraft} />
     {question && <SimilarAnswers question={question} application={application} />}
     {!question ? loadError ? <div role="alert" className="grid justify-items-start gap-3 py-8">
       <p className="m-0 text-error">{loadError}</p><Button variant="secondary" onClick={() => onReload(summary.id)}>다시 불러오기</Button>
