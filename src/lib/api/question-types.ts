@@ -98,6 +98,8 @@ export type Draft = {
 export type DraftSentence = {
   id?: number; kind: "FACT" | "OPINION" | "ELABORATED"; text: string; evidence: DraftEvidence[];
   note?: string | null; confirmed?: boolean;
+  /** 카드에서 「빼기」를 눌렀나(S-79) — 뺀 문장도 응답에 오고 답칸 글에서 뺀다. 이전 응답엔 없다 */
+  removed?: boolean;
 };
 export type CreateDraftRequest = { experienceIds: number[]; frame?: DraftFrame; useContext?: boolean };
 /** S-43 비슷한 확정 답변 — 참고만, 근거가 아니다. 지원 · 문항의 지금 값을 함께 싣는다 */

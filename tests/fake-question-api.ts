@@ -264,6 +264,14 @@ export class FakeQuestionApi {
       sentence.confirmed = true;
       return route.fulfill({ status: 204 });
     }
+    // 초안 문장 빼기 · 다시 넣기(S-79) — 같은 값을 다시 보내도 204
+    if ((m = path.match(/^\/api\/draft-sentences\/(\d+)\/removed$/)) && method === "PUT") {
+      if (typeof body?.removed !== "boolean") return error(route, 400, "INVALID_REQUEST");
+      const sentence = this.questions.flatMap(q => q.detail.draft?.sentences ?? []).find(s => s.id === +m![1]);
+      if (!sentence) return error(route, 404, "DRAFT_SENTENCE_NOT_FOUND");
+      sentence.removed = body.removed;
+      return route.fulfill({ status: 204 });
+    }
     // 활동의 수행 주체 한 번에(S-76) — 초안 근거의 지금 주체(actor)도 같이 바뀐다
     if ((m = path.match(/^\/api\/activities\/(\d+)\/actor$/)) && method === "POST") {
       let changed = 0;
