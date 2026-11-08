@@ -482,3 +482,41 @@ test("글을 고치면 「이미 넣은 자료예요」 안내를 닫고 다시 
   await expect.poll(() => calls.sources.length).toBe(2);
   expect(calls.sources[1]).toEqual({ kind: "TEXT", name: null, text: "고친 글" });
 });
+
+// FE#244 — 자료를 넣자마자 우측 상단 「할 일」에, 끝나면 몇 초 안에 「소식」에. 홈의 분석 띠는 입력 바로 아래(세 폭에서 스크롤 없이)
+test("자료를 넣으면 몇 초 안에 「할 일」에 뜨고, 끝나면 「소식」으로 옮겨 가며, 홈 분석 띠는 스크롤 없이 보인다", async ({ page }, info) => {
+  const calls = await setup(page);
+  const analyzing = { key: "SOURCE_ANALYSIS:34", kind: "SOURCE_ANALYSIS", status: "ANALYZING", label: "붙여넣은 텍스트", startedAt: "2026-11-08T10:00:00+09:00", finishedAt: null, errorCode: null, sourceId: 12, jobId: 34, applicationId: null, questionId: null, runId: null };
+  const work = { snapshot: { seenAt: null, inProgress: [] as unknown[], recent: [] as unknown[] }, reads: 0 };
+  // 넣기 전엔 할 일이 없어 30초마다 읽는다 — 넣은 뒤에도 기다리면 30초 늦게 뜬다
+  await page.route("**/api/work", route => { work.reads++; return route.fulfill({ json: work.snapshot }); });
+  const trigger = page.getByRole("button", { name: /^진행 중인 일 \d+개 · 안 읽은 소식/ }).first();
+  await page.reload();
+  await expect(trigger).toHaveAccessibleName("진행 중인 일 0개 · 안 읽은 소식 0개");
+  await page.waitForTimeout(500); // 첫 읽기가 끝나 다음 읽기가 30초 뒤로 잡힌 상태
+  const readsBefore = work.reads;
+
+  await page.getByRole("button", { name: "쌓기", exact: true }).click();
+  await page.getByLabel("홈에 넣을 글").fill("오늘 한 일 정리");
+  // 서버는 202 를 준 순간부터 작업을 진행 중으로 돌려준다
+  await page.route("**/api/sources", async route => { work.snapshot = { ...work.snapshot, inProgress: [analyzing] }; await route.fallback(); });
+  await page.getByRole("button", { name: "보내기", exact: true }).click();
+  await expect.poll(() => calls.sources.length).toBe(1);
+  await expect(trigger).toHaveAccessibleName("진행 중인 일 1개 · 안 읽은 소식 0개", { timeout: 4000 });
+  expect(work.reads).toBeGreaterThan(readsBefore);
+
+  // 홈의 분석 띠는 입력 바로 아래 — 맨 위에서 스크롤하지 않아도 보인다
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const banner = page.getByText(/새로 넣은 자료\(.*\)를 분석하고 있어요/);
+  await expect(banner).toBeInViewport({ ratio: 1 });
+  // 390 의 고정 아래 탭바에 가리지 않는다 — 띠 아래 끝이 탭바 위에 있어야 한다
+  const bannerBottom = (await banner.boundingBox())!.y + (await banner.boundingBox())!.height;
+  const tabBar = page.getByRole("navigation", { name: "주 메뉴" }).filter({ visible: true }).last();
+  const barTop = await tabBar.evaluate((el) => getComputedStyle(el).position === "fixed" ? el.getBoundingClientRect().top : Infinity);
+  expect(bannerBottom).toBeLessThanOrEqual(barTop);
+  await page.screenshot({ path: `artifacts/work-status-home-${info.project.name}.png`, style: "nextjs-portal { display: none !important; }" });
+
+  // 끝나면 진행 중일 때의 3초 간격으로 곧 「소식」에 — 안 읽음으로
+  work.snapshot = { seenAt: null, inProgress: [], recent: [{ ...analyzing, status: "COMPLETED", finishedAt: "2026-11-08T10:00:20+09:00" }] };
+  await expect(trigger).toHaveAccessibleName("진행 중인 일 0개 · 안 읽은 소식 1개", { timeout: 5000 });
+});

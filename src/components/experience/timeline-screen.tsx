@@ -195,6 +195,15 @@ export function TimelineScreen() {
   }, [addRequested, showToast]);
 
   const analysis = useAnalysisJob(async (job, { batch }) => {
+    const target = job.targetActivityId;
+    // 완료 알림은 목록을 다시 읽기 전에 띄운다 — 읽는 동안(운영은 요청 하나 0.5 ~ 1초) 화면을 옮기면 놓쳤다(FE#244).
+    // 같은 활동 제안 수처럼 목록이 있어야 아는 말은 읽은 뒤 덧붙인다
+    const done = isMockMode()
+      ? `목 분석 결과 활동 ${job.activityIds.length}개예요. 서버에 저장된 결과가 아니에요.`
+      : `분석이 완료됐어요. 활동 ${job.activityIds.length}개를 확인해 보세요.`;
+    if (!batch && target != null && job.targetMatched) {
+      showToast(`${isMockMode() ? "목 결과예요. " : ""}자료에서 찾은 내용을 활동에 더했어요.${job.activityIds.length ? ` 새 활동 ${job.activityIds.length}개도 생겼어요.` : ""}`);
+    } else if (!batch && target == null && job.activityIds.length) showToast(done);
     const activities = await loadList(mock);
     refreshSearch();
     if (!activities) {
@@ -203,7 +212,6 @@ export function TimelineScreen() {
     }
     // 묶음은 파일마다 상태 줄에 보인다 — 파일이 끝날 때마다 화면을 옮기지 않는다
     if (batch) return;
-    const target = job.targetActivityId;
     if (target != null) {
       // 「자료 더하기」(S-60) — 붙었으면 그 활동 세부를 다시 읽는다. 못 찾았으면 상태 띠가 남아 새 활동으로 안내한다
       if (!job.targetMatched) return;
@@ -211,7 +219,6 @@ export function TimelineScreen() {
       selectedRef.current = open;
       setSelectedId(open);
       loadDetail(open);
-      showToast(`${isMockMode() ? "목 결과예요. " : ""}자료에서 찾은 내용을 활동에 더했어요.${job.activityIds.length ? ` 새 활동 ${job.activityIds.length}개도 생겼어요.` : ""}`);
       return;
     }
     const current = activities.find((a) => a.id === selectedRef.current);
@@ -223,10 +230,7 @@ export function TimelineScreen() {
     }
     // 활동 0개는 기존의 빈 결과 화면 · 띠로 알린다.
     const suggestedCount = activities.filter((a) => job.activityIds.includes(a.id) && a.mergeSuggestion).length;
-    if (job.activityIds.length) showToast((isMockMode()
-      ? `목 분석 결과 활동 ${job.activityIds.length}개예요. 서버에 저장된 결과가 아니에요.`
-      : `분석이 완료됐어요. 활동 ${job.activityIds.length}개를 확인해 보세요.`)
-      + (suggestedCount ? ` 기존 활동과 같아 보이는 활동 ${suggestedCount}개가 있어요.` : ""));
+    if (job.activityIds.length && suggestedCount) showToast(`${done} 기존 활동과 같아 보이는 활동 ${suggestedCount}개가 있어요.`);
   });
   const view = analysisView(analysis.tracked);
 

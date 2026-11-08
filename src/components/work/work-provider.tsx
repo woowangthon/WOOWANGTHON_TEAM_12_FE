@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useRef, useState, type ReactNode, type RefObject } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import Link from "next/link";
 import { BellIcon } from "@phosphor-icons/react";
 import { Popover } from "radix-ui";
@@ -15,7 +15,16 @@ import { useWork } from "./use-work";
 const ROW = "grid min-h-11 min-w-0 grid-cols-[minmax(0,1fr)] gap-1 rounded-sm border-b border-hairline-soft p-3 text-sm hover:bg-surface-soft focus-visible:outline-2 focus-visible:outline-ink lg:gap-0.5 lg:border-b-0 lg:px-3 lg:py-2.5 lg:text-note";
 const GROUP_TITLE = "mt-0 text-sm font-semibold lg:mb-0 lg:px-2 lg:pt-2 lg:pb-0.5 lg:text-xs lg:leading-[13px] lg:text-muted";
 
-const WorkContext = createContext<{ opened: boolean; toggle: (trigger: HTMLButtonElement) => void; count: number; unread: number; status: string } | null>(null);
+const WorkContext = createContext<{ opened: boolean; toggle: (trigger: HTMLButtonElement) => void; count: number; unread: number; status: string; refresh: () => void } | null>(null);
+
+/** 작업 목록을 지금 다시 읽는다 — 자료를 넣거나 다시 시도한 직후, 분석이 끝난 직후(FE#244).
+ *  가만히 있을 땐 30초마다 읽어서, 부르지 않으면 「할 일」에 늦게 뜬다. 틀 밖(공개 페이지 등)에선 아무것도 하지 않는다 */
+export function useWorkRefresh() {
+  const work = useContext(WorkContext);
+  const latest = useRef(work?.refresh);
+  useEffect(() => { latest.current = work?.refresh; });
+  return useCallback(() => latest.current?.(), []);
+}
 
 export function WorkProvider({ children }: { children: ReactNode }) {
   const work = useWork();
@@ -57,7 +66,7 @@ export function WorkProvider({ children }: { children: ReactNode }) {
       {recent.length ? <WorkList items={recent} seenAt={snapshot?.seenAt ?? null} onNavigate={onNavigate} /> : <p className="text-sm text-muted lg:my-1 lg:px-3 lg:text-note">아직 도착한 소식이 없어요.</p>}
     </section>
   </div>;
-  return <WorkContext value={{ opened, toggle, count: inProgress.length, unread, status }}>
+  return <WorkContext value={{ opened, toggle, count: inProgress.length, unread, status, refresh: work.refresh }}>
     {children}
     {desktop ? <Popover.Root open={opened} onOpenChange={setOpened}>
       <Popover.Anchor virtualRef={trigger as RefObject<HTMLButtonElement>} />
