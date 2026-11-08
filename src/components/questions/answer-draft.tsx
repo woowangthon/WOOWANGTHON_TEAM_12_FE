@@ -154,7 +154,7 @@ function DraftCard({ question, draft, removed, local, selected, onRemove, onEdit
   if (!s || removed.has(index)) return null;
   return <div role="group" aria-label="문장 카드" onKeyDown={close} className="grid gap-3 p-4 lg:px-5">
     <p className="m-0 hidden text-xs font-semibold text-muted lg:block">{s.confirmed && s.kind !== "FACT" ? `${LABEL[s.kind].split(" — ")[0]} · 맞아요 눌렀어요` : LABEL[s.kind]}</p>
-    {s.kind === "OPINION" && <p className="m-0 flex items-start gap-1.5 text-note leading-relaxed text-review">
+    {s.kind === "OPINION" && !s.confirmed && <p className="m-0 flex items-start gap-1.5 text-note leading-relaxed text-review">
       <WarningCircleIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />사실이 아니라 문항에 잇는 제안이에요. 맞는지 보고 고치거나 빼 주세요.</p>}
     {s.note && <p className="m-0 text-note leading-relaxed text-body">왜 확인이 필요한가요 — {s.note}</p>}
     {s.kind !== "OPINION" && (s.evidence.length
@@ -207,7 +207,10 @@ function ActorLine({ sentence, onDecided }: { sentence: DraftSentence; onDecided
     finally { setBusy(false); }
   };
   return <div className="grid gap-2 rounded-sm bg-surface-soft px-3 py-2.5">
-    <p className="m-0 text-note text-body">누가 했는지 확인 안 됨 — 정하면 그 활동의 확인 안 된 경험이 한 번에 바뀌어요.</p>
+    {/* AI 보탬은 확인 전 「제가」를 쓴 문장이라 확인을 묻고, 근거 문장은 누가 했는지 쓰지 않았으니 선택으로만 보인다(FE#258) */}
+    <p className="m-0 text-note text-body">{sentence.kind === "ELABORATED"
+      ? "누가 했는지 확인 안 됨 — 정하면 그 활동의 확인 안 된 경험이 한 번에 바뀌어요."
+      : "이 문장은 누가 했는지 쓰지 않았어요. 정해 두면 다음 초안이 「제가」 · 「팀은」으로 써요."}</p>
     <div className="flex flex-wrap gap-2">
       <Button size="sm" className="min-h-11" disabled={busy} onClick={() => void decide("ME")}>내가 했어요</Button>
       <Button size="sm" variant="secondary" className="min-h-11" disabled={busy} onClick={() => void decide("TEAM")}>팀이 했어요</Button>
