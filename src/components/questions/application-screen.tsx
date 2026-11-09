@@ -186,25 +186,19 @@ export function ApplicationScreen() {
             if (saved) { setComposing(false); scrollToDetail(); }
           }} /> : open ? <>
             <button type="button" onClick={showList} className="mb-1 inline-flex min-h-11 items-center text-sm text-muted underline underline-offset-4 lg:hidden">지원 목록으로</button>
-            {/* sm 미만은 칩이 아래 줄 전체를 쓰고, sm 이상은 이름 옆으로 온다 */}
-            <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3">
-              <div className="contents sm:block sm:min-w-0">
-                <div className="contents sm:flex sm:flex-wrap sm:items-center sm:gap-x-2">
-                  <OrganizationName key={`name-${open.application.id}`} application={open.application} onSave={req => matching.updateApplication(open.application.id, req)} />
-                  <div className="col-span-2 flex flex-wrap items-center gap-x-2 sm:contents">
-                    <ApplicationStatusTag key={open.application.id} application={open.application} onSave={req => matching.updateApplication(open.application.id, req)} />
-                    <ApplicationTypeFields key={`type-${open.application.id}`} application={open.application}
-                      onSave={req => matching.updateApplication(open.application.id, req)} />
-                  </div>
-                </div>
-                <p className="col-span-2 m-0 flex flex-wrap items-center gap-x-2 text-note text-muted tabular-nums">
-                  <span>{progressText(open.application)} · {dateText(open.application.createdAt)}에 넣음</span>
-                  {/* 공고 원문 링크(S-46) — 새 탭으로. http(s) 주소일 때만 링크로 만든다 */}
-                  {open.application.postingUrl && isPostingUrl(open.application.postingUrl) && <a href={open.application.postingUrl} target="_blank" rel="noopener noreferrer"
-                    className="inline-flex min-h-11 max-w-full items-center gap-1.5 text-body underline underline-offset-4 hover:text-ink lg:min-h-0">
-                    <ArrowSquareOutIcon aria-hidden="true" className="shrink-0" /><span className="truncate">공고 원문 열기 · {hostOf(open.application.postingUrl)}</span><span className="sr-only">(새 탭)</span>
-                  </a>}
-                </p>
+            {/* 이름은 한 줄을 다 쓴다(길면 말줄임). 태그 · 넣은 날짜는 아랫줄, 문항 수는 탭이 보여 주니 뺀다(FE#271) */}
+            <header className="grid min-w-0 gap-1">
+              <OrganizationName key={`name-${open.application.id}`} application={open.application} onSave={req => matching.updateApplication(open.application.id, req)} />
+              <div className="flex flex-wrap items-center gap-x-2 text-note text-muted tabular-nums">
+                <ApplicationStatusTag key={open.application.id} application={open.application} onSave={req => matching.updateApplication(open.application.id, req)} />
+                <ApplicationTypeFields key={`type-${open.application.id}`} application={open.application}
+                  onSave={req => matching.updateApplication(open.application.id, req)} />
+                <span>{dateText(open.application.createdAt)}에 넣음</span>
+                {/* 공고 원문 링크(S-46) — 새 탭으로. http(s) 주소일 때만 링크로 만든다 */}
+                {open.application.postingUrl && isPostingUrl(open.application.postingUrl) && <a href={open.application.postingUrl} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex min-h-11 max-w-full items-center gap-1.5 text-body underline underline-offset-4 hover:text-ink lg:min-h-0">
+                  <ArrowSquareOutIcon aria-hidden="true" className="shrink-0" /><span className="truncate">공고 원문 열기 · {hostOf(open.application.postingUrl)}</span><span className="sr-only">(새 탭)</span>
+                </a>}
               </div>
             </header>
             <QuestionTabs questions={open.application.questions} selectedId={adding ? null : matching.questionId} adding={adding}
