@@ -3,11 +3,13 @@ import { request } from './http';
 import { ApiError } from './errors';
 
 export type GuidelineInput = { text: string; source: string };
-export type Guideline = GuidelineInput & { id: number; enabled: boolean; createdAt: string; updatedAt: string };
-export type DraftGuideline = GuidelineInput & { id: number; applied: boolean; note: string | null };
+export type Guideline = { text: string; source: string | null } & { id: number; enabled: boolean; createdAt: string; updatedAt: string };
+export type DraftGuideline = { text: string; source: string | null } & { id: number; applied: boolean; note: string | null };
 export const MAX_GUIDELINES = 50;
 export const MAX_ENABLED_GUIDELINES = 10;
 
+function checkSource(value: string) { if (value.trim()) checkLine(value, 100, '출처'); }
+const sourceOrNull = (value: string) => value.trim() || null;
 function checkLine(value: string, max: number, label: string) {
   if (!value.trim() || value.length > max || /[\r\n]/.test(value))
     throw new ApiError('INVALID_REQUEST', label + '은 비어 있지 않은 한 줄로 입력해 주세요. 최대 ' + max + '자예요.');
@@ -16,20 +18,21 @@ export async function fetchGuidelines() {
   return (await request<{ guidelines: Guideline[] }>('/guidelines')).guidelines;
 }
 export async function extractGuidelines(input: GuidelineInput) {
-  checkLine(input.source, 100, '출처');
+  checkSource(input.source);
   if (!input.text.trim()) throw new ApiError('EMPTY_TEXT', '정리할 글을 붙여 넣어 주세요.');
   if (input.text.length > 20000) throw new ApiError('TEXT_TOO_LONG', '붙여 넣은 글은 20,000자까지 정리할 수 있어요.');
-  return request<{ source: string; candidates: { text: string }[] }>('/guidelines/extract', input, 'POST');
+  return request<{ source: string | null; candidates: { text: string }[] }>('/guidelines/extract', { text: input.text, source: sourceOrNull(input.source) }, 'POST');
 }
 export async function saveGuidelines(guidelines: GuidelineInput[]) {
   if (guidelines.length < 1 || guidelines.length > 10) throw new ApiError('INVALID_REQUEST', '지침을 1 ~ 10개 골라 주세요.');
-  guidelines.forEach(g => { checkLine(g.text, 200, '지침'); checkLine(g.source, 100, '출처'); });
-  return (await request<{ guidelines: Guideline[] }>('/guidelines', { guidelines }, 'POST')).guidelines;
+  guidelines.forEach(g => { checkLine(g.text, 200, '지침'); checkSource(g.source); });
+  return (await request<{ guidelines: Guideline[] }>('/guidelines', { guidelines: guidelines.map(g => ({ text: g.text, source: sourceOrNull(g.source) })) }, 'POST')).guidelines;
 }
 export async function updateGuideline(id: number, patch: Partial<GuidelineInput & { enabled: boolean }>) {
   if (patch.text !== undefined) checkLine(patch.text, 200, '지침');
-  if (patch.source !== undefined) checkLine(patch.source, 100, '출처');
-  return request<Guideline>('/guidelines/' + id, patch, 'PATCH');
+  if (patch.source !== undefined) checkSource(patch.source);
+  const body = patch.source === undefined ? patch : { ...patch, source: sourceOrNull(patch.source) };
+  return request<Guideline>('/guidelines/' + id, body, 'PATCH');
 }
 export async function deleteGuideline(id: number) { return request<void>('/guidelines/' + id, undefined, 'DELETE'); }
 export function guidelineError(e: unknown): string {
