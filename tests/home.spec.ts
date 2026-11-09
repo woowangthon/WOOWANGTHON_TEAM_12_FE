@@ -59,11 +59,15 @@ test("시안 6 홈은 타임라인 없이 실제 이어서·쌓인 블록·모�
   await page.screenshot({ path: `artifacts/entrance-${info.project.name}.png`, fullPage: true });
   await page.getByRole("button", { name: "차곡이 — 쌓인 경험 보기" }).click();
   const pile = page.getByRole("dialog", { name: "쌓인 블록" });
-  await expect(pile.getByLabel("2025 경험 2개", { exact: true })).toBeVisible();
+  await expect(pile.getByLabel("2025 경험 2개 · 확인 필요 1개", { exact: true })).toBeVisible();
   await expect(pile.getByLabel("기간 모름 경험 1개", { exact: true })).toBeVisible();
   expect(await pile.evaluate(el => { const box = el.getBoundingClientRect(); return box.left >= 0 && box.right <= innerWidth; })).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: `artifacts/home-pile-${info.project.name}.png`, fullPage: true });
+  // FE#274 — 쌓인 블록은 내 경험 통계에서 크게 본다
+  await pile.getByRole("link", { name: "내 경험 통계 보기" }).click();
+  await expect(page.getByRole("button", { name: "통계", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("region", { name: "내 경험 통계" })).toBeVisible();
 });
 
 test("마지막 활동 카드로 돌아가고 로고는 홈으로 돌아온다", async ({ page }) => {
