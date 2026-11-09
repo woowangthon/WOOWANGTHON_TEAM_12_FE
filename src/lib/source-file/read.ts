@@ -28,19 +28,20 @@ export function fileType(name: string) {
   return ext === "md" || ext === "txt" ? "text" : ext === "pdf" ? "pdf" : ext === "pptx" ? "pptx" : null;
 }
 
-export async function readSourceFile(file: File): Promise<SourceFile> {
-  const type = fileType(file.name);
+/** name — 원본 이름. 폴더 · ZIP 에서 가져오면 폴더 안 경로(S-62 · S-63). 주지 않으면 파일 이름 */
+export async function readSourceFile(file: File, name = file.name): Promise<SourceFile> {
+  const type = fileType(name);
   if (!type) {
-    const old = /\.(ppt|docx?|hwp)$/i.test(file.name) ? " .ppt · .docx 는 PDF 나 .pptx 로 저장해서 넣어 주세요." : "";
-    throw new SourceFileError(`이 파일(${file.name})은 넣을 수 없어요. ${SOURCE_FILE_LABEL} 파일만 읽을 수 있어요.${old}`);
+    const old = /\.(ppt|docx?|hwp)$/i.test(name) ? " .ppt · .docx 는 PDF 나 .pptx 로 저장해서 넣어 주세요." : "";
+    throw new SourceFileError(`이 파일(${name})은 넣을 수 없어요. ${SOURCE_FILE_LABEL} 파일만 읽을 수 있어요.${old}`);
   }
   if (file.size > MAX_FILE_BYTES) {
-    throw new SourceFileError(`이 파일(${file.name})은 너무 커요. ${MAX_FILE_BYTES / 1024 / 1024}MB 까지 읽을 수 있어요.`);
+    throw new SourceFileError(`이 파일(${name})은 너무 커요. ${MAX_FILE_BYTES / 1024 / 1024}MB 까지 읽을 수 있어요.`);
   }
   if (type === "text") {
     const text = await file.text();
-    if (!text.trim()) throw new SourceFileError(`이 파일(${file.name})이 비어 있어요.`);
-    return { name: file.name, text };
+    if (!text.trim()) throw new SourceFileError(`이 파일(${name})이 비어 있어요.`);
+    return { name, text };
   }
 
   const data = await file.arrayBuffer();
@@ -50,14 +51,14 @@ export async function readSourceFile(file: File): Promise<SourceFile> {
     chunks = type === "pdf" ? await (await import("./pdf")).extractPdf(data) : await (await import("./pptx")).extractPptx(data);
   } catch (e) {
     console.error("[source-file] 추출 실패", e);
-    const name = e instanceof Error ? e.name : "";
-    if (name === "PasswordException") throw new SourceFileError(`이 PDF(${file.name})는 암호가 걸려 있어 읽을 수 없어요. 암호를 풀어 저장한 뒤 넣어 주세요.`);
-    throw new SourceFileError(`이 파일(${file.name})을 읽지 못했어요. 파일이 깨졌거나 ${type === "pdf" ? "PDF" : ".pptx"} 형식이 아니에요.`);
+    const errorName = e instanceof Error ? e.name : "";
+    if (errorName === "PasswordException") throw new SourceFileError(`이 PDF(${name})는 암호가 걸려 있어 읽을 수 없어요. 암호를 풀어 저장한 뒤 넣어 주세요.`);
+    throw new SourceFileError(`이 파일(${name})을 읽지 못했어요. 파일이 깨졌거나 ${type === "pdf" ? "PDF" : ".pptx"} 형식이 아니에요.`);
   }
   const joined = joinSections(type === "pdf" ? "PAGE" : "SLIDE", chunks);
-  if (!joined.sections.length) throw new SourceFileError(`${file.name} — ${NO_TEXT}`);
+  if (!joined.sections.length) throw new SourceFileError(`${name} — ${NO_TEXT}`);
   return {
-    name: file.name,
+    name,
     text: joined.text,
     sections: joined.sections,
     notice: emptyNotice(type === "pdf" ? "PAGE" : "SLIDE", joined),

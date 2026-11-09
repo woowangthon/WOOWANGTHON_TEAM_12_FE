@@ -173,7 +173,7 @@ test("text.length blocks 50001 UTF-16 units, accepts 50000 and prevents duplicat
 test("file validation and JSON upload keep original name and text", async ({ page }) => {
   const state = await setup(page);
   await openAddSource(page);
-  const input = page.locator('input[type="file"]');
+  const input = page.getByRole("dialog").getByLabel("파일 올리기", { exact: true });
   const button = page.getByRole("button", { name: "넣기", exact: true });
   await input.setInputFiles({ name: "bad.pdf", mimeType: "application/pdf", buffer: Buffer.from("invalid") });
   await expect(button).toBeDisabled();
@@ -214,7 +214,7 @@ test("restore validates storage, separates mock jobs and shows a missing job err
 test("PDF · PPTX 는 브라우저에서 글자를 뽑아 sections 와 함께 보내고, 못 읽는 파일은 보내지 않는다 (FE#79)", async ({ page }) => {
   const state = await setup(page);
   await openAddSource(page);
-  const input = page.locator('input[type="file"]');
+  const input = page.getByRole("dialog").getByLabel("파일 올리기", { exact: true });
   const button = page.getByRole("button", { name: "넣기", exact: true });
   const dialog = page.getByRole("dialog");
 

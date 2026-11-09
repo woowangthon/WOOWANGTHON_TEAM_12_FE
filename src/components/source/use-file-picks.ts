@@ -18,14 +18,17 @@ export type FilePick = {
 export const tooLongText = (text: string) =>
   `한 번에 ${MAX_TEXT_LENGTH.toLocaleString()}자까지 넣을 수 있어요. 지금 ${text.length.toLocaleString()}자예요 — 나눠서 넣어 주세요.`;
 
-async function readPick(id: number, picked: File): Promise<FilePick> {
+/** 고른 파일 — 폴더 · ZIP 에서 가져온 노트는 원본 이름(폴더 안 경로)을 같이 준다 (S-62 · S-63) */
+export type PickedFile = File | { file: File; name: string };
+
+async function readPick(id: number, picked: File, name: string): Promise<FilePick> {
   try {
-    const file = await readSourceFile(picked);
+    const file = await readSourceFile(picked, name);
     return file.text.length > MAX_TEXT_LENGTH
-      ? { id, name: picked.name, file: null, error: tooLongText(file.text) }
-      : { id, name: picked.name, file, error: null };
+      ? { id, name, file: null, error: tooLongText(file.text) }
+      : { id, name, file, error: null };
   } catch (e) {
-    return { id, name: picked.name, file: null, error: e instanceof SourceFileError ? e.message : `이 파일(${picked.name})을 읽지 못했어요. 다시 골라 주세요.` };
+    return { id, name, file: null, error: e instanceof SourceFileError ? e.message : `이 파일(${name})을 읽지 못했어요. 다시 골라 주세요.` };
   }
 }
 
@@ -36,17 +39,18 @@ export function useFilePicks(max: number) {
   // 늦게 끝난 앞 고르기가 뒤에 고른 파일을 덮지 않게
   const version = useRef(0);
 
-  const pick = async (files: File[]) => {
+  const pick = async (files: PickedFile[]) => {
     if (!files.length) return;
     const current = ++version.current;
     const next: FilePick[] = [];
     setPicks([]);
     setReading({ done: 0, total: files.length });
-    for (const [index, picked] of files.entries()) {
+    for (const [index, item] of files.entries()) {
+      const { file: picked, name } = item instanceof File ? { file: item, name: item.name } : item;
       const full = next.filter((p) => p.file).length >= max;
       const result = full
-        ? { id: index, name: picked.name, file: null, error: `한 번에 ${max}개까지 넣을 수 있어요. 이 파일은 넣지 않아요.` }
-        : await readPick(index, picked);
+        ? { id: index, name, file: null, error: `한 번에 ${max}개까지 넣을 수 있어요. 이 파일은 넣지 않아요.` }
+        : await readPick(index, picked, name);
       if (version.current !== current) return;
       next.push(result);
       setPicks([...next]);

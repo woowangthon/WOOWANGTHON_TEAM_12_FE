@@ -175,7 +175,7 @@ function AddMenu({ side, align, busy, onAddSource, onRecord, onNewApplication, c
         <DropdownMenu.Label className={label}>쌓기</DropdownMenu.Label>
         <DropdownMenu.Item disabled={busy} onSelect={onAddSource} className={item}>
           <PaperclipIcon className="mt-px size-5 shrink-0" aria-hidden="true" />
-          {text("자료 쌓기", busy ? BUSY : "README · 회고 · 노트 · .md 파일 — AI 가 활동과 경험을 찾아요")}
+          {text("자료 쌓기", busy ? BUSY : "README · 회고 · 노트 파일 · 폴더 · Notion ZIP — AI 가 활동과 경험을 찾아요")}
         </DropdownMenu.Item>
         <DropdownMenu.Item disabled={busy} onSelect={onRecord} className={item}>
           <PencilSimpleIcon className="mt-px size-5 shrink-0" aria-hidden="true" />
