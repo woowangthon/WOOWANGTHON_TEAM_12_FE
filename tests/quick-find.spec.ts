@@ -178,6 +178,60 @@ test("ask calls the API only when sent, once, and shows cards in the window", as
   await expect(page).toHaveURL(/\/experience\?activity=7/);
 });
 
+// FE#288 — 묻기 답은 분석 1회를 쓴 것이라 창을 닫았다 열어도(화면을 옮겨도) 그대로 보여야 한다
+test("the ask answer stays after closing and reopening the window, without calling again", async ({ page }) => {
+  const api = await setup(page);
+  await page.goto("/guidelines");
+  await openByButton(page);
+  await dialog(page).getByRole("button", { name: "차곡이에게", exact: true }).click();
+  await box(page).pressSequentially("WebSocket 쓴 거 뭐였지");
+  await page.keyboard.press("Enter");
+  const answer = dialog(page).getByRole("region", { name: "꺼내기 답", exact: true });
+  await expect(answer).toContainText("시험 응답");
+
+  await page.keyboard.press("Escape");
+  await expect(dialog(page)).toBeHidden();
+  await openByButton(page);
+  await dialog(page).getByRole("button", { name: "차곡이에게", exact: true }).click();
+  await expect(answer).toContainText("시험 응답");
+  await expect(answer).toContainText("WebSocket 쓴 거 뭐였지");
+  await capture(page, `ask-reopened-${page.viewportSize()!.width}`, "fe-288");
+
+  // 다른 화면으로 옮긴 뒤에도 남는다 — 앱 공통 틀 안이라 화면 이동으로 사라지지 않는다
+  await page.keyboard.press("Escape");
+  await page.getByRole("link", { name: "내 경험" }).first().click();
+  await expect(page).toHaveURL(/\/experience/);
+  await openByButton(page);
+  await dialog(page).getByRole("button", { name: "차곡이에게", exact: true }).click();
+  await expect(answer).toContainText("시험 응답");
+  expect(api.asks).toEqual(["WebSocket 쓴 거 뭐였지"]);
+});
+
+test("a failed ask stays after reopening, and a new question replaces it", async ({ page }) => {
+  const api = await setup(page);
+  await page.goto("/guidelines");
+  api.ask = { status: 429, json: { error: { code: "DAILY_LIMIT_EXCEEDED", message: "한도" } } };
+  await openByButton(page);
+  await dialog(page).getByRole("button", { name: "차곡이에게", exact: true }).click();
+  await box(page).pressSequentially("동아리에서 의견 모은 적");
+  await page.keyboard.press("Enter");
+  await expect(dialog(page).getByRole("alert")).toContainText("오늘 분석 횟수를 다 썼어요");
+
+  await page.keyboard.press("Escape");
+  await expect(dialog(page)).toBeHidden();
+  await openByButton(page);
+  await dialog(page).getByRole("button", { name: "차곡이에게", exact: true }).click();
+  await expect(dialog(page).getByRole("alert")).toContainText("오늘 분석 횟수를 다 썼어요");
+  expect(api.asks).toEqual(["동아리에서 의견 모은 적"]);
+
+  api.ask = { json: ANSWER };
+  await box(page).fill("WebSocket 쓴 거 뭐였지");
+  await page.keyboard.press("Enter");
+  await expect(dialog(page).getByRole("region", { name: "꺼내기 답", exact: true })).toContainText("시험 응답");
+  await expect(dialog(page).getByRole("alert")).toHaveCount(0);
+  expect(api.asks).toHaveLength(2);
+});
+
 test("Enter that finishes Hangul composition does not send", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop");
   const api = await setup(page);

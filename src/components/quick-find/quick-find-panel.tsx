@@ -9,7 +9,7 @@ import { ExperienceProperties, SourceStatusMark } from "@/components/experience/
 import { useExperienceSearch } from "@/components/experience/use-experience-search";
 import { AnalysisCost } from "@/components/auth/analysis-cost";
 import { AskAnswer, AskFailureNotice } from "@/components/home/ask-answer";
-import { useAsk } from "@/components/home/use-ask";
+import type { useAsk } from "@/components/home/use-ask";
 import { Mascot } from "@/components/questions/chagok-panel";
 import { Button } from "@/components/ui/button";
 import { handOffApplicationText } from "@/lib/application-handoff";
@@ -40,7 +40,7 @@ const BUSY = "지금 넣은 자료의 분석이 끝나면 더 넣을 수 있어�
 const LIST_ID = "quick-find-list";
 const optionId = (index: number) => `quick-find-option-${index}`;
 
-export function QuickFindPanel({ addSourceBusy, initial, onGo }: { addSourceBusy: boolean; initial?: ExperienceSearch; onGo: (target: QuickFindTarget) => void }) {
+export function QuickFindPanel({ asked, addSourceBusy, initial, onGo }: { asked: ReturnType<typeof useAsk>; addSourceBusy: boolean; initial?: ExperienceSearch; onGo: (target: QuickFindTarget) => void }) {
   const [tab, setTab] = useState<Tab>("find");
   const [word, setWord] = useState(initial?.query ?? "");
   const [active, setActive] = useState(0);
@@ -48,7 +48,6 @@ export function QuickFindPanel({ addSourceBusy, initial, onGo }: { addSourceBusy
   const [filters, setFilters] = useState<ExperienceFilters>(() => { const { query: _word, ...rest } = initial ?? {}; void _word; return rest; });
   const [years, setYears] = useState<number[]>([]);
   const input = useRef<HTMLInputElement>(null);
-  const asked = useAsk();
   const query = word.trim();
   const search: ExperienceSearch = { query: query || undefined, ...filters };
   const { state, retry } = useExperienceSearch(search, { enabled: tab === "find" });
