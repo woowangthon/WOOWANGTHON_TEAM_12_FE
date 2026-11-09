@@ -168,6 +168,10 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
           <DotsSixVerticalIcon className="size-4" />
         </span>
       )}
+      {usedIn.length > 0 && <div className="flex">
+        <UsedInChip usedIn={usedIn} open={usedInOpen} onToggle={() => setUsedInOpen((v) => !v)} controls={`used-in-${e.id}`} />
+      </div>}
+      {usedInOpen && usedIn.length > 0 && <UsedInList usedIn={usedIn} id={`used-in-${e.id}`} />}
       <div className="flex items-start gap-2">
           <ExperienceContentField experience={e} readOnly={readOnly} onEditingChange={setEditing}
             onSaved={(result) => onSaved({ ...result, usedIn: result.usedIn ?? e.usedIn })} />
@@ -196,7 +200,6 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
       </div>
       <div className="flex flex-wrap items-center gap-1.5 text-note font-medium text-muted">
         <ExperienceMeta experience={e} edit={readOnly ? undefined : { experience: e, onSaved: (result) => onSaved({ ...result, usedIn: result.usedIn ?? e.usedIn }) }} />
-        <UsedInChip usedIn={usedIn} open={usedInOpen} onToggle={() => setUsedInOpen((v) => !v)} controls={`used-in-${e.id}`} />
         <span className="ml-auto inline-flex items-center gap-1.5">
         {!readOnly && e.origin?.type !== "ANSWER" && <SourceStatusIcon status={e.sourceStatus} />}
         {n === 0 ? (
@@ -227,7 +230,6 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
       {<ExperienceMcpChange experience={e} readOnly={readOnly} onSaved={onSaved} />}
       {!readOnly && <ProfileShareNote share={share} />}
       {!readOnly && save.error && <p role="alert" className="m-0 text-note font-medium text-error">{SAVE_ERROR}</p>}
-      {usedInOpen && usedIn.length > 0 && <UsedInList usedIn={usedIn} id={`used-in-${e.id}`} />}
       {citationsOpen && (
         <div className="mt-1.5 hidden lg:block">
           <CitationList citations={e.citations} readOnly={readOnly} />
