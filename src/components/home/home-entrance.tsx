@@ -171,7 +171,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     <section aria-label="홈 입력" className="mx-auto max-w-[760px]">
     <div role="group" aria-label="입력 모드" className="mx-auto mb-12 grid w-40 lg:mb-20 grid-cols-2 gap-0.5 rounded-full bg-surface-soft p-0.5">
       {([ ["out", "꺼내기"], ["in", "쌓기"] ] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={mode === value} disabled={busy || (!!file && value === "out")} onClick={() => { setMode(value); setChoosing(false); setError(null); setDuplicate(null); }}
-        className={cn("relative inline-flex min-h-7.5 items-center justify-center gap-1.5 rounded-full text-sm leading-none whitespace-nowrap transition-colors after:absolute after:inset-x-0 after:-inset-y-2 disabled:opacity-50 lg:min-h-6 lg:text-note lg:after:hidden", mode === value ? "bg-canvas font-bold text-ink shadow-mode" : "font-normal text-muted hover:text-ink")}>
+        className={cn("relative inline-flex min-h-7.5 items-center justify-center gap-1.5 rounded-full text-sm leading-none whitespace-nowrap transition-colors after:absolute after:inset-x-0 after:-inset-y-2 disabled:opacity-50 lg:text-note lg:after:hidden", mode === value ? "bg-canvas font-bold text-ink shadow-mode" : "font-normal text-muted hover:text-ink")}>
         <span aria-hidden="true" className={cn("size-1.75 rounded-full", value === "out" ? "bg-mark" : "bg-record-green", mode !== value && "opacity-55")} />{label}
       </button>)}
     </div>
