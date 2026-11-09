@@ -13,15 +13,11 @@ import { APPLICATION_STATUS_LABEL, JOB_ROLE_LABEL, type Application } from "@/li
 export const dateText = (iso: string) => new Date(iso).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" });
 /** 낸 달 "2026-11" → 「2026년 11월」 */
 export const monthText = (month: string) => { const [y, m] = month.split("-"); return `${y}년 ${Number(m)}월`; };
-/** 「분석 중 1 · 실패 1」 — 손이 가야 하는 문항만. 없으면 빈 배열 */
-function pendingParts(application: Application) {
-  const n = (status: Application["questions"][number]["status"]) => application.questions.filter(q => q.status === status).length;
-  return [n("ANALYZING") && `분석 중 ${n("ANALYZING")}`, n("FAILED") && `실패 ${n("FAILED")}`].filter((part): part is string => !!part);
-}
 /** 「문항 3 · 분석 중 1」처럼 — 문항 상태를 한 줄로 */
-export const progressText = (application: Application) => [`문항 ${application.questions.length}`, ...pendingParts(application)].join(" · ");
-/** 낸 달이 있으면 「2026년 11월 냄」, 없으면 넣은 날 */
-export const whenText = (application: Application) => application.submittedMonth ? `${monthText(application.submittedMonth)} 냄` : dateText(application.createdAt);
+export function progressText(application: Application) {
+  const n = (status: Application["questions"][number]["status"]) => application.questions.filter(q => q.status === status).length;
+  return [`문항 ${application.questions.length}`, n("ANALYZING") && `분석 중 ${n("ANALYZING")}`, n("FAILED") && `실패 ${n("FAILED")}`].filter(Boolean).join(" · ");
+}
 
 const LOAD_FAILED = "지원서를 불러오지 못했어요.";
 export type ApplicationsLoad = { applications: Application[]; loading: boolean; error: string | null; onRetry: () => void };
@@ -59,18 +55,15 @@ export function useExperienceCount(enabled: boolean) {
   return count;
 }
 
-/** 사이드바 지원서 한 줄의 글자 — 지원처 · 직무는 한 줄을 다 쓰고, 날짜 · 분석 상태는 아랫줄(태그 자리를 비운다).
-    문항 수는 싣지 않는다 — 짧은 이름도 잘려서 뺐다(FE#271) */
+/** 사이드바 지원서 한 줄의 글자 — 시안 6: 지원처 · 직무 / 진행 · 낸 달 */
 export function SidebarApplicationText({ application }: { application: Application }) {
   const name = application.organization || "지원처 이름 없음";
   return <>
-    <span className="truncate text-sm font-semibold">{application.jobRole ? `${name} · ${JOB_ROLE_LABEL[application.jobRole]}` : name}</span>
-    <span className="flex h-6 items-center pr-20 text-xs text-muted tabular-nums"><span className="truncate">{[whenText(application), ...pendingParts(application)].join(" · ")}</span></span>
+    <span className="truncate pr-16 text-sm font-semibold">{application.jobRole ? `${name} · ${JOB_ROLE_LABEL[application.jobRole]}` : name}</span>
+    <span className="truncate text-xs text-muted tabular-nums">{progressText(application)}{application.submittedMonth && ` · ${monthText(application.submittedMonth)} 냄`}</span>
   </>;
 }
 export const sidebarApplicationRow = "grid w-full gap-0.5 rounded-sm px-3.5 py-2 text-left transition-colors";
-/** 사이드바 줄의 태그 자리 — 아랫줄 오른쪽 끝 */
-export const sidebarTagSpot = "absolute right-1.5 bottom-2";
 
 /** 사이드바 「지원서」 — 어느 화면에서나 같은 자리. 못 받으면 빈 목록이 아니라 오류 · 다시 시도(FE#147) */
 export function SidebarApplications({ applications, loading, error, onRetry, onNew, rows, showAll }: ApplicationsLoad & {
@@ -96,7 +89,7 @@ export function SidebarApplications({ applications, loading, error, onRetry, onN
       : !applications.length ? <p className={note}>아직 넣은 지원서가 없어요.</p>
       : rows ?? <ul className="m-0 grid min-h-0 list-none content-start gap-1 overflow-y-auto p-0">{applications.map(a => <li key={a.id} className="relative">
         <Link href={`/questions?question=${a.questions[0].id}`} className={`${sidebarApplicationRow} hover:bg-canvas/60`}><SidebarApplicationText application={a} /></Link>
-        <span className={`pointer-events-none ${sidebarTagSpot} inline-flex h-6 items-center rounded-full bg-surface-soft px-2.5 text-xs font-medium whitespace-nowrap text-body`}>{APPLICATION_STATUS_LABEL[a.applicationStatus]}</span>
+        <span className="pointer-events-none absolute top-2 right-1.5 inline-flex h-6 items-center rounded-full bg-surface-soft px-2.5 text-xs font-medium whitespace-nowrap text-body">{APPLICATION_STATUS_LABEL[a.applicationStatus]}</span>
       </li>)}</ul>}
     {/* 0개로 확인됐으면 「모든 지원서」가 아니라 넣으러 가는 곳이라는 이름으로(FE#243) — 같은 /questions 의 지원서 넣는 칸.
         불러오는 중 · 실패 · 목 모드는 개수를 모르니 지금처럼 「모든 지원서」 */}
