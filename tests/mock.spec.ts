@@ -51,22 +51,27 @@ test("empty and error mock routes remain available", async ({ page }) => {
 
 test("mock experience search finds mock experiences and says so when nothing matches", async ({ page }) => {
   await page.goto("/experience");
-  await page.getByRole("button", { name: "경험 찾기", exact: true }).click();
-  await page.getByLabel("찾을 낱말").fill("WebSocket");
-  await expect(page.locator("li[id^=result-]").filter({ hasText: "WebSocket" }).first()).toBeVisible();
-  await page.getByLabel("찾을 낱말").fill("어디에도없는말");
-  await expect(page.getByText("쌓인 자료에서 찾지 못했어요")).toBeVisible();
+  await page.getByRole("button", { name: "빠른 찾기", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "빠른 찾기", exact: true });
+  const box = dialog.getByRole("combobox", { name: "빠른 찾기 입력", exact: true });
+  await box.fill("WebSocket");
+  await expect(dialog.getByRole("option").filter({ hasText: "WebSocket" }).first()).toBeVisible();
+  await box.fill("어디에도없는말");
+  await expect(dialog.getByText("쌓인 자료에서 찾지 못했어요")).toBeVisible();
 });
 
 test("mock save survives reload and the saved filter uses it", async ({ page }) => {
   await page.goto("/experience");
   await page.getByRole("button", { name: /바꿔요 — 캠퍼스/ }).first().click();
   const item = page.getByRole("complementary").locator("li").first();
-  await item.getByRole("button", { name: /^저장: / }).click();
-  await expect(item.getByRole("button", { name: /^저장함: / })).toHaveAttribute("aria-pressed", "true");
+  // 저장은 경험 「…」 메뉴의 체크 항목(FE#293)
+  await item.getByRole("button", { name: /^경험 메뉴: / }).click();
+  await page.getByRole("menuitemcheckbox", { name: "저장", exact: true }).click();
+  await expect(item.getByTitle("저장한 경험이에요")).toBeVisible();
 
   await page.reload();
-  await page.getByRole("button", { name: "경험 찾기", exact: true }).click();
-  await page.getByRole("button", { name: "저장한 것", exact: true }).click();
-  await expect(page.getByText("경험 1개", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "빠른 찾기", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "빠른 찾기", exact: true });
+  await dialog.getByRole("button", { name: "저장한 것", exact: true }).click();
+  await expect(dialog.getByText("찾은 경험 1개", { exact: true })).toBeVisible();
 });

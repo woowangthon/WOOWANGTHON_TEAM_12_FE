@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ExperienceMeta } from "@/components/experience/experience-item";
 import { foundExperiences, type ChagokConfirmStep, type ChagokRun, type ChagokToolCallStep, type FoundExperience } from "@/lib/api/chagok";
 import { JOB_ROLE_LABEL, ORGANIZATION_TYPE_LABEL, type JobRole, type OrganizationType } from "@/lib/api/question-types";
-import { bubble } from "./clarifications";
+import { bubble, inlineAction } from "./clarifications";
 import { ActivityChip, RecommendationEvidence } from "./question-result";
 import { whyFailed, type ChagokRunControl } from "./use-chagok-run";
 
@@ -85,7 +85,7 @@ function ConfirmCard({ step, control }: { step: ChagokConfirmStep; control: Chag
     <p className="m-0 font-semibold break-words text-ink">{step.label}</p>
     <ConfirmContent step={step} />
     {waiting && <div className="flex flex-wrap gap-2">
-      <Button size="sm" disabled={!!control.acting} onClick={() => void control.confirm()}>{step.tool === "add_source" ? "넣기" : "만들기"}</Button>
+      <Button size="sm" className={inlineAction} disabled={!!control.acting} onClick={() => void control.confirm()}>{step.tool === "add_source" ? "넣기" : "만들기"}</Button>
       <Button size="sm" variant="secondary" disabled={!!control.acting} onClick={() => void control.cancel()}>안 함</Button>
     </div>}
     {waiting && control.actionError && <p role="alert" className="m-0 text-note text-error">{control.actionError}</p>}
@@ -157,7 +157,7 @@ export function ChagokComposer({ control, hasQuestion }: { control: ChagokRunCon
       <p className="m-0">차곡이가 다른 일을 하고 있어요. 어떻게 할까요?</p>
       {conflictError && <p className="m-0 text-error">{conflictError}</p>}
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" disabled={starting} onClick={() => void control.restart()}>그만두고 새로 시작</Button>
+        <Button size="sm" className={inlineAction} disabled={starting} onClick={() => void control.restart()}>그만두고 새로 시작</Button>
         <Button size="sm" variant="secondary" disabled={starting} onClick={() => void control.wait()}>기다리기</Button>
       </div>
     </div>}

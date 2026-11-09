@@ -280,10 +280,13 @@ test("experience: Esc cancels, no-op, empty validation, Shift+Enter newline, sou
   if (page.viewportSize()!.width < 1024) await expect(page.getByRole("dialog")).toContainText("Updated");
 });
 
-test("experience menu 「고치기」 opens the inline field and clicking outside saves", async ({ page }) => {
+// 메뉴의 「고치기」는 뺐다 — 본문을 누르면 고쳐진다(FE#293)
+test("experience menu has no 「고치기」; clicking the text opens the field and clicking outside saves", async ({ page }) => {
   const state = await setup(page);
   await page.getByRole("button", { name: /^경험 메뉴:/ }).click();
-  await page.getByRole("menuitem", { name: "고치기", exact: true }).click();
+  await expect(page.getByRole("menuitem", { name: "고치기", exact: true })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: /^경험 고치기:/ }).click();
   const field = page.getByLabel("경험 내용");
   await expect(field).toBeFocused();
   await field.fill("Saved by blur");

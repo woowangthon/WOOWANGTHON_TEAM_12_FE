@@ -8,7 +8,7 @@ import Image from "next/image";
 import { CheckIcon, MinusCircleIcon, WarningCircleIcon, XIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import type { QuestionDetail, RequirementStatus, Supplement } from "@/lib/api/question-types";
-import { bubble, ClarificationItem, type AnswerHandler } from "./clarifications";
+import { bubble, ClarificationItem, ClarifyBlock, type AnswerHandler } from "./clarifications";
 import { DraftFollowUp, type DraftPanelActions } from "./draft-omissions";
 import { shortName } from "./question-result";
 import { ChagokComposer, ChagokRunFeed } from "./chagok-run";
@@ -65,6 +65,10 @@ function Feed({ question: q, originOf, onAnswer, draftActions }: { question: Que
     return supplement && supplement.questionId !== q.id ? [{ activity: r.activity.name, supplement }] : [];
   }));
   const top = q.recommendations[0];
+  const asks = q.clarifications.flatMap(c => {
+    const experience = q.recommendations.find(r => r.experience.id === c.experienceId)?.experience;
+    return experience ? [{ c, experience }] : [];
+  });
 
   return <div className="grid gap-2.5">
     <section aria-label="문항이 보려는 것" className={bubble}>
@@ -85,10 +89,11 @@ function Feed({ question: q, originOf, onAnswer, draftActions }: { question: Que
       <p className="m-0 border-l-2 border-hairline pl-3 text-note whitespace-pre-wrap text-muted">{supplement.answer}</p>
       {!q.clarifications.some(c => c.question === supplement.question) && <p className="m-0 text-note text-muted">그 부분은 다시 묻지 않을게요.</p>}
     </div>)}
-    {q.clarifications.length > 0 && <ul aria-label="차곡이의 질문" className="m-0 grid list-none gap-2.5 p-0">{q.clarifications.map(c => {
-      const experience = q.recommendations.find(r => r.experience.id === c.experienceId)?.experience;
-      return experience ? <ClarificationItem key={c.id} activityName={activityOf(c.experienceId)} clarification={c} experience={experience} onAnswer={onAnswer} /> : null;
-    })}</ul>}
+    {asks.length > 0 && <ClarifyBlock title="문항에 대한 되묻기" total={asks.length} answered={asks.filter(({ c }) => c.supplementId !== null).length}
+      attention={asks.some(({ c, experience }) => experience.supplements.find(s => s.id === c.supplementId)?.mcpChange)}>
+      <ul aria-label="차곡이의 질문" className="m-0 grid list-none gap-1 p-0">{asks.map(({ c, experience }) =>
+        <ClarificationItem key={c.id} activityName={activityOf(c.experienceId)} clarification={c} experience={experience} onAnswer={onAnswer} />)}</ul>
+    </ClarifyBlock>}
     <DraftFollowUp question={q} onAnswer={onAnswer} {...draftActions} />
   </div>;
 }

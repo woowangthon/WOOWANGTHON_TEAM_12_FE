@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ComponentType, type KeyboardEvent, type ReactNode } from "react";
-import { ArrowRightIcon, ArrowsClockwiseIcon, ArrowUpIcon, FileTextIcon, HouseIcon, MagnifyingGlassIcon, PencilSimpleIcon, PlusIcon, StackIcon } from "@phosphor-icons/react";
+import { ArrowsClockwiseIcon, CaretDownIcon, ArrowUpIcon, FileTextIcon, HouseIcon, MagnifyingGlassIcon, PencilSimpleIcon, PlusIcon, StackIcon } from "@phosphor-icons/react";
 import { CitationList } from "@/components/experience/citation-list";
 import { ExperienceFilterBar, isFiltered, type ExperienceFilters } from "@/components/experience/experience-filters";
 import { categoryOf } from "@/components/experience/activity-category";
@@ -20,7 +20,6 @@ import { cn } from "@/lib/utils";
 
 export type QuickFindTarget =
   | { kind: "activity"; id: number }
-  | { kind: "search"; search: ExperienceSearch }
   | { kind: Shortcut["kind"] };
 
 type Tab = "find" | "ask" | "go";
@@ -35,17 +34,18 @@ const SHORTCUTS: Shortcut[] = [
   { kind: "experience", label: "내 경험", detail: "타임라인으로 가요", icon: StackIcon },
   { kind: "home", label: "홈", detail: "홈으로 가요", icon: HouseIcon },
 ];
-/** 시안과 같이 창에는 몇 줄만 — 더 보려면 「검색에서 더 보기」 */
-const MAX_ROWS = 8;
+/** 시안과 같이 처음엔 몇 줄만 — 「더 보기」로 창 안에서 이만큼씩 늘린다. 경험 찾기 자리가 이 창 하나라 다른 화면으로 넘기지 않는다(S-61 · FE#274) */
+const PAGE_ROWS = 8;
 const BUSY = "지금 넣은 자료의 분석이 끝나면 더 넣을 수 있어요";
 const LIST_ID = "quick-find-list";
 const optionId = (index: number) => `quick-find-option-${index}`;
 
-export function QuickFindPanel({ addSourceBusy, onGo }: { addSourceBusy: boolean; onGo: (target: QuickFindTarget) => void }) {
+export function QuickFindPanel({ addSourceBusy, initial, onGo }: { addSourceBusy: boolean; initial?: ExperienceSearch; onGo: (target: QuickFindTarget) => void }) {
   const [tab, setTab] = useState<Tab>("find");
-  const [word, setWord] = useState("");
+  const [word, setWord] = useState(initial?.query ?? "");
   const [active, setActive] = useState(0);
-  const [filters, setFilters] = useState<ExperienceFilters>({});
+  const [rows, setRows] = useState(PAGE_ROWS);
+  const [filters, setFilters] = useState<ExperienceFilters>(() => { const { query: _word, ...rest } = initial ?? {}; void _word; return rest; });
   const [years, setYears] = useState<number[]>([]);
   const input = useRef<HTMLInputElement>(null);
   const asked = useAsk();
@@ -53,12 +53,17 @@ export function QuickFindPanel({ addSourceBusy, onGo }: { addSourceBusy: boolean
   const search: ExperienceSearch = { query: query || undefined, ...filters };
   const { state, retry } = useExperienceSearch(search, { enabled: tab === "find" });
   const filtered = isFiltered(filters);
+  // 칩을 누르거나 낱말을 친 순간부터 응답까지 — 이전 결과는 그대로 두되 흐리게 해서 「옛 결과」임을 보인다(FE#248)
+  const refreshing = state.status === "ready" && state.refreshing;
 
-  const found = state.status === "ready" ? state.experiences.slice(0, MAX_ROWS) : [];
+  const found = state.status === "ready" ? state.experiences.slice(0, rows) : [];
+  const more = state.status === "ready" && state.experiences.length > rows;
+  // 서버가 한 번에 주는 만큼(limit) 다 펼쳤는데도 맞은 게 더 있으면 더 좁히라고 알린다
+  const capped = state.status === "ready" && !more && state.total > state.experiences.length;
   const shortcuts = SHORTCUTS.filter(s => s.label.includes(query));
   const isDisabled = (s: Shortcut) => (s.kind === "source" || s.kind === "record") && addSourceBusy;
-  // 찾기의 마지막 줄은 「검색에서 더 보기」
-  const count = tab === "find" ? (found.length ? found.length + 1 : 0) : tab === "go" ? shortcuts.length : 0;
+  // 더 있으면 찾기의 마지막 줄은 「더 보기」
+  const count = tab === "find" ? found.length + (more ? 1 : 0) : tab === "go" ? shortcuts.length : 0;
   const current = Math.max(Math.min(active, count - 1), 0);
   const preview = tab === "find" ? found[current] : undefined;
 
@@ -71,7 +76,7 @@ export function QuickFindPanel({ addSourceBusy, onGo }: { addSourceBusy: boolean
     return () => { live = false; };
   }, []);
 
-  const changeFilters = (next: ExperienceFilters) => { setFilters(next); setActive(0); };
+  const changeFilters = (next: ExperienceFilters) => { setFilters(next); setActive(0); setRows(PAGE_ROWS); };
   // 화면 키보드가 결과를 가리지 않게 PC 폭에서만 입력칸으로 돌아간다
   const backToInput = () => { if (matchMedia("(min-width: 64rem)").matches) input.current?.focus(); };
   const moveTo = (next: Tab) => { setTab(next); setActive(0); input.current?.focus(); };
@@ -81,6 +86,7 @@ export function QuickFindPanel({ addSourceBusy, onGo }: { addSourceBusy: boolean
     if (prefix) { setTab(prefix[1] === "?" ? "ask" : "go"); setWord(value.slice(prefix[0].length)); }
     else setWord(value);
     setActive(0);
+    setRows(PAGE_ROWS);
   };
   const pick = (index: number) => {
     if (tab === "go") {
@@ -90,7 +96,7 @@ export function QuickFindPanel({ addSourceBusy, onGo }: { addSourceBusy: boolean
     }
     const row = found[index];
     if (row) onGo({ kind: "activity", id: row.activity.id });
-    else if (found.length) onGo({ kind: "search", search });
+    else if (more) setRows(n => n + PAGE_ROWS); // 고른 자리가 새로 펼친 첫 줄이 된다
   };
   const send = () => { if (query) void asked.ask(query); };
   const makeApplication = (text: string) => { handOffApplicationText(text); onGo({ kind: "application" }); };
@@ -145,29 +151,33 @@ export function QuickFindPanel({ addSourceBusy, onGo }: { addSourceBusy: boolean
         </Option>)}
       </OptionList>
     </div> : <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-      <div className="min-h-0 overflow-y-auto p-2.5" aria-busy={state.status === "ready" && state.refreshing}>
+      <div className="min-h-0 overflow-y-auto p-2.5" aria-busy={refreshing}>
         {state.status === "loading" && <p role="status" className="p-3 text-sm text-muted">경험을 찾고 있어요…</p>}
         {state.status === "error" && <div role="alert" className="grid justify-items-start gap-2 p-3">
           <p className="m-0 text-sm text-error">경험을 찾지 못했어요. {state.message}</p>
           <Button type="button" variant="secondary" className="min-h-11" onClick={retry}><ArrowsClockwiseIcon aria-hidden="true" />다시 시도</Button>
         </div>}
-        {state.status === "ready" && found.length === 0 && <div role="status" className="grid gap-1 p-3 text-sm">
+        {refreshing && found.length === 0 && <p role="status" className="p-3 text-sm text-muted">경험을 찾고 있어요…</p>}
+        {state.status === "ready" && !refreshing && found.length === 0 && <div role="status" className="grid gap-1 p-3 text-sm">
           <p className="m-0 font-medium text-ink">쌓인 자료에서 찾지 못했어요</p>
           <p className="m-0 text-muted">{filtered ? "거르기를 줄이거나, " : ""}뜻으로 찾고 싶다면 「차곡이에게」로 물어보세요.</p>
           {filtered && <Button type="button" variant="secondary" className="mt-1 min-h-11 justify-self-start" onClick={() => changeFilters({})}>거르기 지우기</Button>}
         </div>}
         {found.length > 0 && <>
-          <p role="status" className="m-0 px-2.5 pt-2 pb-1 text-xs font-semibold text-muted">{query || filtered ? `찾은 경험 ${state.status === "ready" ? state.total : found.length}개` : "쌓인 경험"}</p>
-          <OptionList label="찾은 경험">
+          <p role="status" className="m-0 px-2.5 pt-2 pb-1 text-xs font-semibold text-muted tabular-nums">{refreshing ? "찾고 있어요…" : query || filtered ? `찾은 경험 ${state.status === "ready" ? state.total : found.length}개` : `쌓인 경험 ${state.status === "ready" ? state.total : found.length}개`}</p>
+          <div className={cn("transition-opacity duration-150", refreshing && "opacity-50")}>
+            <OptionList label="찾은 경험">
             {found.map((e, i) => <Option key={e.id} index={i} active={i === current} onPick={pick} onHover={setActive}><ResultLine experience={e} /></Option>)}
-            <Option index={found.length} active={current === found.length} onPick={pick} onHover={setActive}>
-              <span className="flex items-center gap-2 text-sm font-medium text-ink"><ArrowRightIcon className="size-4 shrink-0" aria-hidden="true" />검색에서 더 보기</span>
-            </Option>
+            {more && <Option index={found.length} active={current === found.length} onPick={pick} onHover={setActive}>
+              <span className="flex items-center gap-2 text-sm font-medium text-ink tabular-nums"><CaretDownIcon className="size-4 shrink-0" aria-hidden="true" />더 보기 <span className="font-normal text-muted">{found.length} / {state.status === "ready" ? state.total : found.length}</span></span>
+            </Option>}
           </OptionList>
+          </div>
+          {capped && !refreshing && state.status === "ready" && <p role="status" className="m-0 px-2.5 pt-2 pb-1 text-note text-muted tabular-nums">{state.total}개 중 {state.experiences.length}개까지 보여 드려요. 낱말이나 거르기로 더 좁혀 보세요.</p>}
         </>}
       </div>
       {/* 좁은 화면엔 자리가 없다 — 고르면 활동 세부에서 같은 내용을 본다 */}
-      <div data-slot="quick-find-preview" className="hidden min-h-0 flex-col items-start gap-2 overflow-y-auto border-l border-hairline-soft p-5.5 lg:flex">
+      <div data-slot="quick-find-preview" className={cn("hidden min-h-0 flex-col items-start gap-2 overflow-y-auto border-l border-hairline-soft p-5.5 transition-opacity duration-150 lg:flex", refreshing && "opacity-50")}>
         {preview && <Preview experience={preview} />}
       </div>
     </div>}

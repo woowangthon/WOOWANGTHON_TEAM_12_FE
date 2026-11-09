@@ -18,10 +18,10 @@ const REVIEW: ExperienceResult = {
 };
 const ANSWER = { recommendations: [{ activity: { id: 7, name: ACTIVITY.name, period: PERIOD }, experience: { ...WEBSOCKET, activityId: 7, activity: undefined, supplements: [] }, reason: "시험 응답 — 폴링을 바꾼 일이라 질문과 맞는다", evidence: [{ type: "CITATION", id: 201 }] }] };
 
-type Api = { searches: string[]; params: URLSearchParams[]; asks: string[]; search: { status?: number; json: unknown }; ask: { status?: number; json: unknown } };
+type Api = { hold: Promise<void> | null; searches: string[]; params: URLSearchParams[]; asks: string[]; search: { status?: number; json: unknown }; ask: { status?: number; json: unknown } };
 
 async function setup(page: Page) {
-  const api: Api = { searches: [], params: [], asks: [], search: { json: { total: 2, experiences: [WEBSOCKET, REVIEW] } }, ask: { json: ANSWER } };
+  const api: Api = { hold: null, searches: [], params: [], asks: [], search: { json: { total: 2, experiences: [WEBSOCKET, REVIEW] } }, ask: { json: ANSWER } };
   await page.route("https://cdn.jsdelivr.net/**", route => route.abort());
   await page.route("**/api/**", async route => {
     const url = new URL(route.request().url());
@@ -29,7 +29,7 @@ async function setup(page: Page) {
     if (url.pathname === "/api/activities") return route.fulfill({ json: { activities: [{ id: 7, name: ACTIVITY.name, period: PERIOD, note: null, experienceCount: 2, category: "PROJECT" }] } });
     if (url.pathname === "/api/activities/7") return route.fulfill({ json: DETAIL });
     if (url.pathname === "/api/applications") return route.fulfill({ json: { applications: [] } });
-    if (url.pathname === "/api/experiences") { api.searches.push(url.searchParams.get("query") ?? ""); api.params.push(url.searchParams); return route.fulfill(api.search); }
+    if (url.pathname === "/api/experiences") { api.searches.push(url.searchParams.get("query") ?? ""); api.params.push(url.searchParams); await api.hold; return route.fulfill(api.search); }
     if (url.pathname === "/api/ask") { api.asks.push(route.request().postDataJSON().text); return route.fulfill(api.ask); }
     return route.fulfill({ status: 404, json: { error: { code: "NOT_FOUND", message: "시험 경로 없음" } } });
   });
@@ -45,9 +45,9 @@ const dialog = (page: Page) => page.getByRole("dialog", { name: "빠른 찾기",
 const rows = (page: Page) => dialog(page).getByRole("listbox").getByRole("option");
 const box = (page: Page) => page.getByRole("textbox", { name: "빠른 찾기 입력", exact: true }).or(page.getByRole("combobox", { name: "빠른 찾기 입력", exact: true }));
 const openByButton = async (page: Page) => { await page.getByRole("button", { name: "빠른 찾기", exact: true }).click(); await expect(box(page)).toBeFocused(); };
-const capture = async (page: Page, name: string) => {
+const capture = async (page: Page, name: string, dir = "fe-162") => {
   if (process.env.UPDATE_QUICK_FIND_SCREENSHOTS !== "1") return;
-  await page.screenshot({ path: `docs/fe-162/${name}.png`, animations: "disabled", style: "nextjs-portal { display: none !important; }" });
+  await page.screenshot({ path: `docs/${dir}/${name}.png`, animations: "disabled", style: "nextjs-portal { display: none !important; }" });
 };
 
 test("Ctrl K opens over the current screen and closing keeps what was being written", async ({ page }, info) => {
@@ -77,7 +77,7 @@ test("find searches while typing, arrow keys pick and the activity detail opens 
   const api = await setup(page);
   await page.goto("/experience");
   await openByButton(page);
-  await expect(rows(page)).toHaveCount(3); // 경험 둘 + 더 보기
+  await expect(rows(page)).toHaveCount(2); // 경험 둘 — 더 볼 게 없으면 「더 보기」 줄도 없다
   await expect(rows(page).first()).toHaveAttribute("aria-selected", "true");
   await expect(rows(page).nth(1)).toContainText("확인 필요");
   await box(page).fill("WebSocket");
@@ -95,28 +95,52 @@ test("find searches while typing, arrow keys pick and the activity detail opens 
   await expect(page).not.toHaveURL(/activity=/); // 같은 화면이라 처리기로 열었다
 });
 
-test("opens the detail from another screen, and more results carries the word to search", async ({ page }) => {
-  const api = await setup(page);
+test("opens the detail from another screen", async ({ page }) => {
+  await setup(page);
   await page.goto("/guidelines");
   await openByButton(page);
   await rows(page).first().click();
   await expect(page).toHaveURL(/\/experience\?activity=7/);
   await expect(page.getByRole("heading", { name: ACTIVITY.name })).toBeVisible();
+});
 
+// FE#274 — 경험 찾기 자리가 이 창 하나라 「검색에서 더 보기」 대신 창 안에서 더 본다
+const many = (n: number) => Array.from({ length: n }, (_, i) => ({ ...WEBSOCKET, id: 1000 + i, content: `시험 경험 ${i + 1}` }));
+test("more results unfold inside the window, and past the limit it asks to narrow", async ({ page }) => {
+  const api = await setup(page);
+  api.search = { json: { total: 10, experiences: many(10) } };
   await page.goto("/guidelines");
   await openByButton(page);
-  await box(page).fill("회고");
-  await expect.poll(() => api.searches.at(-1)).toBe("회고");
-  await dialog(page).getByRole("option", { name: /검색에서 더 보기/ }).click();
-  await expect(page).toHaveURL(/\/experience\?q=/);
-  await expect(page.getByRole("searchbox", { name: "찾을 낱말", exact: true })).toHaveValue("회고");
+  await expect(dialog(page).getByRole("option", { name: /검색에서 더 보기/ })).toHaveCount(0);
+  await expect(rows(page)).toHaveCount(9); // 8 + 더 보기
+  await dialog(page).getByRole("option", { name: /더 보기/ }).click();
+  await expect(dialog(page)).toBeVisible();
+  await expect(rows(page)).toHaveCount(10);
+  await expect(dialog(page).getByRole("option", { name: /더 보기/ })).toHaveCount(0);
 
-  // 이미 내 경험 화면이면 주소가 아니라 화면이 낱말을 받는다
+  await page.keyboard.press("Escape");
+  api.search = { json: { total: 340, experiences: many(10) } };
   await openByButton(page);
-  await box(page).fill("배포");
-  await expect.poll(() => api.searches.at(-1)).toBe("배포");
-  await dialog(page).getByRole("option", { name: /검색에서 더 보기/ }).click();
-  await expect(page.getByRole("searchbox", { name: "찾을 낱말", exact: true })).toHaveValue("배포");
+  await expect(rows(page)).toHaveCount(9);
+  await box(page).press("End"); // 입력칸 그대로 — 엔터로도 펼친다
+  for (let i = 0; i < 8; i++) await page.keyboard.press("ArrowDown");
+  await expect(rows(page).nth(8)).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("Enter");
+  await expect(rows(page)).toHaveCount(10);
+  await expect(rows(page).nth(8)).toHaveAttribute("aria-selected", "true"); // 새로 펼친 첫 줄
+  await expect(dialog(page).getByRole("status").filter({ hasText: "340개 중 10개" })).toContainText("더 좁혀");
+});
+
+test("an old search address opens this window with its word and chips", async ({ page }) => {
+  const api = await setup(page);
+  await page.goto("/experience?q=회고&competencies=COLLABORATION&year=2025&review=1&category=PROJECT");
+  await expect(dialog(page)).toBeVisible();
+  await expect(box(page)).toHaveValue("회고");
+  await expect.poll(() => Object.fromEntries(api.params.at(-1) ?? [])).toEqual({ query: "회고", category: "PROJECT", year: "2025", sourceStatus: "NEEDS_REVIEW", competencies: "COLLABORATION" });
+  await expect(dialog(page).getByRole("combobox", { name: "활동 분류", exact: true })).toHaveText("프로젝트 · 일");
+  await expect(page).toHaveURL(/\/experience$/); // 새로고침에 다시 열리지 않게 지운다
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "경험 찾기", exact: true })).toHaveCount(0);
 });
 
 test("find empty and failed states are shown as they are", async ({ page }, info) => {
@@ -134,7 +158,7 @@ test("find empty and failed states are shown as they are", async ({ page }, info
   await expect(rows(page)).toHaveCount(0);
   api.search = { json: { total: 2, experiences: [WEBSOCKET, REVIEW] } };
   await alert.getByRole("button", { name: "다시 시도", exact: true }).click();
-  await expect(rows(page)).toHaveCount(3);
+  await expect(rows(page)).toHaveCount(2);
 });
 
 test("ask calls the API only when sent, once, and shows cards in the window", async ({ page }) => {
@@ -227,11 +251,11 @@ test("the open button stays visible on a narrow screen even over the full screen
   await expect(page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).resolves.toBe(true);
 });
 
-test("find chips narrow the same search and more results carries them", async ({ page }) => {
+test("find chips narrow the same search", async ({ page }) => {
   const api = await setup(page);
   await page.goto("/guidelines");
   await openByButton(page);
-  await expect(rows(page)).toHaveCount(3);
+  await expect(rows(page)).toHaveCount(2);
   await pickOption(dialog(page).getByRole("combobox", { name: "활동 분류", exact: true }), "프로젝트 · 일");
   await pickOption(dialog(page).getByRole("combobox", { name: "연도", exact: true }), "2025년");
   await dialog(page).getByText("확인 필요만").click();
@@ -244,19 +268,6 @@ test("find chips narrow the same search and more results carries them", async ({
   await expect.poll(() => Object.fromEntries(api.params.at(-1)!)).toEqual({ category: "PROJECT", year: "2025", sourceStatus: "NEEDS_REVIEW", competencies: "COLLABORATION" });
   await capture(page, `chips-${page.viewportSize()!.width}`);
   await expect(page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).resolves.toBe(true);
-  await dialog(page).getByRole("option", { name: /검색에서 더 보기/ }).click();
-  await expect(page).toHaveURL(/\/experience\?q=&competencies=COLLABORATION&year=2025&review=1&category=PROJECT/);
-  await expect(page.getByRole("combobox", { name: "활동 분류", exact: true })).toHaveText("프로젝트 · 일");
-  await expect(page.getByRole("combobox", { name: "연도", exact: true })).toHaveText("2025년");
-  await expect(page.getByRole("button", { name: "확인 필요만", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("button", { name: "역량 1", exact: true })).toBeVisible();
-
-  // 내 경험 화면 안에서는 화면이 조건을 받는다
-  await openByButton(page);
-  await pickOption(dialog(page).getByRole("combobox", { name: "활동 분류", exact: true }), "공부 · 성장");
-  await dialog(page).getByRole("option", { name: /검색에서 더 보기/ }).click();
-  await expect(page.getByRole("combobox", { name: "활동 분류", exact: true })).toHaveText("공부 · 성장");
-  await expect(page.getByRole("button", { name: "확인 필요만", exact: true })).toHaveAttribute("aria-pressed", "false");
 });
 
 test("filter chips are small on PC, 44 below it, and say when they are on without colour alone", async ({ page }, info) => {
@@ -297,11 +308,61 @@ test("after a chip on PC the arrow keys and Enter still pick from the input", as
   await dialog(page).getByRole("button", { name: "역량", exact: true }).click();
   await page.keyboard.press("Escape");
   await expect(box(page)).toBeFocused();
-  await expect(rows(page)).toHaveCount(3);
+  await expect(rows(page)).toHaveCount(2);
   await page.keyboard.press("ArrowDown");
   await expect(rows(page).nth(1)).toHaveAttribute("aria-selected", "true");
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/experience\?activity=7/);
+});
+
+// FE#248 — 응답을 늦춘 채 칩을 누르거나 낱말을 치면 그 순간부터 「찾는 중」이 보이고, 이전 결과는 지워지지 않는다
+test("changing a chip or the word shows searching at once while the old rows stay", async ({ page }) => {
+  const api = await setup(page);
+  await page.goto("/guidelines");
+  await openByButton(page);
+  await expect(rows(page)).toHaveCount(2);
+  await expect(dialog(page)).toContainText("쌓인 경험 2개");
+
+  let release = () => {};
+  api.hold = new Promise<void>(resolve => { release = resolve; });
+  await dialog(page).getByText("확인 필요만").click();
+  // 250ms 기다리는 중에도, 응답을 기다리는 중에도
+  await expect(dialog(page).getByRole("status").filter({ hasText: "찾고 있어요…" })).toBeVisible();
+  await expect(dialog(page).locator("[aria-busy=true]")).toHaveCount(1);
+  await expect(rows(page)).toHaveCount(2); // 통째로 지우지 않는다
+  await page.waitForTimeout(400);
+  await expect(dialog(page).getByRole("status").filter({ hasText: "찾고 있어요…" })).toBeVisible();
+  release();
+  await expect(dialog(page)).toContainText("찾은 경험 2개");
+  await expect(dialog(page).locator("[aria-busy=true]")).toHaveCount(0);
+
+  // 낱말도 같다
+  api.hold = new Promise<void>(resolve => { release = resolve; });
+  await box(page).fill("웹소켓");
+  await expect(dialog(page).getByRole("status").filter({ hasText: "찾고 있어요…" })).toBeVisible();
+  await expect(rows(page)).toHaveCount(2);
+  await capture(page, `searching-${page.viewportSize()!.width}`, "fe-248");
+  release();
+  await expect(dialog(page)).toContainText("찾은 경험 2개");
+});
+
+test("when the previous result was empty, searching shows instead of the empty notice", async ({ page }) => {
+  const api = await setup(page);
+  await page.goto("/guidelines");
+  await openByButton(page);
+  await expect(rows(page)).toHaveCount(2);
+  api.search = { json: { total: 0, experiences: [] } };
+  await dialog(page).getByText("확인 필요만").click();
+  await expect(dialog(page)).toContainText("쌓인 자료에서 찾지 못했어요");
+
+  let release = () => {};
+  api.hold = new Promise<void>(resolve => { release = resolve; });
+  api.search = { json: { total: 2, experiences: [WEBSOCKET, REVIEW] } };
+  await dialog(page).getByText("확인 필요만").click();
+  await expect(dialog(page).getByRole("status").filter({ hasText: "경험을 찾고 있어요…" })).toBeVisible();
+  await expect(dialog(page)).not.toContainText("쌓인 자료에서 찾지 못했어요");
+  release();
+  await expect(rows(page)).toHaveCount(2);
 });
 
 test("zero results with chips offers to clear them, and the hint follows the tab", async ({ page }, info) => {
@@ -309,13 +370,13 @@ test("zero results with chips offers to clear them, and the hint follows the tab
   const api = await setup(page);
   await page.goto("/guidelines");
   await openByButton(page);
-  await expect(rows(page)).toHaveCount(3);
+  await expect(rows(page)).toHaveCount(2);
   api.search = { json: { total: 0, experiences: [] } };
   await dialog(page).getByText("확인 필요만").click();
   await expect(dialog(page)).toContainText("쌓인 자료에서 찾지 못했어요");
   api.search = { json: { total: 2, experiences: [WEBSOCKET, REVIEW] } };
   await dialog(page).getByRole("button", { name: "거르기 지우기", exact: true }).click();
-  await expect(rows(page)).toHaveCount(3);
+  await expect(rows(page)).toHaveCount(2);
   await expect.poll(() => Object.fromEntries(api.params.at(-1)!)).toEqual({});
 
   await expect(dialog(page).locator("kbd")).toHaveText(["Enter", "?", ">", "Esc"]);

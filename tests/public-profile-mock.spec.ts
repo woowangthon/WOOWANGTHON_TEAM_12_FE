@@ -9,13 +9,21 @@ test("pick, publish, read without login, then turn off", async ({ page, context 
   await page.getByRole("button", { name: /바꿔요 — 캠퍼스/ }).filter({ visible: true }).first().click();
   const detail = page.locator("#experience-101");
   await expect(detail).toBeVisible();
-  await detail.getByRole("switch", { name: /프로필에 넣기/ }).click();
-  await expect(detail.getByRole("switch", { name: /프로필에 넣기/ })).toBeChecked();
+  // 프로필에 넣기는 경험 「…」 메뉴의 체크 항목이다(FE#272)
+  const item = async (id: number) => {
+    await page.keyboard.press("Escape");
+    await page.locator(`#experience-${id}`).getByRole("button", { name: /^경험 메뉴: / }).click();
+    return page.getByRole("menuitemcheckbox", { name: /프로필에 넣기/ });
+  };
+  await (await item(101)).click();
+  await expect(await item(101)).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("Escape");
   await page.getByRole("button", { name: /나머지 \d+개 더 보기/ }).click();
-  await page.locator("#experience-105").getByRole("switch", { name: /프로필에 넣기/ }).click();
-  await expect(page.locator("#experience-105").getByRole("switch", { name: /프로필에 넣기/ })).toBeChecked();
-  await expect(page.locator("#experience-104").getByRole("switch", { name: /프로필에 넣기/ })).toBeDisabled();
-  await expect(page.locator("#experience-104")).toContainText("먼저 확인해 주세요");
+  await (await item(105)).click();
+  await expect(await item(105)).toHaveAttribute("aria-checked", "true");
+  await expect(await item(104)).toHaveAttribute("aria-disabled", "true");
+  await expect(await item(104)).toContainText("먼저 확인해 주세요");
+  await page.keyboard.press("Escape");
   await shot(page, `experience-${width}`);
 
   await page.goto("/connections");

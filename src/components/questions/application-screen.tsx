@@ -7,7 +7,7 @@ import { ArrowSquareOutIcon, ArrowsClockwiseIcon, MagnifyingGlassIcon, PlusIcon,
 import { isPostingUrl } from "@/lib/api/entrance";
 import { AppHeader } from "@/components/app-header";
 import { useSidebar } from "@/components/sidebar-layout";
-import { SidebarApplicationText, dateText, progressText, sidebarApplicationRow, whenText } from "@/components/sidebar-applications";
+import { SidebarApplicationText, dateText, monthText, progressText, sidebarApplicationRow } from "@/components/sidebar-applications";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { CenterState } from "@/components/center-state";
 import { Button } from "@/components/ui/button";
@@ -104,9 +104,11 @@ export function ApplicationScreen() {
   }, [restoreRun]);
   useEffect(() => {
     if (!linkedArea || !selectedQuestionId || selectedQuestionId !== linkedQuestion) return;
-    const id = linkedArea === "draft" ? `draft-title-${selectedQuestionId}` : linkedArea === "answer" ? `answer-title-${selectedQuestionId}` : "question-panel";
+    const answerId = `answer-title-${selectedQuestionId}`;
+    const id = linkedArea === "draft" ? `draft-title-${selectedQuestionId}` : linkedArea === "answer" ? answerId : "question-panel";
     const timer = setTimeout(() => {
-      const target = document.getElementById(id);
+      // 초안 카드는 문장이 있는 초안일 때만 그려진다 — 없으면 초안이 들어올 답칸으로 간다
+      const target = document.getElementById(id) ?? (linkedArea === "draft" ? document.getElementById(answerId) : null);
       target?.scrollIntoView({ block: "start" });
       target?.setAttribute("tabindex", "-1"); target?.focus({ preventScroll: true });
     }, 0);
@@ -162,7 +164,7 @@ export function ApplicationScreen() {
       {working ? <h1 className="sr-only">지원</h1> : <div className="mb-7 flex items-start justify-between gap-3">
         <div><h1 className="m-0 text-display leading-snug font-bold tracking-[-0.4px]">지원</h1><p className="mt-2 mb-0 text-sm text-muted">지원서의 문항마다 꺼내 볼 경험을 찾아요. 같은 경험도 문항마다 다른 점을 보여 줄 수 있어요.</p></div>
         {(empty || matching.error) && restoreRun !== null && <Button variant="secondary" onClick={() => setPanelChoice(!panelOpen)} aria-expanded={panelOpen}>차곡이</Button>}
-        {!empty && <Button disabled={composing || !!matching.error} onClick={startNew}><PlusIcon aria-hidden="true" />지원 넣기</Button>}
+        {!empty && <Button className="min-h-11" disabled={composing || !!matching.error} onClick={startNew}><PlusIcon aria-hidden="true" />지원 넣기</Button>}
       </div>}
       {ready && matching.pollWarnings.map(warning => <div key={warning.id} role="alert" aria-label={warning.label}
         className="mb-4 flex flex-wrap items-center justify-between gap-3 border-y border-hairline py-3 text-sm">
@@ -186,25 +188,19 @@ export function ApplicationScreen() {
             if (saved) { setComposing(false); scrollToDetail(); }
           }} /> : open ? <>
             <button type="button" onClick={showList} className="mb-1 inline-flex min-h-11 items-center text-sm text-muted underline underline-offset-4 lg:hidden">지원 목록으로</button>
-            {/* sm 미만은 칩이 아래 줄 전체를 쓰고, sm 이상은 이름 옆으로 온다 */}
-            <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3">
-              <div className="contents sm:block sm:min-w-0">
-                <div className="contents sm:flex sm:flex-wrap sm:items-center sm:gap-x-2">
-                  <OrganizationName key={`name-${open.application.id}`} application={open.application} onSave={req => matching.updateApplication(open.application.id, req)} />
-                  <div className="col-span-2 flex flex-wrap items-center gap-x-2 sm:contents">
-                    <ApplicationStatusTag key={open.application.id} application={open.application} onSave={req => matching.updateApplication(open.application.id, req)} />
-                    <ApplicationTypeFields key={`type-${open.application.id}`} application={open.application}
-                      onSave={req => matching.updateApplication(open.application.id, req)} />
-                  </div>
-                </div>
-                <p className="col-span-2 m-0 flex flex-wrap items-center gap-x-2 text-note text-muted tabular-nums">
-                  <span>{progressText(open.application)} · {dateText(open.application.createdAt)}에 넣음</span>
-                  {/* 공고 원문 링크(S-46) — 새 탭으로. http(s) 주소일 때만 링크로 만든다 */}
-                  {open.application.postingUrl && isPostingUrl(open.application.postingUrl) && <a href={open.application.postingUrl} target="_blank" rel="noopener noreferrer"
-                    className="inline-flex min-h-11 max-w-full items-center gap-1.5 text-body underline underline-offset-4 hover:text-ink lg:min-h-0">
-                    <ArrowSquareOutIcon aria-hidden="true" className="shrink-0" /><span className="truncate">공고 원문 열기 · {hostOf(open.application.postingUrl)}</span><span className="sr-only">(새 탭)</span>
-                  </a>}
-                </p>
+            {/* 이름은 한 줄을 다 쓴다(길면 말줄임). 태그 · 넣은 날짜는 아랫줄, 문항 수는 탭이 보여 주니 뺀다(FE#271) */}
+            <header className="grid min-w-0 gap-1">
+              <OrganizationName key={`name-${open.application.id}`} application={open.application} onSave={req => matching.updateApplication(open.application.id, req)} />
+              <div className="flex flex-wrap items-center gap-x-2 text-note text-muted tabular-nums">
+                <ApplicationStatusTag key={open.application.id} application={open.application} onSave={req => matching.updateApplication(open.application.id, req)} />
+                <ApplicationTypeFields key={`type-${open.application.id}`} application={open.application}
+                  onSave={req => matching.updateApplication(open.application.id, req)} />
+                <span>{dateText(open.application.createdAt)}에 넣음</span>
+                {/* 공고 원문 링크(S-46) — 새 탭으로. http(s) 주소일 때만 링크로 만든다 */}
+                {open.application.postingUrl && isPostingUrl(open.application.postingUrl) && <a href={open.application.postingUrl} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex min-h-11 max-w-full items-center gap-1.5 text-body underline underline-offset-4 hover:text-ink lg:min-h-0">
+                  <ArrowSquareOutIcon aria-hidden="true" className="shrink-0" /><span className="truncate">공고 원문 열기 · {hostOf(open.application.postingUrl)}</span><span className="sr-only">(새 탭)</span>
+                </a>}
               </div>
             </header>
             <QuestionTabs questions={open.application.questions} selectedId={adding ? null : matching.questionId} adding={adding}
@@ -272,11 +268,11 @@ function ApplicationList({ applications, activeId, onPick, onSave, sidebar = fal
           {sidebar ? <SidebarApplicationText application={a} /> : <>
             <span className="pr-16 text-sm font-semibold">{a.organization || "지원처 이름 없음"}</span>
             <span className="line-clamp-1 text-note text-body">{a.questions[0].text}</span>
-            <span className="text-xs text-muted tabular-nums">{progressText(a)} · {whenText(a)}</span>
+            <span className="text-xs text-muted tabular-nums">{progressText(a)} · {a.submittedMonth ? `${monthText(a.submittedMonth)} 냄` : dateText(a.createdAt)}</span>
           </>}
         </button>
         {/* 버튼 안에 버튼을 둘 수 없어 줄의 형제로 겹친다 */}
-        <ApplicationStatusTag application={a} onSave={req => onSave(a.id, req)} className={cn("absolute right-1.5", sidebar ? "-bottom-0.5" : "top-0")} errorClassName="px-3.5 pb-2" />
+        <ApplicationStatusTag application={a} onSave={req => onSave(a.id, req)} className={cn("absolute right-1.5", sidebar ? "-top-0.5" : "top-0")} errorClassName="px-3.5 pb-2" />
       </li>;
     })}</ul>
   </>;
@@ -373,7 +369,7 @@ function SelectedQuestion({ summary, question, application, index, loadError, on
       <AnswerSkeleton />
     </div>
       : question.status === "FAILED" ? <CenterState icon={<WarningCircleIcon className="text-error" />} title="문항을 분석하지 못했어요" body={failureText(question.error)}>
-        <Button disabled={retrying} onClick={async () => {
+        <Button className="min-h-11" disabled={retrying} onClick={async () => {
           if (retryPending.current) return;
           retryPending.current = true; setRetrying(true); setRetryError(null);
           try { await onRetry(question.id); }

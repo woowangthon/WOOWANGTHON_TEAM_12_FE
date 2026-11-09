@@ -1,18 +1,18 @@
 "use client";
 
 // 경험 하나 — 이 화면의 주인공. 상자 없이 구분선, 근거는 접어 둔다 (SPEC S-08 · DESIGN.md 「경험」)
-import { CaretDownIcon, CheckIcon, DotsSixVerticalIcon, DotsThreeIcon, PencilSimpleIcon, QuotesIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { BookmarkSimpleIcon, CaretDownIcon, CheckIcon, DotsSixVerticalIcon, DotsThreeIcon, PencilSimpleIcon, QuotesIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { DropdownMenu } from "radix-ui";
 import { cn } from "@/lib/utils";
 import { COMPETENCIES, type Actor, type Experience, type SourceStatus } from "@/lib/api/types";
 import { CitationList } from "./citation-list";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ActorField, CompetencyField, ExperienceContentField, type InlineEditHandle } from "./inline-edit";
+import { ActorField, CompetencyField, ExperienceContentField } from "./inline-edit";
 import { ExperienceMcpChange } from "./experience-mcp-change";
-import { ExperienceSave } from "./experience-save";
-import { ProfileToggle } from "./profile-toggle";
+import { SAVE_ERROR, useExperienceSave } from "./experience-save";
+import { MENU_ITEM, MenuCheckBox, ProfileMenuItems, ProfileShareNote, useProfileShare } from "./profile-toggle";
 import { SupplementList } from "./supplement-list";
 import { UsedInChip, UsedInList } from "./used-in";
 
@@ -44,11 +44,25 @@ export function SourceStatusMark({ status }: { status: SourceStatus }) {
   );
 }
 
+/** 활동 세부의 경험 줄 — 원문 확인 · 내가 입력은 부가 정보라 근거 옆에 아이콘만 둔다(글자는 툴팁 · 읽기 프로그램).
+ *  「확인 필요」는 사용자가 할 일이 있어 꼬리표 그대로(FE#293) */
+export function SourceStatusIcon({ status }: { status: SourceStatus }) {
+  if (status === "NEEDS_REVIEW") return <SourceStatusMark status={status} />;
+  const confirmed = status === "SOURCE_CONFIRMED";
+  const Icon = confirmed ? CheckIcon : PencilSimpleIcon;
+  return (
+    <span title={confirmed ? "원문 확인 — 자료 원문에서 확인한 경험이에요" : "내가 입력 — 직접 쓰거나 고친 경험이에요"} className={cn("inline-flex items-center", confirmed && "text-evidence")}>
+      <Icon className="size-[1.15em]" weight={confirmed ? "bold" : "regular"} aria-hidden="true" />
+      <span className="sr-only">{confirmed ? "원문 확인" : "내가 입력"}</span>
+    </span>
+  );
+}
+
 // BE 전환 기간에만 필드 누락 시 기존 규칙을 사용한다.
 const isAiCompetency = (e: Pick<Experience, "competenciesBy" | "sourceStatus">) =>
   e.competenciesBy === undefined ? e.sourceStatus !== "USER_ENTERED" : e.competenciesBy === "AI";
 
-/** 수행 주체 · 출처 상태 · 역량 — AI 표시는 부가 정보라 맨 뒤 */
+/** 수행 주체 · 출처 상태 · 역량 — AI 표시는 부가 정보라 맨 뒤. 고칠 수 있는 줄(edit)에선 출처 상태를 빼고 근거 옆 아이콘으로(FE#293) */
 export function ExperienceMeta({ experience: e, aiLabel = "AI", edit }: {
   experience: Pick<Experience, "actor" | "competencies" | "competenciesBy" | "sourceStatus" | "origin">;
   aiLabel?: string;
@@ -65,8 +79,8 @@ export function ExperienceMeta({ experience: e, aiLabel = "AI", edit }: {
   return (
     <>
       {edit ? <ActorField experience={edit.experience} onSaved={edit.onSaved} /> : <span>{ACTOR[e.actor]}</span>}
-      {sep}
-      {e.origin?.type === "ANSWER" ? <Link href={`/questions?question=${e.origin.questionId}`} className="min-w-0 break-words underline-offset-3 hover:underline">내가 쓴 지원서 · {e.origin.organization || "지원처 미입력"} · {e.origin.questionText}</Link> : <SourceStatusMark status={e.sourceStatus} />}
+      {e.origin?.type === "ANSWER" ? <>{sep}<Link href={`/questions?question=${e.origin.questionId}`} className="min-w-0 break-words underline-offset-3 hover:underline">내가 쓴 지원서 · {e.origin.organization || "지원처 미입력"} · {e.origin.questionText}</Link></>
+        : !edit && <>{sep}<SourceStatusMark status={e.sourceStatus} /></>}
       {edit ? <>{sep}<CompetencyField experience={edit.experience} aiMark={aiMark} onSaved={edit.onSaved} /></> : e.competencies.length > 0 && (
         <>
           {sep}
@@ -125,15 +139,14 @@ type Props = {
 
 export function ExperienceItem({ experience, citationsOpen, onToggleCitations, onShowCitations, onSaved, onDelete, onMove, onMerge, onDragChange, dragging, readOnly = false }: Props) {
   const [editing, setEditing] = useState(false);
-  const contentEdit = useRef<InlineEditHandle>(null);
-  // 메뉴가 닫힌 뒤에 칸을 연다 — 열린 메뉴가 포커스를 붙잡고 있어서
-  const editFromMenu = useRef(false);
   const [usedInOpen, setUsedInOpen] = useState(false);
   const e = experience;
+  const share = useProfileShare(e, onSaved);
+  const save = useExperienceSave(e, (saved) => onSaved({ ...e, saved }));
   const usedIn = e.usedIn ?? [];
   const n = e.citations.length;
   const citeBtn =
-    "ml-auto inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-note font-semibold text-evidence hover:bg-evidence-soft";
+    "inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-note font-semibold text-evidence hover:bg-evidence-soft";
   return (
     <li id={`experience-${e.id}`} className={cn("group relative grid gap-1.5 border-b border-hairline py-4", dragging && "opacity-40")}>
       {!editing && !readOnly && (
@@ -156,19 +169,27 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
         </span>
       )}
       <div className="flex items-start gap-2">
-          <ExperienceContentField experience={e} readOnly={readOnly} editRef={contentEdit} onEditingChange={setEditing}
+          <ExperienceContentField experience={e} readOnly={readOnly} onEditingChange={setEditing}
             onSaved={(result) => onSaved({ ...result, usedIn: result.usedIn ?? e.usedIn })} />
           {!readOnly && <>
+          {/* 저장 · 프로필에 넣기는 「…」 메뉴 안(FE#272 · FE#293). 저장한 경험은 표시만 — 누르는 건 메뉴에서 */}
+          {save.saved && !editing && <span title="저장한 경험이에요" className="flex h-11 shrink-0 items-center text-ink">
+            <BookmarkSimpleIcon className="size-4" weight="fill" aria-hidden="true" /><span className="sr-only">저장함</span>
+          </span>}
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
               <Button variant="ghost" size="icon" className="size-11" aria-label={`경험 메뉴: ${e.content}`}><DotsThreeIcon /></Button>
             </DropdownMenu.Trigger>
             <DropdownMenu.Portal>
-              <DropdownMenu.Content align="end" sideOffset={4} onCloseAutoFocus={(ev) => { if (editFromMenu.current) { ev.preventDefault(); editFromMenu.current = false; contentEdit.current?.open(); } }} className="z-50 min-w-32 rounded-md border border-hairline bg-canvas p-1 shadow-float">
-                <DropdownMenu.Item onSelect={() => { editFromMenu.current = true; }} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">고치기</DropdownMenu.Item>
-                <DropdownMenu.Item onSelect={() => onMove(e)} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">다른 활동으로 옮기기</DropdownMenu.Item>
-                {onMerge && <DropdownMenu.Item onSelect={() => onMerge(e)} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">다른 경험과 합치기</DropdownMenu.Item>}
-                <DropdownMenu.Item onSelect={() => onDelete(e)} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm text-error outline-none focus:bg-surface-soft">지우기</DropdownMenu.Item>
+              {/* 순서: 켜고 끄는 것(저장 · 프로필) → 옮기기 · 합치기 → 지우기. 본문 고치기는 본문을 누르면 돼서 메뉴에 없다(FE#293) */}
+              <DropdownMenu.Content align="end" sideOffset={4} className="z-50 min-w-44 rounded-md border border-hairline bg-canvas p-1 shadow-float">
+                <DropdownMenu.CheckboxItem checked={save.saved} disabled={save.busy} onSelect={() => void save.toggle()} className={MENU_ITEM}><MenuCheckBox />저장</DropdownMenu.CheckboxItem>
+                <ProfileMenuItems share={share} />
+                <DropdownMenu.Separator className="my-1 h-px bg-hairline" />
+                <DropdownMenu.Item onSelect={() => onMove(e)} className={MENU_ITEM}>다른 활동으로 옮기기</DropdownMenu.Item>
+                {onMerge && <DropdownMenu.Item onSelect={() => onMerge(e)} className={MENU_ITEM}>다른 경험과 합치기</DropdownMenu.Item>}
+                <DropdownMenu.Separator className="my-1 h-px bg-hairline" />
+                <DropdownMenu.Item onSelect={() => onDelete(e)} className={cn(MENU_ITEM, "text-error")}>지우기</DropdownMenu.Item>
               </DropdownMenu.Content>
             </DropdownMenu.Portal>
           </DropdownMenu.Root></>}
@@ -176,8 +197,10 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
       <div className="flex flex-wrap items-center gap-1.5 text-note font-medium text-muted">
         <ExperienceMeta experience={e} edit={readOnly ? undefined : { experience: e, onSaved: (result) => onSaved({ ...result, usedIn: result.usedIn ?? e.usedIn }) }} />
         <UsedInChip usedIn={usedIn} open={usedInOpen} onToggle={() => setUsedInOpen((v) => !v)} controls={`used-in-${e.id}`} />
+        <span className="ml-auto inline-flex items-center gap-1.5">
+        {!readOnly && e.origin?.type !== "ANSWER" && <SourceStatusIcon status={e.sourceStatus} />}
         {n === 0 ? (
-          <span className="ml-auto text-muted">근거 없음</span>
+          <span className="text-muted">근거 없음</span>
         ) : (
           <>
             <button
@@ -199,14 +222,11 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
             </button>
           </>
         )}
+        </span>
       </div>
       {<ExperienceMcpChange experience={e} readOnly={readOnly} onSaved={onSaved} />}
-      {!readOnly && (
-        <div className="flex flex-wrap items-center gap-x-3">
-          <ExperienceSave experience={e} onChange={(saved) => onSaved({ ...e, saved })} />
-          <ProfileToggle experience={e} onSaved={onSaved} />
-        </div>
-      )}
+      {!readOnly && <ProfileShareNote share={share} />}
+      {!readOnly && save.error && <p role="alert" className="m-0 text-note font-medium text-error">{SAVE_ERROR}</p>}
       {usedInOpen && usedIn.length > 0 && <UsedInList usedIn={usedIn} id={`used-in-${e.id}`} />}
       {citationsOpen && (
         <div className="mt-1.5 hidden lg:block">

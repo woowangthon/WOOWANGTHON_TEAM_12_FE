@@ -27,8 +27,9 @@ export function OrganizationName({ application, onSave }: { application: Applica
   };
 
   if (text === null) return <h2 className={TEXT}>
-    <button type="button" title="눌러서 이름 고치기" aria-label={`지원처 이름 고치기: ${saved || "지원처 이름 없음"}`} onClick={() => { cancelled.current = false; setText(saved); }}
-      className="-mx-1.5 max-w-full cursor-text rounded-sm px-1.5 text-left break-words hover:bg-surface-soft">
+    {/* 한 줄 — 길면 말줄임, 전체 이름은 마우스를 올리면 보이고 누르면 칸에 다 나온다(FE#271) */}
+    <button type="button" title={saved ? `${saved} — 눌러서 이름 고치기` : "눌러서 이름 고치기"} aria-label={`지원처 이름 고치기: ${saved || "지원처 이름 없음"}`} onClick={() => { cancelled.current = false; setText(saved); }}
+      className="-mx-1.5 block max-w-[calc(100%+0.75rem)] cursor-text truncate rounded-sm px-1.5 text-left hover:bg-surface-soft">
       {saved || "지원처 이름 없음"}
     </button>
   </h2>;

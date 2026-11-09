@@ -12,6 +12,7 @@ import { MAX_ANSWER_LENGTH, MAX_GROUNDING_TEXT_LENGTH, type Draft, type DraftOmi
 import type { DraftFrame } from "@/lib/draft-frames";
 import { cn } from "@/lib/utils";
 import { AnswerEvidence } from "./answer-evidence";
+import { inlineAction } from "./clarifications";
 import { diff, matchSentences, sameNumbers } from "./draft-match";
 
 export type DraftActions = { onGenerate: (experienceIds: number[], frame?: DraftFrame, useContext?: boolean) => Promise<void>; onRefresh: () => Promise<void>; onOpenOmissions: () => void; picks: number[]; onResetPicks: (questionId: number) => void; savingAnswer: boolean; requestingDraft: boolean };
@@ -127,6 +128,8 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
   const layer = useRef<HTMLDivElement>(null);
   const [sheet, setSheet] = useState(false);
   const [hover, setHover] = useState<number | null>(null);
+  // 좁은 폭에서 확인할 곳이 아닌 문장을 탭하면 시트 대신 「근거 보기」 버튼만 — 고치려고 탭할 때마다 시트가 키보드를 덮지 않게
+  const [peek, setPeek] = useState<number | null>(null);
   const [prefill, setPrefill] = useState<{ at: number; text: string } | null>(null);
   const [announce, setAnnounce] = useState("");
   const programmatic = useRef(false);
@@ -195,6 +198,7 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
     open({ kind: "blank", at: chip.at }, true);
   };
   const change = (value: string) => {
+    setPeek(null);
     if (programmatic.current || composing.current !== null) { onText(value); return; }
     const hit = blocked(text, value);
     if (hit) { refuse(hit.chip, hit.inserted); return; }
@@ -241,6 +245,7 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
   };
   const click = (e: MouseEvent) => {
     const key = markAt(e.clientX, e.clientY);
+    setPeek(null);
     if (!key) { if (selected) open(null, false); return; }
     if (key.startsWith("b-")) {
       const chip = chips.find(c => c.at === Number(key.slice(2)));
@@ -249,8 +254,10 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
     }
     const index = Number(key.slice(2));
     const mark = marks.find(m => m.index === index);
-    // 좁은 폭은 확인할 곳만 시트로 연다 — 그 밖의 문장까지 열면 고치려고 누를 때마다 시트가 키보드를 덮는다
-    if (mark && (wide() || mark.need)) open({ kind: "sentence", index }, true);
+    // 좁은 폭은 확인할 곳만 시트로 바로 연다 — 그 밖의 문장은 「근거 보기」 버튼을 거친다
+    if (!mark) return;
+    if (wide() || mark.need) open({ kind: "sentence", index }, true);
+    else setPeek(index);
   };
   const move = (e: PointerEvent) => {
     if (e.pointerType !== "mouse") return;
@@ -302,6 +309,9 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
         onSelect={snap} onKeyDown={keyDown} onClick={click} onPointerMove={move} onPointerLeave={() => setHover(null)}
         className="relative block w-full min-w-0 resize-none overflow-hidden border-0 bg-transparent p-5 text-ui leading-[1.9] break-words whitespace-pre-wrap outline-none focus-visible:outline-none disabled:bg-surface-soft/60" />
     </div>
+    {peek !== null && !sheet && <div className="flex justify-end border-t border-hairline-soft px-3.5 py-1.5 lg:hidden">
+      <Button size="sm" variant="ghost" className="min-h-11" onClick={() => { const index = peek; setPeek(null); open({ kind: "sentence", index }, true); }}>이 문장의 근거 보기</Button>
+    </div>}
     <p aria-live="polite" className="sr-only">{announce}</p>
     {/* 카드는 한 곳에만 그린다 — 넓은 폭은 글 아래, 좁은 폭은 하단 시트(두 곳에 그리면 입력칸 id 가 겹친다) */}
     {card && !sheet && <div className="border-t border-hairline-soft">{card}</div>}
@@ -366,7 +376,7 @@ function ConfirmButton({ onConfirm, disabled }: { onConfirm: () => Promise<void>
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   return <>
-    <Button size="sm" className="min-h-11" disabled={disabled || busy} onClick={async () => {
+    <Button size="sm" className={inlineAction} disabled={disabled || busy} onClick={async () => {
       setBusy(true); setError(null);
       try { await onConfirm(); }
       catch (e) { setError(e instanceof Error ? e.message : "저장하지 못했어요. 다시 시도해 주세요."); }
@@ -397,7 +407,7 @@ function FilledLine({ filled, onFixed, disabled }: { filled: NonNullable<Mark["f
       <label className="sr-only" htmlFor={inputId}>{filled.omission.question ?? "보완"}</label>
       <input id={inputId} type="text" value={value} maxLength={MAX_ANSWER_LENGTH} onChange={e => { setValue(e.target.value); setError(null); }}
         className="h-11 min-w-0 flex-[1_1_160px] rounded-full bg-canvas px-3.5 text-base text-body outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--ink)] sm:text-sm" />
-      <Button type="submit" size="sm" className="min-h-11" disabled={disabled || busy}>{busy ? "저장하고 있어요…" : "경험 고치기"}</Button>
+      <Button type="submit" size="sm" className={inlineAction} disabled={disabled || busy}>{busy ? "저장하고 있어요…" : "경험 고치기"}</Button>
     </form> : canFix && <Button size="sm" variant="secondary" className="min-h-11 justify-self-start" disabled={disabled} onClick={() => setEditing(true)}>경험 고치기</Button>}
     {error && <p role="alert" className="m-0 text-note text-error">{error}</p>}
   </div>;
@@ -427,7 +437,7 @@ function ActorLine({ sentence, edited, onDecided }: { sentence: DraftSentence; e
     finally { setBusy(false); }
   };
   const choose = (experienceId: number) => <div className="flex flex-wrap gap-2">
-    <Button size="sm" className="min-h-11" disabled={busy} onClick={() => void decide(experienceId, "ME")}>내가 했어요</Button>
+    <Button size="sm" className={inlineAction} disabled={busy} onClick={() => void decide(experienceId, "ME")}>내가 했어요</Button>
     <Button size="sm" variant="secondary" className="min-h-11" disabled={busy} onClick={() => void decide(experienceId, "TEAM")}>팀이 했어요</Button>
   </div>;
   return <div className="grid gap-2 rounded-sm bg-surface-soft px-3 py-2.5">
@@ -476,7 +486,7 @@ function BlankCard({ question, omission, local, onAnswer, onWrite, disabled, ini
           <input id={inputId} type="text" value={text} maxLength={MAX_ANSWER_LENGTH} disabled={disabled} autoFocus={!!initial}
             onChange={e => { setText(e.target.value); setError(null); }} placeholder="짧게 답해 주세요"
             className="h-11 min-w-0 flex-[1_1_160px] rounded-full bg-surface-soft px-3.5 text-base text-body outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--ink)] sm:text-sm" />
-          <Button type="submit" size="sm" className="min-h-11" disabled={disabled}>답하기</Button>
+          <Button type="submit" size="sm" className={inlineAction} disabled={disabled}>답하기</Button>
         </div>
         <p className="m-0 text-note text-muted">빈칸은 여기서 답해요. 답은 경험에 보완으로 저장돼 다른 지원서에서도 근거로 쓰여요.</p>
         {error && <p role="alert" className="m-0 text-note text-error">{error}</p>}

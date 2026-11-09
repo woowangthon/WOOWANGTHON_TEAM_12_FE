@@ -53,17 +53,17 @@ async function setup(page: Page) {
   return api;
 }
 
-const saveButton = (page: Page, e: Experience) => page.locator(`#experience-${e.id}`).getByRole("button", { name: `저장: ${e.content}`, exact: true });
-const savedButton = (page: Page, e: Experience) => page.locator(`#experience-${e.id}`).getByRole("button", { name: `저장함: ${e.content}`, exact: true });
+// 활동 세부의 저장은 경험 「…」 메뉴의 체크 항목이고, 저장한 경험은 줄에 표시만 남는다(FE#293)
+const saveItem = async (page: Page, e: Experience) => {
+  if (await page.getByRole("menu").count()) await page.keyboard.press("Escape");
+  await page.locator(`#experience-${e.id}`).getByRole("button", { name: /^경험 메뉴: / }).click();
+  return page.getByRole("menuitemcheckbox", { name: "저장", exact: true });
+};
+const savedMark = (page: Page, e: Experience) => page.locator(`#experience-${e.id}`).getByTitle("저장한 경험이에요");
 const openDetail = async (page: Page) => {
   await page.goto("/experience");
   await page.getByRole("button", { name: /바꿔요 — 캠퍼스/ }).first().click();
   await expect(page.locator(`#experience-${CHAT.id}`)).toBeVisible();
-};
-const openSearch = async (page: Page) => {
-  await page.goto("/experience");
-  await page.getByRole("button", { name: "경험 찾기", exact: true }).click();
-  await expect(page.locator(`#result-${CHAT.id}`)).toBeVisible();
 };
 const capture = async (page: Page, name: string) => {
   if (process.env.UPDATE_SAVED_SCREENSHOTS !== "1") return;
@@ -75,20 +75,23 @@ test("saving in the activity detail stays after reload, says so in words and cha
   const api = await setup(page);
   await openDetail(page);
   const item = page.locator(`#experience-${CHAT.id}`);
-  await expect(saveButton(page, CHAT)).toHaveAttribute("aria-pressed", "false");
-  await saveButton(page, CHAT).click();
-  await expect(savedButton(page, CHAT)).toHaveAttribute("aria-pressed", "true");
-  await expect(savedButton(page, CHAT)).toContainText("저장함");
+  await expect(await saveItem(page, CHAT)).toHaveAttribute("aria-checked", "false");
+  await (await saveItem(page, CHAT)).click();
+  await expect(savedMark(page, CHAT)).toBeVisible();
+  await expect(savedMark(page, CHAT)).toContainText("저장함");
+  await expect(await saveItem(page, CHAT)).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("Escape");
   expect(api.puts).toEqual([{ id: String(CHAT.id), body: { saved: true } }]);
   await expect(item).toContainText(CHAT.content);
   await expect(item).toContainText("원문 확인");
   await expect(item).toContainText("근거 1");
-  await expect(saveButton(page, DEPLOY)).toBeVisible();
+  await expect(savedMark(page, DEPLOY)).toHaveCount(0);
 
   await page.reload();
   await page.getByRole("button", { name: /바꿔요 — 캠퍼스/ }).first().click();
-  await savedButton(page, CHAT).click();
-  await expect(saveButton(page, CHAT)).toBeVisible();
+  await expect(savedMark(page, CHAT)).toBeVisible();
+  await (await saveItem(page, CHAT)).click();
+  await expect(savedMark(page, CHAT)).toHaveCount(0);
   expect(api.puts.at(-1)?.body).toEqual({ saved: false });
 });
 
@@ -96,71 +99,34 @@ test("a failed save stays unsaved and shows an error", async ({ page }) => {
   const api = await setup(page);
   api.failPut = true;
   await openDetail(page);
-  await saveButton(page, CHAT).click();
+  await (await saveItem(page, CHAT)).click();
   await expect(page.locator(`#experience-${CHAT.id}`).getByRole("alert")).toContainText("저장을 바꾸지 못했어요");
-  await expect(saveButton(page, CHAT)).toHaveAttribute("aria-pressed", "false");
+  await expect(savedMark(page, CHAT)).toHaveCount(0);
 
   api.failPut = false;
-  await saveButton(page, CHAT).click();
-  await expect(savedButton(page, CHAT)).toBeVisible();
+  await (await saveItem(page, CHAT)).click();
+  await expect(savedMark(page, CHAT)).toBeVisible();
   await expect(page.locator(`#experience-${CHAT.id}`).getByRole("alert")).toHaveCount(0);
 });
 
-test("a result row saves, and the saved filter narrows with the word and clears", async ({ page }) => {
-  const api = await setup(page);
-  await openSearch(page);
-  const row = page.locator(`#result-${CHAT.id}`);
-  await row.getByRole("button", { name: `저장: ${CHAT.content}`, exact: true }).click();
-  await expect(row.getByRole("button", { name: `저장함: ${CHAT.content}`, exact: true })).toHaveAttribute("aria-pressed", "true");
-  expect(api.puts).toEqual([{ id: String(CHAT.id), body: { saved: true } }]);
-
-  await page.getByLabel("찾을 낱말").fill("WebSocket");
-  await page.getByRole("button", { name: "저장한 것", exact: true }).click();
-  await expect.poll(() => Object.fromEntries(api.searches.at(-1)!)).toEqual({ query: "WebSocket", saved: "true" });
-  await expect(page.locator(`#result-${DEPLOY.id}`)).toHaveCount(0);
-  await expect(row).toBeVisible();
-
-  // 거른 채로 빼면 그 줄은 목록에서 나간다
-  await row.getByRole("button", { name: `저장함: ${CHAT.content}`, exact: true }).click();
-  await expect(row).toHaveCount(0);
-  await expect(page.getByText("쌓인 자료에서 찾지 못했어요")).toBeVisible();
-
-  await page.getByRole("button", { name: "거르기 지우기" }).click();
-  await expect(page.getByRole("button", { name: "저장한 것", exact: true })).toHaveAttribute("aria-pressed", "false");
-  await expect(row).toBeVisible();
-});
-
-test("saving a result updates the activity detail already open beside it", async ({ page }, info) => {
-  test.skip(info.project.name !== "desktop");
-  await setup(page);
-  await openDetail(page);
-  await page.getByRole("button", { name: "경험 찾기", exact: true }).click();
-  await page.locator(`#result-${CHAT.id}`).getByRole("button", { name: `저장: ${CHAT.content}`, exact: true }).click();
-  await expect(savedButton(page, CHAT)).toBeVisible();
-});
-
-test("quick find filters by saved, hands it to the search screen and has no save button", async ({ page }) => {
+test("quick find filters by saved, an old saved address opens it there, and it has no save button", async ({ page }) => {
   const api = await setup(page);
   await openDetail(page);
-  await saveButton(page, CHAT).click();
-  await expect(savedButton(page, CHAT)).toBeVisible();
+  await (await saveItem(page, CHAT)).click();
+  await expect(savedMark(page, CHAT)).toBeVisible();
 
   await page.getByRole("button", { name: "빠른 찾기", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "빠른 찾기", exact: true });
   await dialog.getByRole("button", { name: "저장한 것", exact: true }).click();
   await expect.poll(() => api.searches.at(-1)?.get("saved")).toBe("true");
-  await expect(dialog.getByRole("listbox").getByRole("option")).toHaveCount(2); // 경험 하나 + 더 보기
+  await expect(dialog.getByRole("listbox").getByRole("option")).toHaveCount(1);
   await expect(dialog.getByRole("button", { name: /^저장(함)?: / })).toHaveCount(0);
   await capture(page, `quick-find-${page.viewportSize()!.width}`);
   expect(await noOverflow(page)).toBe(true);
 
-  await dialog.getByRole("option", { name: /검색에서 더 보기/ }).click();
-  await expect(page.getByRole("button", { name: "저장한 것", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator(`#result-${CHAT.id}`)).toBeVisible();
-  await expect(page.locator(`#result-${DEPLOY.id}`)).toHaveCount(0);
-
+  // 경험 찾기 자리가 이 창 하나다(FE#274) — 예전 주소는 창을 「저장한 것」으로 연다
   await page.goto("/experience?q=&saved=1");
-  await expect(page.getByRole("button", { name: "저장한 것", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(dialog.getByRole("button", { name: "저장한 것", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect.poll(() => api.searches.at(-1)?.get("saved")).toBe("true");
 });
 
@@ -170,19 +136,11 @@ test("reads at 1440, 1024 and 390", async ({ page }, info) => {
   for (const [width, height] of [[1440, 1000], [1024, 1000], [390, 844]]) {
     await page.setViewportSize({ width, height });
     await openDetail(page);
-    await saveButton(page, CHAT).click();
-    await expect(savedButton(page, CHAT)).toBeVisible();
+    await (await saveItem(page, CHAT)).click();
+    await expect(savedMark(page, CHAT)).toBeVisible();
     await capture(page, `detail-${width}`);
     expect(await noOverflow(page)).toBe(true);
-    await savedButton(page, CHAT).click();
-    await expect(saveButton(page, CHAT)).toBeVisible();
-
-    await openSearch(page);
-    await page.locator(`#result-${CHAT.id}`).getByRole("button", { name: `저장: ${CHAT.content}`, exact: true }).click();
-    await expect(page.locator(`#result-${CHAT.id}`).getByRole("button", { name: `저장함: ${CHAT.content}`, exact: true })).toBeVisible();
-    await capture(page, `search-${width}`);
-    expect(await noOverflow(page)).toBe(true);
-    await page.locator(`#result-${CHAT.id}`).getByRole("button", { name: `저장함: ${CHAT.content}`, exact: true }).click();
-    await expect(page.locator(`#result-${CHAT.id}`).getByRole("button", { name: `저장: ${CHAT.content}`, exact: true })).toBeVisible();
+    await (await saveItem(page, CHAT)).click();
+    await expect(savedMark(page, CHAT)).toHaveCount(0);
   }
 });

@@ -28,7 +28,7 @@ type HeaderProps = {
   /** 활동을 이미 받는 화면이 넘긴다(받는 중이면 null). 없으면 사이드바가 직접 받는다 */
   experienceCount?: number | null;
   /** 빠른 찾기(S-61)의 활동 열기 · 찾기를 이 화면에서 받는다. 없으면 내 경험 화면으로 옮겨 간다 */
-  quickFind?: Pick<QuickFindActions, "openActivity" | "search">;
+  quickFind?: Pick<QuickFindActions, "openActivity">;
 };
 type SidebarProps = Pick<HeaderProps, "activePage" | "experienceCount"> & {
   list: React.ReactNode; onAddSource: () => void; onRecord: () => void; addSourceBusy?: boolean; onNewApplication: () => void;

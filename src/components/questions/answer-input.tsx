@@ -164,7 +164,7 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
   return <>
     {drafting && <p role="status" className="m-0 text-sm text-muted">차곡이가 초안을 만들고 있어요. 다 되면 답칸에 들어와요.</p>}
     {draft?.status === "FAILED" && !drafting && <p role="alert" className="m-0 text-sm text-error">{failureReason(draft.error)} 차곡이에서 다시 만들 수 있어요.</p>}
-    {marked && <div id={`draft-title-${questionId}`} className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+    {marked && <div id={`draft-title-${questionId}`} role="group" aria-label="답변 초안" className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
       {/* 확인할 곳은 알약으로 눈에 띄게(FE#262) */}
       <span role="status" className={left ? "inline-flex items-center rounded-full bg-review-soft px-3 py-1 text-sm font-semibold text-review"
         : "inline-flex items-center rounded-full bg-evidence-soft px-3 py-1 text-sm font-semibold text-evidence"}>{left ? `확인할 곳 ${left}군데` : "모두 확인했어요 ✓"}</span>
@@ -207,7 +207,7 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
         <div className="flex flex-wrap items-center gap-2">
           {draftLabel && <Button variant="secondary" className="min-h-11" onClick={onAskDraft}>{draftLabel}</Button>}
           <AnalysisCost running={g.busy || analyzing || locked} />
-          <Button disabled={!valid || g.loading || g.busy || analyzing || !g.initialized || locked} onClick={() => { if (blanksLeft) setAsk("confirm"); else finish(); }}>{a.busy ? "처리 중…" : "다 썼어요"}</Button>
+          <Button className="min-h-11" disabled={!valid || g.loading || g.busy || analyzing || !g.initialized || locked} onClick={() => { if (blanksLeft) setAsk("confirm"); else finish(); }}>{a.busy ? "처리 중…" : "다 썼어요"}</Button>
         </div>
       </div>
     </div>

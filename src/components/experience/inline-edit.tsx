@@ -4,7 +4,7 @@
 // 밖을 누르거나 Enter 면 저장, Esc 면 취소. 기간 · 수행 주체 · 역량은 눌러 작은 메뉴로 고친다.
 // 저장이 실패하면 고치던 글을 그대로 두고 오류를 보인다 — Enter(또는 밖을 누르기)로 다시 저장한다
 import { useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react";
-import { CheckIcon, PencilSimpleIcon } from "@phosphor-icons/react";
+import { CaretDownIcon, CheckIcon, PencilSimpleIcon } from "@phosphor-icons/react";
 import { DropdownMenu, Popover } from "radix-ui";
 import { Button } from "@/components/ui/button";
 import { updateActivity, updateExperience } from "@/lib/api/experience";
@@ -17,6 +17,8 @@ import { CompetencyPicker } from "./competency-picker";
 
 const ACTOR: Record<Actor, string> = { ME: "나", TEAM: "팀", UNKNOWN: "알 수 없음" };
 const HOVER = "cursor-text rounded-sm hover:bg-surface-soft focus-visible:bg-surface-soft";
+/** 눌러 고칠 수 있는 글자 — 점선 밑줄, 올리면 진해진다(FE#272 · FE#293). 버튼에 group/edit 를 단다 */
+const EDITABLE = "underline decoration-hairline decoration-dotted underline-offset-4 group-hover/edit:decoration-ink";
 const MENU_HOVER = "cursor-pointer rounded-sm hover:bg-surface-soft focus-visible:bg-surface-soft data-[state=open]:bg-surface-soft";
 const message = (e: unknown) => e instanceof Error ? e.message : "저장하지 못했어요. 다시 시도해 주세요.";
 
@@ -203,7 +205,12 @@ export function PeriodField({ activity, readOnly, onSaved, children }: {
     <PopoverEdit<Period> label="활동 기간 고치기" value={activity.period} same={(a, b) => JSON.stringify(a) === JSON.stringify(b)}
       validate={(p) => activityError(activity.name, p)}
       save={async (period) => onSaved(await updateActivity(activity.id, { name: activity.name, period }))}
-      trigger={<button type="button" aria-label={`활동 기간 고치기: ${text}`} title="눌러서 기간 고치기" className={cn(MENU_HOVER, "-mx-1.5 px-1.5 tabular-nums")}>{text}</button>}>
+      // 누를 수 있다는 게 보이게 — 점선 밑줄 + 연필(FE#272). 옆의 「몇 개월째」는 평범한 글자다
+      trigger={<button type="button" aria-label={`활동 기간 고치기: ${text}`} title="눌러서 기간 고치기"
+        className={cn(MENU_HOVER, "group/edit -mx-1.5 inline-flex min-h-8 items-center gap-1 px-1.5 tabular-nums")}>
+        <span className={EDITABLE}>{text}</span>
+        <PencilSimpleIcon className="size-[1.05em] text-muted group-hover/edit:text-ink" aria-hidden="true" />
+      </button>}>
       {(period, set) => <>
         {(["start", "end"] as const).map((field) => (
           <MonthField key={field} label={field === "start" ? "시작" : "종료"} value={period[field]} original={activity.period[field]}
@@ -230,7 +237,9 @@ export function ActorField({ experience: e, onSaved }: { experience: Experience;
   return <>
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
-        <button type="button" disabled={saving} aria-label={`수행 주체 고치기: ${ACTOR[e.actor]}`} title="눌러서 수행 주체 고치기" className={cn(MENU_HOVER, "-mx-1 px-1 disabled:opacity-50")}>{ACTOR[e.actor]}</button>
+        <button type="button" disabled={saving} aria-label={`수행 주체 고치기: ${ACTOR[e.actor]}`} title="눌러서 수행 주체 고치기" className={cn(MENU_HOVER, "group/edit -mx-1 inline-flex items-center gap-0.5 px-1 disabled:opacity-50")}>
+          <span className={EDITABLE}>{ACTOR[e.actor]}</span><CaretDownIcon className="size-[0.9em] text-muted group-hover/edit:text-ink" aria-hidden="true" />
+        </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="start" sideOffset={4} className="z-50 max-w-[calc(100vw-2rem)] min-w-40 rounded-md border border-hairline bg-canvas p-1 shadow-float">
@@ -253,8 +262,9 @@ export function CompetencyField({ experience: e, aiMark, onSaved }: { experience
   const text = e.competencies.map((c) => COMPETENCIES[c]).join(" · ");
   return <PopoverEdit<Competency[]> label="역량 고치기" value={e.competencies} same={(a, b) => JSON.stringify(a) === JSON.stringify(b)}
     save={async (competencies) => { const data: UpdateExperienceRequest = { competencies }; onSaved(await updateExperience(e.id, data)); }}
-    trigger={<button type="button" aria-label={text ? `역량 고치기: ${text}` : "역량 붙이기"} title="눌러서 역량 고치기" className={cn(MENU_HOVER, "-mx-1 px-1 text-left")}>
-      {text || <span className="text-muted">+ 역량</span>}{text && aiMark}
+    trigger={<button type="button" aria-label={text ? `역량 고치기: ${text}` : "역량 붙이기"} title="눌러서 역량 고치기" className={cn(MENU_HOVER, "group/edit -mx-1 inline-flex items-center gap-0.5 px-1 text-left")}>
+      {text ? <><span className={EDITABLE}>{text}</span>{aiMark}<CaretDownIcon className="size-[0.9em] text-muted group-hover/edit:text-ink" aria-hidden="true" /></>
+        : <span className="text-muted">+ 역량</span>}
     </button>}>
     {(value, set) => <CompetencyPicker value={value} onChange={set} />}
   </PopoverEdit>;
