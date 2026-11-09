@@ -53,6 +53,8 @@ export function QuickFindPanel({ addSourceBusy, initial, onGo }: { addSourceBusy
   const search: ExperienceSearch = { query: query || undefined, ...filters };
   const { state, retry } = useExperienceSearch(search, { enabled: tab === "find" });
   const filtered = isFiltered(filters);
+  // 칩을 누르거나 낱말을 친 순간부터 응답까지 — 이전 결과는 그대로 두되 흐리게 해서 「옛 결과」임을 보인다(FE#248)
+  const refreshing = state.status === "ready" && state.refreshing;
 
   const found = state.status === "ready" ? state.experiences.slice(0, rows) : [];
   const more = state.status === "ready" && state.experiences.length > rows;
@@ -149,30 +151,33 @@ export function QuickFindPanel({ addSourceBusy, initial, onGo }: { addSourceBusy
         </Option>)}
       </OptionList>
     </div> : <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-      <div className="min-h-0 overflow-y-auto p-2.5" aria-busy={state.status === "ready" && state.refreshing}>
+      <div className="min-h-0 overflow-y-auto p-2.5" aria-busy={refreshing}>
         {state.status === "loading" && <p role="status" className="p-3 text-sm text-muted">경험을 찾고 있어요…</p>}
         {state.status === "error" && <div role="alert" className="grid justify-items-start gap-2 p-3">
           <p className="m-0 text-sm text-error">경험을 찾지 못했어요. {state.message}</p>
           <Button type="button" variant="secondary" className="min-h-11" onClick={retry}><ArrowsClockwiseIcon aria-hidden="true" />다시 시도</Button>
         </div>}
-        {state.status === "ready" && found.length === 0 && <div role="status" className="grid gap-1 p-3 text-sm">
+        {refreshing && found.length === 0 && <p role="status" className="p-3 text-sm text-muted">경험을 찾고 있어요…</p>}
+        {state.status === "ready" && !refreshing && found.length === 0 && <div role="status" className="grid gap-1 p-3 text-sm">
           <p className="m-0 font-medium text-ink">쌓인 자료에서 찾지 못했어요</p>
           <p className="m-0 text-muted">{filtered ? "거르기를 줄이거나, " : ""}뜻으로 찾고 싶다면 「차곡이에게」로 물어보세요.</p>
           {filtered && <Button type="button" variant="secondary" className="mt-1 min-h-11 justify-self-start" onClick={() => changeFilters({})}>거르기 지우기</Button>}
         </div>}
         {found.length > 0 && <>
-          <p role="status" className="m-0 px-2.5 pt-2 pb-1 text-xs font-semibold text-muted tabular-nums">{query || filtered ? `찾은 경험 ${state.status === "ready" ? state.total : found.length}개` : `쌓인 경험 ${state.status === "ready" ? state.total : found.length}개`}</p>
-          <OptionList label="찾은 경험">
+          <p role="status" className="m-0 px-2.5 pt-2 pb-1 text-xs font-semibold text-muted tabular-nums">{refreshing ? "찾고 있어요…" : query || filtered ? `찾은 경험 ${state.status === "ready" ? state.total : found.length}개` : `쌓인 경험 ${state.status === "ready" ? state.total : found.length}개`}</p>
+          <div className={cn("transition-opacity duration-150", refreshing && "opacity-50")}>
+            <OptionList label="찾은 경험">
             {found.map((e, i) => <Option key={e.id} index={i} active={i === current} onPick={pick} onHover={setActive}><ResultLine experience={e} /></Option>)}
             {more && <Option index={found.length} active={current === found.length} onPick={pick} onHover={setActive}>
               <span className="flex items-center gap-2 text-sm font-medium text-ink tabular-nums"><CaretDownIcon className="size-4 shrink-0" aria-hidden="true" />더 보기 <span className="font-normal text-muted">{found.length} / {state.status === "ready" ? state.total : found.length}</span></span>
             </Option>}
           </OptionList>
-          {capped && state.status === "ready" && <p role="status" className="m-0 px-2.5 pt-2 pb-1 text-note text-muted tabular-nums">{state.total}개 중 {state.experiences.length}개까지 보여 드려요. 낱말이나 거르기로 더 좁혀 보세요.</p>}
+          </div>
+          {capped && !refreshing && state.status === "ready" && <p role="status" className="m-0 px-2.5 pt-2 pb-1 text-note text-muted tabular-nums">{state.total}개 중 {state.experiences.length}개까지 보여 드려요. 낱말이나 거르기로 더 좁혀 보세요.</p>}
         </>}
       </div>
       {/* 좁은 화면엔 자리가 없다 — 고르면 활동 세부에서 같은 내용을 본다 */}
-      <div data-slot="quick-find-preview" className="hidden min-h-0 flex-col items-start gap-2 overflow-y-auto border-l border-hairline-soft p-5.5 lg:flex">
+      <div data-slot="quick-find-preview" className={cn("hidden min-h-0 flex-col items-start gap-2 overflow-y-auto border-l border-hairline-soft p-5.5 transition-opacity duration-150 lg:flex", refreshing && "opacity-50")}>
         {preview && <Preview experience={preview} />}
       </div>
     </div>}

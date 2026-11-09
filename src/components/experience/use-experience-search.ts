@@ -8,7 +8,8 @@ import type { ExperienceResult, ExperienceSearch } from "@/lib/api/types";
 export type ExperienceSearchState =
   | { status: "loading" }
   | { status: "error"; message: string }
-  | { status: "ready"; total: number; experiences: ExperienceResult[]; refreshing: boolean };
+  // forKey — 이 결과가 어느 조건의 것인지. 조건이 바뀌면 (기다리는 250ms 안에도) 새 결과를 찾는 중이다
+  | { status: "ready"; total: number; experiences: ExperienceResult[]; refreshing: boolean; forKey: string };
 
 const WAIT_MS = 250;
 
@@ -24,7 +25,7 @@ export function useExperienceSearch(search: ExperienceSearch, { mock = null, ver
     const timer = setTimeout(() => {
       setState((prev) => prev.status === "ready" ? { ...prev, refreshing: true } : { status: "loading" });
       searchExperiences(JSON.parse(key) as ExperienceSearch, mock).then(
-        (found) => { if (!stale) setState({ status: "ready", ...found, refreshing: false }); },
+        (found) => { if (!stale) setState({ status: "ready", ...found, refreshing: false, forKey: key }); },
         (e: Error) => { if (!stale) setState({ status: "error", message: e.message }); },
       );
     }, WAIT_MS);
@@ -35,5 +36,8 @@ export function useExperienceSearch(search: ExperienceSearch, { mock = null, ver
   const patch = (id: number, change: Partial<ExperienceResult>) =>
     setState((prev) => prev.status === "ready" ? { ...prev, experiences: prev.experiences.map((e) => e.id === id ? { ...e, ...change } : e) } : prev);
 
-  return { state, retry: () => setAttempt((n) => n + 1), patch };
+  // 눌렀거나 친 순간부터 응답까지 true — 이전 결과는 그대로 두고 화면이 「찾는 중」임을 보이게 한다
+  const view: ExperienceSearchState = state.status === "ready" && state.forKey !== key ? { ...state, refreshing: true } : state;
+
+  return { state: view, retry: () => setAttempt((n) => n + 1), patch };
 }
