@@ -7,7 +7,7 @@ import { ArrowSquareOutIcon, ArrowsClockwiseIcon, MagnifyingGlassIcon, PlusIcon,
 import { isPostingUrl } from "@/lib/api/entrance";
 import { AppHeader } from "@/components/app-header";
 import { useSidebar } from "@/components/sidebar-layout";
-import { SidebarApplicationText, dateText, progressText, sidebarApplicationRow, whenText } from "@/components/sidebar-applications";
+import { SidebarApplicationText, dateText, monthText, progressText, sidebarApplicationRow } from "@/components/sidebar-applications";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { CenterState } from "@/components/center-state";
 import { Button } from "@/components/ui/button";
@@ -272,11 +272,11 @@ function ApplicationList({ applications, activeId, onPick, onSave, sidebar = fal
           {sidebar ? <SidebarApplicationText application={a} /> : <>
             <span className="pr-16 text-sm font-semibold">{a.organization || "지원처 이름 없음"}</span>
             <span className="line-clamp-1 text-note text-body">{a.questions[0].text}</span>
-            <span className="text-xs text-muted tabular-nums">{progressText(a)} · {whenText(a)}</span>
+            <span className="text-xs text-muted tabular-nums">{progressText(a)} · {a.submittedMonth ? `${monthText(a.submittedMonth)} 냄` : dateText(a.createdAt)}</span>
           </>}
         </button>
         {/* 버튼 안에 버튼을 둘 수 없어 줄의 형제로 겹친다 */}
-        <ApplicationStatusTag application={a} onSave={req => onSave(a.id, req)} className={cn("absolute right-1.5", sidebar ? "-bottom-0.5" : "top-0")} errorClassName="px-3.5 pb-2" />
+        <ApplicationStatusTag application={a} onSave={req => onSave(a.id, req)} className={cn("absolute right-1.5", sidebar ? "-top-0.5" : "top-0")} errorClassName="px-3.5 pb-2" />
       </li>;
     })}</ul>
   </>;
