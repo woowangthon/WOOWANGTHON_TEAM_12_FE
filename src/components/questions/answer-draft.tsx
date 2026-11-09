@@ -62,7 +62,7 @@ export function composeDraft(question: QuestionDetail, draft: Draft, removed: Se
   return draft.sentences.flatMap((_, i) => removed.has(i) ? [] : [sentenceText(question, draft, i, local)]).join(" ");
 }
 
-export const GROUND_LABEL: Record<GroundingStatus, string> = { SOURCE: "원문", USER_INPUT: "내가 입력", UNSUPPORTED: "근거 없음", OPINION: "생각 · AI 해석" };
+export const GROUND_LABEL: Record<GroundingStatus, string> = { SOURCE: "원문", USER_INPUT: "내가 입력", UNSUPPORTED: "근거 없음", OPINION: "생각" };
 
 /** 근거 점검(S-45) 결과 문장 하나 — stale 은 점검 뒤 그 문장을 고쳤나 */
 export type Ground = GroundingCheck["sentences"][number] & { stale: boolean };
@@ -134,7 +134,8 @@ export function analyze(question: QuestionDetail, draft: Draft | null, removed: 
   return { marks, chips, own, checks };
 }
 
-const LABEL: Record<DraftSentence["kind"], string> = { FACT: "근거", ELABORATED: "AI 보탬 — 확인 필요", OPINION: "AI 제안 — 확인 필요" };
+// 카드 머리줄 왼쪽 — 누가 쓴 문장 · 무슨 종류인가. 초안 생각과 근거 점검의 생각은 같은 범주라 같은 이름이다
+const LABEL: Record<DraftSentence["kind"], string> = { FACT: "AI 초안 · 근거", ELABORATED: "AI 초안 · 보탬", OPINION: "AI 초안 · 생각" };
 const wide = () => matchMedia("(min-width: 64rem)").matches;
 
 type EditorProps = {
@@ -180,7 +181,7 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
   }, [text]);
 
   const titleOf = (sel: NonNullable<Selection>) => sel.kind === "blank" ? "빈칸"
-    : sel.kind === "own" ? `내가 쓴 문장 · ${GROUND_LABEL[own.find(o => o.index === sel.index)?.ground.status ?? "OPINION"]}`
+    : sel.kind === "own" ? "내가 쓴 문장"
       : LABEL[draft?.sentences[sel.index]?.kind ?? "FACT"];
   const open = (next: Selection, tapped: boolean) => {
     onSelect(next);
@@ -385,12 +386,15 @@ function DraftCard({ question, draft, analysis, local, selected, onRemove, onAns
     const o = analysis.own.find(x => x.index === selected.index);
     if (!o) return null;
     return <div role="group" aria-label="문장 카드" onKeyDown={close} className="grid gap-3 p-4 lg:px-5">
-      <p className="m-0 hidden text-xs font-semibold text-muted lg:block">내가 쓴 문장</p>
-      <GroundLine ground={o.ground} questionId={question.id} withEvidence />
+      <CardHead title="내가 쓴 문장" ground={o.ground} />
+      <GroundNotes ground={o.ground} />
+      {o.ground.evidence.length > 0 && <div className={cn("grid min-w-0 gap-2", o.ground.stale && "opacity-60")}>
+        {o.ground.evidence.map((e, j) => <AnswerEvidence key={`${e.type}-${e.id}-${j}`} evidence={e} questionId={question.id} />)}</div>}
       <div className="flex flex-wrap gap-2">
         {o.need && <Button size="sm" className={inlineAction} disabled={disabled} onClick={() => { onConfirmOwn(o); onClose(); }}>맞아요</Button>}
         <Button size="sm" variant="ghost" className="ml-auto hidden min-h-11 lg:inline-flex" onClick={onClose}>닫기</Button>
       </div>
+      <AiNote />
     </div>;
   }
   if (!draft) return null;
@@ -408,9 +412,12 @@ function DraftCard({ question, draft, analysis, local, selected, onRemove, onAns
   const mark = analysis.marks.find(m => m.index === selected.index);
   const s = draft.sentences[selected.index];
   if (!s || !mark) return null;
-  const title = s.confirmed && s.kind !== "FACT" && !mark.need ? `${LABEL[s.kind].split(" — ")[0]} · 맞아요 눌렀어요` : LABEL[s.kind];
+  const title = s.confirmed && s.kind !== "FACT" && !mark.need ? `${LABEL[s.kind]} · 맞아요 눌렀어요` : LABEL[s.kind];
+  // 근거는 한 목록 — 초안 근거에 근거 점검이 더 찾은 것을 붙인다(같은 근거는 한 번). 고친 뒤의 점검 근거는 붙이지 않는다
+  const evidence = [...s.evidence, ...(mark.ground && !mark.ground.stale ? mark.ground.evidence : [])]
+    .filter((e, i, all) => all.findIndex(x => x.type === e.type && x.id === e.id) === i);
   return <div role="group" aria-label="문장 카드" onKeyDown={close} className="grid gap-3 p-4 lg:px-5">
-    <p className="m-0 hidden text-xs font-semibold text-muted lg:block">{title}{mark.edited && " · 고친 문장"}</p>
+    <CardHead title={`${title}${mark.edited ? " · 고친 문장" : ""}`} ground={mark.ground} />
     {mark.edited && <p className="m-0 text-note leading-relaxed break-words text-muted">원래 문장 — {mark.original}</p>}
     {mark.need === "filled" && mark.filled && <FilledLine filled={mark.filled} onFixed={onFilledFixed} disabled={disabled} />}
     {mark.need === "numbers" && <p className="m-0 flex items-start gap-1.5 text-note leading-relaxed text-review">
@@ -418,10 +425,10 @@ function DraftCard({ question, draft, analysis, local, selected, onRemove, onAns
     {s.kind === "OPINION" && mark.need === "marked" && <p className="m-0 flex items-start gap-1.5 text-note leading-relaxed text-review">
       <WarningCircleIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />사실이 아니라 문항에 잇는 제안이에요. 맞는지 보고 고치거나 빼 주세요.</p>}
     {s.note && <p className="m-0 text-note leading-relaxed text-body">왜 확인이 필요한가요 — {s.note}</p>}
-    {mark.ground && <GroundLine ground={mark.ground} questionId={question.id} withEvidence={false} />}
-    {s.kind !== "OPINION" && (s.evidence.length
+    {mark.ground && <GroundNotes ground={mark.ground} />}
+    {s.kind !== "OPINION" && (evidence.length
       ? <div className="grid min-w-0 gap-2">{mark.edited && <p className="m-0 text-note text-muted">원래 문장의 근거예요 — 고친 내용이 맞는지는 근거 점검으로 볼 수 있어요.</p>}
-        {s.evidence.map((e, j) => <AnswerEvidence key={`${e.type}-${e.id}-${j}`} evidence={e} questionId={question.id} question={question} />)}</div>
+        {evidence.map((e, j) => <AnswerEvidence key={`${e.type}-${e.id}-${j}`} evidence={e} questionId={question.id} question={question} />)}</div>
       : <p className="m-0 text-note text-muted">연결된 근거가 지금은 없어요. 문장은 만들었을 때 그대로예요.</p>)}
     {s.kind !== "OPINION" && <ActorLine sentence={s} edited={mark.edited} onDecided={onActorDecided} />}
     <div className="flex flex-wrap gap-2">
@@ -430,20 +437,38 @@ function DraftCard({ question, draft, analysis, local, selected, onRemove, onAns
       <Button size="sm" variant="ghost" className="ml-auto hidden min-h-11 lg:inline-flex" onClick={onClose}>닫기</Button>
     </div>
     {mark.edited && <p className="m-0 text-note text-muted">빼고 다시 넣으면 원래 문장으로 돌아가요.</p>}
+    {mark.ground && <AiNote />}
   </div>;
 }
 
-/** 근거 점검 결과 한 줄(S-45) — 판정은 AI 해석이다. 근거 없음은 거짓이라는 뜻이 아니다 */
-function GroundLine({ ground, questionId, withEvidence }: { ground: Ground; questionId: number; withEvidence: boolean }) {
-  const bad = ground.status === "UNSUPPORTED" && !ground.stale;
-  return <div className={cn("grid min-w-0 gap-1.5 rounded-sm px-3 py-2.5", bad ? "bg-review-soft" : "bg-surface-soft")}>
-    <p className={cn("m-0 text-note font-semibold", bad ? "text-review" : "text-body")}>근거 점검 · {GROUND_LABEL[ground.status]}
-      {ground.stale && <span className="font-normal text-muted"> — 고치기 전 결과예요. 다시 점검해 주세요</span>}</p>
-    {bad && <p className="m-0 text-note text-review">지우거나, 사실이면 근거를 더해 주세요. 거짓이라는 뜻은 아니에요.</p>}
-    {ground.note && <p className="m-0 text-note text-muted">AI 해석 — {ground.note}</p>}
-    {withEvidence && ground.evidence.map((e, j) => <AnswerEvidence key={`${e.type}-${e.id}-${j}`} evidence={e} questionId={questionId} />)}
+/** 카드 머리줄 — 왼쪽은 누가 쓴 문장 · 종류(넓은 폭만, 좁은 폭은 시트 제목), 오른쪽은 근거 점검 꼬리표(점검 전이면 없다) */
+function CardHead({ title, ground }: { title: string; ground: Ground | null }) {
+  return <div className="flex flex-wrap items-center justify-between gap-2">
+    <p className="m-0 hidden text-xs font-semibold text-muted lg:block">{title}</p>
+    {ground && <GroundTag ground={ground} />}
   </div>;
 }
+
+/** 근거 점검 꼬리표(S-45) — 통과는 초록, 근거 없음은 주황, 생각 · 고치기 전 결과는 회색 */
+function GroundTag({ ground }: { ground: Ground }) {
+  const tone = ground.stale || ground.status === "OPINION" ? "bg-surface-soft text-muted"
+    : ground.status === "UNSUPPORTED" ? "bg-review-soft text-review" : "bg-evidence-soft text-evidence";
+  const text = ground.stale ? `고치기 전 결과 · ${GROUND_LABEL[ground.status]}`
+    : ground.status === "UNSUPPORTED" || ground.status === "OPINION" ? `점검 · ${GROUND_LABEL[ground.status]}` : `점검 ✓ ${GROUND_LABEL[ground.status]}`;
+  return <span className={cn("ml-auto inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold", tone)}>{text}</span>;
+}
+
+/** 판정에 따른 한 줄 — 근거 없음만 강조 상자. 근거 없음은 거짓이라는 뜻이 아니다 */
+function GroundNotes({ ground }: { ground: Ground }) {
+  return <>
+    {ground.stale ? <p className="m-0 text-note text-muted">고친 뒤로 아직 점검하지 않았어요 — 근거 점검을 다시 눌러 주세요.</p>
+      : ground.status === "UNSUPPORTED" ? <p className="m-0 rounded-sm bg-review-soft px-3 py-2.5 text-note text-review">지우거나, 사실이면 근거를 더해 주세요. 거짓이라는 뜻은 아니에요.</p>
+        : ground.status === "OPINION" && <p className="m-0 text-note text-body">사실이 아니라 생각 · 포부로 봤어요 — 근거가 없어도 돼요.</p>}
+    {ground.note && <p className="m-0 text-note text-muted">AI 해석 — {ground.note}</p>}
+  </>;
+}
+
+const AiNote = () => <p className="m-0 text-xs text-muted">점검 판정은 AI 해석이에요.</p>;
 
 function ConfirmButton({ onConfirm, disabled }: { onConfirm: () => Promise<void>; disabled: boolean }) {
   const [busy, setBusy] = useState(false);
