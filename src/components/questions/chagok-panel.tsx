@@ -4,9 +4,9 @@
 // 보이는 말은 전부 이 문항의 실제 결과(요구사항 · 추천 · evidence · 되묻기)에서 만든다 — 지어낸 진행 단계를 보이지 않는다(대회 규칙 1 · 2).
 // 그 아래에 부탁 입력과 차곡이가 도구로 일하는 과정(S-31)이 붙는다 — chagok-run.tsx
 import { useEffect, useRef } from "react";
-import Image from "next/image";
 import { CheckIcon, MinusCircleIcon, WarningCircleIcon, XIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import type { QuestionDetail, RequirementStatus, Supplement } from "@/lib/api/question-types";
 import { bubble, ClarificationItem, ClarifyBlock, type AnswerHandler } from "./clarifications";
 import { DraftFollowUp, type DraftPanelActions } from "./draft-omissions";
@@ -20,8 +20,27 @@ const JUDGMENT: Record<RequirementStatus, { label: string; icon: typeof CheckIco
   NOT_FOUND: { label: "자료에서 확인 안 됨", icon: WarningCircleIcon, tone: "text-muted" },
 };
 
-export function Mascot({ size = 28 }: { size?: number }) {
-  return <Image src="/brand/mascot.svg" alt="" aria-hidden="true" width={size} height={size} />;
+const EYE_WHITE = "M19 11.5C19 17.8513 15.2733 23 9.56875 23C4.16063 23 0 17.8513 0 11.5C0 5.14873 4.26832 0 9.56875 0C14.8692 0 19 5.14873 19 11.5Z";
+const EYES = [
+  { x: 24.27, pupil: "M17 11.5C17 16.7467 13.866 21 10 21C6.13401 21 3 16.7467 3 11.5C3 6.25329 6.13401 2 10 2C13.866 2 17 6.25329 17 11.5Z", shine: { x: 13, width: 4 } },
+  { x: 48.27, pupil: "M16 11.5C16 16.7467 12.866 21 9 21C5.13401 21 2 16.7467 2 11.5C2 6.25329 5.13401 2 9 2C12.866 2 16 6.25329 16 11.5Z", shine: { x: 12, width: 6 } },
+];
+
+/** 차곡이 — 블록 셋에 눈(디자인 데모 character-demo · FE#276). public/brand/mascot.svg 와 같은 그림이다.
+ *  animate 면 블록이 위에서 떨어져 쌓이고 몇 초마다 눈을 깜빡인다(globals.css .chagok-char). 움직임 줄이기면 멈춘 그림 */
+export function Mascot({ size = 28, animate = false }: { size?: number; animate?: boolean }) {
+  return <svg viewBox="0 0 83 91" width={size * 83 / 91} height={size} aria-hidden="true" className={cn("shrink-0 overflow-visible", animate && "chagok-char")}>
+    <rect className="chagok-block chagok-block--pink" x="9" y="60" width="73.115" height="30.106" rx="10.752" fill="var(--record-pink)" />
+    <rect className="chagok-block chagok-block--green" x="0" y="30" width="73.832" height="30.106" rx="10.752" fill="var(--record-green)" />
+    <g className="chagok-block chagok-block--blue">
+      <rect x="8" y="0" width="73.832" height="30.106" rx="10.752" fill="var(--mark)" />
+      {EYES.map(eye => <g key={eye.x} transform={`translate(${eye.x} 5)`}><g className="chagok-eye">
+        <path d={EYE_WHITE} fill="var(--canvas)" />
+        <path d={eye.pupil} fill="var(--ink)" />
+        <rect x={eye.shine.x} y="14" width={eye.shine.width} height="3" fill="var(--canvas)" />
+      </g></g>)}
+    </g>
+  </svg>;
 }
 
 /** 보완이 어디서 나왔나 — 「OO 부트캠프 문항」 · 「이 지원의 문항 2」 */
