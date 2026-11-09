@@ -178,7 +178,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     <div className="grid justify-items-center gap-2.5 text-center"><HomeMascot overview={overview} onRefresh={onRefresh} mode={mode} /></div>
     <form aria-label="글 보내기" aria-busy={busy} onSubmit={e => { e.preventDefault(); void send(); }}>
       <div className="mt-5 rounded-lg border border-hairline bg-canvas pt-3 pr-3 pb-2.5 pl-4.5 shadow-home-input focus-within:border-ink">
-        {file && <span className="mb-2 inline-flex max-w-full items-center gap-2 rounded-full bg-surface-soft px-3 py-1 text-xs text-body"><span className="min-w-0 break-all">{file.name} · {file.text.length.toLocaleString("ko-KR")}자</span><button type="button" aria-label="첨부 파일 빼기" disabled={busy} className="flex size-11 shrink-0 items-center justify-center" onClick={() => { ++fileVersion.current; setFile(null); setError(null); setDuplicate(null); }}><XIcon aria-hidden="true" /></button></span>}
+        {file && <span className="mb-2 inline-flex max-w-full items-center gap-2 rounded-full bg-surface-soft px-3 py-1 text-xs text-body"><span className="min-w-0 break-all">{file.name} · {file.text.length.toLocaleString("ko-KR")}자</span><button type="button" aria-label="첨부 파일 빼기" disabled={busy} className="flex size-11 lg:size-10 shrink-0 items-center justify-center" onClick={() => { ++fileVersion.current; setFile(null); setError(null); setDuplicate(null); }}><XIcon aria-hidden="true" /></button></span>}
         <textarea aria-label="홈에 넣을 글" aria-describedby={mode === "in" ? "entrance-note entrance-length" : "entrance-length"} aria-invalid={tooLong}
           id="home-text" rows={2} value={text} disabled={busy || !!file} onChange={e => { setText(e.target.value); setChoosing(false); setError(null); setDuplicate(null); parse.clear(); }}
           placeholder={mode === "out" ? "한 줄로 물어보거나, 지원 문항 · 공고(링크도 돼요)를 그대로 붙여 넣어 보세요" : "오늘 한 일 한 줄이나, README · 회고를 붙여 넣어 보세요"}
@@ -232,7 +232,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     {duplicate && <div className="mt-4"><DuplicateSourceNotice source={duplicate} busy={sourceSubmitting} onInsert={() => void sendSource(true)} onCancel={() => setDuplicate(null)} /></div>}
     {choosing && <div className="mt-5 rounded-md border border-hairline p-4" aria-label="사용자가 종류 고르기">
       <p className="mt-0 mb-3 font-medium">자료로 쌓을까요, 지원으로 만들까요?</p>
-      <div className="flex flex-wrap gap-2"><Button variant="secondary" className="min-h-11" disabled={sourceBusy} onClick={() => openDestination("source")}>자료로 쌓기</Button><Button className="min-h-11" onClick={() => openDestination("application")}>지원으로 만들기</Button></div>
+      <div className="flex flex-wrap gap-2"><Button variant="secondary" className="min-h-11 lg:min-h-10" disabled={sourceBusy} onClick={() => openDestination("source")}>자료로 쌓기</Button><Button className="min-h-11 lg:min-h-10" onClick={() => openDestination("application")}>지원으로 만들기</Button></div>
     </div>}
     {destination?.kind === "source" && <AddSourceDialog open onOpenChange={open => { if (!open) setDestination(null); }} mock={mockAnalysis}
       initialText={destination.text}

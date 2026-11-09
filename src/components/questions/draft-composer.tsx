@@ -94,7 +94,7 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
       고른 경험의 자료가 목표 {target!.toLocaleString("ko-KR")}자의 절반이 안 돼요. 초안이 짧을 수 있어요.
     </p>}
     <div className="flex items-center gap-0.5">
-      <label className="flex min-h-11 cursor-pointer items-center gap-2.5 text-sm text-body">
+      <label className="flex min-h-11 lg:min-h-10 cursor-pointer items-center gap-2.5 text-sm text-body">
         <input type="checkbox" className="size-4 shrink-0 accent-ink" checked={useContext} disabled={analyzing || savingAnswer} onChange={e => setUseContext(e.target.checked)} />
         같은 활동의 다른 경험도 뒷받침 재료로 쓰기
       </label>
@@ -102,12 +102,12 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
     </div>
     <FramePicker frame={frame} disabled={analyzing || savingAnswer} proposed={!draft && chosenFrame === null} onChange={setChosenFrame} />
     <div className="flex flex-wrap items-center gap-3">
-      <Button data-draft-generate className="min-h-11" onClick={ask} disabled={!allowed || analyzing || savingAnswer}>{analyzing ? "초안 만드는 중…" : draft ? "다시 만들기" : "초안 만들기"}</Button>
+      <Button data-draft-generate className="min-h-11 lg:min-h-10" onClick={ask} disabled={!allowed || analyzing || savingAnswer}>{analyzing ? "초안 만드는 중…" : draft ? "다시 만들기" : "초안 만들기"}</Button>
       {free ? <span className="text-xs text-muted">이번 다시 만들기는 분석 횟수를 쓰지 않아요</span> : <AnalysisCost running={analyzing} />}
     </div>
     {error && (error.code !== "DRAFT_IN_PROGRESS" || analyzing) && <div className="grid justify-items-start gap-2">
       <p role="alert" className="m-0 text-sm text-error">{error.text}</p>
-      <Button variant="secondary" className="min-h-11" disabled={busy || savingAnswer} onClick={() => void refresh()}>초안 상태 확인</Button>
+      <Button variant="secondary" className="min-h-11 lg:min-h-10" disabled={busy || savingAnswer} onClick={() => void refresh()}>초안 상태 확인</Button>
     </div>}
     {draft?.status === "FAILED" && !analyzing && <p role="alert" className="m-0 text-sm text-error">{failureReason(draft.error)} 「다시 만들기」로 같은 경험을 다시 요청할 수 있어요.</p>}
     <Dialog open={warning !== null} onOpenChange={o => { if (!o) setWarning(null); }}>
@@ -115,8 +115,8 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
         <DialogTitle>{draft ? "다시 만들면 답칸이 새 초안으로 바뀌어요" : "초안을 만들면 답칸이 초안으로 바뀌어요"}</DialogTitle>
         <DialogDescription asChild><ul className="m-0 grid gap-1.5 pl-4">{warning?.map(w => <li key={w}>{w}</li>)}</ul></DialogDescription>
         <DialogFooter>
-          <Button className="min-h-11" variant="secondary" onClick={() => setWarning(null)}>취소</Button>
-          <Button className="min-h-11" onClick={() => void generate()}>{draft ? "그래도 다시 만들기" : "그래도 만들기"}</Button>
+          <Button className="min-h-11 lg:min-h-10" variant="secondary" onClick={() => setWarning(null)}>취소</Button>
+          <Button className="min-h-11 lg:min-h-10" onClick={() => void generate()}>{draft ? "그래도 다시 만들기" : "그래도 만들기"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

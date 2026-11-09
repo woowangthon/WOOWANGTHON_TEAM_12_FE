@@ -554,7 +554,7 @@ export function TimelineScreen() {
                   {categoryFilter && timeline.activities.length === 0 && (
                     <div role="status" className="mt-6 grid justify-items-start gap-2 rounded-md bg-surface-soft px-4.5 py-5">
                       <p className="m-0 text-sm text-body">「{ACTIVITY_CATEGORIES[categoryFilter]}」로 정리된 활동이 아직 없어요. 분류는 활동 세부에서 고를 수 있어요.</p>
-                      <Button variant="secondary" className="min-h-11" onClick={() => setCategoryFilter(null)}>전체 보기</Button>
+                      <Button variant="secondary" className="min-h-11 lg:min-h-10" onClick={() => setCategoryFilter(null)}>전체 보기</Button>
                     </div>
                   )}
                   <Timeline
@@ -643,13 +643,13 @@ export function TimelineScreen() {
             <div key={experience.id} role="status" className="flex items-center gap-3 rounded-sm bg-ink px-4 py-2 text-sm text-canvas shadow-float">
               <span>{saving ? "경험을 지우고 있어요…" : "경험을 지웠어요."}</span>
               {!saving && <>
-                <button type="button" className="min-h-11 shrink-0 font-semibold underline" onClick={() => deletion.undo(experience.id)}>되돌리기</button>
-                <button type="button" className="min-h-11 shrink-0" onClick={() => void deletion.confirm(experience.id)} aria-label="삭제 알림 닫기">닫기</button>
+                <button type="button" className="min-h-11 lg:min-h-10 shrink-0 font-semibold underline" onClick={() => deletion.undo(experience.id)}>되돌리기</button>
+                <button type="button" className="min-h-11 lg:min-h-10 shrink-0" onClick={() => void deletion.confirm(experience.id)} aria-label="삭제 알림 닫기">닫기</button>
               </>}
             </div>
           ))}
           {deletion.error && <div role="alert" className="flex items-center gap-3 rounded-sm bg-ink px-4 py-2 text-sm text-canvas shadow-float">
-            <span>{deletion.error}</span><button type="button" className="min-h-11 shrink-0" onClick={deletion.dismissError}>닫기</button>
+            <span>{deletion.error}</span><button type="button" className="min-h-11 lg:min-h-10 shrink-0" onClick={deletion.dismissError}>닫기</button>
           </div>}
           {toast && <ToastCard toast={toast} />}
         </div>
@@ -720,8 +720,8 @@ function ApplicationsToggle({ shown, onChange, state, onRetry }: {
   shown: boolean; onChange: (next: boolean) => void; state: TimelineApplicationsState; onRetry: () => void;
 }) {
   return (
-    <div className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1">
-      <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 text-note text-muted">
+    <div className="flex min-h-11 lg:min-h-10 flex-wrap items-center gap-x-3 gap-y-1">
+      <label className="inline-flex min-h-11 lg:min-h-10 cursor-pointer items-center gap-2 text-note text-muted">
         <input type="checkbox" checked={shown} onChange={(e) => onChange(e.target.checked)} className="size-4 accent-record-pink" />
         지원도 같이 보기
       </label>

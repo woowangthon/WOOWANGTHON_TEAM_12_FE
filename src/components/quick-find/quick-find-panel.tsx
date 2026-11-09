@@ -154,13 +154,13 @@ export function QuickFindPanel({ asked, addSourceBusy, initial, onGo }: { asked:
         {state.status === "loading" && <p role="status" className="p-3 text-sm text-muted">경험을 찾고 있어요…</p>}
         {state.status === "error" && <div role="alert" className="grid justify-items-start gap-2 p-3">
           <p className="m-0 text-sm text-error">경험을 찾지 못했어요. {state.message}</p>
-          <Button type="button" variant="secondary" className="min-h-11" onClick={retry}><ArrowsClockwiseIcon aria-hidden="true" />다시 시도</Button>
+          <Button type="button" variant="secondary" className="min-h-11 lg:min-h-10" onClick={retry}><ArrowsClockwiseIcon aria-hidden="true" />다시 시도</Button>
         </div>}
         {refreshing && found.length === 0 && <p role="status" className="p-3 text-sm text-muted">경험을 찾고 있어요…</p>}
         {state.status === "ready" && !refreshing && found.length === 0 && <div role="status" className="grid gap-1 p-3 text-sm">
           <p className="m-0 font-medium text-ink">쌓인 자료에서 찾지 못했어요</p>
           <p className="m-0 text-muted">{filtered ? "거르기를 줄이거나, " : ""}뜻으로 찾고 싶다면 「차곡이에게」로 물어보세요.</p>
-          {filtered && <Button type="button" variant="secondary" className="mt-1 min-h-11 justify-self-start" onClick={() => changeFilters({})}>거르기 지우기</Button>}
+          {filtered && <Button type="button" variant="secondary" className="mt-1 min-h-11 lg:min-h-10 justify-self-start" onClick={() => changeFilters({})}>거르기 지우기</Button>}
         </div>}
         {found.length > 0 && <>
           <p role="status" className="m-0 px-2.5 pt-2 pb-1 text-xs font-semibold text-muted tabular-nums">{refreshing ? "찾고 있어요…" : query || filtered ? `찾은 경험 ${state.status === "ready" ? state.total : found.length}개` : `쌓인 경험 ${state.status === "ready" ? state.total : found.length}개`}</p>
@@ -204,7 +204,7 @@ function OptionList({ label, children }: { label: string; children: ReactNode })
 function Option({ index, active, disabled, onPick, onHover, children }: { index: number; active: boolean; disabled?: boolean; onPick: (index: number) => void; onHover: (index: number) => void; children: ReactNode }) {
   // mouseenter 가 아니라 move — 키보드로 줄이 스크롤될 때 포인터 아래 줄이 고른 줄을 빼앗지 않게
   return <li id={optionId(index)} role="option" aria-selected={active} aria-disabled={disabled || undefined} onClick={() => onPick(index)} onMouseMove={() => { if (!active) onHover(index); }}
-    className={cn("grid min-h-11 cursor-pointer content-center rounded-sm px-2.5 py-2", active && "bg-surface-soft", disabled && "cursor-default opacity-60")}>
+    className={cn("grid min-h-11 lg:min-h-10 cursor-pointer content-center rounded-sm px-2.5 py-2", active && "bg-surface-soft", disabled && "cursor-default opacity-60")}>
     {children}
   </li>;
 }

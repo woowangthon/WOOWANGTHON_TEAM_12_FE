@@ -12,7 +12,7 @@ import type { ActivitySummary, Actor } from "@/lib/api/types";
 import type { useConfirmedAnswer } from "./use-confirmed-answer";
 
 type Confirmed = ReturnType<typeof useConfirmedAnswer>;
-const field = "min-h-11 w-full min-w-0 rounded-sm border border-hairline bg-canvas p-3 text-sm";
+const field = "min-h-11 lg:min-h-10 w-full min-w-0 rounded-sm border border-hairline bg-canvas p-3 text-sm";
 
 export function NewFactCandidates({ confirmed: a }: { confirmed: Confirmed }) {
   const [activities, setActivities] = useState<ActivitySummary[]>([]);
@@ -82,7 +82,7 @@ function CandidateCard({ candidate: c, activities, unavailable, busy, decide, qu
       <div className="flex flex-wrap gap-2"><Button disabled={busy || unavailable || !validActivity || !content.trim()} onClick={() => void submit({ activityId, content, actor })}>경험으로 저장</Button><Button variant="secondary" disabled={busy} onClick={() => void submit()}>저장 안 함</Button></div>
     </> : c.status === "SAVED" ? <>
       <p role="status" className="m-0 text-sm">경험으로 저장했어요</p>
-      {c.experienceId !== null ? <Link className="inline-flex min-h-11 items-center justify-self-start text-sm underline underline-offset-3" href={`/experience?experience=${c.experienceId}&fromQuestion=${questionId}#experience-${c.experienceId}`}>저장한 경험 보기 →</Link>
+      {c.experienceId !== null ? <Link className="inline-flex min-h-11 lg:min-h-10 items-center justify-self-start text-sm underline underline-offset-3" href={`/experience?experience=${c.experienceId}&fromQuestion=${questionId}#experience-${c.experienceId}`}>저장한 경험 보기 →</Link>
         : <p className="m-0 text-sm text-muted">저장했던 경험이 지금은 없어요.</p>}
     </> : <p role="status" className="m-0 text-sm text-muted">저장하지 않았어요</p>}
   </li>;

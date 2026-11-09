@@ -47,7 +47,7 @@ export function SourceWorkDetail({ jobId }: { jobId: number }) {
     <h2 className="m-0 text-lg font-semibold">자료 분석{job ? ` · 자료 ${job.sourceId} · ${labels[job.status]}` : " 불러오는 중…"}</h2>
     {error && <div role="alert"><p className="text-error">{error}</p><Button variant="secondary" onClick={() => setRound(n => n + 1)}>상태 다시 불러오기</Button></div>}
     {job?.status === "FAILED" && <><p className="m-0 break-words text-sm text-error">{job.error?.message || "자료를 분석하지 못했어요."} {job.error?.code}</p><Button className="justify-self-start" disabled={busy} onClick={() => void retry()}>다시 시도</Button></>}
-    {job?.status === "COMPLETED" && <>{job.activityIds.length ? <ul className="m-0 grid gap-2 pl-5">{job.activityIds.map(id => <li key={id}><a className="inline-flex min-h-11 items-center text-sm underline" href={`/experience?activity=${id}`}>이 자료에서 찾은 활동 {id} 보기</a></li>)}</ul> : <p className="m-0 text-sm text-muted">이 자료에서는 활동을 찾지 못했어요. 경험이 없다는 뜻은 아니에요.</p>}</>}
+    {job?.status === "COMPLETED" && <>{job.activityIds.length ? <ul className="m-0 grid gap-2 pl-5">{job.activityIds.map(id => <li key={id}><a className="inline-flex min-h-11 lg:min-h-10 items-center text-sm underline" href={`/experience?activity=${id}`}>이 자료에서 찾은 활동 {id} 보기</a></li>)}</ul> : <p className="m-0 text-sm text-muted">이 자료에서는 활동을 찾지 못했어요. 경험이 없다는 뜻은 아니에요.</p>}</>}
     <a className="justify-self-start text-sm underline" href="/experience">내 경험 목록으로</a>
   </section>;
 }

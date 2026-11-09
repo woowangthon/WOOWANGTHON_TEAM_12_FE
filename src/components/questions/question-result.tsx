@@ -103,7 +103,7 @@ export function QuestionResult({ question, elsewhere, savingAnswer, requestingDr
             </p>}
           </div>}
           <Link href={`/experience?activity=${r.activity.id}&fromQuestion=${question.id}`}
-            className="inline-flex min-h-11 items-center justify-self-start text-sm font-medium text-ink underline-offset-3 hover:underline sm:col-span-2">타임라인에서 활동 보기 →</Link>
+            className="inline-flex min-h-11 lg:min-h-10 items-center justify-self-start text-sm font-medium text-ink underline-offset-3 hover:underline sm:col-span-2">타임라인에서 활동 보기 →</Link>
         </div>
       </details>
     </li>; })}</ol>}

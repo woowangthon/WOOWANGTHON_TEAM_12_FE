@@ -98,7 +98,7 @@ export function QuickFindButton() {
   const open = useContext(QuickFindContext)?.open;
   if (!open) return null;
   return <button type="button" onClick={() => open()} aria-label="빠른 찾기" title="빠른 찾기 (Ctrl K · ⌘K)" aria-haspopup="dialog" aria-keyshortcuts="Control+K Meta+K"
-    className="flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-surface-soft focus-visible:outline-2 focus-visible:outline-ink">
+    className="flex size-11 lg:size-10 shrink-0 items-center justify-center rounded-full hover:bg-surface-soft focus-visible:outline-2 focus-visible:outline-ink">
     <MagnifyingGlassIcon aria-hidden="true" className="size-5" />
   </button>;
 }

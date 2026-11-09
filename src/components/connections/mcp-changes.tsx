@@ -83,7 +83,7 @@ function Body({ change, inActivity }: { change: McpChange; inActivity: boolean }
   const { experience, source, application, supplement, reason } = change;
   return <div className="mt-3 space-y-2">
     {experience && <>
-      {!inActivity && <Link href={`/experience?activity=${experience.activityId}`} className="inline-flex min-h-11 items-center text-sm font-medium underline-offset-3 hover:underline">{experience.activityName}</Link>}
+      {!inActivity && <Link href={`/experience?activity=${experience.activityId}`} className="inline-flex min-h-11 lg:min-h-10 items-center text-sm font-medium underline-offset-3 hover:underline">{experience.activityName}</Link>}
       <Text label="고치기 전">{experience.beforeContent}</Text>
       <Text label="고친 뒤">{experience.afterContent}</Text>
     </>}
@@ -98,7 +98,7 @@ function Body({ change, inActivity }: { change: McpChange; inActivity: boolean }
         {application.analyzingCount > 0 ? `문항 ${application.analyzingCount}개 분석 중` : "분석 완료"}
       </p>}
       {/* 되돌리면 지원이 지워져 갈 곳이 없다 */}
-      {change.status !== "UNDONE" && <Link href={`/questions?application=${application.id}`} className="inline-flex min-h-11 items-center text-sm font-medium underline underline-offset-3">지원으로 가기</Link>}
+      {change.status !== "UNDONE" && <Link href={`/questions?application=${application.id}`} className="inline-flex min-h-11 lg:min-h-10 items-center text-sm font-medium underline underline-offset-3">지원으로 가기</Link>}
     </>}
     {supplement && <>
       {!inActivity && <p className="text-sm font-medium text-ink">{supplement.activityName}</p>}
@@ -166,17 +166,17 @@ export function McpChangeCard({ change, onChange, onStale, inActivity = false }:
     {blocked && <p className="mt-2 text-sm leading-relaxed text-muted">{blocked}</p>}
     {error && <p role="alert" className="mt-2 text-sm leading-relaxed text-error">{error}</p>}
     {(canConfirm || change.undoable || failedAnalysis) && <div className="mt-3 flex flex-wrap gap-2">
-      {canConfirm && <Button className="min-h-11" disabled={busy} onClick={() => void confirm()}>맞아요</Button>}
-      {change.undoable && <Button className="min-h-11" variant="secondary" disabled={busy} onClick={() => setAsking(true)}>되돌리기</Button>}
-      {failedAnalysis && <Button className="min-h-11" variant="secondary" disabled={busy} onClick={() => void retry()}>다시 시도</Button>}
+      {canConfirm && <Button className="min-h-11 lg:min-h-10" disabled={busy} onClick={() => void confirm()}>맞아요</Button>}
+      {change.undoable && <Button className="min-h-11 lg:min-h-10" variant="secondary" disabled={busy} onClick={() => setAsking(true)}>되돌리기</Button>}
+      {failedAnalysis && <Button className="min-h-11 lg:min-h-10" variant="secondary" disabled={busy} onClick={() => void retry()}>다시 시도</Button>}
     </div>}
     <Dialog open={asking} onOpenChange={setAsking}>
       <DialogContent>
         <DialogTitle>이 변경을 되돌릴까요?</DialogTitle>
         <DialogDescription>{UNDO_WARNING[change.type]}</DialogDescription>
         <DialogFooter>
-          <Button className="min-h-11" variant="secondary" onClick={() => setAsking(false)}>취소</Button>
-          <Button className="min-h-11" disabled={busy} onClick={() => void undo()}>되돌리기</Button>
+          <Button className="min-h-11 lg:min-h-10" variant="secondary" onClick={() => setAsking(false)}>취소</Button>
+          <Button className="min-h-11 lg:min-h-10" disabled={busy} onClick={() => void undo()}>되돌리기</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -204,7 +204,7 @@ export function McpChangeLog({ writeEnabled }: { writeEnabled: boolean }) {
 
   if (state.status === "error") return <div role="alert" className="mt-4 space-y-3 rounded-md border border-hairline-soft p-4 sm:px-5">
     <p className="text-sm leading-relaxed text-error">변경 기록을 불러오지 못했어요.</p>
-    <Button className="min-h-11" onClick={() => { setState({ status: "loading" }); void load(); }}>다시 시도</Button>
+    <Button className="min-h-11 lg:min-h-10" onClick={() => { setState({ status: "loading" }); void load(); }}>다시 시도</Button>
   </div>;
   const changes = state.status === "ready" ? state.changes : [];
   if (!writeEnabled && !changes.length) return null;
@@ -218,7 +218,7 @@ export function McpChangeLog({ writeEnabled }: { writeEnabled: boolean }) {
     <div className="pb-4">
       <div className="flex flex-wrap items-center justify-between gap-x-3">
         <p className="inline-flex items-center gap-0.5 text-sm text-muted">외부 AI가 바꾼 것을 되돌려요<InfoTip label="변경 기록">건별로 확인하고 되돌려요. 웹에서 고친 것은 남지 않아요.</InfoTip></p>
-        {state.status === "ready" && <Button className="min-h-11" variant="ghost" size="sm" onClick={() => void load()}>새로고침</Button>}
+        {state.status === "ready" && <Button className="min-h-11 lg:min-h-10" variant="ghost" size="sm" onClick={() => void load()}>새로고침</Button>}
       </div>
       {state.status === "loading" && <p role="status" className="mt-4 text-sm text-muted">변경 기록을 불러오고 있어요…</p>}
       {state.status === "ready" && (changes.length === 0

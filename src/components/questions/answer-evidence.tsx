@@ -10,13 +10,13 @@ export function AnswerEvidence({ evidence: e, questionId, question }: { evidence
   const sourceName = e.sourceName ?? citation?.sourceName;
   const asked = e.question ?? supplement?.question;
   return <details className="min-w-0 rounded-sm border border-hairline-soft bg-surface-soft px-3 py-2 text-sm">
-    <summary className={`min-h-11 cursor-pointer content-center break-words font-medium ${e.type === "CITATION" ? "text-evidence" : "text-body"}`}>
+    <summary className={`min-h-11 lg:min-h-10 cursor-pointer content-center break-words font-medium ${e.type === "CITATION" ? "text-evidence" : "text-body"}`}>
       {e.type === "CITATION" ? `원문 · ${sourceName ?? "연결된 발췌"}` : e.type === "SUPPLEMENT" ? `${supplement?.mcpChange ? mcpAnswerName(supplement.mcpChange.client) : "내가 입력"} · ${asked ?? "보완"}` : "내가 입력 · 직접 넣거나 고친 경험"}
     </summary>
     <div className="grid gap-2 pt-3">
       {asked && e.type === "SUPPLEMENT" && <p className="m-0 text-note text-muted">질문 · {asked}</p>}
       <blockquote className="m-0 whitespace-pre-wrap break-words border-l-2 border-hairline pl-3 leading-relaxed text-body">{e.text}</blockquote>
-      <a href={`/experience?activity=${e.activityId}&fromQuestion=${questionId}`} className="inline-flex min-h-11 items-center text-xs underline underline-offset-3">타임라인에서 활동 보기 →</a>
+      <a href={`/experience?activity=${e.activityId}&fromQuestion=${questionId}`} className="inline-flex min-h-11 lg:min-h-10 items-center text-xs underline underline-offset-3">타임라인에서 활동 보기 →</a>
     </div>
   </details>;
 }

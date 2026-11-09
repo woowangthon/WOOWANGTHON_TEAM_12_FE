@@ -83,7 +83,7 @@ export function ActivityCategoryField({ activity, onSaved, readOnly = false }: {
     </div>
     {error && <div className="grid justify-items-start gap-1">
       <p role="alert" className="m-0 text-sm text-error">{error}</p>
-      <Button variant="secondary" className="min-h-11" disabled={saving} onClick={() => void save(attempt)}><ArrowsClockwiseIcon />다시 시도</Button>
+      <Button variant="secondary" className="min-h-11 lg:min-h-10" disabled={saving} onClick={() => void save(attempt)}><ArrowsClockwiseIcon />다시 시도</Button>
     </div>}
   </div>;
 }

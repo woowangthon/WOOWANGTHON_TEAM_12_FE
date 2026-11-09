@@ -44,7 +44,7 @@ export function ActivityNote({ activity, onSaved, readOnly = false }: {
     {editing ? <form className="mt-3 grid gap-2" aria-label="그때의 나 편집" aria-busy={saving} onSubmit={e => { e.preventDefault(); void save(text); }}>
       <label htmlFor={inputId} className="sr-only">계기 · 그때 든 생각</label>
       <input id={inputId} autoFocus type="text" value={text} disabled={saving} aria-describedby={`${inputId}-hint`} aria-invalid={!!invalid}
-        className="min-h-11 w-full min-w-0 rounded-sm border border-hairline bg-canvas px-3 text-base text-body outline-none focus-visible:border-ink sm:text-sm"
+        className="min-h-11 lg:min-h-10 w-full min-w-0 rounded-sm border border-hairline bg-canvas px-3 text-base text-body outline-none focus-visible:border-ink sm:text-sm"
         onChange={e => { setText(e.target.value); setError(null); setRetryNote(undefined); }}
         onPaste={e => {
           if (/[\r\n]/.test(e.clipboardData.getData("text/plain"))) {
@@ -54,22 +54,22 @@ export function ActivityNote({ activity, onSaved, readOnly = false }: {
       <p id={`${inputId}-hint`} className="m-0 text-note text-muted">앞뒤 공백을 뺀 {MAX_ACTIVITY_NOTE_LENGTH}자까지 · 줄바꿈 없이 한 줄</p>
       {invalid && <p role="alert" className="m-0 text-sm text-error">{invalid}</p>}
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" className="min-h-11" disabled={saving || !!invalid}>{saving ? "저장 중…" : "저장"}</Button>
-        <Button type="button" variant="ghost" className="min-h-11" disabled={saving} onClick={() => { setEditing(false); setError(null); setRetryNote(undefined); }}>취소</Button>
+        <Button type="submit" className="min-h-11 lg:min-h-10" disabled={saving || !!invalid}>{saving ? "저장 중…" : "저장"}</Button>
+        <Button type="button" variant="ghost" className="min-h-11 lg:min-h-10" disabled={saving} onClick={() => { setEditing(false); setError(null); setRetryNote(undefined); }}>취소</Button>
       </div>
     </form> : <>
       {note !== null ? <div className="mt-3 grid gap-2">
         <UserEnteredLabel />
         <p className="m-0 break-words text-sm leading-relaxed text-body">{note}</p>
         {!readOnly && <div className="flex gap-2">
-          <Button variant="ghost" size="sm" className="min-h-11" disabled={saving} onClick={start}>고치기</Button>
-          <Button variant="ghost" size="sm" className="min-h-11" disabled={saving} onClick={() => void save(null)}>{saving ? "지우는 중…" : "지우기"}</Button>
+          <Button variant="ghost" size="sm" className="min-h-11 lg:min-h-10" disabled={saving} onClick={start}>고치기</Button>
+          <Button variant="ghost" size="sm" className="min-h-11 lg:min-h-10" disabled={saving} onClick={() => void save(null)}>{saving ? "지우는 중…" : "지우기"}</Button>
         </div>}
-      </div> : !readOnly && <Button variant="link" className="mt-1 min-h-11 h-auto whitespace-normal text-left text-sm text-muted" onClick={start}>+ 계기나 그때 든 생각 남기기</Button>}
+      </div> : !readOnly && <Button variant="link" className="mt-1 min-h-11 lg:min-h-10 h-auto whitespace-normal text-left text-sm text-muted" onClick={start}>+ 계기나 그때 든 생각 남기기</Button>}
     </>}
     {error && <div className="mt-2 grid justify-items-start gap-1">
       <p role="alert" className="m-0 text-sm text-error">{error}</p>
-      {retryNote !== undefined && <Button variant="secondary" className="min-h-11" disabled={saving} onClick={() => void save(retryNote)}>다시 시도</Button>}
+      {retryNote !== undefined && <Button variant="secondary" className="min-h-11 lg:min-h-10" disabled={saving} onClick={() => void save(retryNote)}>다시 시도</Button>}
     </div>}
   </section>;
 }

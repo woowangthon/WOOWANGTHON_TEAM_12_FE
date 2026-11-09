@@ -216,7 +216,7 @@ export function PeriodField({ activity, readOnly, onSaved, children }: {
           <MonthField key={field} label={field === "start" ? "시작" : "종료"} value={period[field]} original={activity.period[field]}
             disabled={field === "end" && period.ongoing} onChange={(value) => set({ ...period, [field]: value })} />
         ))}
-        <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={period.ongoing} onChange={(e) => set({ ...period, ongoing: e.target.checked, end: e.target.checked ? null : period.end })} />진행 중</label>
+        <label className="flex min-h-11 lg:min-h-10 items-center gap-2"><input type="checkbox" checked={period.ongoing} onChange={(e) => set({ ...period, ongoing: e.target.checked, end: e.target.checked ? null : period.end })} />진행 중</label>
       </>}
     </PopoverEdit>
     {children}

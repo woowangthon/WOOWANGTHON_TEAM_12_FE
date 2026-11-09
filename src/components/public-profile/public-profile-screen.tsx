@@ -64,7 +64,7 @@ export function PublicProfileScreen({ token }: { token: string }) {
       {state.status === "loading" && <p role="status" className="py-24 text-center text-sm text-muted">불러오고 있어요…</p>}
       {state.status === "notFound" && <CenterState icon={<FileTextIcon />} title="없는 페이지예요" />}
       {state.status === "error" && <CenterState icon={<WarningCircleIcon className="text-error" />} title="불러오지 못했어요" body="잠시 뒤 다시 시도해 주세요.">
-        <Button className="min-h-11" onClick={() => { setState({ status: "loading" }); load(); }}>다시 시도</Button>
+        <Button className="min-h-11 lg:min-h-10" onClick={() => { setState({ status: "loading" }); load(); }}>다시 시도</Button>
       </CenterState>}
       {state.status === "ready" && <>
         <h1 className="m-0 text-display leading-snug font-bold tracking-tight break-words">{state.profile.title ?? "공개 프로필"}</h1>

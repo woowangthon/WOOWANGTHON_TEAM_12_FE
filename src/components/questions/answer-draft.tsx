@@ -349,7 +349,7 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
         className="relative block w-full min-w-0 resize-none overflow-hidden border-0 bg-transparent p-5 text-ui leading-[1.9] break-words whitespace-pre-wrap outline-none focus-visible:outline-none disabled:bg-surface-soft/60" />
     </div>
     {peek !== null && !sheet && <div className="flex justify-end border-t border-hairline-soft px-3.5 py-1.5 lg:hidden">
-      <Button size="sm" variant="ghost" className="min-h-11" onClick={() => { const sel = peek; setPeek(null); open(sel, true); }}>이 문장의 근거 보기</Button>
+      <Button size="sm" variant="ghost" className="min-h-11 lg:min-h-10" onClick={() => { const sel = peek; setPeek(null); open(sel, true); }}>이 문장의 근거 보기</Button>
     </div>}
     <p aria-live="polite" className="sr-only">{announce}</p>
     {/* 카드는 한 곳에만 그린다 — 넓은 폭은 글 아래, 좁은 폭은 하단 시트(두 곳에 그리면 입력칸 id 가 겹친다) */}
@@ -381,7 +381,7 @@ function DraftCard({ question, draft, analysis, local, selected, onRemove, onAns
       <GroundLine ground={o.ground} questionId={question.id} withEvidence />
       <div className="flex flex-wrap gap-2">
         {o.need && <Button size="sm" className={inlineAction} disabled={disabled} onClick={() => { onConfirmOwn(o); onClose(); }}>맞아요</Button>}
-        <Button size="sm" variant="ghost" className="ml-auto hidden min-h-11 lg:inline-flex" onClick={onClose}>닫기</Button>
+        <Button size="sm" variant="ghost" className="ml-auto hidden min-h-11 lg:min-h-10 lg:inline-flex" onClick={onClose}>닫기</Button>
       </div>
     </div>;
   }
@@ -418,8 +418,8 @@ function DraftCard({ question, draft, analysis, local, selected, onRemove, onAns
     {s.kind !== "OPINION" && <ActorLine sentence={s} edited={mark.edited} onDecided={onActorDecided} />}
     <div className="flex flex-wrap gap-2">
       {mark.need && <ConfirmButton onConfirm={() => onConfirm(mark)} disabled={disabled} />}
-      <Button size="sm" variant="ghost" className="min-h-11" disabled={disabled} onClick={() => { onRemove(mark); onClose(); }}>빼기</Button>
-      <Button size="sm" variant="ghost" className="ml-auto hidden min-h-11 lg:inline-flex" onClick={onClose}>닫기</Button>
+      <Button size="sm" variant="ghost" className="min-h-11 lg:min-h-10" disabled={disabled} onClick={() => { onRemove(mark); onClose(); }}>빼기</Button>
+      <Button size="sm" variant="ghost" className="ml-auto hidden min-h-11 lg:min-h-10 lg:inline-flex" onClick={onClose}>닫기</Button>
     </div>
     {mark.edited && <p className="m-0 text-note text-muted">빼고 다시 넣으면 원래 문장으로 돌아가요.</p>}
   </div>;
@@ -471,9 +471,9 @@ function FilledLine({ filled, onFixed, disabled }: { filled: NonNullable<Mark["f
     {editing ? <form className="flex flex-wrap gap-1.5" onSubmit={e => { e.preventDefault(); void save(); }}>
       <label className="sr-only" htmlFor={inputId}>{filled.omission.question ?? "보완"}</label>
       <input id={inputId} type="text" value={value} maxLength={MAX_ANSWER_LENGTH} onChange={e => { setValue(e.target.value); setError(null); }}
-        className="h-11 min-w-0 flex-[1_1_160px] rounded-full bg-canvas px-3.5 text-base text-body outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--ink)] sm:text-sm" />
+        className="h-11 lg:h-10 min-w-0 flex-[1_1_160px] rounded-full bg-canvas px-3.5 text-base text-body outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--ink)] sm:text-sm" />
       <Button type="submit" size="sm" className={inlineAction} disabled={disabled || busy}>{busy ? "저장하고 있어요…" : "경험 고치기"}</Button>
-    </form> : canFix && <Button size="sm" variant="secondary" className="min-h-11 justify-self-start" disabled={disabled} onClick={() => setEditing(true)}>경험 고치기</Button>}
+    </form> : canFix && <Button size="sm" variant="secondary" className="min-h-11 lg:min-h-10 justify-self-start" disabled={disabled} onClick={() => setEditing(true)}>경험 고치기</Button>}
     {error && <p role="alert" className="m-0 text-note text-error">{error}</p>}
   </div>;
 }
@@ -503,7 +503,7 @@ function ActorLine({ sentence, edited, onDecided }: { sentence: DraftSentence; e
   };
   const choose = (experienceId: number) => <div className="flex flex-wrap gap-2">
     <Button size="sm" className={inlineAction} disabled={busy} onClick={() => void decide(experienceId, "ME")}>내가 했어요</Button>
-    <Button size="sm" variant="secondary" className="min-h-11" disabled={busy} onClick={() => void decide(experienceId, "TEAM")}>팀이 했어요</Button>
+    <Button size="sm" variant="secondary" className="min-h-11 lg:min-h-10" disabled={busy} onClick={() => void decide(experienceId, "TEAM")}>팀이 했어요</Button>
   </div>;
   return <div className="grid gap-2 rounded-sm bg-surface-soft px-3 py-2.5">
     {/* AI 보탬은 확인 전 「제가」를 쓴 문장이라 확인을 묻고, 근거 문장은 누가 했는지 쓰지 않았으니 선택으로만 보인다(FE#258) */}
@@ -550,7 +550,7 @@ function BlankCard({ question, omission, local, onAnswer, onWrite, disabled, ini
         <div className="flex flex-wrap gap-1.5">
           <input id={inputId} type="text" value={text} maxLength={MAX_ANSWER_LENGTH} disabled={disabled} autoFocus={!!initial}
             onChange={e => { setText(e.target.value); setError(null); }} placeholder="짧게 답해 주세요"
-            className="h-11 min-w-0 flex-[1_1_160px] rounded-full bg-surface-soft px-3.5 text-base text-body outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--ink)] sm:text-sm" />
+            className="h-11 lg:h-10 min-w-0 flex-[1_1_160px] rounded-full bg-surface-soft px-3.5 text-base text-body outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--ink)] sm:text-sm" />
           <Button type="submit" size="sm" className={inlineAction} disabled={disabled}>답하기</Button>
         </div>
         <p className="m-0 text-note text-muted">빈칸은 여기서 답해요. 답은 경험에 보완으로 저장돼 다른 지원서에서도 근거로 쓰여요.</p>
@@ -558,7 +558,7 @@ function BlankCard({ question, omission, local, onAnswer, onWrite, disabled, ini
       </form>
         : <div className="grid justify-items-start gap-2">
           <p className="m-0 text-note text-body">경험에 연결된 질문이 아니라 직접 쓸 거리예요.</p>
-          {onWrite && <Button size="sm" variant="secondary" className="min-h-11" disabled={disabled} onClick={onWrite}>글에 직접 쓰기</Button>}
+          {onWrite && <Button size="sm" variant="secondary" className="min-h-11 lg:min-h-10" disabled={disabled} onClick={onWrite}>글에 직접 쓰기</Button>}
         </div>}
   </>;
 }

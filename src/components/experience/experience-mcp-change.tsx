@@ -36,14 +36,14 @@ export function McpChangeToggle({ changeId, children, onDecided }: {
   const open = panel.status !== "closed";
   return <div>
     <button type="button" aria-expanded={open} onClick={() => { if (open) setPanel({ status: "closed" }); else load(); }}
-      className="inline-flex min-h-11 items-center gap-1 rounded-md text-note font-semibold text-ink underline-offset-3 hover:underline">
+      className="inline-flex min-h-11 lg:min-h-10 items-center gap-1 rounded-md text-note font-semibold text-ink underline-offset-3 hover:underline">
       {children}
       <CaretDownIcon className={cn("size-[1.15em] transition-transform", open && "rotate-180")} aria-hidden="true" />
     </button>
     {panel.status === "loading" && <p role="status" className="text-sm text-muted">바뀐 내용을 불러오고 있어요…</p>}
     {panel.status === "error" && <div role="alert" className="space-y-2">
       <p className="text-sm text-error">바뀐 내용을 불러오지 못했어요.</p>
-      <Button className="min-h-11" variant="secondary" onClick={load}>다시 시도</Button>
+      <Button className="min-h-11 lg:min-h-10" variant="secondary" onClick={load}>다시 시도</Button>
     </div>}
     {panel.status === "missing" && <p className="text-sm leading-relaxed text-body">
       최근 변경 기록에서 찾지 못했어요. <Link href="/connections" className="underline underline-offset-3">연결 화면의 변경 기록</Link>을 확인해 주세요.

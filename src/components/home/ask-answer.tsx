@@ -15,7 +15,7 @@ const boxTitle = "m-0 text-xs font-semibold text-muted";
 function MakeApplication({ onMakeApplication, disabled }: { onMakeApplication: () => void; disabled: boolean }) {
   return <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-hairline pt-3 text-sm text-muted">
     <span>지원 문항이었나요?</span>
-    <Button type="button" variant="secondary" className="min-h-11" disabled={disabled} onClick={onMakeApplication}>지원으로 만들기</Button>
+    <Button type="button" variant="secondary" className="min-h-11 lg:min-h-10" disabled={disabled} onClick={onMakeApplication}>지원으로 만들기</Button>
   </div>;
 }
 
@@ -47,7 +47,7 @@ export function AskAnswer({ answer, onMakeApplication, busy, onOpenActivity }: {
           <p className={boxTitle}>근거 — 기록 그대로</p>
           <RecommendationEvidence recommendation={r} />
         </section>
-        <Link href={`/experience?activity=${r.activity.id}`} onClick={onOpenActivity && (event => { event.preventDefault(); onOpenActivity(r.activity.id); })} className="inline-flex min-h-11 items-center justify-self-start text-sm font-medium text-ink underline-offset-3 hover:underline">활동 세부 보기 →</Link>
+        <Link href={`/experience?activity=${r.activity.id}`} onClick={onOpenActivity && (event => { event.preventDefault(); onOpenActivity(r.activity.id); })} className="inline-flex min-h-11 lg:min-h-10 items-center justify-self-start text-sm font-medium text-ink underline-offset-3 hover:underline">활동 세부 보기 →</Link>
       </li>)}</ol>
     </>}
     <MakeApplication onMakeApplication={onMakeApplication} disabled={busy} />

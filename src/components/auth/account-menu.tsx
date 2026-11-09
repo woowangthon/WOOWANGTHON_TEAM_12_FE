@@ -19,7 +19,7 @@ export function AccountMenu({ variant = "bar" }: { variant?: "bar" | "sidebar" |
         aria-label={`계정 메뉴: ${me.loginId}`}
         className={cn(
           "inline-flex min-h-10 max-w-full items-center gap-2 rounded-full text-sm font-medium text-ink transition-colors outline-none hover:bg-surface-strong focus-visible:outline-2 focus-visible:outline-ink",
-          variant === "bar" ? "px-2.5" : "h-11 w-full gap-2.5 overflow-hidden px-3 whitespace-nowrap",
+          variant === "bar" ? "px-2.5" : "h-11 lg:h-10 w-full gap-2.5 overflow-hidden px-3 whitespace-nowrap",
         )}
       >
         <UserCircleIcon className="size-5 shrink-0" aria-hidden="true" />
@@ -40,10 +40,10 @@ export function AccountMenu({ variant = "bar" }: { variant?: "bar" | "sidebar" |
             </span>
           </div>
           <DropdownMenu.Separator className="my-1 h-px bg-hairline" />
-          <DropdownMenu.Item asChild><Link href="/guidelines" className="flex min-h-11 items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">작성 지침</Link></DropdownMenu.Item>
+          <DropdownMenu.Item asChild><Link href="/guidelines" className="flex min-h-11 lg:min-h-10 items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">작성 지침</Link></DropdownMenu.Item>
           <DropdownMenu.Item
             onSelect={() => void signOut()}
-            className="flex min-h-11 cursor-pointer items-center gap-2 rounded-sm px-3 text-sm outline-none focus:bg-surface-soft"
+            className="flex min-h-11 lg:min-h-10 cursor-pointer items-center gap-2 rounded-sm px-3 text-sm outline-none focus:bg-surface-soft"
           >
             <SignOutIcon className="size-4" aria-hidden="true" />
             로그아웃
