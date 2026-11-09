@@ -28,7 +28,7 @@ export function CompetencyPicker({ value, onChange }: { value: Competency[]; onC
             <label
               key={key}
               className={cn(
-                "relative inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full border px-3.5 text-sm transition-colors select-none",
+                "relative inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-full border px-3.5 text-sm transition-colors select-none",
                 "has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ink",
                 checked ? "border-ink bg-ink font-semibold text-canvas" : "border-hairline bg-canvas text-body hover:bg-surface-soft",
                 disabled && "cursor-not-allowed opacity-40 hover:bg-canvas",
