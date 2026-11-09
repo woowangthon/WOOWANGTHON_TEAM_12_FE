@@ -2,7 +2,7 @@
 import type { Locator, Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import { FakeQuestionApi } from "./fake-question-api";
-import { clickMark } from "./draft-marks";
+import { openMark } from "./draft-marks";
 import { QUESTION_EXAMPLES } from "./fixtures/question-examples";
 import type { Draft, QuestionDetail } from "../src/lib/api/question-types";
 import { DRAFT_EXAMPLE } from "./fixtures/draft-example";
@@ -20,7 +20,7 @@ async function closeCard(page: Page) {
 }
 /** n 번째 문장의 카드를 연다 */
 async function openSentence(page: Page, index: number) {
-  await clickMark(page, `s-${index}`);
+  await openMark(page, `s-${index}`);
   return sentenceCard(page);
 }
 /** 다시 만들기 — 덮이는 것이 있으면(답하지 않은 빠진 사실 질문 · 고친 글) 확인 대화상자가 먼저 뜬다 */
@@ -91,16 +91,15 @@ test("default selection, zero-selection guard, generating, evidence details and 
   await generate(page);
   await closeDraftPanel(page);
   await expect(draftSentences(page)).toHaveCount(2);
-  // 좁은 폭은 확인할 곳이 아닌 문장(근거 문장)의 카드를 열지 않는다
-  if (!narrow(page)) {
-    let card = await openSentence(page, 0);
-    await card.locator("summary").click();
-    await expect(card.locator("blockquote")).toHaveText(QUESTION_EXAMPLES[0].recommendations[0].experience.citations[0].quote);
-    card = await openSentence(page, 1);
-    await card.locator("summary").click();
-    await expect(card.locator("blockquote")).toHaveText(QUESTION_EXAMPLES[0].recommendations[0].experience.supplements[0].answer);
-    await expect(card).toContainText("내가 입력 · 폴링을");
-  }
+  let card = await openSentence(page, 0);
+  await card.locator("summary").click();
+  await expect(card.locator("blockquote")).toHaveText(QUESTION_EXAMPLES[0].recommendations[0].experience.citations[0].quote);
+  await closeCard(page);
+  card = await openSentence(page, 1);
+  await card.locator("summary").click();
+  await expect(card.locator("blockquote")).toHaveText(QUESTION_EXAMPLES[0].recommendations[0].experience.supplements[0].answer);
+  await expect(card).toContainText("내가 입력 · 폴링을");
+  await closeCard(page);
   await openDraftFollowUp(page); // 쓰지 않은 빠진 사실은 차곡이 패널에 남는다
   await expect(draftFollowUp(page)).toContainText("자료에 없어 쓰지 않았어요");
   await closeDraftPanel(page);
@@ -163,7 +162,8 @@ test("failure shows its reason without success text; retry uses the same POST fl
 test("missing evidence preserves the sentence and shows a careful notice", async ({ page }) => {
   await setup(page, q => { q.draft = exampleDraft(); });
   await closeDraftPanel(page);
-  if (!narrow(page)) await expect(await openSentence(page, 0)).toContainText("연결된 근거가 지금은 없어요");
+  await expect(await openSentence(page, 0)).toContainText("연결된 근거가 지금은 없어요");
+  await closeCard(page);
   await expect(copyButton(page)).toBeEnabled();
 });
 
@@ -179,7 +179,6 @@ test("zero sentences with omitted only disables copying", async ({ page }) => {
 });
 
 test("EXPERIENCE is labeled as user input and its original content is inspectable", async ({ page }) => {
-  test.skip(narrow(page), "좁은 폭은 확인할 곳이 아닌 문장의 카드를 열지 않는다");
   await setup(page, q => {
     // experience-api PATCH 예시 104의 직접 고친 본문. 새 경험 ID를 만들지 않는다.
     const text = "백엔드 API 중 채팅 · 거래 API 를 설계했다";
@@ -560,8 +559,6 @@ test("opinion labels stay separate from facts and text-only copy across reload a
   await closeDraftPanel(page);
   await expect(marks).toHaveCount(draft.sentences.length);
   for (const [index, sentence] of draft.sentences.entries()) {
-    // 좁은 폭은 확인할 곳(AI 제안)만 시트로 열린다
-    if (narrow(page) && sentence.kind !== "OPINION") continue;
     const card = await openSentence(page, index);
     // 생각(OPINION)은 「AI 제안」, 사실은 「근거」
     if (sentence.kind === "OPINION") {

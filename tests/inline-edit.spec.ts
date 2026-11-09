@@ -4,7 +4,7 @@ import { test as base } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import { FakeQuestionApi } from "./fake-question-api";
-import { clickMark } from "./draft-marks";
+import { clickMark, openMark } from "./draft-marks";
 import { DRAFT_S79 } from "./fixtures/draft-s79";
 import type { QuestionDetail } from "../src/lib/api/question-types";
 import { matchSentences, sameNumbers, similarity, splitSentences } from "../src/components/questions/draft-match";
@@ -150,14 +150,13 @@ test("조금 고친 문장은 표시 · 카드가 남고 원래 문장이 보인
 });
 
 test("고친 FACT 문장은 확인할 곳을 늘리지 않지만 표시 · 원래 문장 카드는 남는다", async ({ page }) => {
-  test.skip(narrow(page), "좁은 폭은 확인할 곳이 아닌 문장의 카드를 열지 않는다");
   await open(page);
   await change(page, "엔드포인트를", "엔드포인트도");
   await expect(markOf(page, "s-2")).toContainText("엔드포인트도");
   await expect(markOf(page, "s-2")).toHaveClass(/decoration-dotted/); // 조용한 점선 — 확인할 곳의 굵은 밑줄이 아니다
   await expect(markOf(page, "s-2")).not.toHaveClass(/decoration-review/);
   await checks(page, 4);
-  await clickMark(page, "s-2");
+  await openMark(page, "s-2");
   await expect(sentenceCard(page).getByText("원래 문장 — 서버에 STOMP 엔드포인트를", { exact: false })).toBeVisible();
   await expect(sentenceCard(page).getByRole("button", { name: "맞아요", exact: true })).toHaveCount(0);
 });
@@ -326,4 +325,22 @@ test("옛 보기 · 고치기 상태의 흔적이 없다 — 직접 고치기 ·
   await expect(page.getByRole("dialog", { name: /확인할 곳 \d군데가 남았어요/ })).toHaveCount(0);
   await expect(page.locator("button[data-mark], [data-mark] button")).toHaveCount(0); // 문장은 버튼이 아니다
   await expect(answerBox(page)).toBeEditable();
+});
+
+test("좁은 폭 — 확인할 곳이 아닌 문장을 탭하면 근거 보기 버튼이 나오고, 글을 고치면 사라진다", async ({ page }) => {
+  test.skip(!narrow(page), "넓은 폭은 탭하면 카드가 바로 열린다");
+  await open(page);
+  const peek = page.getByRole("button", { name: "이 문장의 근거 보기", exact: true });
+  await clickMark(page, "s-0");
+  await expect(peek).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0); // 시트는 아직 안 열린다
+  // 글을 고치면 숨는다
+  await answerBox(page).pressSequentially("가");
+  await expect(peek).toHaveCount(0);
+  // 다시 탭하고 누르면 그 문장의 시트가 열린다
+  await clickMark(page, "s-0");
+  await peek.click();
+  await expect(sentenceCard(page)).toBeVisible();
+  await expect(peek).toHaveCount(0);
+  await expect(sentenceCard(page).getByText("원문 · 바꿔요-회고.md")).toBeVisible();
 });
