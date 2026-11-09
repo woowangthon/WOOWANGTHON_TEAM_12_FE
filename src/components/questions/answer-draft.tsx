@@ -308,11 +308,11 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
     const blocks = [...marks.map(m => ({ start: m.start, m, o: null })), ...own.map(o => ({ start: o.start, m: null, o }))].sort((x, y) => x.start - y.start);
     for (const { m, o } of blocks) {
       if (o) {
-        // 내가 쓴 문장 — 근거 없음만 칠하고, 나머지는 누를 수만 있다
+        // 내가 쓴 문장 — 근거 없음만 칠하고, 나머지는 누를 수만 있다. 칠하기는 판정을 따르고 세기는 확인을 따른다(맞아요 · 다 쓴 답 뒤에도 칠한다 — FE#317)
         out.push(text.slice(at, o.start));
         out.push(<span key={`g-${o.index}`} data-mark={`g-${o.index}`} className={cn("rounded-sm",
-          o.need && "bg-review-soft", o.ground.stale && "underline decoration-dotted decoration-hairline decoration-2 underline-offset-[5px]",
-          lit(`g-${o.index}`) && !o.need && "bg-surface-soft")}>{text.slice(o.start, o.end)}</span>);
+          o.ground.status === "UNSUPPORTED" && !o.ground.stale && "bg-review-soft", o.ground.stale && "underline decoration-dotted decoration-hairline decoration-2 underline-offset-[5px]",
+          lit(`g-${o.index}`) && !(o.ground.status === "UNSUPPORTED" && !o.ground.stale) && "bg-surface-soft")}>{text.slice(o.start, o.end)}</span>);
         at = o.end;
         continue;
       }
@@ -333,7 +333,7 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
         strong && "underline decoration-review",
         m.need === "marked" && s.kind === "OPINION" && "decoration-dashed",
         !strong && m.edited && "underline decoration-dotted decoration-hairline",
-        m.need === "unsupported" ? "bg-review-soft" : lit(`s-${m.index}`) && "bg-surface-soft")}>{inner}</span>);
+        m.ground?.status === "UNSUPPORTED" && !m.ground.stale ? "bg-review-soft" : lit(`s-${m.index}`) && "bg-surface-soft")}>{inner}</span>);
       at = m.end;
     }
     out.push(text.slice(at));
