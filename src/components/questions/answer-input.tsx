@@ -166,7 +166,7 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
         <div className="flex flex-wrap items-center gap-2">
           {draftLabel && <Button variant="secondary" className="min-h-11" onClick={onAskDraft}>{draftLabel}</Button>}
           <AnalysisCost running={g.busy || analyzing || locked} />
-          <Button disabled={!valid || g.loading || g.busy || analyzing || !g.initialized || locked} onClick={() => { if (blanksLeft) setAsk("confirm"); else confirmAnswer(); }}>{a.busy ? "처리 중…" : "다 썼어요"}</Button>
+          <Button className="min-h-11" disabled={!valid || g.loading || g.busy || analyzing || !g.initialized || locked} onClick={() => { if (blanksLeft) setAsk("confirm"); else confirmAnswer(); }}>{a.busy ? "처리 중…" : "다 썼어요"}</Button>
         </div>
       </div>
     </div>

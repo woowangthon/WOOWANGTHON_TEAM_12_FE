@@ -343,17 +343,19 @@ test("omitted facts have optional experience questions, while unlinked gaps stay
   const api = await setup(page, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
   const panel = await openDraftFollowUp(page);
   const omissions = panel.getByRole("list", { name: "초안의 빠진 사실" });
-  await expect(omissions.getByRole("listitem")).toHaveCount(3);
+  await expect(omissions.getByRole("listitem")).toHaveCount(2);
   await expect(omissions.getByRole("textbox")).toHaveCount(2);
-  const manual = omissions.getByRole("listitem").filter({ hasText: "Java · Spring" });
-  await expect(manual).toContainText("직접 쓸 거리");
+  // 경험에 붙지 않은 빈칸은 되묻기 묶음 밖의 「직접 쓸 거리」 — 입력칸 · 버튼이 없다(FE#268)
+  const manual = panel.getByRole("list", { name: "직접 쓸 거리" });
+  await expect(manual.getByRole("listitem")).toContainText("Java · Spring");
+  await expect(panel).toContainText("직접 쓸 거리 · 보완으로 저장하지 않아요");
   await expect(manual.getByRole("textbox")).toHaveCount(0);
   await expect(manual.getByRole("button")).toHaveCount(0);
   await expect(omissions.getByRole("link").first()).toContainText(QUESTION_EXAMPLES[0].recommendations[0].experience.content);
   const first = omissions.getByRole("listitem").first();
   await first.getByRole("button", { name: "건너뛰기", exact: true }).click();
-  await expect(first).toContainText("건너뛴 질문");
-  await first.getByRole("button", { name: "다시 보기", exact: true }).click();
+  await expect(first).toContainText("건너뛰었어요");
+  await first.getByRole("button", { name: "다시 답하기", exact: true }).click();
   await expect(first.getByRole("textbox")).toHaveAttribute("maxlength", "2000");
   await closeDraftPanel(page);
   await expect(page.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toHaveCount(0); // 보기 상태 — 입력칸이 아니다
@@ -379,7 +381,7 @@ test("saving an omitted answer uses its server ID, persists after reload and reg
   const answer = "두 기기로 메시지를 보내고 양쪽 화면에 도착하는지 확인했다";
   await first.getByRole("textbox").fill("  " + answer + "  ");
   await first.getByRole("button", { name: "답하기", exact: true }).click();
-  await expect(first).toContainText("내가 입력 · 경험에 보완으로 쌓았어요");
+  await expect(first).toContainText("경험에 보완으로 쌓았어요");
   await expect(first).toContainText(answer);
   if (process.env.UPDATE_DRAFT_OMISSION_SCREENSHOTS === "1" && info.project.name === "desktop") {
     await first.scrollIntoViewIfNeeded();
@@ -424,7 +426,7 @@ test("saving blocks regeneration and duplicate answers until the save response a
   await openDraftFollowUp(page);
   await expect(panel.getByRole("button", { name: "다시 만들기", exact: true })).toBeDisabled();
   release();
-  await expect(omissions).toContainText("내가 입력 · 경험에 보완으로 쌓았어요");
+  await expect(omissions).toContainText("경험에 보완으로 쌓았어요");
   await closeDraftPanel(page);
   await expect((await openDraftComposer(page)).getByRole("button", { name: "다시 만들기", exact: true })).toBeEnabled();
   expect(api.calls.filter(c => c.call.endsWith("/answer"))).toHaveLength(1);
@@ -444,10 +446,10 @@ test("save errors preserve the answer and draft, and retry stores it once", asyn
   await first.getByRole("button", { name: "답하기", exact: true }).click();
   await expect(first.getByRole("alert")).toContainText("보완을 저장하지 못했어요");
   await expect(first.getByRole("textbox")).toHaveValue(answer);
-  await expect(first).not.toContainText("내가 입력 · 경험에 보완으로 쌓았어요");
+  await expect(first).not.toContainText("경험에 보완으로 쌓았어요");
   down = false;
   await first.getByRole("button", { name: "다시 시도", exact: true }).click();
-  await expect(first).toContainText("내가 입력 · 경험에 보완으로 쌓았어요");
+  await expect(first).toContainText("경험에 보완으로 쌓았어요");
   expect(api.calls.filter(c => c.call.endsWith("/answer"))).toHaveLength(1);
   await closeDraftPanel(page);
   await expect(copyButton(page)).toBeEnabled();
@@ -610,7 +612,8 @@ test("an unconfirmed answer relayed by external AI is labelled apart and the dra
   api.supplements.get(101)![0].mcpChange = null;
   await page.reload();
   await openDraftComposer(page);
-  await expect(page.getByText("다른 지원서에서도 이 답을 근거로 같이 써요", { exact: false }).first()).toBeVisible();
+  // 확인할 게 없는 답은 접힌 한 줄로 남는다(FE#268)
+  await expect(page.getByText("다른 지원서에서도 이 답을 근거로 같이 써요", { exact: false })).not.toHaveCount(0);
   await expect(page.getByText("Claude가 전한 답이에요.", { exact: false })).toHaveCount(0);
 });
 

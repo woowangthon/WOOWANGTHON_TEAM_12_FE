@@ -12,6 +12,7 @@ import { MAX_ANSWER_LENGTH, type Draft, type DraftOmission, type DraftSentence, 
 import type { DraftFrame } from "@/lib/draft-frames";
 import { cn } from "@/lib/utils";
 import { AnswerEvidence } from "./answer-evidence";
+import { inlineAction } from "./clarifications";
 
 export type DraftActions = { onGenerate: (experienceIds: number[], frame?: DraftFrame, useContext?: boolean) => Promise<void>; onRefresh: () => Promise<void>; onOpenOmissions: () => void; picks: number[]; onResetPicks: (questionId: number) => void; savingAnswer: boolean; requestingDraft: boolean };
 
@@ -185,7 +186,7 @@ function ConfirmButton({ sentence, onConfirm, disabled }: { sentence: DraftSente
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   return <>
-    <Button size="sm" className="min-h-11" disabled={disabled || busy} onClick={async () => {
+    <Button size="sm" className={inlineAction} disabled={disabled || busy} onClick={async () => {
       setBusy(true); setError(null);
       try { await onConfirm(sentence); }
       catch (e) { setError(e instanceof Error ? e.message : "저장하지 못했어요. 다시 시도해 주세요."); }
@@ -219,7 +220,7 @@ function ActorLine({ sentence, onDecided }: { sentence: DraftSentence; onDecided
     finally { setBusy(false); }
   };
   const choose = (experienceId: number) => <div className="flex flex-wrap gap-2">
-    <Button size="sm" className="min-h-11" disabled={busy} onClick={() => void decide(experienceId, "ME")}>내가 했어요</Button>
+    <Button size="sm" className={inlineAction} disabled={busy} onClick={() => void decide(experienceId, "ME")}>내가 했어요</Button>
     <Button size="sm" variant="secondary" className="min-h-11" disabled={busy} onClick={() => void decide(experienceId, "TEAM")}>팀이 했어요</Button>
   </div>;
   return <div className="grid gap-2 rounded-sm bg-surface-soft px-3 py-2.5">
@@ -268,7 +269,7 @@ function BlankCard({ question, omission, local, onAnswer, onEdit, disabled }: {
           <input id={inputId} type="text" value={text} maxLength={MAX_ANSWER_LENGTH} disabled={disabled}
             onChange={e => { setText(e.target.value); setError(null); }} placeholder="짧게 답해 주세요"
             className="h-11 min-w-0 flex-[1_1_160px] rounded-full bg-surface-soft px-3.5 text-base text-body outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--ink)] sm:text-sm" />
-          <Button type="submit" size="sm" className="min-h-11" disabled={disabled}>답하기</Button>
+          <Button type="submit" size="sm" className={inlineAction} disabled={disabled}>답하기</Button>
         </div>
         <p className="m-0 text-note text-muted">답은 경험에 보완으로 저장돼 다른 지원서에서도 근거로 쓰여요.</p>
         {error && <p role="alert" className="m-0 text-note text-error">{error}</p>}

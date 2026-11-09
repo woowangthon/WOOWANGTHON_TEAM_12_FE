@@ -4,11 +4,9 @@ import Link from "next/link";
 import type { DraftFrame } from "@/lib/draft-frames";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { MCP_ANSWER_NOTE, mcpAnswerName } from "@/components/experience/supplement-list";
 import { ApiError } from "@/lib/api/errors";
-import { mcpClientName } from "@/lib/api/mcp";
-import { MAX_ANSWER_LENGTH, type DraftOmission, type QuestionDetail } from "@/lib/api/question-types";
-import { bubble, type AnswerHandler } from "./clarifications";
+import type { DraftOmission, QuestionDetail } from "@/lib/api/question-types";
+import { AnsweredItem, AnswerForm, bubble, ClarifyBlock, openItem, SupplementNote, type AnswerHandler } from "./clarifications";
 import { DraftComposer } from "./draft-composer";
 import { ActivityChip } from "./question-result";
 import { requestError } from "./draft-errors";
@@ -24,70 +22,34 @@ function answerError(e: unknown) {
   return e instanceof Error ? e.message : "보완을 저장하지 못했어요. 다시 시도해 주세요.";
 }
 
-export function OmissionItem({ item, question, onAnswer, onRefresh, disabled }: {
+/** 답할 수 있는 빠진 사실 — 경험 · 질문 · 되묻기 id 가 다 있어야 보완으로 쌓인다 */
+const answerable = (item: DraftOmission) => item.question !== null && item.experienceId !== null && item.clarificationId !== null;
+
+function OmissionItem({ item, question, onAnswer, onRefresh, disabled }: {
   item: DraftOmission; question: QuestionDetail; onAnswer: AnswerHandler;
   onRefresh: () => Promise<void>; disabled: boolean;
 }) {
-  const [text, setText] = useState("");
-  const [skipped, setSkipped] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const pending = useRef(false);
   const recommendation = question.recommendations.find(r => r.experience.id === item.experienceId);
   const supplement = recommendation?.experience.supplements.find(s => s.id === item.supplementId);
-  const canAnswer = item.question !== null && item.experienceId !== null && item.clarificationId !== null;
-  const save = async () => {
-    if (pending.current || disabled || !canAnswer || item.supplementId !== null) return;
-    if (!text.trim()) { setError("답을 적어 주세요. 답하지 않으려면 「건너뛰기」를 눌러 주세요."); return; }
-    pending.current = true; setError(null);
-    try { await onAnswer(item.clarificationId!, text.trim()); }
-    catch (e) { setError(answerError(e)); }
-    finally { pending.current = false; }
-  };
-  const ask = <>
+  const where = <>
     <p className="m-0 text-note leading-relaxed text-muted">{item.text}</p>
     {recommendation && <Link href={`/experience?activity=${recommendation.activity.id}&fromQuestion=${question.id}`}
       className="grid min-w-0 gap-1 text-note leading-relaxed text-evidence underline-offset-4 hover:underline">
       <ActivityChip name={recommendation.activity.name} />
       <span className="break-words">{recommendation.experience.content}</span>
     </Link>}
-    <p className="m-0 break-words font-semibold">{item.question}</p>
   </>;
 
-  if (!canAnswer) return <li className={bubble}>
-    <p className="m-0 font-medium">{item.text}</p>
-    <p className="m-0 text-note text-muted">직접 쓸 거리예요. 경험에 연결된 질문이 아니라 보완으로 저장하지 않아요.</p>
-  </li>;
-  if (item.supplementId !== null) return <li className="grid min-w-0 gap-2.5">
-    <div className={bubble}>{ask}</div>
-    {supplement && <p className="m-0 max-w-[92%] justify-self-end rounded-[16px_4px_16px_16px] bg-primary px-3.5 py-3 text-sm leading-relaxed whitespace-pre-wrap text-on-primary">
-      <span className="mb-1 block text-xs">{supplement.mcpChange ? mcpAnswerName(supplement.mcpChange.client) : "내가 입력"}</span>{supplement.answer}
-    </p>}
-    {supplement?.mcpChange ? <div role="status" className={bubble}>
-      <p className="m-0">{mcpClientName(supplement.mcpChange.client)}가 전한 답이에요. {MCP_ANSWER_NOTE}</p>
-      <p className="m-0 text-note text-muted">맞아요 · 되돌리기는 활동 세부에서 할 수 있어요.</p>
-    </div> : <div role="status" className={bubble}>
-      <p className="m-0">내가 입력 · 경험에 보완으로 쌓았어요.</p>
-      <p className="m-0 text-note text-muted">다른 문항에서도 이 답을 근거로 쓸 수 있어요. 답은 활동 세부에서 확인하고 고칠 수 있어요.</p>
-    </div>}
-  </li>;
-  if (skipped) return <li className="grid min-w-0 gap-1 px-1">
-    <p className="m-0 break-words text-note leading-relaxed text-muted">건너뛴 질문 · {item.question}</p>
-    <Button variant="link" size="sm" className="min-h-11 justify-self-start" onClick={() => setSkipped(false)} disabled={disabled}>다시 보기</Button>
-  </li>;
+  if (item.supplementId !== null) return <AnsweredItem question={item.question!} supplement={supplement} head={where}
+    note={<SupplementNote supplement={supplement} activityName={recommendation?.activity.name} />} />;
 
-  return <li className={bubble}>
-    {ask}
-    <form className="mt-1 flex min-w-0 flex-wrap gap-1.5" onSubmit={e => { e.preventDefault(); void save(); }}>
-      <input type="text" aria-label={`답: ${item.question}`} value={text} maxLength={MAX_ANSWER_LENGTH} disabled={disabled}
-        onChange={e => { setText(e.target.value); setError(null); }} placeholder="짧게 답해 주세요"
-        className="h-11 min-w-0 flex-[1_1_140px] rounded-full bg-surface-soft px-3.5 text-base text-body outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--ink)] sm:text-sm" />
-      <Button type="submit" size="sm" className="min-h-11" disabled={disabled}>{error ? "다시 시도" : "답하기"}</Button>
-      <Button type="button" variant="ghost" size="sm" className="min-h-11" disabled={disabled} onClick={() => { setSkipped(true); setError(null); }}>건너뛰기</Button>
-    </form>
-    {error && <div className="grid justify-items-start gap-2">
-      <p role="alert" className="m-0 text-error">{error}</p>
-      <Button variant="secondary" size="sm" className="min-h-11" disabled={disabled} onClick={() => void onRefresh()}>초안 상태 확인</Button>
-    </div>}
+  return <li className={openItem}>
+    {where}
+    <p className="m-0 break-words text-sm font-semibold text-ink">{item.question}</p>
+    <AnswerForm label={item.question!} disabled={disabled} onSave={async text => {
+      try { await onAnswer(item.clarificationId!, text); return null; }
+      catch (e) { return answerError(e); }
+    }} after={<Button variant="secondary" size="sm" className="min-h-11" disabled={disabled} onClick={() => void onRefresh()}>초안 상태 확인</Button>} />
   </li>;
 }
 
@@ -120,6 +82,9 @@ export function DraftFollowUp({ question, onAnswer, onGenerate, onRefresh, savin
     return () => { clearTimeout(on); clearTimeout(off); setHighlight(false); };
   }, [focusRequest]);
   const draft = question.draft;
+  const asks = draft?.omitted.filter(answerable) ?? [];
+  const unlinked = draft?.omitted.filter(item => !answerable(item)) ?? [];
+  const supplementOf = (item: DraftOmission) => question.recommendations.find(r => r.experience.id === item.experienceId)?.experience.supplements.find(s => s.id === item.supplementId);
   const analyzing = requestingDraft || draft?.status === "ANALYZING";
   const disabled = savingAnswer || analyzing || refreshing;
   const refresh = async () => {
@@ -136,16 +101,21 @@ export function DraftFollowUp({ question, onAnswer, onGenerate, onRefresh, savin
     <h3 className="m-0 text-xs font-semibold text-muted">{draft ? "초안 보완" : "초안 준비"}</h3>
     {analyzing ? <p role="status" className={bubble}>고른 경험과 보완을 읽고 초안을 만드는 중이에요…</p> : draft ? <>
       {draft?.status === "FAILED" ? <p className={bubble}>초안을 완성하지 못했어요. 아래 설정에서 다시 요청해 주세요.</p> : <>
-        <div className={bubble}>
-          <p className="m-0">{!draft?.sentences.length ? "고른 기록에서 받칠 내용을 찾지 못해 문장을 쓰지 않았어요. 경험이 없다는 뜻은 아니에요." : draft.omitted.length ? "초안을 답칸에 넣었어요. 아래 내용은 자료에서 확인하지 못해 쓰지 않았어요." : "초안을 답칸에 넣었어요. 밑줄 · 빈칸을 눌러 근거와 이유를 확인해 주세요."}</p>
-          {!!draft?.omitted.length && <>
-            <p className="m-0 text-xs font-semibold">자료에 없어 쓰지 않았어요 · AI 해석</p>
-            <p className="m-0 text-note text-muted">기억나는 것만 알려 주세요. 답은 선택이에요. 건너뛰어도 초안을 복사할 수 있어요.</p>
-          </>}
-        </div>
-        <ul aria-label="초안의 빠진 사실" className="m-0 grid list-none gap-2.5 p-0">
-          {draft?.omitted.map((item, i) => <OmissionItem key={item.clarificationId ?? `unlinked-${i}`} item={item} question={question} onAnswer={onAnswer} onRefresh={refresh} disabled={disabled} />)}
-        </ul>
+        <p className={bubble}>{!draft?.sentences.length ? "고른 기록에서 받칠 내용을 찾지 못해 문장을 쓰지 않았어요. 경험이 없다는 뜻은 아니에요." : draft.omitted.length ? "초안을 답칸에 넣었어요. 아래 내용은 자료에서 확인하지 못해 쓰지 않았어요." : "초안을 답칸에 넣었어요. 밑줄 · 빈칸을 눌러 근거와 이유를 확인해 주세요."}</p>
+        {asks.length > 0 && <ClarifyBlock title="초안에 대한 되묻기" total={asks.length} answered={asks.filter(item => item.supplementId !== null).length}
+          attention={asks.some(item => supplementOf(item)?.mcpChange)}>
+          <p className="m-0 text-note leading-relaxed text-muted"><b className="font-semibold text-body">자료에 없어 쓰지 않았어요 · AI 해석.</b> 기억나는 것만 알려 주세요. 답은 선택이고, 건너뛰어도 초안을 복사할 수 있어요.</p>
+          <ul aria-label="초안의 빠진 사실" className="m-0 grid list-none gap-1 p-0">
+            {asks.map(item => <OmissionItem key={item.clarificationId} item={item} question={question} onAnswer={onAnswer} onRefresh={refresh} disabled={disabled} />)}
+          </ul>
+        </ClarifyBlock>}
+        {/* 경험에 붙지 않는 빈칸(지원 동기 등)은 묻지 않고 직접 쓸 거리로만 — 보완으로 저장하지 않는다 */}
+        {unlinked.length > 0 && <div className="grid min-w-0 gap-1 px-1">
+          <p className="m-0 text-xs font-semibold text-muted">직접 쓸 거리 · 보완으로 저장하지 않아요</p>
+          <ul aria-label="직접 쓸 거리" className="m-0 grid list-disc gap-1 pl-4 text-note leading-relaxed text-body">
+            {unlinked.map((item, i) => <li key={i} className="break-words">{item.text}</li>)}
+          </ul>
+        </div>}
       </>}
       {savingAnswer && <p role="status" className={bubble}>보완으로 쌓는 중이에요…</p>}
     </> : null}

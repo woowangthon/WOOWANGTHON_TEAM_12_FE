@@ -106,7 +106,7 @@ export function CommonQuestionPicker({ open, onOpenChange, room, onPick }: {
 
         <DialogFooter>
           <Button variant="link" onClick={() => change(false)}>취소</Button>
-          <Button disabled={picked.length === 0} onClick={() => { onPick(picked); change(false); }}>
+          <Button className="min-h-11" disabled={picked.length === 0} onClick={() => { onPick(picked); change(false); }}>
             {picked.length ? `고른 문항 ${picked.length}개 넣기` : "문항을 골라 주세요"}
           </Button>
         </DialogFooter>

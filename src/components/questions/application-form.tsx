@@ -221,8 +221,8 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
         {!open && <Button type="button" variant="link" className="mr-auto min-h-11" disabled={saving} onClick={writeQuestions}>문항 직접 쓰기</Button>}
         {onCancel && <Button type="button" variant="ghost" disabled={saving} onClick={onCancel}>취소</Button>}
         {onMoveToSource && <Button type="button" variant="secondary" disabled={saving || moveToSourceDisabled} onClick={() => onMoveToSource(paste.trim() ? paste : texts.join("\n\n"))}>자료로 쌓기</Button>}
-        {(!open || !!paste.trim()) && <Button type="button" variant={open ? "secondary" : "default"} disabled={saving || parse.parsing || !paste.trim()} onClick={split}>{parse.parsing ? (reading === "url" ? "읽는 중…" : "나누는 중…") : "AI 로 나누기"}</Button>}
-        {open && <Button type="submit" disabled={saving || parse.parsing}>{saving ? "지원을 넣고 있어요…" : texts.length > 1 ? `문항 ${texts.length}개 넣고 경험 찾기` : "지원 넣고 경험 찾기"}</Button>}
+        {(!open || !!paste.trim()) && <Button type="button" className="min-h-11" variant={open ? "secondary" : "default"} disabled={saving || parse.parsing || !paste.trim()} onClick={split}>{parse.parsing ? (reading === "url" ? "읽는 중…" : "나누는 중…") : "AI 로 나누기"}</Button>}
+        {open && <Button type="submit" className="min-h-11" disabled={saving || parse.parsing}>{saving ? "지원을 넣고 있어요…" : texts.length > 1 ? `문항 ${texts.length}개 넣고 경험 찾기` : "지원 넣고 경험 찾기"}</Button>}
       </div>
     </form>
   );
@@ -249,7 +249,7 @@ export function AddQuestionForm({ onSubmit, onCancel }: { onSubmit: (text: strin
       <span className="text-right text-xs text-muted tabular-nums">{text.length.toLocaleString("ko-KR")} / 5,000</span>
       {error && <p role="alert" className="m-0 text-sm text-error">{error}</p>}
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" disabled={saving}>{saving ? "문항을 넣고 있어요…" : "문항 더하고 경험 찾기"}</Button>
+        <Button type="submit" className="min-h-11" disabled={saving}>{saving ? "문항을 넣고 있어요…" : "문항 더하고 경험 찾기"}</Button>
         <Button type="button" variant="ghost" disabled={saving} onClick={onCancel}>취소</Button>
       </div>
     </form>
