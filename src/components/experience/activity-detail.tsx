@@ -150,9 +150,10 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
             </Button>
           </div>
         )}
-        {activity && !readOnly && <ActivityActorDecision key={`actor-${activity.id}`} activity={activity} onSaved={onExperienceSaved} />}
         {activity && <ExperienceList key={activity.id} activity={activity} readOnly={readOnly} onSaved={onExperienceSaved} onAdded={onExperienceAdded} onDelete={onExperienceDelete}
           onMove={onExperienceMove} onMerge={activity.experiences.length > 1 ? onExperienceMerge : undefined} onDragChange={onDragChange} draggingId={draggingId} />}
+        {/* 자주 쓰는 게 아니라 경험 목록 아래에 둔다 — 경험마다 하나씩 정하는 건 줄의 주체를 눌러서(FE#272) */}
+        {activity && !readOnly && <ActivityActorDecision key={`actor-${activity.id}`} activity={activity} onSaved={onExperienceSaved} />}
       </div>
     </div>
   );

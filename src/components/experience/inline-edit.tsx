@@ -203,7 +203,12 @@ export function PeriodField({ activity, readOnly, onSaved, children }: {
     <PopoverEdit<Period> label="활동 기간 고치기" value={activity.period} same={(a, b) => JSON.stringify(a) === JSON.stringify(b)}
       validate={(p) => activityError(activity.name, p)}
       save={async (period) => onSaved(await updateActivity(activity.id, { name: activity.name, period }))}
-      trigger={<button type="button" aria-label={`활동 기간 고치기: ${text}`} title="눌러서 기간 고치기" className={cn(MENU_HOVER, "-mx-1.5 px-1.5 tabular-nums")}>{text}</button>}>
+      // 누를 수 있다는 게 보이게 — 점선 밑줄 + 연필(FE#272). 옆의 「몇 개월째」는 평범한 글자다
+      trigger={<button type="button" aria-label={`활동 기간 고치기: ${text}`} title="눌러서 기간 고치기"
+        className={cn(MENU_HOVER, "group/period -mx-1.5 inline-flex min-h-8 items-center gap-1 px-1.5 tabular-nums")}>
+        <span className="underline decoration-hairline decoration-dotted underline-offset-4 group-hover/period:decoration-ink">{text}</span>
+        <PencilSimpleIcon className="size-[1.05em] text-muted group-hover/period:text-ink" aria-hidden="true" />
+      </button>}>
       {(period, set) => <>
         {(["start", "end"] as const).map((field) => (
           <MonthField key={field} label={field === "start" ? "시작" : "종료"} value={period[field]} original={activity.period[field]}
