@@ -18,10 +18,10 @@ const REVIEW: ExperienceResult = {
 };
 const ANSWER = { recommendations: [{ activity: { id: 7, name: ACTIVITY.name, period: PERIOD }, experience: { ...WEBSOCKET, activityId: 7, activity: undefined, supplements: [] }, reason: "시험 응답 — 폴링을 바꾼 일이라 질문과 맞는다", evidence: [{ type: "CITATION", id: 201 }] }] };
 
-type Api = { searches: string[]; params: URLSearchParams[]; asks: string[]; search: { status?: number; json: unknown }; ask: { status?: number; json: unknown } };
+type Api = { hold: Promise<void> | null; searches: string[]; params: URLSearchParams[]; asks: string[]; search: { status?: number; json: unknown }; ask: { status?: number; json: unknown } };
 
 async function setup(page: Page) {
-  const api: Api = { searches: [], params: [], asks: [], search: { json: { total: 2, experiences: [WEBSOCKET, REVIEW] } }, ask: { json: ANSWER } };
+  const api: Api = { hold: null, searches: [], params: [], asks: [], search: { json: { total: 2, experiences: [WEBSOCKET, REVIEW] } }, ask: { json: ANSWER } };
   await page.route("https://cdn.jsdelivr.net/**", route => route.abort());
   await page.route("**/api/**", async route => {
     const url = new URL(route.request().url());
@@ -29,7 +29,7 @@ async function setup(page: Page) {
     if (url.pathname === "/api/activities") return route.fulfill({ json: { activities: [{ id: 7, name: ACTIVITY.name, period: PERIOD, note: null, experienceCount: 2, category: "PROJECT" }] } });
     if (url.pathname === "/api/activities/7") return route.fulfill({ json: DETAIL });
     if (url.pathname === "/api/applications") return route.fulfill({ json: { applications: [] } });
-    if (url.pathname === "/api/experiences") { api.searches.push(url.searchParams.get("query") ?? ""); api.params.push(url.searchParams); return route.fulfill(api.search); }
+    if (url.pathname === "/api/experiences") { api.searches.push(url.searchParams.get("query") ?? ""); api.params.push(url.searchParams); await api.hold; return route.fulfill(api.search); }
     if (url.pathname === "/api/ask") { api.asks.push(route.request().postDataJSON().text); return route.fulfill(api.ask); }
     return route.fulfill({ status: 404, json: { error: { code: "NOT_FOUND", message: "시험 경로 없음" } } });
   });
@@ -45,9 +45,9 @@ const dialog = (page: Page) => page.getByRole("dialog", { name: "빠른 찾기",
 const rows = (page: Page) => dialog(page).getByRole("listbox").getByRole("option");
 const box = (page: Page) => page.getByRole("textbox", { name: "빠른 찾기 입력", exact: true }).or(page.getByRole("combobox", { name: "빠른 찾기 입력", exact: true }));
 const openByButton = async (page: Page) => { await page.getByRole("button", { name: "빠른 찾기", exact: true }).click(); await expect(box(page)).toBeFocused(); };
-const capture = async (page: Page, name: string) => {
+const capture = async (page: Page, name: string, dir = "fe-162") => {
   if (process.env.UPDATE_QUICK_FIND_SCREENSHOTS !== "1") return;
-  await page.screenshot({ path: `docs/fe-162/${name}.png`, animations: "disabled", style: "nextjs-portal { display: none !important; }" });
+  await page.screenshot({ path: `docs/${dir}/${name}.png`, animations: "disabled", style: "nextjs-portal { display: none !important; }" });
 };
 
 test("Ctrl K opens over the current screen and closing keeps what was being written", async ({ page }, info) => {
@@ -313,6 +313,56 @@ test("after a chip on PC the arrow keys and Enter still pick from the input", as
   await expect(rows(page).nth(1)).toHaveAttribute("aria-selected", "true");
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/experience\?activity=7/);
+});
+
+// FE#248 — 응답을 늦춘 채 칩을 누르거나 낱말을 치면 그 순간부터 「찾는 중」이 보이고, 이전 결과는 지워지지 않는다
+test("changing a chip or the word shows searching at once while the old rows stay", async ({ page }) => {
+  const api = await setup(page);
+  await page.goto("/guidelines");
+  await openByButton(page);
+  await expect(rows(page)).toHaveCount(2);
+  await expect(dialog(page)).toContainText("쌓인 경험 2개");
+
+  let release = () => {};
+  api.hold = new Promise<void>(resolve => { release = resolve; });
+  await dialog(page).getByText("확인 필요만").click();
+  // 250ms 기다리는 중에도, 응답을 기다리는 중에도
+  await expect(dialog(page).getByRole("status").filter({ hasText: "찾고 있어요…" })).toBeVisible();
+  await expect(dialog(page).locator("[aria-busy=true]")).toHaveCount(1);
+  await expect(rows(page)).toHaveCount(2); // 통째로 지우지 않는다
+  await page.waitForTimeout(400);
+  await expect(dialog(page).getByRole("status").filter({ hasText: "찾고 있어요…" })).toBeVisible();
+  release();
+  await expect(dialog(page)).toContainText("찾은 경험 2개");
+  await expect(dialog(page).locator("[aria-busy=true]")).toHaveCount(0);
+
+  // 낱말도 같다
+  api.hold = new Promise<void>(resolve => { release = resolve; });
+  await box(page).fill("웹소켓");
+  await expect(dialog(page).getByRole("status").filter({ hasText: "찾고 있어요…" })).toBeVisible();
+  await expect(rows(page)).toHaveCount(2);
+  await capture(page, `searching-${page.viewportSize()!.width}`, "fe-248");
+  release();
+  await expect(dialog(page)).toContainText("찾은 경험 2개");
+});
+
+test("when the previous result was empty, searching shows instead of the empty notice", async ({ page }) => {
+  const api = await setup(page);
+  await page.goto("/guidelines");
+  await openByButton(page);
+  await expect(rows(page)).toHaveCount(2);
+  api.search = { json: { total: 0, experiences: [] } };
+  await dialog(page).getByText("확인 필요만").click();
+  await expect(dialog(page)).toContainText("쌓인 자료에서 찾지 못했어요");
+
+  let release = () => {};
+  api.hold = new Promise<void>(resolve => { release = resolve; });
+  api.search = { json: { total: 2, experiences: [WEBSOCKET, REVIEW] } };
+  await dialog(page).getByText("확인 필요만").click();
+  await expect(dialog(page).getByRole("status").filter({ hasText: "경험을 찾고 있어요…" })).toBeVisible();
+  await expect(dialog(page)).not.toContainText("쌓인 자료에서 찾지 못했어요");
+  release();
+  await expect(rows(page)).toHaveCount(2);
 });
 
 test("zero results with chips offers to clear them, and the hint follows the tab", async ({ page }, info) => {
