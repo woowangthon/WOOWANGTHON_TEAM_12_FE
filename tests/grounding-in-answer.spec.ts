@@ -73,12 +73,14 @@ test("근거 없음인 내 문장은 칠하고 확인할 곳에 세며, 맞아�
   await clickMark(page, "g-5");
   const card = sentenceCard(page);
   if (!narrow(page)) await expect(card.getByText("내가 쓴 문장", { exact: true })).toBeVisible();
-  await expect(card.getByText("근거 점검 · 근거 없음")).toBeVisible();
+  await expect(card.getByText("점검 · 근거 없음", { exact: true })).toBeVisible();
+  await expect(card.getByText("점검 판정은 AI 해석이에요.")).toBeVisible();
   await expect(card.getByText("AI 해석 — 문장의 숫자(100)가 받치는 근거가 없어요")).toBeVisible();
   await expect(card.getByText("지우거나, 사실이면 근거를 더해 주세요", { exact: false })).toBeVisible();
   await card.getByRole("button", { name: "맞아요", exact: true }).click();
   await checks(page, 4);
-  await expect(markOf(page, "g-5")).not.toHaveClass(/bg-review-soft/);
+  // 칠하기는 판정을 따르고 세기는 확인을 따른다 — 맞아요 뒤에도 칠한다(FE#317)
+  await expect(markOf(page, "g-5")).toHaveClass(/bg-review-soft/);
   await page.waitForTimeout(300);
   expect(posts(api)).toEqual([]);
   expect(state.posts).toHaveLength(1); // 점검 요청 한 번뿐 — 맞아요는 요청이 없다
@@ -89,11 +91,14 @@ test("초안 문장 카드에는 근거 점검 판정 · 이유가 더해진다"
   await runCheck(page, COMPOSED);
   await checks(page, 4); // 점검 결과가 모두 근거 없음이 아니면 확인할 곳은 그대로
   await openMark(page, "s-1");
-  await expect(sentenceCard(page).getByText("근거 점검 · 내가 입력")).toBeVisible();
+  await expect(sentenceCard(page).getByText("점검 ✓ 내가 입력", { exact: true })).toBeVisible();
   await expect(sentenceCard(page).getByText("AI 해석 — 점검 메모 — 보완에 있어요")).toBeVisible();
   if (narrow(page)) { await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toHaveCount(0); }
   await openMark(page, "s-0");
-  await expect(sentenceCard(page).getByText("근거 점검 · 원문")).toBeVisible();
+  await expect(sentenceCard(page).getByText("점검 ✓ 원문", { exact: true })).toBeVisible();
+  if (narrow(page)) { await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toHaveCount(0); }
+  await openMark(page, "s-4"); // 생각 문장
+  await expect(sentenceCard(page).getByText("점검 · 생각", { exact: true })).toBeVisible();
 });
 
 test("점검 뒤 고친 문장은 고치기 전 결과로 흐려지고 확인할 곳에서 빠진다", async ({ page }) => {
@@ -105,7 +110,8 @@ test("점검 뒤 고친 문장은 고치기 전 결과로 흐려지고 확인할
   await expect(markOf(page, "g-5")).not.toHaveClass(/bg-review-soft/);
   await checks(page, 4);
   await openMark(page, "g-5");
-  await expect(sentenceCard(page).getByText("고치기 전 결과예요. 다시 점검해 주세요", { exact: false })).toBeVisible();
+  await expect(sentenceCard(page).getByText("고치기 전 결과 · 근거 없음", { exact: true })).toBeVisible();
+  await expect(sentenceCard(page).getByText("고친 뒤로 아직 점검하지 않았어요 — 근거 점검을 다시 눌러 주세요.")).toBeVisible();
   await expect(sentenceCard(page).getByRole("button", { name: "맞아요", exact: true })).toHaveCount(0);
 });
 
@@ -137,9 +143,25 @@ test("초안이 없어도 직접 쓴 답을 점검하면 블록과 카드가 생
   await expect(sentenceCard(page).getByText("지우거나, 사실이면 근거를 더해 주세요", { exact: false })).toBeVisible();
   if (narrow(page)) { await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toHaveCount(0); }
   await openMark(page, "g-0"); // 좁은 폭은 「이 문장의 근거 보기」를 거친다
-  await expect(sentenceCard(page).getByText("근거 점검 · 원문")).toBeVisible();
+  await expect(sentenceCard(page).getByText("점검 ✓ 원문", { exact: true })).toBeVisible();
   await expect(sentenceCard(page).getByText("원문 · 바꿔요-회고.md")).toBeVisible();
   await expect(sentenceCard(page).getByRole("button", { name: "맞아요", exact: true })).toHaveCount(0);
+  if (narrow(page)) { await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toHaveCount(0); }
+  await openMark(page, "g-2"); // 생각 문장 — 근거가 없어도 된다
+  await expect(sentenceCard(page).getByText("점검 · 생각", { exact: true })).toBeVisible();
+  await expect(sentenceCard(page).getByText("사실이 아니라 생각 · 포부로 봤어요 — 근거가 없어도 돼요.")).toBeVisible();
+});
+
+test("초안 문장 카드의 근거는 초안 근거와 점검 근거를 합쳐 한 번씩만 보인다", async ({ page }) => {
+  const sentences = draftChecked();
+  const dup = { type: "CITATION" as const, id: 201, experienceId: 101, activityId: 7, text: "채팅 메시지가 늦게 도착하는 문제가 있었다. 내가 폴링을 WebSocket 으로 바꿔 해결했다.", sourceName: "바꿔요-회고.md", question: null, actor: "ME" as const };
+  sentences[0].evidence = [dup, { ...dup, id: 777, sourceName: "다른-기록.md", text: "점검에서 더 찾은 발췌입니다." }];
+  await setup(page, { draft: true, sentences });
+  await runCheck(page, COMPOSED);
+  await openMark(page, "s-0");
+  const card = sentenceCard(page);
+  await expect(card.getByText("원문 · 바꿔요-회고.md", { exact: true })).toHaveCount(1); // 같은 CITATION 은 한 번
+  await expect(card.getByText("원문 · 다른-기록.md", { exact: true })).toHaveCount(1); // 점검에서 더 찾은 근거는 더해진다
 });
 
 test("접힌 점검 목록의 요약 — 근거 없음 N문장 · 근거 없음 없어요 · 고치기 전", async ({ page }) => {
@@ -158,7 +180,7 @@ test("접힌 점검 목록의 요약 — 근거 없음 N문장 · 근거 없음 
   await expect(summary(page, "고치기 전 근거 점검 — 다시 점검해 주세요")).toBeVisible();
   // 근거 없음이 없는 점검
   state.sentences = state.sentences.map(s => ({ ...s, status: "SOURCE" as const }));
-  await answerBox(page).fill(text);
+  await answerBox(page).fill(`${text} 끝.`); // 같은 글은 다시 점검하지 못한다(FE#317)
   await check(page).click();
   await expect(summary(page, "근거 점검 — 근거 없음 없어요")).toBeVisible();
 });
