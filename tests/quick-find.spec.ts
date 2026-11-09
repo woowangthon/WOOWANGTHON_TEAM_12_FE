@@ -77,7 +77,7 @@ test("find searches while typing, arrow keys pick and the activity detail opens 
   const api = await setup(page);
   await page.goto("/experience");
   await openByButton(page);
-  await expect(rows(page)).toHaveCount(3); // 경험 둘 + 더 보기
+  await expect(rows(page)).toHaveCount(2); // 경험 둘 — 더 볼 게 없으면 「더 보기」 줄도 없다
   await expect(rows(page).first()).toHaveAttribute("aria-selected", "true");
   await expect(rows(page).nth(1)).toContainText("확인 필요");
   await box(page).fill("WebSocket");
@@ -95,28 +95,52 @@ test("find searches while typing, arrow keys pick and the activity detail opens 
   await expect(page).not.toHaveURL(/activity=/); // 같은 화면이라 처리기로 열었다
 });
 
-test("opens the detail from another screen, and more results carries the word to search", async ({ page }) => {
-  const api = await setup(page);
+test("opens the detail from another screen", async ({ page }) => {
+  await setup(page);
   await page.goto("/guidelines");
   await openByButton(page);
   await rows(page).first().click();
   await expect(page).toHaveURL(/\/experience\?activity=7/);
   await expect(page.getByRole("heading", { name: ACTIVITY.name })).toBeVisible();
+});
 
+// FE#274 — 경험 찾기 자리가 이 창 하나라 「검색에서 더 보기」 대신 창 안에서 더 본다
+const many = (n: number) => Array.from({ length: n }, (_, i) => ({ ...WEBSOCKET, id: 1000 + i, content: `시험 경험 ${i + 1}` }));
+test("more results unfold inside the window, and past the limit it asks to narrow", async ({ page }) => {
+  const api = await setup(page);
+  api.search = { json: { total: 10, experiences: many(10) } };
   await page.goto("/guidelines");
   await openByButton(page);
-  await box(page).fill("회고");
-  await expect.poll(() => api.searches.at(-1)).toBe("회고");
-  await dialog(page).getByRole("option", { name: /검색에서 더 보기/ }).click();
-  await expect(page).toHaveURL(/\/experience\?q=/);
-  await expect(page.getByRole("searchbox", { name: "찾을 낱말", exact: true })).toHaveValue("회고");
+  await expect(dialog(page).getByRole("option", { name: /검색에서 더 보기/ })).toHaveCount(0);
+  await expect(rows(page)).toHaveCount(9); // 8 + 더 보기
+  await dialog(page).getByRole("option", { name: /더 보기/ }).click();
+  await expect(dialog(page)).toBeVisible();
+  await expect(rows(page)).toHaveCount(10);
+  await expect(dialog(page).getByRole("option", { name: /더 보기/ })).toHaveCount(0);
 
-  // 이미 내 경험 화면이면 주소가 아니라 화면이 낱말을 받는다
+  await page.keyboard.press("Escape");
+  api.search = { json: { total: 340, experiences: many(10) } };
   await openByButton(page);
-  await box(page).fill("배포");
-  await expect.poll(() => api.searches.at(-1)).toBe("배포");
-  await dialog(page).getByRole("option", { name: /검색에서 더 보기/ }).click();
-  await expect(page.getByRole("searchbox", { name: "찾을 낱말", exact: true })).toHaveValue("배포");
+  await expect(rows(page)).toHaveCount(9);
+  await box(page).press("End"); // 입력칸 그대로 — 엔터로도 펼친다
+  for (let i = 0; i < 8; i++) await page.keyboard.press("ArrowDown");
+  await expect(rows(page).nth(8)).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("Enter");
+  await expect(rows(page)).toHaveCount(10);
+  await expect(rows(page).nth(8)).toHaveAttribute("aria-selected", "true"); // 새로 펼친 첫 줄
+  await expect(dialog(page).getByRole("status").filter({ hasText: "340개 중 10개" })).toContainText("더 좁혀");
+});
+
+test("an old search address opens this window with its word and chips", async ({ page }) => {
+  const api = await setup(page);
+  await page.goto("/experience?q=회고&competencies=COLLABORATION&year=2025&review=1&category=PROJECT");
+  await expect(dialog(page)).toBeVisible();
+  await expect(box(page)).toHaveValue("회고");
+  await expect.poll(() => Object.fromEntries(api.params.at(-1) ?? [])).toEqual({ query: "회고", category: "PROJECT", year: "2025", sourceStatus: "NEEDS_REVIEW", competencies: "COLLABORATION" });
+  await expect(dialog(page).getByRole("combobox", { name: "활동 분류", exact: true })).toHaveText("프로젝트 · 일");
+  await expect(page).toHaveURL(/\/experience$/); // 새로고침에 다시 열리지 않게 지운다
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "경험 찾기", exact: true })).toHaveCount(0);
 });
 
 test("find empty and failed states are shown as they are", async ({ page }, info) => {
@@ -134,7 +158,7 @@ test("find empty and failed states are shown as they are", async ({ page }, info
   await expect(rows(page)).toHaveCount(0);
   api.search = { json: { total: 2, experiences: [WEBSOCKET, REVIEW] } };
   await alert.getByRole("button", { name: "다시 시도", exact: true }).click();
-  await expect(rows(page)).toHaveCount(3);
+  await expect(rows(page)).toHaveCount(2);
 });
 
 test("ask calls the API only when sent, once, and shows cards in the window", async ({ page }) => {
@@ -227,11 +251,11 @@ test("the open button stays visible on a narrow screen even over the full screen
   await expect(page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).resolves.toBe(true);
 });
 
-test("find chips narrow the same search and more results carries them", async ({ page }) => {
+test("find chips narrow the same search", async ({ page }) => {
   const api = await setup(page);
   await page.goto("/guidelines");
   await openByButton(page);
-  await expect(rows(page)).toHaveCount(3);
+  await expect(rows(page)).toHaveCount(2);
   await pickOption(dialog(page).getByRole("combobox", { name: "활동 분류", exact: true }), "프로젝트 · 일");
   await pickOption(dialog(page).getByRole("combobox", { name: "연도", exact: true }), "2025년");
   await dialog(page).getByText("확인 필요만").click();
@@ -244,19 +268,6 @@ test("find chips narrow the same search and more results carries them", async ({
   await expect.poll(() => Object.fromEntries(api.params.at(-1)!)).toEqual({ category: "PROJECT", year: "2025", sourceStatus: "NEEDS_REVIEW", competencies: "COLLABORATION" });
   await capture(page, `chips-${page.viewportSize()!.width}`);
   await expect(page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).resolves.toBe(true);
-  await dialog(page).getByRole("option", { name: /검색에서 더 보기/ }).click();
-  await expect(page).toHaveURL(/\/experience\?q=&competencies=COLLABORATION&year=2025&review=1&category=PROJECT/);
-  await expect(page.getByRole("combobox", { name: "활동 분류", exact: true })).toHaveText("프로젝트 · 일");
-  await expect(page.getByRole("combobox", { name: "연도", exact: true })).toHaveText("2025년");
-  await expect(page.getByRole("button", { name: "확인 필요만", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("button", { name: "역량 1", exact: true })).toBeVisible();
-
-  // 내 경험 화면 안에서는 화면이 조건을 받는다
-  await openByButton(page);
-  await pickOption(dialog(page).getByRole("combobox", { name: "활동 분류", exact: true }), "공부 · 성장");
-  await dialog(page).getByRole("option", { name: /검색에서 더 보기/ }).click();
-  await expect(page.getByRole("combobox", { name: "활동 분류", exact: true })).toHaveText("공부 · 성장");
-  await expect(page.getByRole("button", { name: "확인 필요만", exact: true })).toHaveAttribute("aria-pressed", "false");
 });
 
 test("filter chips are small on PC, 44 below it, and say when they are on without colour alone", async ({ page }, info) => {
@@ -297,7 +308,7 @@ test("after a chip on PC the arrow keys and Enter still pick from the input", as
   await dialog(page).getByRole("button", { name: "역량", exact: true }).click();
   await page.keyboard.press("Escape");
   await expect(box(page)).toBeFocused();
-  await expect(rows(page)).toHaveCount(3);
+  await expect(rows(page)).toHaveCount(2);
   await page.keyboard.press("ArrowDown");
   await expect(rows(page).nth(1)).toHaveAttribute("aria-selected", "true");
   await page.keyboard.press("Enter");
@@ -309,13 +320,13 @@ test("zero results with chips offers to clear them, and the hint follows the tab
   const api = await setup(page);
   await page.goto("/guidelines");
   await openByButton(page);
-  await expect(rows(page)).toHaveCount(3);
+  await expect(rows(page)).toHaveCount(2);
   api.search = { json: { total: 0, experiences: [] } };
   await dialog(page).getByText("확인 필요만").click();
   await expect(dialog(page)).toContainText("쌓인 자료에서 찾지 못했어요");
   api.search = { json: { total: 2, experiences: [WEBSOCKET, REVIEW] } };
   await dialog(page).getByRole("button", { name: "거르기 지우기", exact: true }).click();
-  await expect(rows(page)).toHaveCount(3);
+  await expect(rows(page)).toHaveCount(2);
   await expect.poll(() => Object.fromEntries(api.params.at(-1)!)).toEqual({});
 
   await expect(dialog(page).locator("kbd")).toHaveText(["Enter", "?", ">", "Esc"]);
