@@ -28,8 +28,8 @@ const EYES = [
 
 /** 차곡이 — 블록 셋에 눈(디자인 데모 character-demo · FE#276). public/brand/mascot.svg 와 같은 그림이다.
  *  animate 면 블록이 위에서 떨어져 쌓이고 몇 초마다 눈을 깜빡인다(globals.css .chagok-char). 움직임 줄이기면 멈춘 그림 */
-export function Mascot({ size = 28, animate = false }: { size?: number; animate?: boolean }) {
-  return <svg viewBox="0 0 83 91" width={size * 83 / 91} height={size} aria-hidden="true" className={cn("shrink-0 overflow-visible", animate && "chagok-char")}>
+export function Mascot({ size = 28, animate = false, className }: { size?: number; animate?: boolean; className?: string }) {
+  return <svg viewBox="0 0 83 91" width={size * 83 / 91} height={size} aria-hidden="true" className={cn("shrink-0 overflow-visible", animate && "chagok-char", className)}>
     <rect className="chagok-block chagok-block--pink" x="9" y="60" width="73.115" height="30.106" rx="10.752" fill="var(--record-pink)" />
     <rect className="chagok-block chagok-block--green" x="0" y="30" width="73.832" height="30.106" rx="10.752" fill="var(--record-green)" />
     <g className="chagok-block chagok-block--blue">

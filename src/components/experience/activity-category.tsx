@@ -1,7 +1,7 @@
 "use client";
 
 // 활동 분류(S-57) — 표시 · 세부에서 고르기. 색은 globals.css 의 [data-category] 가 정하고, 여기선 아이콘 · 이름으로 색 없이도 구분되게 한다
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { ArrowsClockwiseIcon, FolderIcon, PlantIcon, UsersThreeIcon, type Icon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Select, optionsOf } from "@/components/ui/select";
@@ -24,6 +24,23 @@ export function categoryText(activity: Pick<ActivitySummary, "category" | "categ
   const category = categoryOf(activity);
   if (!category) return null;
   return `${ACTIVITY_CATEGORIES[category]}${activity.categoryBy === "AI" ? " (AI 해석)" : ""}`;
+}
+
+/** 활동 이름 칩의 모양 — 분류색은 [data-category] 가 정한다. onTint — 회색 카드 위(흰 칩) */
+export const activityTagClass = (onTint = false) =>
+  cn("inline-flex max-w-full rounded-full px-2.5 py-px text-xs font-semibold break-words text-category-ink", onTint ? "bg-canvas/85" : "bg-category-soft");
+
+/** 색만으로 분류를 알리지 않게 — 화면에선 숨기고 읽는 도구 · 마우스를 올린 말풍선으로 분류 이름을 준다 */
+export const categoryHint = (category: ActivityCategory | null | undefined) => category ? ACTIVITY_CATEGORIES[category] : undefined;
+
+/** 활동 이름 칩 — 내 경험 · 지원 · 알림 어디서든 분류색 칩은 이것(S-57 · FE#277). 색을 따로 주지 않는다 */
+export function ActivityTag({ category, onTint = false, className, children }: {
+  category: ActivityCategory | null | undefined; onTint?: boolean; className?: string; children: ReactNode;
+}) {
+  const hint = categoryHint(category);
+  return <span data-category={category ?? undefined} title={hint} className={cn(activityTagClass(onTint), className)}>
+    {children}{hint && <span className="sr-only"> ({hint})</span>}
+  </span>;
 }
 
 export function CategoryIcon({ category, className }: { category: ActivityCategory; className?: string }) {
