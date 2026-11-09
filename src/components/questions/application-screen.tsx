@@ -164,7 +164,7 @@ export function ApplicationScreen() {
       {working ? <h1 className="sr-only">지원</h1> : <div className="mb-7 flex items-start justify-between gap-3">
         <div><h1 className="m-0 text-display leading-snug font-bold tracking-[-0.4px]">지원</h1><p className="mt-2 mb-0 text-sm text-muted">지원서의 문항마다 꺼내 볼 경험을 찾아요. 같은 경험도 문항마다 다른 점을 보여 줄 수 있어요.</p></div>
         {(empty || matching.error) && restoreRun !== null && <Button variant="secondary" onClick={() => setPanelChoice(!panelOpen)} aria-expanded={panelOpen}>차곡이</Button>}
-        {!empty && <Button disabled={composing || !!matching.error} onClick={startNew}><PlusIcon aria-hidden="true" />지원 넣기</Button>}
+        {!empty && <Button className="min-h-11" disabled={composing || !!matching.error} onClick={startNew}><PlusIcon aria-hidden="true" />지원 넣기</Button>}
       </div>}
       {ready && matching.pollWarnings.map(warning => <div key={warning.id} role="alert" aria-label={warning.label}
         className="mb-4 flex flex-wrap items-center justify-between gap-3 border-y border-hairline py-3 text-sm">
@@ -369,7 +369,7 @@ function SelectedQuestion({ summary, question, application, index, loadError, on
       <AnswerSkeleton />
     </div>
       : question.status === "FAILED" ? <CenterState icon={<WarningCircleIcon className="text-error" />} title="문항을 분석하지 못했어요" body={failureText(question.error)}>
-        <Button disabled={retrying} onClick={async () => {
+        <Button className="min-h-11" disabled={retrying} onClick={async () => {
           if (retryPending.current) return;
           retryPending.current = true; setRetrying(true); setRetryError(null);
           try { await onRetry(question.id); }

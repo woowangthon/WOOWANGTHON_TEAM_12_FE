@@ -582,10 +582,10 @@ test("answering a clarification posts it and shows it on the experience as user-
   await expect(asks().getByText("바꿔요", { exact: true })).toBeVisible();
   await expect(asks().getByRole("textbox", { name: /^답: / })).toBeVisible();
   await asks().getByRole("button", { name: "건너뛰기", exact: true }).click();
-  await expect(asks()).toContainText("건너뛴 질문");
+  await expect(asks()).toContainText("건너뛰었어요");
   await expect(asks().getByRole("textbox")).toHaveCount(0);
   expect(posts(api)).toEqual([]);
-  await asks().getByRole("button", { name: "다시 보기", exact: true }).click();
+  await asks().getByRole("button", { name: "다시 답하기", exact: true }).click();
   await expect(asks().getByRole("textbox", { name: /^답: / })).toBeVisible();
   await closeChagokSheet(page);
 
@@ -607,6 +607,11 @@ test("answering a clarification posts it and shows it on the experience as user-
   expect(posts(api)).toEqual([{ call: "POST /api/clarifications/62/answer", body: { answer: "두 기기로 동시에 보내 보며 지연이 사라졌는지 확인했다" } }]);
   await page.reload();
   await openChagok(page);
+  // 다 답한 묶음은 접힌 채 열린다 — 머리에 몇 개 · 답한 수, 펼치면 질문과 답이 한 덩어리(FE#268)
+  const block = chagokPanel(page).getByText("문항에 대한 되묻기", { exact: true });
+  await expect(chagokPanel(page)).toContainText("2개 · 답 2");
+  await expect(asks()).toHaveCount(0);
+  await block.click();
   await expect(asks().getByText(stacked, { exact: true })).toHaveCount(2);
   await closeChagokSheet(page);
 
