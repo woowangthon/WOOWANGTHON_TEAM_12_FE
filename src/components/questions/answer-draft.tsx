@@ -80,8 +80,13 @@ export type Own = { index: number; start: number; end: number; text: string; gro
 export type Chip = { at: number; omission: DraftOmission; index: number; start: number; end: number; linked: boolean };
 export type Analysis = { marks: Mark[]; chips: Chip[]; own: Own[]; checks: { start: number; selection: NonNullable<Selection> }[] };
 
-/** 글을 초안 문장 · 근거 점검 문장과 맞춰 본다. mine 은 이 화면에서만 누른 맞아요 — 표시 키(s-N · g-N) → 그때 글 */
-export function analyze(question: QuestionDetail, draft: Draft | null, removed: Set<number>, local: Record<number, string>, mine: Record<string, string>, text: string, check: GroundingCheck | null): Analysis {
+/**
+ * 글을 초안 문장 · 근거 점검 문장과 맞춰 본다(FE#317).
+ * seen 은 이 화면에서만 누른 맞아요 — 문장 글로 기억해 다시 점검해 순서가 바뀌어도 남는다(번호로 기억하면 풀린다).
+ * settled 는 다 쓴 답 — 그 안에 글자 그대로 있는 문장은 화면에서만 세는 확인할 곳(채운 빈칸 · 숫자 · 근거 없음 · 고친 AI 보탬)에서 뺀다.
+ * 고치지 않은 AI 보탬 · 생각은 맞아요를 서버에 저장할 수 있어 다 쓴 답에 있어도 센다
+ */
+export function analyze(question: QuestionDetail, draft: Draft | null, removed: Set<number>, local: Record<number, string>, seen: Set<string>, settled: string | null, text: string, check: GroundingCheck | null): Analysis {
   const originals = draft ? draft.sentences.map((_, i) => removed.has(i) ? null : sentenceText(question, draft, i, local)) : [];
   const blanks = draft ? blanksOf(draft) : [];
   const marks: Mark[] = [];
@@ -94,6 +99,7 @@ export function analyze(question: QuestionDetail, draft: Draft | null, removed: 
     return inside.find(g => g.ground.status === "UNSUPPORTED")?.ground ?? inside[0]?.ground ?? null;
   };
   const unsupported = (g: Ground | null) => g?.status === "UNSUPPORTED" && !g.stale;
+  const done = (t: string) => seen.has(t) || (!!settled && settled.includes(t));
   for (const m of draft ? matchSentences(text, originals) : []) {
     const s = draft!.sentences[m.index];
     const original = originals[m.index]!;
@@ -111,13 +117,15 @@ export function analyze(question: QuestionDetail, draft: Draft | null, removed: 
       if (answer && original.includes(fillText(answer)) && !m.text.includes(fillText(answer))) filled ??= { omission: b.omission, answer };
     }
     const ground = groundIn(m.start, m.end);
-    const confirmedHere = mine[`s-${m.index}`] === m.text;
-    // 확인할 곳은 한 번만 — 채운 빈칸 → AI 보탬 · 생각 → 숫자 → 근거 없음
-    const need = confirmedHere ? null : filled ? "filled" : marked(s) ? "marked" : m.edited && !sameNumbers(original, m.text) ? "numbers" : unsupported(ground) ? "unsupported" : null;
+    // 확인할 곳은 한 번만 — 채운 빈칸 → AI 보탬 · 생각 → 숫자 → 근거 없음. 고치지 않은 AI 보탬은 다 쓴 답(settled)으로 끝나지 않는다
+    const need = filled ? (done(m.text) ? null : "filled")
+      : marked(s) ? (seen.has(m.text) || (m.edited && done(m.text)) ? null : "marked")
+        : m.edited && !sameNumbers(original, m.text) ? (done(m.text) ? null : "numbers")
+          : unsupported(ground) && !done(m.text) ? "unsupported" : null;
     marks.push({ ...m, original, need, filled: need === "filled" ? filled : null, ground });
   }
   const own: Own[] = grounds.filter(g => !marks.some(m => m.start < g.end && g.start < m.end))
-    .map(g => ({ index: g.index, start: g.start, end: g.end, text: g.text, ground: g.ground, need: unsupported(g.ground) && mine[`g-${g.index}`] !== g.text ? "unsupported" : null }));
+    .map(g => ({ index: g.index, start: g.start, end: g.end, text: g.text, ground: g.ground, need: unsupported(g.ground) && !done(g.text) ? "unsupported" : null }));
   const checks = [
     ...marks.filter(m => m.need).map(m => ({ start: m.start, selection: { kind: "sentence", index: m.index } as const })),
     ...own.filter(o => o.need).map(o => ({ start: o.start, selection: { kind: "own", index: o.index } as const })),
