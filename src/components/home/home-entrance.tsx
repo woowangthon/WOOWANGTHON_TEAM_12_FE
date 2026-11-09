@@ -171,24 +171,24 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     <section aria-label="홈 입력" className="mx-auto max-w-[760px]">
     <div className="grid justify-items-center gap-2.5 text-center"><HomeMascot overview={overview} onRefresh={onRefresh} mode={mode} /></div>
     <form aria-label="글 보내기" aria-busy={busy} onSubmit={e => { e.preventDefault(); void send(); }}>
-      <div role="group" aria-label="입력 모드" className="mx-auto mt-5 grid w-44 grid-cols-2 gap-1 rounded-full bg-surface-soft p-1">
+      <div role="group" aria-label="입력 모드" className="mx-auto mt-4 grid w-40 grid-cols-2 gap-0.5 rounded-full bg-surface-soft p-0.5">
         {([ ["out", "꺼내기"], ["in", "쌓기"] ] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={mode === value} disabled={busy || (!!file && value === "out")} onClick={() => { setMode(value); setChoosing(false); setError(null); setDuplicate(null); }}
-          className={cn("inline-flex min-h-11 items-center justify-center gap-1.75 rounded-full text-sm leading-none whitespace-nowrap transition-colors disabled:opacity-50 lg:min-h-9", mode === value ? "bg-canvas font-bold text-ink shadow-mode" : "font-normal text-muted hover:text-ink")}>
+          className={cn("relative inline-flex min-h-7.5 items-center justify-center gap-1.5 rounded-full text-sm leading-none whitespace-nowrap transition-colors after:absolute after:inset-x-0 after:-inset-y-2 disabled:opacity-50 lg:min-h-6 lg:text-note lg:after:hidden", mode === value ? "bg-canvas font-bold text-ink shadow-mode" : "font-normal text-muted hover:text-ink")}>
           <span aria-hidden="true" className={cn("size-1.75 rounded-full", value === "out" ? "bg-mark" : "bg-record-green", mode !== value && "opacity-55")} />{label}
         </button>)}
       </div>
-      <div className="mt-3 rounded-lg border border-hairline bg-canvas pt-4 pr-3.5 pb-3 pl-5.5 shadow-home-input focus-within:border-ink">
+      <div className="mt-3 rounded-lg border border-hairline bg-canvas pt-3 pr-3 pb-2.5 pl-4.5 shadow-home-input focus-within:border-ink">
         {file && <span className="mb-2 inline-flex max-w-full items-center gap-2 rounded-full bg-surface-soft px-3 py-1 text-xs text-body"><span className="min-w-0 break-all">{file.name} · {file.text.length.toLocaleString("ko-KR")}자</span><button type="button" aria-label="첨부 파일 빼기" disabled={busy} className="flex size-11 shrink-0 items-center justify-center" onClick={() => { ++fileVersion.current; setFile(null); setError(null); setDuplicate(null); }}><XIcon aria-hidden="true" /></button></span>}
         <textarea aria-label="홈에 넣을 글" aria-describedby={mode === "in" ? "entrance-note entrance-length" : "entrance-length"} aria-invalid={tooLong}
           id="home-text" rows={2} value={text} disabled={busy || !!file} onChange={e => { setText(e.target.value); setChoosing(false); setError(null); setDuplicate(null); parse.clear(); }}
           placeholder={mode === "out" ? "한 줄로 물어보거나, 지원 문항 · 공고(링크도 돼요)를 그대로 붙여 넣어 보세요" : "오늘 한 일 한 줄이나, README · 회고를 붙여 넣어 보세요"}
-          className="min-h-14 w-full resize-none border-0 bg-transparent text-base leading-relaxed outline-none placeholder:text-muted focus-visible:outline-none" />
-        <div className="mt-3 flex items-center justify-between gap-3">
+          className="min-h-12 w-full resize-none border-0 bg-transparent text-base leading-relaxed outline-none placeholder:text-muted focus-visible:outline-none" />
+        <div className="mt-1.5 flex items-center justify-between gap-3">
           <input ref={fileInput} type="file" accept={SOURCE_FILE_ACCEPT} aria-label="홈 첨부 파일" className="sr-only" disabled={busy || sourceBusy} onChange={e => { void pickFile(e.target.files?.[0]); e.target.value = ""; }} />
-          <Button type="button" variant="ghost" size="icon" className="size-11 bg-surface-soft" aria-label="파일 올리기" disabled={busy || sourceBusy} onClick={() => fileInput.current?.click()}><PlusIcon aria-hidden="true" /></Button>
+          <Button type="button" variant="ghost" size="icon" className="size-11 bg-surface-soft lg:size-9" aria-label="파일 올리기" disabled={busy || sourceBusy} onClick={() => fileInput.current?.click()}><PlusIcon aria-hidden="true" /></Button>
           <span id="entrance-length" className={cn("text-xs tabular-nums", tooLong ? "text-error" : "text-muted")}>{text.length > 0 && `${text.length.toLocaleString("ko-KR")} / 50,000`}</span>
           <ModelMenu />
-          <Button type="submit" size="icon" className="size-11" aria-label="보내기" title={mode === "in" ? "자료 분석 시작" : "보내기"} disabled={busy || (!file && (!text.trim() || tooLong)) || ((mode === "in" || !!file) && sourceBusy)}><ArrowUpIcon aria-hidden="true" /></Button>
+          <Button type="submit" size="icon" className="size-11 lg:size-9" aria-label="보내기" title={mode === "in" ? "자료 분석 시작" : "보내기"} disabled={busy || (!file && (!text.trim() || tooLong)) || ((mode === "in" || !!file) && sourceBusy)}><ArrowUpIcon aria-hidden="true" /></Button>
         </div>
       </div>
     </form>
@@ -196,7 +196,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     {analysisStatus && <div className="mt-3 grid gap-2">{analysisStatus}</div>}
     {sourceBusy && <p className="mt-3 text-center text-sm text-muted">자료 분석 중이에요. 분석이 끝나면 더 쌓을 수 있어요.</p>}
     <div role="group" aria-label="입력 예시" className="mt-3 flex flex-wrap justify-center gap-2">
-      {EXAMPLES[mode].map(([label, value]) => <button key={label} type="button" disabled={busy || !!file} onClick={() => { setText(value); setError(null); setChoosing(false); document.getElementById("home-text")?.focus(); }} className="inline-flex min-h-11 items-center rounded-full border border-hairline bg-canvas px-3 text-xs text-body hover:border-muted-soft disabled:opacity-50">{label}</button>)}
+      {EXAMPLES[mode].map(([label, value]) => <button key={label} type="button" disabled={busy || !!file} onClick={() => { setText(value); setError(null); setChoosing(false); document.getElementById("home-text")?.focus(); }} className="inline-flex min-h-11 items-center rounded-full border border-hairline bg-canvas px-3 text-xs text-body lg:min-h-8 hover:border-muted-soft disabled:opacity-50">{label}</button>)}
     </div>
     {/* S-16 — 자료를 넣는 쌓기 모드에서, 분석을 시작하기 전에 보인다 */}
     {mode === "in" && <p id="entrance-note" className="mt-3 mb-0 flex items-center justify-center gap-1.5 text-center text-note leading-relaxed text-muted"><LockSimpleIcon className="size-[13px] shrink-0" aria-hidden="true" />넣은 자료는 분석을 위해 외부 AI 제공사(OpenAI)로 보내져요 · 학습엔 안 쓰여요</p>}

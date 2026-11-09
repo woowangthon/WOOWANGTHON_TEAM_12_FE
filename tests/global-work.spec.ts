@@ -68,7 +68,7 @@ test("작업 없음 · 빈 소식은 읽음 POST 없음 · 키보드 초점 복�
   expect(state.posts).toEqual([]);
 });
 
-test("PC 는 종 아래 작은 창 · 빨간 점, 1024 미만은 패널", async ({ page }) => {
+test("PC 는 종 아래 작은 창 · 빨간 점, 1024 미만은 빠른 찾기처럼 떠 있는 창", async ({ page }) => {
   await setup(page, { seenAt: null, inProgress: [], recent: [item({ status: "COMPLETED", finishedAt: FINISHED })] });
   await page.goto("/questions");
   await expect(trigger(page)).toHaveAccessibleName("진행 중인 일 0개 · 안 읽은 소식 1개");
@@ -76,8 +76,17 @@ test("PC 는 종 아래 작은 창 · 빨간 점, 1024 미만은 패널", async 
   if (page.viewportSize()!.width < 1024) {
     await expect(dot).toBeVisible();
     await trigger(page).click();
-    expect((await dialog(page).boundingBox())!.width).toBeCloseTo(390, 0);
+    // 전체 화면이 아니라 위에 붙은 떠 있는 창 — 빠른 찾기와 같은 자리(FE#275)
+    const box = (await dialog(page).boundingBox())!;
+    expect(box.x).toBeCloseTo(12, 0);
+    expect(box.y).toBeCloseTo(12, 0);
+    expect(box.width).toBeCloseTo(390 - 24, 0);
+    expect(box.height).toBeLessThan(844 - 24);
+    await expect(dialog(page).getByRole("heading", { name: "알림", exact: true })).toBeVisible();
     await page.keyboard.press("Escape");
+    await expect(dialog(page)).toBeHidden();
+    await trigger(page).click();
+    await page.mouse.click(195, 820); // 바깥을 누르면 닫힌다
     await expect(dialog(page)).toBeHidden();
     return;
   }
