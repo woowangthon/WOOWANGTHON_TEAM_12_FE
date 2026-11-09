@@ -5,6 +5,12 @@ import { FakeQuestionApi } from "./fake-question-api";
 import { GROUNDING_EXAMPLE } from "./fixtures/grounding-example";
 import type { GroundingCheck } from "../src/lib/api/question-types";
 
+// 점검 결과 목록은 접힌 <details> 안에 있다(FE#307) — 요약을 찾고, 필요하면 펼친다
+const summary = (page: Page, text: string | RegExp = /근거 점검 —/) => screen(page).locator("summary").filter({ hasText: text });
+async function openList(page: Page) {
+  const details = screen(page).locator("details").filter({ hasText: /근거 점검 —/ });
+  if (!(await details.evaluate(el => (el as HTMLDetailsElement).open))) await summary(page).click();
+}
 const screen = (page: Page) => page.getByRole("region", { name: "내가 쓴 답", exact: true });
 async function setup(page: Page, initial: GroundingCheck | null = null) {
   const api = new FakeQuestionApi({ sameApplication: true });
@@ -48,7 +54,8 @@ test("checks text, distinguishes all statuses, opens non-recommended evidence, r
   await input.fill(GROUNDING_EXAMPLE.text);
   await s.getByRole("button", { name: "근거 점검", exact: true }).click();
   await expect(s.getByRole("button", { name: "근거 점검 중…" })).toBeDisabled();
-  await expect(s.getByRole("heading", { name: "문장별 근거 점검" })).toBeVisible();
+  await expect(summary(page)).toBeVisible();
+  await openList(page);
   expect(state.posts).toEqual([{ text: GROUNDING_EXAMPLE.text }]);
   const items = s.getByRole("list", { name: "문장별 근거", exact: true }).getByRole("listitem");
   await expect(items).toHaveCount(6);
@@ -68,7 +75,7 @@ test("checks text, distinguishes all statuses, opens non-recommended evidence, r
   await s.screenshot({ path: `docs/fe-85/grounding-${info.project.name}.png` });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await input.fill("내가 고친 글");
-  await expect(s.getByRole("heading", { name: "고치기 전 결과 — 다시 점검해 주세요" })).toBeVisible();
+  await expect(summary(page, "고치기 전 근거 점검 — 다시 점검해 주세요")).toBeVisible();
   const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab");
   await tabs.nth(1).click();
   await expect(input).toHaveValue("");
@@ -76,6 +83,8 @@ test("checks text, distinguishes all statuses, opens non-recommended evidence, r
   await expect(input).toHaveValue(GROUNDING_EXAMPLE.text);
   await page.reload();
   await expect(input).toHaveValue(GROUNDING_EXAMPLE.text);
+  await expect(summary(page)).toBeVisible();
+  await openList(page);
   await expect(screen(page).getByRole("list", { name: "문장별 근거", exact: true })).toBeVisible();
   await screen(page).getByRole("listitem").first().getByText("원문 · 연결된 발췌", { exact: true }).click();
   await screen(page).getByRole("listitem").first().getByRole("link").click();
@@ -90,7 +99,7 @@ test("HTTP failure and AI failure retry the exact submitted text after editing",
   state.postError = "DAILY_LIMIT_EXCEEDED";
   await s.getByRole("button", { name: "근거 점검", exact: true }).click();
   await expect(s.getByRole("alert")).toContainText("오늘 분석 횟수를 다 썼어요");
-  await expect(s.getByRole("heading", { name: "문장별 근거 점검" })).toBeVisible();
+  await expect(summary(page)).toBeVisible();
   await input.fill("다르게 고친 글");
   state.postError = ""; state.fail = true;
   await s.getByRole("button", { name: "같은 글로 다시 시도" }).click();
@@ -99,7 +108,7 @@ test("HTTP failure and AI failure retry the exact submitted text after editing",
   await input.fill("또 고친 글");
   state.fail = false;
   await s.getByRole("button", { name: "같은 글로 다시 시도" }).click();
-  await expect(s.getByRole("heading", { name: "고치기 전 결과 — 다시 점검해 주세요" })).toBeVisible();
+  await expect(summary(page, "고치기 전 근거 점검 — 다시 점검해 주세요")).toBeVisible();
   expect(state.posts[2].text).toBe(GROUNDING_EXAMPLE.text);
   await expect(input).toHaveValue("또 고친 글");
 });
@@ -120,7 +129,7 @@ test("initial GET error and stopped polling recover with GET, without spending a
   await page.clock.resume();
   state.readError = false; state.hold = false;
   await s.getByRole("button", { name: "점검 상태 다시 확인" }).click();
-  await expect(s.getByRole("heading", { name: "문장별 근거 점검" })).toBeVisible();
+  await expect(summary(page)).toBeVisible();
   expect(state.posts).toHaveLength(1);
   state.readError = true;
   await page.reload();
@@ -143,7 +152,7 @@ test("409 reads the in-progress check and never reposts automatically; refresh c
   await page.reload();
   await expect(input).toHaveValue(GROUNDING_EXAMPLE.text);
   state.hold = false;
-  await expect(s.getByRole("heading", { name: "문장별 근거 점검" })).toBeVisible();
+  await expect(summary(page)).toBeVisible();
   expect(state.posts).toHaveLength(1);
 });
 
@@ -157,7 +166,7 @@ test("settled checks are not read again on tab return; analyzing checks are, and
   await expect(input).toHaveValue("");
   await tabs.first().click();
   await expect(input).toBeEnabled();
-  await expect(s.getByRole("heading", { name: "문장별 근거 점검" })).toBeVisible();
+  await expect(summary(page)).toBeVisible();
   expect(state.gets).toBe(gets);
 
   // 점검 중에 떠났다 돌아오면 GET 으로 이어 가고, 끝난 결과는 다시 받지 않는다
@@ -170,7 +179,7 @@ test("settled checks are not read again on tab return; analyzing checks are, and
   state.hold = false;
   await tabs.first().click();
   await expect(input).toHaveValue("떠났다 돌아올 글");
-  await expect(s.getByRole("heading", { name: "문장별 근거 점검" })).toBeVisible();
+  await expect(summary(page)).toBeVisible();
   expect(state.posts).toHaveLength(1);
   const settled = state.gets;
   await tabs.nth(1).click();

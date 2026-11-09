@@ -8,7 +8,7 @@ import { WarningCircleIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { updateExperience } from "@/lib/api/experience";
-import { MAX_ANSWER_LENGTH, MAX_GROUNDING_TEXT_LENGTH, type Draft, type DraftOmission, type DraftSentence, type QuestionDetail } from "@/lib/api/question-types";
+import { MAX_ANSWER_LENGTH, MAX_GROUNDING_TEXT_LENGTH, type Draft, type DraftOmission, type DraftSentence, type GroundingCheck, type GroundingStatus, type QuestionDetail } from "@/lib/api/question-types";
 import type { DraftFrame } from "@/lib/draft-frames";
 import { cn } from "@/lib/utils";
 import { AnswerEvidence } from "./answer-evidence";
@@ -20,8 +20,10 @@ export type DraftActions = { onGenerate: (experienceIds: number[], frame?: Draft
 /** 문장 속 빈칸 하나 — omitted 의 짝(S-78) */
 export type Blank = { omission: DraftOmission; at: number };
 
-/** 고른 표시 — 문장 또는 빈칸 */
-export type Selection = { kind: "sentence"; index: number } | { kind: "blank"; at: number } | null;
+/** 고른 표시 — 초안 문장 · 빈칸 · 내가 쓴 문장(근거 점검 문장 번호) */
+export type Selection = { kind: "sentence"; index: number } | { kind: "blank"; at: number } | { kind: "own"; index: number } | null;
+
+const keyOf = (s: NonNullable<Selection>) => s.kind === "blank" ? `b-${s.at}` : s.kind === "own" ? `g-${s.index}` : `s-${s.index}`;
 
 const marked = (s: DraftSentence) => (s.kind === "ELABORATED" || s.kind === "OPINION") && !s.confirmed;
 
@@ -60,24 +62,40 @@ export function composeDraft(question: QuestionDetail, draft: Draft, removed: Se
   return draft.sentences.flatMap((_, i) => removed.has(i) ? [] : [sentenceText(question, draft, i, local)]).join(" ");
 }
 
-/** 지금 글에 남은 초안 문장 — 왜 확인할 곳인지(need) · 채운 빈칸 값이 바뀌었나(filled) */
+export const GROUND_LABEL: Record<GroundingStatus, string> = { SOURCE: "원문", USER_INPUT: "내가 입력", UNSUPPORTED: "근거 없음", OPINION: "생각 · AI 해석" };
+
+/** 근거 점검(S-45) 결과 문장 하나 — stale 은 점검 뒤 그 문장을 고쳤나 */
+export type Ground = GroundingCheck["sentences"][number] & { stale: boolean };
+
+/** 지금 글에 남은 초안 문장 — 왜 확인할 곳인지(need) · 채운 빈칸 값이 바뀌었나(filled) · 그 문장의 근거 점검(ground) */
 export type Mark = {
   index: number; start: number; end: number; text: string; edited: boolean; original: string;
-  need: "marked" | "numbers" | "filled" | null;
+  need: "marked" | "numbers" | "filled" | "unsupported" | null;
   filled: { omission: DraftOmission; answer: string } | null;
+  ground: Ground | null;
 };
+/** 초안과 짝이 없는 문장(내가 쓴 문장) — 근거 점검 뒤에만 생긴다. index 는 점검 문장 번호 */
+export type Own = { index: number; start: number; end: number; text: string; ground: Ground; need: "unsupported" | null };
 /** 지금 글에 남은 답 안 한 빈칸 — [start, end) 는 자리 표시 */
 export type Chip = { at: number; omission: DraftOmission; index: number; start: number; end: number; linked: boolean };
-export type Analysis = { marks: Mark[]; chips: Chip[]; checks: { start: number; selection: NonNullable<Selection> }[] };
+export type Analysis = { marks: Mark[]; chips: Chip[]; own: Own[]; checks: { start: number; selection: NonNullable<Selection> }[] };
 
-/** 글을 초안 문장과 맞춰 본다. mine 은 고친 문장에 이 화면에서 누른 맞아요 — 문장 번호 → 그때 글 */
-export function analyze(question: QuestionDetail, draft: Draft, removed: Set<number>, local: Record<number, string>, mine: Record<number, string>, text: string): Analysis {
-  const originals = draft.sentences.map((_, i) => removed.has(i) ? null : sentenceText(question, draft, i, local));
-  const blanks = blanksOf(draft);
+/** 글을 초안 문장 · 근거 점검 문장과 맞춰 본다. mine 은 이 화면에서만 누른 맞아요 — 표시 키(s-N · g-N) → 그때 글 */
+export function analyze(question: QuestionDetail, draft: Draft | null, removed: Set<number>, local: Record<number, string>, mine: Record<string, string>, text: string, check: GroundingCheck | null): Analysis {
+  const originals = draft ? draft.sentences.map((_, i) => removed.has(i) ? null : sentenceText(question, draft, i, local)) : [];
+  const blanks = draft ? blanksOf(draft) : [];
   const marks: Mark[] = [];
   const chips: Chip[] = [];
-  for (const m of matchSentences(text, originals)) {
-    const s = draft.sentences[m.index];
+  // 근거 점검 결과 문장도 같은 짝 찾기로 지금 글에 놓는다 — 글에서 없어진 점검 문장은 버린다
+  const checked = check?.status === "COMPLETED" ? check.sentences : [];
+  const grounds = matchSentences(text, checked.map(c => c.text)).map(g => ({ ...g, ground: { ...checked[g.index], stale: g.edited } }));
+  const groundIn = (start: number, end: number) => {
+    const inside = grounds.filter(g => g.start < end && start < g.end);
+    return inside.find(g => g.ground.status === "UNSUPPORTED")?.ground ?? inside[0]?.ground ?? null;
+  };
+  const unsupported = (g: Ground | null) => g?.status === "UNSUPPORTED" && !g.stale;
+  for (const m of draft ? matchSentences(text, originals) : []) {
+    const s = draft!.sentences[m.index];
     const original = originals[m.index]!;
     let from = m.start;
     let filled: Mark["filled"] = null;
@@ -92,15 +110,20 @@ export function analyze(question: QuestionDetail, draft: Draft, removed: Set<num
       const answer = blankAnswer(question, b.omission, local);
       if (answer && original.includes(fillText(answer)) && !m.text.includes(fillText(answer))) filled ??= { omission: b.omission, answer };
     }
-    const confirmedHere = mine[m.index] === m.text;
-    const need = confirmedHere ? null : filled ? "filled" : marked(s) ? "marked" : m.edited && !sameNumbers(original, m.text) ? "numbers" : null;
-    marks.push({ ...m, original, need, filled: need === "filled" ? filled : null });
+    const ground = groundIn(m.start, m.end);
+    const confirmedHere = mine[`s-${m.index}`] === m.text;
+    // 확인할 곳은 한 번만 — 채운 빈칸 → AI 보탬 · 생각 → 숫자 → 근거 없음
+    const need = confirmedHere ? null : filled ? "filled" : marked(s) ? "marked" : m.edited && !sameNumbers(original, m.text) ? "numbers" : unsupported(ground) ? "unsupported" : null;
+    marks.push({ ...m, original, need, filled: need === "filled" ? filled : null, ground });
   }
+  const own: Own[] = grounds.filter(g => !marks.some(m => m.start < g.end && g.start < m.end))
+    .map(g => ({ index: g.index, start: g.start, end: g.end, text: g.text, ground: g.ground, need: unsupported(g.ground) && mine[`g-${g.index}`] !== g.text ? "unsupported" : null }));
   const checks = [
     ...marks.filter(m => m.need).map(m => ({ start: m.start, selection: { kind: "sentence", index: m.index } as const })),
+    ...own.filter(o => o.need).map(o => ({ start: o.start, selection: { kind: "own", index: o.index } as const })),
     ...chips.map(c => ({ start: c.start, selection: { kind: "blank", at: c.at } as const })),
   ].sort((a, b) => a.start - b.start);
-  return { marks, chips, checks };
+  return { marks, chips, own, checks };
 }
 
 const LABEL: Record<DraftSentence["kind"], string> = { FACT: "근거", ELABORATED: "AI 보탬 — 확인 필요", OPINION: "AI 제안 — 확인 필요" };
@@ -113,6 +136,7 @@ type EditorProps = {
   onRemove: (mark: Mark) => void;
   onAnswer: (chip: Chip, answer: string) => Promise<void>;
   onConfirm: (mark: Mark) => Promise<void>;
+  onConfirmOwn: (own: Own) => void;
   onFilledFixed: (omission: DraftOmission, answer: string) => Promise<void>;
   onActorDecided: () => Promise<void>;
   inputId: string;
@@ -127,9 +151,9 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
   const area = useRef<HTMLTextAreaElement>(null);
   const layer = useRef<HTMLDivElement>(null);
   const [sheet, setSheet] = useState(false);
-  const [hover, setHover] = useState<number | null>(null);
+  const [hover, setHover] = useState<string | null>(null);
   // 좁은 폭에서 확인할 곳이 아닌 문장을 탭하면 시트 대신 「근거 보기」 버튼만 — 고치려고 탭할 때마다 시트가 키보드를 덮지 않게
-  const [peek, setPeek] = useState<number | null>(null);
+  const [peek, setPeek] = useState<Selection>(null);
   const [prefill, setPrefill] = useState<{ at: number; text: string } | null>(null);
   const [announce, setAnnounce] = useState("");
   const programmatic = useRef(false);
@@ -137,6 +161,7 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
   const caret = useRef(0);
   const chips = analysis?.chips ?? [];
   const marks = analysis?.marks ?? [];
+  const own = analysis?.own ?? [];
 
   // 글 길이에 맞춰 늘어난다 — 스크롤이 없어야 표시 층과 줄이 어긋나지 않는다
   useLayoutEffect(() => {
@@ -146,10 +171,13 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
     el.style.height = `${el.scrollHeight}px`;
   }, [text]);
 
+  const titleOf = (sel: NonNullable<Selection>) => sel.kind === "blank" ? "빈칸"
+    : sel.kind === "own" ? `내가 쓴 문장 · ${GROUND_LABEL[own.find(o => o.index === sel.index)?.ground.status ?? "OPINION"]}`
+      : LABEL[draft?.sentences[sel.index]?.kind ?? "FACT"];
   const open = (next: Selection, tapped: boolean) => {
     onSelect(next);
     setSheet(!!next && tapped && !wide());
-    if (next) setAnnounce(next.kind === "blank" ? "빈칸 카드를 열었어요" : `${LABEL[draft?.sentences[next.index]?.kind ?? "FACT"].split(" — ")[0]} 문장 카드를 열었어요`);
+    if (next) setAnnounce(next.kind === "blank" ? "빈칸 카드를 열었어요" : `${titleOf(next).split(" — ")[0]} 문장 카드를 열었어요`);
   };
   const select = (start: number, end: number) => {
     const el = area.current;
@@ -174,8 +202,7 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
     const at = area.current?.selectionStart ?? 0;
     const target = from >= 0 ? checks[(from + 1) % checks.length] : checks.find(c => c.start >= at) ?? checks[0];
     open(target.selection, true);
-    const key = target.selection.kind === "blank" ? `b-${target.selection.at}` : `s-${target.selection.index}`;
-    layer.current?.querySelector(`[data-mark="${key}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+    layer.current?.querySelector(`[data-mark="${keyOf(target.selection)}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
   };
   useEffect(() => { handleRef.current = { replace, next }; });
 
@@ -253,23 +280,35 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
       return;
     }
     const index = Number(key.slice(2));
-    const mark = marks.find(m => m.index === index);
+    const target = key.startsWith("g-") ? own.find(o => o.index === index) : marks.find(m => m.index === index);
+    const sel: Selection = key.startsWith("g-") ? { kind: "own", index } : { kind: "sentence", index };
     // 좁은 폭은 확인할 곳만 시트로 바로 연다 — 그 밖의 문장은 「근거 보기」 버튼을 거친다
-    if (!mark) return;
-    if (wide() || mark.need) open({ kind: "sentence", index }, true);
-    else setPeek(index);
+    if (!target) return;
+    if (wide() || target.need) open(sel, true);
+    else setPeek(sel);
   };
   const move = (e: PointerEvent) => {
     if (e.pointerType !== "mouse") return;
     const key = markAt(e.clientX, e.clientY);
-    setHover(key?.startsWith("s-") ? Number(key.slice(2)) : null);
+    setHover(key && !key.startsWith("b-") ? key : null);
   };
 
+  const lit = (key: string) => hover === key || (!!selected && keyOf(selected) === key);
   const layerContent = (): ReactNode[] => {
-    if (!draft) return [text];
     const out: ReactNode[] = [];
     let at = 0;
-    for (const m of marks) {
+    const blocks = [...marks.map(m => ({ start: m.start, m, o: null })), ...own.map(o => ({ start: o.start, m: null, o }))].sort((x, y) => x.start - y.start);
+    for (const { m, o } of blocks) {
+      if (o) {
+        // 내가 쓴 문장 — 근거 없음만 칠하고, 나머지는 누를 수만 있다
+        out.push(text.slice(at, o.start));
+        out.push(<span key={`g-${o.index}`} data-mark={`g-${o.index}`} className={cn("rounded-sm",
+          o.need && "bg-review-soft", o.ground.stale && "underline decoration-dotted decoration-hairline decoration-2 underline-offset-[5px]",
+          lit(`g-${o.index}`) && !o.need && "bg-surface-soft")}>{text.slice(o.start, o.end)}</span>);
+        at = o.end;
+        continue;
+      }
+      if (!m || !draft) continue;
       const s = draft.sentences[m.index];
       out.push(text.slice(at, m.start));
       const inner: ReactNode[] = [];
@@ -286,7 +325,7 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
         strong && "underline decoration-review",
         m.need === "marked" && s.kind === "OPINION" && "decoration-dashed",
         !strong && m.edited && "underline decoration-dotted decoration-hairline",
-        (hover === m.index || (selected?.kind === "sentence" && selected.index === m.index)) && "bg-surface-soft")}>{inner}</span>);
+        m.need === "unsupported" ? "bg-review-soft" : lit(`s-${m.index}`) && "bg-surface-soft")}>{inner}</span>);
       at = m.end;
     }
     out.push(text.slice(at));
@@ -310,7 +349,7 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
         className="relative block w-full min-w-0 resize-none overflow-hidden border-0 bg-transparent p-5 text-ui leading-[1.9] break-words whitespace-pre-wrap outline-none focus-visible:outline-none disabled:bg-surface-soft/60" />
     </div>
     {peek !== null && !sheet && <div className="flex justify-end border-t border-hairline-soft px-3.5 py-1.5 lg:hidden">
-      <Button size="sm" variant="ghost" className="min-h-11" onClick={() => { const index = peek; setPeek(null); open({ kind: "sentence", index }, true); }}>이 문장의 근거 보기</Button>
+      <Button size="sm" variant="ghost" className="min-h-11" onClick={() => { const sel = peek; setPeek(null); open(sel, true); }}>이 문장의 근거 보기</Button>
     </div>}
     <p aria-live="polite" className="sr-only">{announce}</p>
     {/* 카드는 한 곳에만 그린다 — 넓은 폭은 글 아래, 좁은 폭은 하단 시트(두 곳에 그리면 입력칸 id 가 겹친다) */}
@@ -319,7 +358,7 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
       <SheetContent side="bottom" className="max-h-[78dvh] gap-3 overflow-auto rounded-t-lg border-t-0 px-5 pt-2.5 pb-7 lg:hidden">
         <span className="h-1 w-9 self-center justify-self-center rounded-full bg-hairline" aria-hidden="true" />
         <SheetHeader className="p-0 pr-10">
-          <SheetTitle className="text-title-md font-semibold">{selected?.kind === "blank" ? "빈칸" : selected ? LABEL[draft?.sentences[selected.index]?.kind ?? "FACT"] : ""}</SheetTitle>
+          <SheetTitle className="text-title-md font-semibold">{selected ? titleOf(selected) : ""}</SheetTitle>
           <SheetDescription className="sr-only">초안의 표시를 확인해요</SheetDescription>
         </SheetHeader>
         {sheet && card}
@@ -331,9 +370,22 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
 type CardProps = EditorProps & { prefill: { at: number; text: string } | null; onWrite: (chip: Chip) => void; onClose: () => void };
 
 /** 표시 하나의 카드 — 문장이면 근거 · 이유 · 주체 · 맞아요 · 빼기, 빈칸이면 질문과 답 칸 */
-function DraftCard({ question, draft, analysis, local, selected, onRemove, onAnswer, onConfirm, onFilledFixed, onActorDecided, cardsDisabled: disabled, prefill, onWrite, onClose }: CardProps) {
+function DraftCard({ question, draft, analysis, local, selected, onRemove, onAnswer, onConfirm, onConfirmOwn, onFilledFixed, onActorDecided, cardsDisabled: disabled, prefill, onWrite, onClose }: CardProps) {
   const close = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-  if (!draft || !analysis) return null;
+  if (!analysis) return null;
+  if (selected?.kind === "own") {
+    const o = analysis.own.find(x => x.index === selected.index);
+    if (!o) return null;
+    return <div role="group" aria-label="문장 카드" onKeyDown={close} className="grid gap-3 p-4 lg:px-5">
+      <p className="m-0 hidden text-xs font-semibold text-muted lg:block">내가 쓴 문장</p>
+      <GroundLine ground={o.ground} questionId={question.id} withEvidence />
+      <div className="flex flex-wrap gap-2">
+        {o.need && <Button size="sm" className={inlineAction} disabled={disabled} onClick={() => { onConfirmOwn(o); onClose(); }}>맞아요</Button>}
+        <Button size="sm" variant="ghost" className="ml-auto hidden min-h-11 lg:inline-flex" onClick={onClose}>닫기</Button>
+      </div>
+    </div>;
+  }
+  if (!draft) return null;
   if (selected?.kind === "blank") {
     const chip = analysis.chips.find(c => c.at === selected.at);
     const omission = chip?.omission ?? draft.omitted[selected.at];
@@ -358,6 +410,7 @@ function DraftCard({ question, draft, analysis, local, selected, onRemove, onAns
     {s.kind === "OPINION" && mark.need === "marked" && <p className="m-0 flex items-start gap-1.5 text-note leading-relaxed text-review">
       <WarningCircleIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />사실이 아니라 문항에 잇는 제안이에요. 맞는지 보고 고치거나 빼 주세요.</p>}
     {s.note && <p className="m-0 text-note leading-relaxed text-body">왜 확인이 필요한가요 — {s.note}</p>}
+    {mark.ground && <GroundLine ground={mark.ground} questionId={question.id} withEvidence={false} />}
     {s.kind !== "OPINION" && (s.evidence.length
       ? <div className="grid min-w-0 gap-2">{mark.edited && <p className="m-0 text-note text-muted">원래 문장의 근거예요 — 고친 내용이 맞는지는 근거 점검으로 볼 수 있어요.</p>}
         {s.evidence.map((e, j) => <AnswerEvidence key={`${e.type}-${e.id}-${j}`} evidence={e} questionId={question.id} question={question} />)}</div>
@@ -369,6 +422,18 @@ function DraftCard({ question, draft, analysis, local, selected, onRemove, onAns
       <Button size="sm" variant="ghost" className="ml-auto hidden min-h-11 lg:inline-flex" onClick={onClose}>닫기</Button>
     </div>
     {mark.edited && <p className="m-0 text-note text-muted">빼고 다시 넣으면 원래 문장으로 돌아가요.</p>}
+  </div>;
+}
+
+/** 근거 점검 결과 한 줄(S-45) — 판정은 AI 해석이다. 근거 없음은 거짓이라는 뜻이 아니다 */
+function GroundLine({ ground, questionId, withEvidence }: { ground: Ground; questionId: number; withEvidence: boolean }) {
+  const bad = ground.status === "UNSUPPORTED" && !ground.stale;
+  return <div className={cn("grid min-w-0 gap-1.5 rounded-sm px-3 py-2.5", bad ? "bg-review-soft" : "bg-surface-soft")}>
+    <p className={cn("m-0 text-note font-semibold", bad ? "text-review" : "text-body")}>근거 점검 · {GROUND_LABEL[ground.status]}
+      {ground.stale && <span className="font-normal text-muted"> — 고치기 전 결과예요. 다시 점검해 주세요</span>}</p>
+    {bad && <p className="m-0 text-note text-review">지우거나, 사실이면 근거를 더해 주세요. 거짓이라는 뜻은 아니에요.</p>}
+    {ground.note && <p className="m-0 text-note text-muted">AI 해석 — {ground.note}</p>}
+    {withEvidence && ground.evidence.map((e, j) => <AnswerEvidence key={`${e.type}-${e.id}-${j}`} evidence={e} questionId={questionId} />)}
   </div>;
 }
 
