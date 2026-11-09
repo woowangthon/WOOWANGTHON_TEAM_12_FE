@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { cn } from "@/lib/utils";
 import { useConfirmedAnswer } from "./use-confirmed-answer";
 import { NewFactCandidates } from "./new-fact-candidates";
 import { AnalysisCost } from "@/components/auth/analysis-cost";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
+import { InfoTip } from "@/components/ui/info-tip";
 import { Toast, useToast } from "@/components/ui/toast";
 import { confirmDraftSentence, setDraftSentenceRemoved } from "@/lib/api/questions";
 import { updateSupplement } from "@/lib/api/experience";
@@ -17,12 +19,14 @@ import type { AnswerHandler } from "./clarifications";
 import { DraftGuidance } from "./draft-guidance";
 import { failureReason } from "./draft-errors";
 import { useGroundingCheck, type GroundingChecks } from "./use-grounding-check";
+import { TargetLengthField } from "./type-fields";
 
 const LABEL: Record<GroundingStatus, string> = { SOURCE: "원문", USER_INPUT: "내가 입력", UNSUPPORTED: "근거 없음", OPINION: "생각 · AI 해석" };
 const TINT: Record<GroundingStatus, string> = { SOURCE: "bg-evidence-soft", USER_INPUT: "bg-primary-soft", UNSUPPORTED: "bg-review-soft", OPINION: "" };
 
 type AnswerChange = (id: number, answer: Answer | null) => void;
-type DraftHooks = { onAnswer: AnswerHandler; onRefresh: () => Promise<void>; draftBusy: boolean };
+// 목표 글자 수는 답칸 아래 한 곳에서 정한다(FE#269)
+type DraftHooks = { onAnswer: AnswerHandler; onRefresh: () => Promise<void>; draftBusy: boolean; onTargetLength: (targetLength: number | null) => Promise<void> };
 
 /** 내가 쓴 답(S-45 · S-48 · S-79): 받아 둔 문항의 확정 답으로 시작하고, 초안이 더 새로우면 초안을 보기 상태로 담는다. 근거 점검은 독립적으로 읽는다.
  *  문항을 못 받았으면 화면의 「다시 불러오기」를 쓴다 */
@@ -47,7 +51,7 @@ function LoadedAnswer({ question, onAnswerChange, checks, draftLabel, onAskDraft
 type Box = { key: string | null; removed: Set<number>; local: Record<number, string>; mine: Record<number, string>; sawDrafting: boolean };
 const later = (a: string, b: string) => Date.parse(a) > Date.parse(b);
 
-function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, onAnswer, onRefresh, draftBusy }: { question: QuestionDetail; confirmed: ReturnType<typeof useConfirmedAnswer>; checks: GroundingChecks; draftLabel: string | null; onAskDraft: () => void } & DraftHooks) {
+function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, onAnswer, onRefresh, draftBusy, onTargetLength }: { question: QuestionDetail; confirmed: ReturnType<typeof useConfirmedAnswer>; checks: GroundingChecks; draftLabel: string | null; onAskDraft: () => void } & DraftHooks) {
   const questionId = question.id;
   const draft = question.draft ?? null;
   const ready = draft?.status === "COMPLETED" && draft.sentences.length > 0 ? draft : null;
@@ -165,10 +169,11 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
     {drafting && <p role="status" className="m-0 text-sm text-muted">차곡이가 초안을 만들고 있어요. 다 되면 답칸에 들어와요.</p>}
     {draft?.status === "FAILED" && !drafting && <p role="alert" className="m-0 text-sm text-error">{failureReason(draft.error)} 차곡이에서 다시 만들 수 있어요.</p>}
     {marked && <div id={`draft-title-${questionId}`} role="group" aria-label="답변 초안" className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
-      {/* 확인할 곳은 알약으로 눈에 띄게(FE#262) */}
-      <span role="status" className={left ? "inline-flex items-center rounded-full bg-review-soft px-3 py-1 text-sm font-semibold text-review"
-        : "inline-flex items-center rounded-full bg-evidence-soft px-3 py-1 text-sm font-semibold text-evidence"}>{left ? `확인할 곳 ${left}군데` : "모두 확인했어요 ✓"}</span>
-      <p className="m-0 min-w-0 flex-1 text-note text-muted">차곡이 초안이에요. 바로 고쳐 쓰고, 밑줄 · 빈칸을 누르면 근거와 이유가 보여요.</p>
+      {/* 확인할 곳은 부가 정보라 작게 — 남은 개수는 늘 보인다(FE#262 · FE#269). 사용법은 ⓘ 로 접는다 */}
+      <span role="status" className={cn("inline-flex items-center gap-1.5 text-note font-medium tabular-nums", left ? "text-review" : "text-evidence")}>
+        {left ? <><span aria-hidden="true" className="size-1.5 rounded-full bg-review" />확인할 곳 {left}군데</> : "모두 확인했어요 ✓"}
+      </span>
+      <span className="-ml-2 mr-auto inline-flex items-center"><InfoTip label="차곡이 초안">차곡이 초안이에요. 바로 고쳐 쓰고, 밑줄 · 빈칸을 누르면 근거와 이유가 보여요. 최종 문장은 직접 정해요.</InfoTip></span>
       {left > 0 && <Button variant="secondary" size="sm" className="min-h-11" title="Alt + ↓" onClick={() => editor.current?.next()}>다음 확인할 곳 →</Button>}
     </div>}
     {ready && asked > 0 && <p role="status" className="m-0 flex flex-wrap items-center gap-x-1.5 text-sm text-body">
@@ -198,7 +203,8 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
         {/* 왼쪽은 글을 살피는 일, 오른쪽은 다음 행동 — 초안 부탁을 더 많이 쓴다(FE#215). 「다 썼어요」가 줄 끝이다.
             「분석 1회」는 줄에 한 번, 「다 썼어요」 바로 앞에(S-15 · #217) — 「초안 부탁하기」는 분석을 쓰지 않아 그 옆에 두지 않는다(FE#249) */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className="mr-1 text-xs text-muted tabular-nums">{text.length.toLocaleString()}자{target ? ` · 목표 ${target.toLocaleString()}자` : " / 5,000자"}</span>
+          <span className="inline-flex items-center gap-1 text-xs text-muted tabular-nums">{text.length.toLocaleString()}자 /{" "}
+            <TargetLengthField value={target} onSave={onTargetLength} /></span>
           <Button variant="ghost" className="min-h-11" title="분석 1회를 써요" disabled={!valid || g.loading || g.busy || analyzing || !g.initialized} onClick={() => void g.submit(text)}>
             {g.busy || analyzing ? "근거 점검 중…" : "근거 점검"}
           </Button>
