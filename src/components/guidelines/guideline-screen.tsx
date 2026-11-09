@@ -28,12 +28,16 @@ export function GuidelineScreen() {
   const { toast, showToast, clearToast } = useToast();
   const locked = useRef(false);
   const [raw, setRaw] = useState<GuidelineInput>({ text: '', source: '' });
+  const [showSource, setShowSource] = useState(false);
   const [candidates, setCandidates] = useState<(GuidelineInput & { key: number })[] | null>(null);
   const [extractError, setExtractError] = useState<string | null>(null);
-  const [manual, setManual] = useState<GuidelineInput>({ text: '', source: '' });
   const [editing, setEditing] = useState<number | null>(null);
   const [edit, setEdit] = useState<GuidelineInput>({ text: '', source: '' });
   const enabled = items.filter(g => g.enabled).length;
+  // 한 줄(200자 이하 · 줄바꿈 없음)이면 바로 저장, 아니면 AI 로 정리 — 두 입구를 상자 하나로(FE#304)
+  const text = raw.text.trim();
+  const isLine = !!text && text.length <= 200 && !/[\r\n]/.test(text);
+  const resetComposer = () => { setRaw({ text: '', source: '' }); setShowSource(false); };
 
   const load = useCallback(() => fetchGuidelines().then(
     items => { setItems(items); setLoadError(null); },
@@ -76,32 +80,37 @@ export function GuidelineScreen() {
           <p className="m-0 text-sm leading-relaxed text-muted">들었던 작성법을 내 지침으로 쌓아 두세요.</p>
         </header>
         {error && <p role="alert" className="m-0 text-sm text-error">{error}</p>}
-        <div className="grid items-start gap-6 md:grid-cols-2">
-          <section aria-labelledby="extract-title" className={card}>
-            <h2 id="extract-title" className="m-0 text-lg font-semibold">붙여 넣고 정리하기</h2>
-            <p className="m-0 text-sm leading-relaxed text-muted">요점이나 자막에 있는 작성법만 한 줄씩 정리해요.</p>
-            <form onSubmit={e => { e.preventDefault(); void extract(); }} className="grid min-w-0 gap-4">
-              <fieldset disabled={busy} className="m-0 grid min-w-0 gap-4 border-0 p-0">
-                <label className="grid gap-1.5 text-sm font-medium">요점 · 자막<textarea required maxLength={20000} rows={7} className={inputClass + ' resize-y leading-relaxed'} value={raw.text} onChange={e => setRaw({ ...raw, text: e.target.value })} /></label>
-                <label className="grid gap-1.5 text-sm font-medium">출처 (선택)<input maxLength={100} className={inputClass} placeholder="어느 영상 · 누구의 피드백" value={raw.source} onChange={e => setRaw({ ...raw, source: e.target.value })} /></label>
-                <div className="flex flex-wrap items-center gap-3"><Button type="submit" className="min-h-11" disabled={!raw.text.trim()}>정리하기</Button><AnalysisCost running={busy} /></div>
-              </fieldset>
-            </form>
-            {extractError && <div className="grid justify-items-start gap-2"><p role="alert" className="m-0 text-sm text-error">{extractError}</p><Button variant="secondary" disabled={busy} onClick={() => void extract()}>다시 시도</Button></div>}
-            {busy && <p className="m-0 text-sm text-muted">요청을 처리하고 있어요…</p>}
-          </section>
-          <section aria-labelledby="manual-title" className={card}>
-            <h2 id="manual-title" className="m-0 text-lg font-semibold">직접 한 줄 쓰기</h2>
-            <p className="m-0 text-sm leading-relaxed text-muted">내가 정한 작성법도 좋아요.</p>
-            <form className="grid min-w-0 gap-4" onSubmit={e => { e.preventDefault(); void save([manual], () => setManual({ text: '', source: '' })); }}>
-              <fieldset disabled={busy || loading || !!loadError} className="m-0 grid min-w-0 gap-4 border-0 p-0"><LineFields value={manual} onChange={setManual} /><Button type="submit" variant="secondary" className="min-h-11 justify-self-start" disabled={!manual.text.trim()}>한 줄 저장</Button></fieldset>
-            </form>
-          </section>
-        </div>
+        <section aria-labelledby="compose-title" className={card}>
+          <div className="grid gap-1">
+            <h2 id="compose-title" className="m-0 text-lg font-semibold">지침 더하기</h2>
+            <p className="m-0 text-sm leading-relaxed text-muted">내가 정한 작성법을 한 줄로 쓰거나, 영상 요점 · 자막을 붙여 넣으면 작성법만 한 줄씩 정리해요.</p>
+          </div>
+          <form onSubmit={e => { e.preventDefault(); if (isLine) void save([{ text, source: raw.source }], resetComposer); else void extract(); }} className="grid min-w-0 gap-3">
+            <fieldset disabled={busy} className="m-0 grid min-w-0 gap-3 border-0 p-0">
+              <label className="sr-only" htmlFor="guideline-compose">지침 한 줄 또는 요점 · 자막</label>
+              <textarea id="guideline-compose" maxLength={20000} rows={3} placeholder="예: 첫 문장에 무엇을 했고 어떻게 됐는지 먼저 쓴다" className={inputClass + ' max-h-96 min-h-24 resize-y leading-relaxed [field-sizing:content]'} value={raw.text} onChange={e => setRaw({ ...raw, text: e.target.value })} />
+              {showSource && <label className="grid min-w-0 gap-1.5 text-sm font-medium">출처<input autoFocus maxLength={100} className={inputClass} placeholder="어느 영상 · 누구의 피드백 · 내 생각" value={raw.source} onChange={e => setRaw({ ...raw, source: e.target.value })} /></label>}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                {showSource ? <Button type="button" variant="ghost" className="min-h-11" onClick={() => { setShowSource(false); setRaw({ ...raw, source: '' }); }}>출처 빼기</Button> : <Button type="button" variant="ghost" className="min-h-11" onClick={() => setShowSource(true)}>+ 출처 달기</Button>}
+                <div className="flex flex-wrap items-center gap-3">
+                  {!text || isLine ? <>
+                    <Button type="button" variant="ghost" className="min-h-11" disabled={!text} onClick={() => void extract()}>AI로 정리</Button>
+                    <Button type="submit" className="min-h-11" disabled={!text || loading || !!loadError}>한 줄 저장</Button>
+                  </> : <>
+                    <AnalysisCost running={busy} />
+                    <Button type="submit" className="min-h-11" disabled={!text}>AI로 정리하기</Button>
+                  </>}
+                </div>
+              </div>
+            </fieldset>
+          </form>
+          {extractError && <div className="grid justify-items-start gap-2"><p role="alert" className="m-0 text-sm text-error">{extractError}</p><Button variant="secondary" disabled={busy} onClick={() => void extract()}>다시 시도</Button></div>}
+          {busy && <p role="status" className="m-0 text-sm text-muted">요청을 처리하고 있어요…</p>}
+        </section>
         {candidates !== null && <section aria-labelledby="candidates-title" className={card}>
           <h2 id="candidates-title" className="m-0 text-lg font-semibold">정리한 후보</h2>
           <p className="m-0 text-sm text-muted">AI 해석이에요. 줄을 고치거나 빼고 저장해 주세요. 아직 저장하지 않았어요.</p>
-          {candidates.length === 0 ? <p className="m-0 text-sm">지침으로 정리할 만한 게 없어요 — 직접 써 주세요.</p> : <form className="grid gap-4" onSubmit={e => { e.preventDefault(); void save(candidates.map(({ text, source }) => ({ text, source })), () => setCandidates(null)); }}>
+          {candidates.length === 0 ? <p className="m-0 text-sm">지침으로 정리할 만한 게 없어요 — 직접 써 주세요.</p> : <form className="grid gap-4" onSubmit={e => { e.preventDefault(); void save(candidates.map(({ text, source }) => ({ text, source })), () => { setCandidates(null); resetComposer(); }); }}>
             <fieldset disabled={busy || loading || !!loadError} className="m-0 grid min-w-0 gap-5 border-0 p-0">
               {candidates.map(c => <div key={c.key} role="group" aria-label={'지침 후보 ' + (c.key + 1)} className="grid min-w-0 gap-3 border-t border-hairline pt-4"><LineFields value={c} onChange={value => setCandidates(previous => previous!.map(item => item.key === c.key ? { ...value, key: c.key } : item))} /><Button type="button" variant="ghost" className="min-h-11 justify-self-start" onClick={() => setCandidates(previous => previous!.filter(item => item.key !== c.key))}>빼기</Button></div>)}
               <Button type="submit" className="min-h-11 justify-self-start">후보 저장</Button>
@@ -111,7 +120,7 @@ export function GuidelineScreen() {
         <section aria-labelledby="guidelines-title" className={card}>
           <div className="flex items-center gap-0.5"><h2 id="guidelines-title" className="m-0 text-lg font-semibold">내 지침 {items.length} / 50 · 켬 {enabled} / 10</h2><InfoTip label="내 지침">켠 지침은 다음에 만드는 초안부터 반영돼요. 지침이 부딪치면 하나를 꺼 주세요.</InfoTip></div>
           {loading ? <p role="status" className="m-0 text-sm text-muted">지침을 불러오고 있어요…</p> : loadError ? <div className="grid justify-items-start gap-2"><p role="alert" className="m-0 text-sm text-error">{loadError}</p><Button variant="secondary" onClick={() => { setLoading(true); void load(); }}>다시 불러오기</Button></div> : <>
-            {!items.length && <p className="m-0 py-6 text-sm text-muted">아직 작성 지침이 없어요. 들었던 작성법을 붙여 넣거나 직접 한 줄 써 주세요.</p>}
+            {!items.length && <p className="m-0 py-6 text-sm text-muted">아직 작성 지침이 없어요. 위 「지침 더하기」에 한 줄 쓰거나 들었던 작성법을 붙여 넣어 주세요.</p>}
             <ul className="m-0 grid list-none gap-4 p-0">{items.map(g => <li key={g.id} aria-label={'작성 지침 ' + g.id} className="grid min-w-0 gap-3 border-t border-hairline pt-4">
               {editing === g.id ? <form className="grid gap-3" onSubmit={e => { e.preventDefault(); void act(async () => { const updated = await updateGuideline(g.id, edit); setItems(previous => previous.map(item => item.id === g.id ? updated : item)); setEditing(null); showToast('지침을 고쳤어요. 다음에 만드는 초안부터 써요.'); }); }}>
                 <fieldset disabled={busy} className="m-0 grid min-w-0 gap-3 border-0 p-0"><LineFields value={edit} onChange={setEdit} /><div className="flex gap-2"><Button type="submit" className="min-h-11">저장</Button><Button type="button" variant="ghost" className="min-h-11" onClick={() => setEditing(null)}>취소</Button></div></fieldset>

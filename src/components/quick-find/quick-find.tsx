@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react";
 import { Dialog, DialogOverlay, DialogPortal, DialogTitle } from "@/components/ui/dialog";
+import { useAsk } from "@/components/home/use-ask";
 import type { ExperienceSearch } from "@/lib/api/types";
 import { QuickFindPanel, type QuickFindTarget } from "./quick-find-panel";
 
@@ -26,6 +27,9 @@ export function QuickFindProvider({ children }: { children: ReactNode }) {
   const [opened, setOpened] = useState<{ addSourceBusy: boolean; initial?: ExperienceSearch } | null>(null);
   const actions = useRef<QuickFindActions>({});
   const returnTo = useRef<HTMLElement | null>(null);
+  // 묻기 질문 · 답은 창 밖(여기)에 둔다 — 창이 닫혀 패널이 사라져도 남고, 다시 열어도 분석 1회를 또 쓰지 않는다(FE#288).
+  // 이 Provider 는 로그인 문(AuthGate) 안이라 로그아웃 · 세션 만료로 문이 닫히면 같이 사라진다
+  const asked = useAsk();
 
   const open = useCallback((initial?: ExperienceSearch) => {
     returnTo.current ??= document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -68,7 +72,7 @@ export function QuickFindProvider({ children }: { children: ReactNode }) {
           onCloseAutoFocus={event => { event.preventDefault(); returnTo.current?.focus({ preventScroll: true }); returnTo.current = null; }}
           className="fixed inset-x-3 top-3 z-50 mx-auto flex h-[min(560px,calc(100dvh-24px))] max-w-[860px] flex-col overflow-hidden rounded-md bg-popover text-popover-foreground shadow-float outline-none lg:inset-x-6 lg:top-[10vh] lg:h-[min(560px,calc(100dvh-96px))]">
           <DialogTitle className="sr-only">빠른 찾기</DialogTitle>
-          <QuickFindPanel addSourceBusy={!!opened?.addSourceBusy} initial={opened?.initial} onGo={go} />
+          <QuickFindPanel asked={asked} addSourceBusy={!!opened?.addSourceBusy} initial={opened?.initial} onGo={go} />
         </DialogPrimitive.Content>
       </DialogPortal>
     </Dialog>

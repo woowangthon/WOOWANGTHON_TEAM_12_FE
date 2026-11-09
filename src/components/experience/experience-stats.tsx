@@ -108,7 +108,7 @@ export function ExperienceStats({ activities, version, hiddenIds, addSource, onO
 
         <Card title="역량별">
           {detailNote || (byCompetency.length === 0 ? <p className="m-0 text-sm text-muted">아직 역량이 붙은 경험이 없어요.</p> : <>
-            <Bars total={experiences.length} rows={byCompetency.map(([c, n]) => ({ key: c, count: n, label: COMPETENCIES[c], bar: <span className="block h-full bg-mark" /> }))} />
+            <Bars total={experiences.length} rows={byCompetency.map(([c, n]) => ({ key: c, count: n, label: COMPETENCIES[c], bar: <span className="block h-full bg-muted" /> }))} />
             <p className="mt-3 mb-0 text-note text-muted">
               경험 하나에 역량이 여러 개 붙을 수 있어 합이 경험 수보다 클 수 있어요. 역량은 AI 해석이 섞여 있어요{noCompetency ? ` · 역량 없는 경험 ${noCompetency}개` : ""}.
             </p>

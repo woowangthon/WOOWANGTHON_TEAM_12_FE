@@ -48,6 +48,9 @@ npm-debug.log*
 !/artifacts/work-work-390-test-api.png
 !/artifacts/chagok-276-rail.png
 !/artifacts/chagok-276-390.png
+!/artifacts/mode-top-303-1440.png
+!/artifacts/mode-top-303-1024.png
+!/artifacts/mode-top-303-390.png
 
 # 시안 비교 결과(npm run design:diff)
 /artifacts/design-diff/

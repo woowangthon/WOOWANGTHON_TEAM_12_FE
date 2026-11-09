@@ -169,15 +169,15 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
 
   return <>
     <section aria-label="홈 입력" className="mx-auto max-w-[760px]">
+    <div role="group" aria-label="입력 모드" className="mx-auto mb-12 grid w-40 lg:mb-20 grid-cols-2 gap-0.5 rounded-full bg-surface-soft p-0.5">
+      {([ ["out", "꺼내기"], ["in", "쌓기"] ] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={mode === value} disabled={busy || (!!file && value === "out")} onClick={() => { setMode(value); setChoosing(false); setError(null); setDuplicate(null); }}
+        className={cn("relative inline-flex min-h-7.5 items-center justify-center gap-1.5 rounded-full text-sm leading-none whitespace-nowrap transition-colors after:absolute after:inset-x-0 after:-inset-y-2 disabled:opacity-50 lg:min-h-6 lg:text-note lg:after:hidden", mode === value ? "bg-canvas font-bold text-ink shadow-mode" : "font-normal text-muted hover:text-ink")}>
+        <span aria-hidden="true" className={cn("size-1.75 rounded-full", value === "out" ? "bg-mark" : "bg-record-green", mode !== value && "opacity-55")} />{label}
+      </button>)}
+    </div>
     <div className="grid justify-items-center gap-2.5 text-center"><HomeMascot overview={overview} onRefresh={onRefresh} mode={mode} /></div>
     <form aria-label="글 보내기" aria-busy={busy} onSubmit={e => { e.preventDefault(); void send(); }}>
-      <div role="group" aria-label="입력 모드" className="mx-auto mt-4 grid w-40 grid-cols-2 gap-0.5 rounded-full bg-surface-soft p-0.5">
-        {([ ["out", "꺼내기"], ["in", "쌓기"] ] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={mode === value} disabled={busy || (!!file && value === "out")} onClick={() => { setMode(value); setChoosing(false); setError(null); setDuplicate(null); }}
-          className={cn("relative inline-flex min-h-7.5 items-center justify-center gap-1.5 rounded-full text-sm leading-none whitespace-nowrap transition-colors after:absolute after:inset-x-0 after:-inset-y-2 disabled:opacity-50 lg:min-h-6 lg:text-note lg:after:hidden", mode === value ? "bg-canvas font-bold text-ink shadow-mode" : "font-normal text-muted hover:text-ink")}>
-          <span aria-hidden="true" className={cn("size-1.75 rounded-full", value === "out" ? "bg-mark" : "bg-record-green", mode !== value && "opacity-55")} />{label}
-        </button>)}
-      </div>
-      <div className="mt-3 rounded-lg border border-hairline bg-canvas pt-3 pr-3 pb-2.5 pl-4.5 shadow-home-input focus-within:border-ink">
+      <div className="mt-5 rounded-lg border border-hairline bg-canvas pt-3 pr-3 pb-2.5 pl-4.5 shadow-home-input focus-within:border-ink">
         {file && <span className="mb-2 inline-flex max-w-full items-center gap-2 rounded-full bg-surface-soft px-3 py-1 text-xs text-body"><span className="min-w-0 break-all">{file.name} · {file.text.length.toLocaleString("ko-KR")}자</span><button type="button" aria-label="첨부 파일 빼기" disabled={busy} className="flex size-11 shrink-0 items-center justify-center" onClick={() => { ++fileVersion.current; setFile(null); setError(null); setDuplicate(null); }}><XIcon aria-hidden="true" /></button></span>}
         <textarea aria-label="홈에 넣을 글" aria-describedby={mode === "in" ? "entrance-note entrance-length" : "entrance-length"} aria-invalid={tooLong}
           id="home-text" rows={2} value={text} disabled={busy || !!file} onChange={e => { setText(e.target.value); setChoosing(false); setError(null); setDuplicate(null); parse.clear(); }}

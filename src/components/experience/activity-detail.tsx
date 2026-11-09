@@ -176,7 +176,9 @@ function ExperienceList({ activity, onSaved, onAdded, onDelete, onMove, onMerge,
   const [openIds, setOpenIds] = useState<Set<number>>(() => new Set());
   const [sheetId, setSheetId] = useState<number | null>(null);
 
-  const { experiences } = activity;
+  // 「확인 필요」는 할 일이 있어 맨 위로(FE#273). 연 순간의 상태로만 정한다 — 고치거나 맞아요를 눌러도 줄이 튀지 않게(이 목록은 활동마다 key 로 새로 그린다)
+  const [reviewIds] = useState(() => new Set(activity.experiences.filter((e) => e.sourceStatus === "NEEDS_REVIEW").map((e) => e.id)));
+  const experiences = [...activity.experiences.filter((e) => reviewIds.has(e.id)), ...activity.experiences.filter((e) => !reviewIds.has(e.id))];
   const visible = showAll ? experiences : experiences.slice(0, FIRST_COUNT);
   const rest = experiences.length - FIRST_COUNT;
   const sheetExp = experiences.find((e) => e.id === sheetId);

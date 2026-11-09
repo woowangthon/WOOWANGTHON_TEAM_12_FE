@@ -5,7 +5,8 @@
 // 실패를 정해진 결과로 덮지 않는다 — 이유와 「다시 시도」를 보인다(AGENTS 대회 규칙 2)
 // 여러 파일을 같이 넣으면(S-59) 파일마다 한 줄 — AnalysisBatch
 import { useRef, useState } from "react";
-import type { Job } from "@/lib/api/types";
+import type { ActivityCategory, Job } from "@/lib/api/types";
+import { ActivityTag, categoryHint, categoryOf } from "@/components/experience/activity-category";
 import { ArrowsClockwiseIcon, CheckIcon, FileTextIcon, MagnifyingGlassIcon, WarningCircleIcon, XIcon } from "@phosphor-icons/react";
 import { CenterState } from "@/components/center-state";
 import { Button } from "@/components/ui/button";
@@ -46,16 +47,20 @@ type Actions = {
   activities?: ActivityBrief[];
 };
 
-type ActivityBrief = { id: number; name: string; mergeSuggestion?: unknown };
+type ActivityBrief = { id: number; name: string; category?: ActivityCategory | null; mergeSuggestion?: unknown };
 
 /** 이 작업으로 새로 생긴 활동으로 가는 버튼 */
 function NewActivities({ ids, activities, onOpen }: { ids: number[]; activities?: ActivityBrief[]; onOpen?: (id: number) => void }) {
   if (!onOpen) return null;
   return ids.map((id) => {
-    const name = activities?.find((a) => a.id === id)?.name ?? "새 활동";
+    const found = activities?.find((a) => a.id === id);
+    const name = found?.name ?? "새 활동";
+    const category = found ? categoryOf(found) : null;
+    // 칩 모양 · 분류색은 내 경험 · 지원과 같은 ActivityTag 하나 — 눌리는 칩이라 버튼이 바깥에 있다
     return (
-      <button key={id} type="button" aria-label={`${name} 보기`} onClick={() => onOpen(id)} className="min-h-8 max-w-full truncate rounded-full bg-surface-strong px-2.5 text-xs font-medium text-ink hover:bg-hairline">
-        {name}
+      <button key={id} type="button" aria-label={`${name} 보기${categoryHint(category) ? ` (${categoryHint(category)})` : ""}`} onClick={() => onOpen(id)}
+        className="min-h-8 max-w-full cursor-pointer rounded-full hover:opacity-80 focus-visible:outline-2 focus-visible:outline-ink">
+        <ActivityTag category={category} className="min-h-8 items-center truncate">{name}</ActivityTag>
       </button>
     );
   });

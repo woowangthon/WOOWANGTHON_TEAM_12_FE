@@ -2,13 +2,16 @@
 import type { Locator, Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import { FakeQuestionApi } from "./fake-question-api";
+import { openMark } from "./draft-marks";
 import { QUESTION_EXAMPLES } from "./fixtures/question-examples";
 import type { Draft, QuestionDetail } from "../src/lib/api/question-types";
 import { DRAFT_EXAMPLE } from "./fixtures/draft-example";
 
-// FE#235 — 초안은 따로 구역이 아니라 답칸(내가 쓴 답) 안의 읽기 상태다: 글 하나(표시 버튼들)와 표시를 누르면 열리는 카드
-const draftBody = (page: Page) => page.locator('p[aria-label^="초안 —"]');
-const draftSentences = (page: Page) => draftBody(page).locator('button:not([aria-label^="빈칸"])');
+// FE#283 — 초안은 답칸(입력칸)에 글로 들어오고, 표시 층의 문장 표시(data-mark="s-N")를 눌러 카드를 연다
+const answerBox = (page: Page) => page.getByRole("textbox", { name: "내가 쓴 답", exact: true });
+const draftBody = (page: Page) => page.locator("[data-mark]").first();
+const draftSentences = (page: Page) => page.locator('[data-mark^="s-"]');
+const narrow = (page: Page) => page.viewportSize()!.width < 1024;
 const sentenceCard = (page: Page) => page.getByRole("group", { name: "문장 카드" }).filter({ visible: true });
 const copyButton = (page: Page) => page.getByRole("button", { name: "복사", exact: true });
 /** 좁은 폭은 카드가 하단 시트로 떠서 뒤 화면을 가린다 — 닫고 다음으로 간다. 넓은 폭은 다른 문장을 누르면 카드가 바뀐다 */
@@ -17,7 +20,7 @@ async function closeCard(page: Page) {
 }
 /** n 번째 문장의 카드를 연다 */
 async function openSentence(page: Page, index: number) {
-  await draftSentences(page).nth(index).click();
+  await openMark(page, `s-${index}`);
   return sentenceCard(page);
 }
 /** 다시 만들기 — 덮이는 것이 있으면(답하지 않은 빠진 사실 질문 · 고친 글) 확인 대화상자가 먼저 뜬다 */
@@ -358,7 +361,7 @@ test("omitted facts have optional experience questions, while unlinked gaps stay
   await first.getByRole("button", { name: "다시 답하기", exact: true }).click();
   await expect(first.getByRole("textbox")).toHaveAttribute("maxlength", "2000");
   await closeDraftPanel(page);
-  await expect(page.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toHaveCount(0); // 보기 상태 — 입력칸이 아니다
+  await expect(answerBox(page)).toHaveValue(DRAFT_EXAMPLE.sentences.map(s => s.text).join(" ")); // 초안 글은 바로 입력칸에 있다
   await copyButton(page).click();
   expect(await page.evaluate(() => (window as unknown as { copied: string }).copied)).toBe(DRAFT_EXAMPLE.sentences.map(s => s.text).join(" "));
   expect(api.calls.filter(c => c.call.startsWith("POST"))).toEqual([]);
@@ -553,17 +556,16 @@ test("opinion labels stay separate from facts and text-only copy across reload a
   ];
   await setup(page, q => { q.draft = draft; });
   const marks = draftSentences(page);
-  const opinionMarks = draftBody(page).getByRole("button", { name: /^AI 제안 — 확인 필요 — / });
   await closeDraftPanel(page);
   await expect(marks).toHaveCount(draft.sentences.length);
   for (const [index, sentence] of draft.sentences.entries()) {
-    // 글 안의 표시 이름이 종류를 말한다 — 생각(OPINION)은 「AI 제안」, 사실은 「근거」
-    await expect(marks.nth(index)).toHaveAccessibleName(`${sentence.kind === "OPINION" ? "AI 제안 — 확인 필요" : "근거"} — ${sentence.text}`);
     const card = await openSentence(page, index);
+    // 생각(OPINION)은 「AI 제안」, 사실은 「근거」
     if (sentence.kind === "OPINION") {
       await expect(card.locator("details")).toHaveCount(0);
       await expect(card).not.toContainText("연결된 근거가 지금은 없어요");
       await expect(card).toContainText("사실이 아니라 문항에 잇는 제안이에요");
+      if (!narrow(page)) await expect(card).toContainText("AI 제안 — 확인 필요");
     } else if (index === 3) await expect(card).toContainText("연결된 근거가 지금은 없어요");
     else {
       await expect(card.locator("summary")).toHaveCount(1);
@@ -574,13 +576,13 @@ test("opinion labels stay separate from facts and text-only copy across reload a
   }
   await page.reload();
   await closeDraftPanel(page);
-  await expect(opinionMarks).toHaveCount(3);
+  await expect(marks).toHaveCount(draft.sentences.length);
   await copyButton(page).click();
   expect(await page.evaluate(() => (window as unknown as { copied: string }).copied)).toBe(draft.sentences.map(s => s.text).join(" "));
   for (const width of info.project.name === "desktop" ? [1440, 1024] : [390]) {
     await page.setViewportSize({ width, height: 1000 });
     await marks.nth(1).scrollIntoViewIfNeeded();
-    await expect(opinionMarks.first()).toBeVisible();
+    await expect(marks.nth(1)).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     if (process.env.UPDATE_OPINION_SCREENSHOTS === "1") {
       await page.screenshot({ path: `docs/fe-104/ai-opinion-${width}.png`, fullPage: true, style: "nextjs-portal { display: none !important; }" });
@@ -592,7 +594,7 @@ test("opinion labels stay separate from facts and text-only copy across reload a
         await page.screenshot({ path: "docs/fe-104/ai-opinion-panel-1024.png", fullPage: true, style: "nextjs-portal { display: none !important; }" });
       }
       await closeDraftPanel(page);
-      await expect(opinionMarks.first()).toBeVisible();
+      await expect(marks.nth(1)).toBeVisible();
     }
   }
 });
