@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api/errors";
 import type { DraftOmission, QuestionDetail } from "@/lib/api/question-types";
-import { AnsweredItem, AnswerForm, bubble, ClarifyBlock, openItem, SupplementNote, type AnswerHandler } from "./clarifications";
+import { AnsweredItem, AnswerForm, bubble, ClarifyBlock, clarifyList, openItem, SupplementNote, type AnswerHandler } from "./clarifications";
 import { DraftComposer } from "./draft-composer";
 import { ActivityChip } from "./question-result";
 import { requestError } from "./draft-errors";
@@ -105,7 +105,7 @@ export function DraftFollowUp({ question, onAnswer, onGenerate, onRefresh, savin
         {asks.length > 0 && <ClarifyBlock title="초안에 대한 되묻기" total={asks.length} answered={asks.filter(item => item.supplementId !== null).length}
           attention={asks.some(item => supplementOf(item)?.mcpChange)}>
           <p className="m-0 text-note leading-relaxed text-muted"><b className="font-semibold text-body">자료에 없어 쓰지 않았어요 · AI 해석.</b> 기억나는 것만 알려 주세요. 답은 선택이고, 건너뛰어도 초안을 복사할 수 있어요.</p>
-          <ul aria-label="초안의 빠진 사실" className="m-0 grid list-none gap-1 p-0">
+          <ul aria-label="초안의 빠진 사실" className={clarifyList}>
             {asks.map(item => <OmissionItem key={item.clarificationId} item={item} question={question} onAnswer={onAnswer} onRefresh={refresh} disabled={disabled} />)}
           </ul>
         </ClarifyBlock>}

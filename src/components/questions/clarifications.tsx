@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { MCP_ANSWER_NOTE, mcpAnswerName } from "@/components/experience/supplement-list";
 import { mcpClientName } from "@/lib/api/mcp";
 import { MAX_ANSWER_LENGTH, type Clarification, type QuestionExperience, type Supplement } from "@/lib/api/question-types";
+import { cn } from "@/lib/utils";
 import { ActivityChip, shortName } from "./question-result";
 
 export type AnswerHandler = (clarificationId: number, answer: string) => Promise<void>;
@@ -18,8 +19,11 @@ export const bubble = "m-0 grid max-w-[92%] gap-1.5 justify-self-start rounded-[
 /** 지원 화면의 줄 안 검은 버튼(답하기 · 맞아요 · 내가 했어요 …) — 글자 길이와 상관없이 같은 높이 · 최소 폭(FE#268) */
 export const inlineAction = "min-h-11 min-w-20";
 
-/** 답할 질문 상자 — 블록 안에서 이것만 상자로 강조한다 */
-export const openItem = "grid min-w-0 gap-2 rounded-sm bg-surface-soft p-3";
+/** 답할 질문 — 상자 안 상자를 만들지 않는다. 질문끼리는 목록(clarifyList)의 가는 선으로만 나눈다(FE#320) */
+export const openItem = "grid min-w-0 gap-2 py-3";
+
+/** 되묻기 목록 — 항목 사이 가는 선 */
+export const clarifyList = "m-0 grid list-none divide-y divide-hairline-soft p-0";
 
 /** 되묻기 묶음 — 머리에 무엇에 대한 되묻기인지 · 몇 개 · 답한 수. 답할 게 남았거나 확인할 답(attention)이 있으면 펼친 채 시작한다 */
 export function ClarifyBlock({ title, total, answered, attention = false, children }: { title: string; total: number; answered: number; attention?: boolean; children: ReactNode }) {
@@ -30,7 +34,7 @@ export function ClarifyBlock({ title, total, answered, attention = false, childr
       <span className="min-w-0 flex-1 text-sm font-semibold text-ink">{title}</span>
       <span className="shrink-0 text-xs text-muted tabular-nums">{total}개 · 답 {answered}</span>
     </summary>
-    <div className="grid min-w-0 gap-2 border-t border-hairline-soft px-3.5 pt-2.5 pb-3">{children}</div>
+    <div className="grid min-w-0 gap-2 border-t border-hairline-soft px-3.5 pb-1">{children}</div>
   </details>;
 }
 
@@ -83,12 +87,13 @@ export function AnswerForm({ label, disabled, onSave, after }: { label: string; 
     <Button variant="link" size="sm" className="min-h-11" onClick={() => setSkipped(false)}>다시 답하기</Button>
   </div>;
   return <>
-    <form className="flex min-w-0 flex-wrap gap-1.5" onSubmit={e => { e.preventDefault(); void save(); }}>
+    {/* 입력 · 답하기 · 건너뛰기를 한 줄에 — 좁은 패널에서 줄이 늘지 않게. 입력칸은 테두리 없이 옅은 바탕만 */}
+    <form className="flex min-w-0 items-center gap-1" onSubmit={e => { e.preventDefault(); void save(); }}>
       <input type="text" maxLength={MAX_ANSWER_LENGTH} value={text} disabled={saving || disabled} onChange={e => { setText(e.target.value); setError(null); }}
         aria-label={`답: ${label}`} placeholder="짧게 답해 주세요"
-        className="h-11 min-w-0 flex-[1_1_140px] rounded-full bg-canvas px-3.5 text-base text-body shadow-[inset_0_0_0_1px_var(--hairline)] outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--ink)] sm:text-sm" />
-      <Button type="submit" size="sm" className={inlineAction} disabled={saving || disabled}>{saving ? "쌓는 중…" : error ? "다시 시도" : "답하기"}</Button>
-      <Button type="button" variant="ghost" size="sm" className="min-h-11" disabled={saving} onClick={() => { setSkipped(true); setError(null); }}>건너뛰기</Button>
+        className="h-11 min-w-0 flex-1 rounded-full bg-surface-soft px-3.5 text-base text-body outline-none placeholder:text-muted focus-visible:shadow-[inset_0_0_0_1px_var(--ink)] sm:text-sm" />
+      <Button type="submit" size="sm" className={cn(inlineAction, "min-w-16")} disabled={saving || disabled}>{saving ? "쌓는 중…" : error ? "다시 시도" : "답하기"}</Button>
+      <Button type="button" variant="ghost" size="sm" className="min-h-11 px-2 text-muted hover:text-ink" disabled={saving} onClick={() => { setSkipped(true); setError(null); }}>건너뛰기</Button>
     </form>
     {error && <div className="grid justify-items-start gap-2">
       <p role="alert" className="m-0 text-note text-error">{error}</p>
