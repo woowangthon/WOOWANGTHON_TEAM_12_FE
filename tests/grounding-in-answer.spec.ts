@@ -78,7 +78,8 @@ test("근거 없음인 내 문장은 칠하고 확인할 곳에 세며, 맞아�
   await expect(card.getByText("지우거나, 사실이면 근거를 더해 주세요", { exact: false })).toBeVisible();
   await card.getByRole("button", { name: "맞아요", exact: true }).click();
   await checks(page, 4);
-  await expect(markOf(page, "g-5")).not.toHaveClass(/bg-review-soft/);
+  // 칠하기는 판정을 따르고 세기는 확인을 따른다 — 맞아요 뒤에도 칠한다(FE#317)
+  await expect(markOf(page, "g-5")).toHaveClass(/bg-review-soft/);
   await page.waitForTimeout(300);
   expect(posts(api)).toEqual([]);
   expect(state.posts).toHaveLength(1); // 점검 요청 한 번뿐 — 맞아요는 요청이 없다
@@ -158,7 +159,7 @@ test("접힌 점검 목록의 요약 — 근거 없음 N문장 · 근거 없음 
   await expect(summary(page, "고치기 전 근거 점검 — 다시 점검해 주세요")).toBeVisible();
   // 근거 없음이 없는 점검
   state.sentences = state.sentences.map(s => ({ ...s, status: "SOURCE" as const }));
-  await answerBox(page).fill(text);
+  await answerBox(page).fill(`${text} 끝.`); // 같은 글은 다시 점검하지 못한다(FE#317)
   await check(page).click();
   await expect(summary(page, "근거 점검 — 근거 없음 없어요")).toBeVisible();
 });

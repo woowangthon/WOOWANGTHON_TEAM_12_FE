@@ -45,9 +45,9 @@ function LoadedAnswer({ question, onAnswerChange, checks, draftLabel, onAskDraft
   </>;
 }
 
-/** 답칸의 상태 — 어느 초안(key)을 담았나, 이 화면에서 답한 빈칸(local), 고친 문장에 이 화면에서 누른 맞아요(mine — 표시 키 → 그때 글).
- *  뺀 문장은 서버 값(sentences[].removed)이고 removed 는 저장을 기다리는 동안만 쓴다(FE#262). 고친 글 · mine 은 저장하지 않는다(자동 저장 S-72 · FE#213 전 — 떠날 때 경고) */
-type Box = { key: string | null; removed: Set<number>; local: Record<number, string>; mine: Record<string, string>; sawDrafting: boolean };
+/** 답칸의 상태 — 어느 초안(key)을 담았나, 이 화면에서 답한 빈칸(local), 이 화면에서만 누른 맞아요(seen — 문장 글, FE#317).
+ *  뺀 문장은 서버 값(sentences[].removed)이고 removed 는 저장을 기다리는 동안만 쓴다(FE#262). 고친 글 · seen 은 저장하지 않는다(자동 저장 S-72 · FE#213 전 — 떠날 때 경고) */
+type Box = { key: string | null; removed: Set<number>; local: Record<number, string>; seen: Set<string>; sawDrafting: boolean };
 const later = (a: string, b: string) => Date.parse(a) > Date.parse(b);
 
 function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, onAnswer, onRefresh, draftBusy, onTargetLength }: { question: QuestionDetail; confirmed: ReturnType<typeof useConfirmedAnswer>; checks: GroundingChecks; draftLabel: string | null; onAskDraft: () => void } & DraftHooks) {
@@ -61,7 +61,7 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
   const serverRemoved = () => new Set(removedKey ? removedKey.split(",").map(Number) : []);
   const [initialText] = useState(() => fresh && ready ? composeDraft(question, ready, serverRemoved(), {}) : a.initialText);
   const g = useGroundingCheck(questionId, checks, initialText);
-  const [box, setBox] = useState<Box>(() => ({ key: draftKey, removed: new Set(), local: {}, mine: {}, sawDrafting: false }));
+  const [box, setBox] = useState<Box>(() => ({ key: draftKey, removed: new Set(), local: {}, seen: new Set(), sawDrafting: false }));
   const [editBase, setEditBase] = useState(initialText ?? "");
   const [selected, setSelected] = useState<Selection>(null);
   const [ask, setAsk] = useState<"copy" | "confirm" | "ground" | "load" | null>(null);
@@ -76,13 +76,14 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
   // 다른 탭에서 만든 초안은 고친 글을 덮지 않는다(새로고침하면 보인다 — 「불러오기」 안내는 백로그)
   if (box.key !== draftKey) {
     const take = !!ready && fresh && (box.sawDrafting || !edited);
-    setBox({ key: draftKey, removed: new Set(), local: {}, mine: {}, sawDrafting: false });
+    setBox({ key: draftKey, removed: new Set(), local: {}, seen: new Set(), sawDrafting: false });
     setSelected(null);
     if (take) { const next = composeDraft(question, ready, serverRemoved(), {}); g.setText(next); setEditBase(next); }
   }
   // 뺀 문장 — 서버에 저장된 것과 저장 중인 것
   const removed = useMemo(() => new Set([...box.removed, ...(removedKey ? removedKey.split(",").map(Number) : [])]), [box.removed, removedKey]);
-  const analysis = useMemo(() => analyze(question, ready, removed, box.local, box.mine, text, g.check), [question, ready, removed, box.local, box.mine, text, g.check]);
+  const settled = a.answer?.text ?? null;
+  const analysis = useMemo(() => analyze(question, ready, removed, box.local, box.seen, settled, text, g.check), [question, ready, removed, box.local, box.seen, settled, text, g.check]);
   const latest = useRef(analysis);
   useEffect(() => { latest.current = analysis; });
   const target = question.targetLength ?? null;
@@ -136,7 +137,7 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
     const sentence = ready?.sentences[mark.index];
     if (!sentence) return;
     if (!mark.edited && mark.need === "marked" && sentence.id != null) { await confirmDraftSentence(sentence.id); await onRefresh(); }
-    else setBox(b => ({ ...b, mine: { ...b.mine, [`s-${mark.index}`]: mark.text } }));
+    else setBox(b => ({ ...b, seen: new Set(b.seen).add(mark.text) }));
     setSelected(null);
   };
 
@@ -156,6 +157,7 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
   const analyzing = g.check?.status === "ANALYZING";
   const valid = !!text.trim() && text.length <= MAX_GROUNDING_TEXT_LENGTH;
   const stale = g.check?.status === "COMPLETED" && text !== g.check.text;
+  const checkedSame = g.check?.status === "COMPLETED" && text === g.check.text;
   const unsupportedCount = g.check?.status === "COMPLETED" ? g.check.sentences.filter(x => x.status === "UNSUPPORTED").length : 0;
   // 고친 사실 문장 — 그 글로 근거 점검을 안 했으면 다 썼어요 때 한 번 권한다(뜻이 바뀐 건 코드가 못 잡는다)
   const editedFacts = analysis?.marks.filter(m => m.edited && ready?.sentences[m.index].kind === "FACT").length ?? 0;
@@ -186,7 +188,7 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
         text={text} onText={g.setText} placeholder="여기에 답을 쓰거나, 차곡이에게 초안을 부탁해 보세요."
         disabled={g.loading || g.busy || analyzing || !g.initialized || locked} cardsDisabled={draftBusy || locked}
         selected={selected} onSelect={setSelected} onRemove={m => void remove(m)} onConfirm={confirm} onActorDecided={onRefresh}
-        onConfirmOwn={o => setBox(b => ({ ...b, mine: { ...b.mine, [`g-${o.index}`]: o.text } }))}
+        onConfirmOwn={o => setBox(b => ({ ...b, seen: new Set(b.seen).add(o.text) }))}
         onAnswer={async (chip, answer) => {
           await onAnswer(chip.omission.clarificationId!, answer);
           setBox(b => ({ ...b, local: { ...b.local, [chip.omission.clarificationId!]: answer } }));
@@ -206,8 +208,10 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
         <div className="flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-1 text-xs text-muted tabular-nums">{text.length.toLocaleString()}자 /{" "}
             <TargetLengthField value={target} onSave={onTargetLength} /></span>
-          <Button variant="ghost" className="min-h-11" title="분석 1회를 써요" disabled={!valid || g.loading || g.busy || analyzing || !g.initialized} onClick={() => void g.submit(text)}>
-            {g.busy || analyzing ? "근거 점검 중…" : "근거 점검"}
+          {/* 같은 글은 다시 점검하지 않는다 — 분석 1회를 아끼고 판정이 오락가락하지 않게(FE#317). 실패한 점검은 아래 「같은 글로 다시 시도」 */}
+          <Button variant="ghost" className="min-h-11" title={checkedSame ? "이미 점검한 글이에요 — 고치면 다시 점검할 수 있어요" : "분석 1회를 써요"}
+            disabled={!valid || g.loading || g.busy || analyzing || !g.initialized || checkedSame} onClick={() => void g.submit(text)}>
+            {g.busy || analyzing ? "근거 점검 중…" : checkedSame ? "점검했어요" : "근거 점검"}
           </Button>
           <Button variant="ghost" className="min-h-11" disabled={!text.trim()} onClick={() => { if (blanksLeft) setAsk("copy"); else void copy(); }}>복사</Button>
         </div>
