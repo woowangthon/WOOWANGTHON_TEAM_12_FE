@@ -64,8 +64,10 @@ test("mock save survives reload and the saved filter uses it", async ({ page }) 
   await page.goto("/experience");
   await page.getByRole("button", { name: /바꿔요 — 캠퍼스/ }).first().click();
   const item = page.getByRole("complementary").locator("li").first();
-  await item.getByRole("button", { name: /^저장: / }).click();
-  await expect(item.getByRole("button", { name: /^저장함: / })).toHaveAttribute("aria-pressed", "true");
+  // 저장은 경험 「…」 메뉴의 체크 항목(FE#293)
+  await item.getByRole("button", { name: /^경험 메뉴: / }).click();
+  await page.getByRole("menuitemcheckbox", { name: "저장", exact: true }).click();
+  await expect(item.getByTitle("저장한 경험이에요")).toBeVisible();
 
   await page.reload();
   await page.getByRole("button", { name: "빠른 찾기", exact: true }).click();

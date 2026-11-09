@@ -37,22 +37,26 @@ export function useProfileShare(e: Experience, onSaved: (experience: Experience)
 
 type Share = ReturnType<typeof useProfileShare>;
 
-const ITEM = "flex min-h-11 cursor-pointer items-center gap-2 rounded-sm px-3 text-sm outline-none focus:bg-surface-soft data-disabled:cursor-default data-disabled:opacity-50";
+export const MENU_ITEM = "flex min-h-11 cursor-pointer items-center gap-2 rounded-sm px-3 text-sm outline-none focus:bg-surface-soft data-disabled:cursor-default data-disabled:opacity-50";
+
+/** 메뉴 체크 항목의 네모 — 저장 · 프로필에 넣기가 같이 쓴다 */
+export function MenuCheckBox() {
+  return <span className="grid size-4 shrink-0 place-items-center rounded-[4px] border border-hairline" aria-hidden="true">
+    <DropdownMenu.ItemIndicator><CheckIcon className="size-3" weight="bold" /></DropdownMenu.ItemIndicator>
+  </span>;
+}
 
 /** 경험 메뉴 안 — 「프로필에 넣기」 체크 · 넣었으면 「공개 설정」 */
 export function ProfileMenuItems({ share: s }: { share: Share }) {
   return <>
-    <DropdownMenu.Separator className="my-1 h-px bg-hairline" />
-    <DropdownMenu.CheckboxItem checked={s.shared} disabled={s.busy || (s.review && !s.shared)} onSelect={() => void s.toggle()} className={ITEM}>
-      <span className="grid size-4 shrink-0 place-items-center rounded-[4px] border border-hairline" aria-hidden="true">
-        <DropdownMenu.ItemIndicator><CheckIcon className="size-3" weight="bold" /></DropdownMenu.ItemIndicator>
-      </span>
+    <DropdownMenu.CheckboxItem checked={s.shared} disabled={s.busy || (s.review && !s.shared)} onSelect={() => void s.toggle()} className={MENU_ITEM}>
+      <MenuCheckBox />
       <span className="grid">
         프로필에 넣기
         {s.review && !s.shared && <span className="text-xs text-muted">{NEEDS_REVIEW}</span>}
       </span>
     </DropdownMenu.CheckboxItem>
-    {s.shared && <DropdownMenu.Item asChild className={ITEM}><Link href="/connections#public-profile">공개 설정</Link></DropdownMenu.Item>}
+    {s.shared && <DropdownMenu.Item asChild className={MENU_ITEM}><Link href="/connections#public-profile">공개 설정</Link></DropdownMenu.Item>}
   </>;
 }
 
