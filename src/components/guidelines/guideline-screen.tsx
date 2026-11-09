@@ -14,7 +14,7 @@ const card = 'grid min-w-0 gap-4 rounded-md border border-hairline bg-canvas p-5
 function LineFields({ value, onChange }: { value: GuidelineInput; onChange: (value: GuidelineInput) => void }) {
   return <>
     <label className="grid min-w-0 gap-1.5 text-sm font-medium">지침 한 줄<input className={inputClass} required maxLength={200} value={value.text} onChange={e => onChange({ ...value, text: e.target.value })} /></label>
-    <label className="grid min-w-0 gap-1.5 text-sm font-medium">출처<input className={inputClass} required maxLength={100} placeholder="어느 영상 · 누구의 피드백 · 내 생각" value={value.source} onChange={e => onChange({ ...value, source: e.target.value })} /></label>
+    <label className="grid min-w-0 gap-1.5 text-sm font-medium">출처 (선택)<input className={inputClass} maxLength={100} placeholder="어느 영상 · 누구의 피드백 · 내 생각" value={value.source} onChange={e => onChange({ ...value, source: e.target.value })} /></label>
   </>;
 }
 
@@ -52,7 +52,7 @@ export function GuidelineScreen() {
       setExtractError(null);
       try {
         const result = await extractGuidelines(raw);
-        setCandidates(result.candidates.map((c, key) => ({ key, text: c.text, source: result.source })));
+        setCandidates(result.candidates.map((c, key) => ({ key, text: c.text, source: result.source ?? '' })));
       } catch (e) { setExtractError(guidelineError(e)); }
     });
   }
@@ -82,8 +82,8 @@ export function GuidelineScreen() {
             <form onSubmit={e => { e.preventDefault(); void extract(); }} className="grid min-w-0 gap-4">
               <fieldset disabled={busy} className="m-0 grid min-w-0 gap-4 border-0 p-0">
                 <label className="grid gap-1.5 text-sm font-medium">요점 · 자막<textarea required maxLength={20000} rows={7} className={inputClass + ' resize-y leading-relaxed'} value={raw.text} onChange={e => setRaw({ ...raw, text: e.target.value })} /></label>
-                <label className="grid gap-1.5 text-sm font-medium">출처<input required maxLength={100} className={inputClass} placeholder="어느 영상 · 누구의 피드백" value={raw.source} onChange={e => setRaw({ ...raw, source: e.target.value })} /></label>
-                <div className="flex flex-wrap items-center gap-3"><Button type="submit" className="min-h-11" disabled={!raw.text.trim() || !raw.source.trim()}>정리하기</Button><AnalysisCost running={busy} /></div>
+                <label className="grid gap-1.5 text-sm font-medium">출처 (선택)<input maxLength={100} className={inputClass} placeholder="어느 영상 · 누구의 피드백" value={raw.source} onChange={e => setRaw({ ...raw, source: e.target.value })} /></label>
+                <div className="flex flex-wrap items-center gap-3"><Button type="submit" className="min-h-11" disabled={!raw.text.trim()}>정리하기</Button><AnalysisCost running={busy} /></div>
               </fieldset>
             </form>
             {extractError && <div className="grid justify-items-start gap-2"><p role="alert" className="m-0 text-sm text-error">{extractError}</p><Button variant="secondary" disabled={busy} onClick={() => void extract()}>다시 시도</Button></div>}
@@ -93,7 +93,7 @@ export function GuidelineScreen() {
             <h2 id="manual-title" className="m-0 text-lg font-semibold">직접 한 줄 쓰기</h2>
             <p className="m-0 text-sm leading-relaxed text-muted">내가 정한 작성법도 좋아요.</p>
             <form className="grid min-w-0 gap-4" onSubmit={e => { e.preventDefault(); void save([manual], () => setManual({ text: '', source: '' })); }}>
-              <fieldset disabled={busy || loading || !!loadError} className="m-0 grid min-w-0 gap-4 border-0 p-0"><LineFields value={manual} onChange={setManual} /><Button type="submit" variant="secondary" className="min-h-11 justify-self-start" disabled={!manual.text.trim() || !manual.source.trim()}>한 줄 저장</Button></fieldset>
+              <fieldset disabled={busy || loading || !!loadError} className="m-0 grid min-w-0 gap-4 border-0 p-0"><LineFields value={manual} onChange={setManual} /><Button type="submit" variant="secondary" className="min-h-11 justify-self-start" disabled={!manual.text.trim()}>한 줄 저장</Button></fieldset>
             </form>
           </section>
         </div>
@@ -116,10 +116,10 @@ export function GuidelineScreen() {
               {editing === g.id ? <form className="grid gap-3" onSubmit={e => { e.preventDefault(); void act(async () => { const updated = await updateGuideline(g.id, edit); setItems(previous => previous.map(item => item.id === g.id ? updated : item)); setEditing(null); showToast('지침을 고쳤어요. 다음에 만드는 초안부터 써요.'); }); }}>
                 <fieldset disabled={busy} className="m-0 grid min-w-0 gap-3 border-0 p-0"><LineFields value={edit} onChange={setEdit} /><div className="flex gap-2"><Button type="submit" className="min-h-11">저장</Button><Button type="button" variant="ghost" className="min-h-11" onClick={() => setEditing(null)}>취소</Button></div></fieldset>
               </form> : <>
-                <p className="m-0 break-words text-sm leading-relaxed">{g.text}</p><p className="m-0 break-words text-xs text-muted">출처 · {g.source}</p>
+                <p className="m-0 break-words text-sm leading-relaxed">{g.text}</p>{g.source && <p className="m-0 break-words text-xs text-muted">출처 · {g.source}</p>}
                 <div className="flex flex-wrap items-center gap-3">
                   <label className="inline-flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" role="switch" className="size-5 accent-primary" checked={g.enabled} disabled={busy} aria-label={'지침 켜기: ' + g.text} onChange={() => void act(async () => { const updated = await updateGuideline(g.id, { enabled: !g.enabled }); setItems(previous => previous.map(item => item.id === g.id ? updated : item)); })} />{g.enabled ? '켬' : '끔'}</label>
-                  <Button variant="ghost" className="min-h-11" disabled={busy} onClick={() => { setEditing(g.id); setEdit({ text: g.text, source: g.source }); setError(null); }}>고치기</Button>
+                  <Button variant="ghost" className="min-h-11" disabled={busy} onClick={() => { setEditing(g.id); setEdit({ text: g.text, source: g.source ?? '' }); setError(null); }}>고치기</Button>
                   <Button variant="ghost" className="min-h-11" disabled={busy} onClick={() => void act(async () => { await deleteGuideline(g.id); setItems(previous => previous.filter(item => item.id !== g.id)); showToast('지침을 지웠어요. 이미 만든 초안에는 만들 때의 지침이 남아 있어요.'); })}>지우기</Button>
                 </div>
               </>}
