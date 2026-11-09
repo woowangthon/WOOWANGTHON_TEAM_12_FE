@@ -7,7 +7,7 @@ import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from "rea
 import { WarningCircleIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { decideActivityActor } from "@/lib/api/experience";
+import { updateExperience } from "@/lib/api/experience";
 import { MAX_ANSWER_LENGTH, type Draft, type DraftOmission, type DraftSentence, type QuestionDetail } from "@/lib/api/question-types";
 import type { DraftFrame } from "@/lib/draft-frames";
 import { cn } from "@/lib/utils";
@@ -202,30 +202,38 @@ function ActorLine({ sentence, onDecided }: { sentence: DraftSentence; onDecided
   const [decided, setDecided] = useState(false);
   const actors = sentence.evidence.flatMap(e => e.actor ? [e.actor] : []);
   if (!actors.length) return null;
-  const unknownActivities = [...new Set(sentence.evidence.filter(e => e.actor === "UNKNOWN").map(e => e.activityId))];
-  if (!unknownActivities.length) {
+  // 근거 경험마다 하나 — 정하면 그 경험만 바뀐다(S-79 · ETC#249). 같은 경험을 쓰는 다른 문장 · 문항은 같은 사실이라 같이 바뀐다
+  const unknown = [...new Map(sentence.evidence.filter(e => e.actor === "UNKNOWN").map(e => [e.experienceId, e] as const)).values()];
+  if (!unknown.length) {
     // 정해진 주체는 늘 조용히 보인다(새로고침해도 서버 값). 「다시 만들면 바뀌어요」는 방금 정한 자리에서만 — 초안 이후에 정했는지 화면이 알 수 없다(FE#260)
     return <p className="m-0 text-note text-body">주체 · {actors.includes("TEAM") ? "팀이 한 일" : "내가 한 일"}
       {decided && <span className="block text-muted">다시 만들면 확인된 문장으로 바뀌어요(분석 횟수 안 씀).</span>}</p>;
   }
-  const decide = async (actor: "ME" | "TEAM") => {
+  const decide = async (experienceId: number, actor: "ME" | "TEAM") => {
     setBusy(true); setError(null);
     try {
-      for (const id of unknownActivities) await decideActivityActor(id, actor);
+      await updateExperience(experienceId, { actor });
       setDecided(true);
       await onDecided();
     } catch (e) { setError(e instanceof Error ? e.message : "주체를 정하지 못했어요. 다시 시도해 주세요."); }
     finally { setBusy(false); }
   };
+  const choose = (experienceId: number) => <div className="flex flex-wrap gap-2">
+    <Button size="sm" className="min-h-11" disabled={busy} onClick={() => void decide(experienceId, "ME")}>내가 했어요</Button>
+    <Button size="sm" variant="secondary" className="min-h-11" disabled={busy} onClick={() => void decide(experienceId, "TEAM")}>팀이 했어요</Button>
+  </div>;
   return <div className="grid gap-2 rounded-sm bg-surface-soft px-3 py-2.5">
     {/* AI 보탬은 확인 전 「제가」를 쓴 문장이라 확인을 묻고, 근거 문장은 누가 했는지 쓰지 않았으니 선택으로만 보인다(FE#258) */}
     <p className="m-0 text-note text-body">{sentence.kind === "ELABORATED"
-      ? "누가 했는지 확인 안 됨 — 정하면 그 활동의 확인 안 된 경험이 한 번에 바뀌어요."
+      ? "누가 했는지 확인 안 됨 — 정하면 이 문장의 근거 경험만 바뀌어요."
       : "이 문장은 누가 했는지 쓰지 않았어요. 정해 두면 다음 초안이 「제가」 · 「팀은」으로 써요."}</p>
-    <div className="flex flex-wrap gap-2">
-      <Button size="sm" className="min-h-11" disabled={busy} onClick={() => void decide("ME")}>내가 했어요</Button>
-      <Button size="sm" variant="secondary" className="min-h-11" disabled={busy} onClick={() => void decide("TEAM")}>팀이 했어요</Button>
-    </div>
+    {/* 근거 경험이 여럿이면 경험마다 고른다 — 한 문장에 내가 한 일 · 팀이 한 일이 섞일 수 있다 */}
+    {unknown.length === 1 ? choose(unknown[0].experienceId) : <ul aria-label="근거 경험마다 주체 정하기" className="m-0 grid list-none gap-2.5 p-0">
+      {unknown.map(e => <li key={e.experienceId} className="grid gap-1.5">
+        <p className="m-0 text-note break-words text-muted">「{e.text}」</p>
+        {choose(e.experienceId)}
+      </li>)}
+    </ul>}
     {error && <p role="alert" className="m-0 text-note text-error">{error}</p>}
   </div>;
 }

@@ -57,7 +57,7 @@ export function QuestionResult({ question, elsewhere, savingAnswer, requestingDr
     </div> : <ol className="m-0 mt-4 grid list-none gap-2.5 p-0">{question.recommendations.map((r, i) => { const answered = answeredFor(question, r.experience.id); return <li key={r.experience.id} id={`recommendation-${question.id}-${r.experience.id}`}
       className="scroll-mt-5 lg:scroll-mt-20" aria-label={`추천 경험 ${i + 1}`}>
       {/* 첫 추천은 기존처럼 펼쳐 근거를 바로 확인할 수 있게 둔다. */}
-      <details open={i === 0} className="group rounded-[18px] border border-hairline bg-surface-faint">
+      <details className="group rounded-[18px] border border-hairline bg-surface-faint">
         <summary className="grid cursor-pointer list-none grid-cols-[auto_auto_minmax(0,1fr)] items-start gap-x-2 gap-y-2 px-3 py-3 sm:grid-cols-[auto_auto_minmax(0,1fr)_auto] sm:px-4 [&::-webkit-details-marker]:hidden">
           <CaretRightIcon aria-hidden="true" className="mt-1 size-4 text-muted transition-transform group-open:rotate-90" />
           {/* 체크해도 카드는 접히지 않는다. 좁은 폭은 누르는 자리를 44 로 넓힌다 */}

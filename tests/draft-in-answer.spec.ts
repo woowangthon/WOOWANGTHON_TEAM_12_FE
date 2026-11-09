@@ -52,7 +52,7 @@ test("빈칸 카드와 주체 확인 카드", async ({ page }) => {
   await shot(page, "card-actor");
 });
 
-test("고치기 — 빈칸이 남았으면 먼저 묻고, 일반 입력칸 아래에 빠진 사실 질문이 남는다", async ({ page }) => {
+test("고치기 — 빈칸이 남았으면 먼저 묻고, 일반 입력칸 위에 빠진 사실 질문 한 줄이 남는다", async ({ page }) => {
   await open(page);
   await page.getByRole("button", { name: "직접 고치기", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "확인할 곳 4군데가 남았어요" });
@@ -60,8 +60,9 @@ test("고치기 — 빈칸이 남았으면 먼저 묻고, 일반 입력칸 아�
   await shot(page, "edit-ask");
   await dialog.getByRole("button", { name: "직접 고치기", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toHaveValue(/\[줄어든 정도\]/);
-  await expect(page.getByRole("region", { name: "초안의 빠진 사실" })).toBeVisible();
-  await page.getByRole("region", { name: "초안의 빠진 사실" }).scrollIntoViewIfNeeded();
+  await expect(page.getByRole("region", { name: "초안의 빠진 사실" })).toHaveCount(0);
+  await expect(page.getByRole("status").filter({ hasText: "차곡이가 더 물어본 게" })).toBeVisible();
+  await page.getByRole("status").filter({ hasText: "차곡이가 더 물어본 게" }).scrollIntoViewIfNeeded();
   await shot(page, "edit-mode");
 });
 

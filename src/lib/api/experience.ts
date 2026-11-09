@@ -166,9 +166,8 @@ export async function updateExperience(id: number, data: UpdateExperienceRequest
     if (!activity || !previous) throw new ApiError("EXPERIENCE_NOT_FOUND", `경험 ${id} 이 없습니다`);
     const competenciesChanged = data.competencies !== undefined
       && JSON.stringify(data.competencies) !== JSON.stringify(previous.competencies);
-    const changed = competenciesChanged
-      || (data.content !== undefined && data.content !== previous.content)
-      || (data.actor !== undefined && data.actor !== previous.actor);
+    // 본문이 바뀔 때만 「내가 입력」(S-10 · ETC#249)
+    const changed = data.content !== undefined && data.content !== previous.content;
     const updated: Experience = {
       ...previous, ...data,
       competenciesBy: competenciesChanged ? "USER" : previous.competenciesBy,

@@ -43,6 +43,30 @@ test("AI marker survives content and actor edits, disappears on competency edit"
   ]);
 });
 
+// ETC#249 — 주체 · 역량만 고치면 「내가 입력」이 되지 않고 안내도 없다. 본문만 그렇다
+test("actor and competency edits keep the source status and show no 내가 입력 note, content edits do", async ({ page }) => {
+  const state = await setup(page);
+  const badge = page.getByText("내가 입력", { exact: true });
+  await page.getByRole("button", { name: /^수행 주체 고치기:/ }).click();
+  await expect(page.getByRole("menuitemradio", { name: "팀" })).toBeVisible();
+  await expect(page.getByText(/고치면 「내가 입력」이 돼요/)).toHaveCount(0);
+  await page.getByRole("menuitemradio", { name: "팀" }).click();
+  await expect(page.getByRole("button", { name: "수행 주체 고치기: 팀" })).toBeVisible();
+  const pop = await openCompetencies(page);
+  await pop.getByLabel("협업", { exact: true }).check();
+  await pop.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(pop).toHaveCount(0);
+  expect(state.patches.map((p) => p.body)).toEqual([{ actor: "TEAM" }, { competencies: ["COLLABORATION"] }]);
+  expect(state.activity.experiences[0].sourceStatus).toBe("SOURCE_CONFIRMED");
+  await expect(badge).toHaveCount(0);
+  await page.getByRole("button", { name: /^경험 고치기:/ }).click();
+  await expect(page.getByText(/고치면 「내가 입력」이 돼요/)).toBeVisible();
+  await page.getByLabel("경험 내용").press("Escape");
+  await editContent(page, "Changed content");
+  expect(state.activity.experiences[0].sourceStatus).toBe("USER_ENTERED");
+  await expect(badge).toBeVisible();
+});
+
 // S-10 · FE#232 — 누르면 그 자리에서 고친다. 본문은 Enter 저장 · Esc 취소, 주체는 메뉴, 역량 · 기간은 작은 창
 async function editContent(page: Page, text: string) {
   await page.getByRole("button", { name: /^경험 고치기:/ }).click();
@@ -97,7 +121,8 @@ async function setup(page: Page) {
       if (body.competencies !== undefined && JSON.stringify(body.competencies) !== JSON.stringify(activity.experiences[0].competencies)) {
         activity.experiences[0].competenciesBy = "USER";
       }
-      Object.assign(activity.experiences[0], body, { sourceStatus: "USER_ENTERED" });
+      const contentChanged = body.content !== undefined && body.content !== activity.experiences[0].content;
+      Object.assign(activity.experiences[0], body, contentChanged ? { sourceStatus: "USER_ENTERED" } : {});
       return route.fulfill({ json: activity.experiences[0] });
     }
     return route.fulfill({ json: path === "/api/activities" ? { activities: [{ id: activity.id, name: activity.name, period: activity.period, experienceCount: 1 }] } : activity });
@@ -299,7 +324,7 @@ test("competencies: edit picks up to 3 in order, order-only change counts, clear
   for (const label of ["협업", "문제 해결", "기술 구현"]) await expect(pick(label)).toBeChecked();
   await expect(pick("기획")).toBeDisabled();
   await expect(pop.getByText("3 / 3", { exact: true })).toBeVisible();
-  await expect(pop.getByText(/고치면 「내가 입력」이 돼요/)).toBeVisible();
+  await expect(pop.getByText(/고치면 「내가 입력」이 돼요/)).toHaveCount(0); // 역량은 출처 상태를 바꾸지 않으니 안내가 없다(ETC#249)
 
   // 하나를 빼고 새로 고르면 뒤에 붙는다 — 그 순서 그대로 보낸다
   await pick("문제 해결").uncheck();

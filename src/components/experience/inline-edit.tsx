@@ -20,7 +20,7 @@ const HOVER = "cursor-text rounded-sm hover:bg-surface-soft focus-visible:bg-sur
 const MENU_HOVER = "cursor-pointer rounded-sm hover:bg-surface-soft focus-visible:bg-surface-soft data-[state=open]:bg-surface-soft";
 const message = (e: unknown) => e instanceof Error ? e.message : "저장하지 못했어요. 다시 시도해 주세요.";
 
-/** 고치는 중에 「내가 입력」이 된다는 것을 보인다(S-10). 이미 「내가 입력」이면 말할 게 없다 */
+/** 본문을 고치는 중에 「내가 입력」이 된다는 것을 보인다(S-10). 주체 · 역량은 출처 상태를 바꾸지 않으니 거기엔 없다(ETC#249) */
 function UserEnteredNote({ experience }: { experience: Pick<Experience, "sourceStatus"> }) {
   if (experience.sourceStatus === "USER_ENTERED") return null;
   return <>고치면 「내가 입력」이 돼요 · 원래 근거는 남아요</>;
@@ -241,7 +241,6 @@ export function ActorField({ experience: e, onSaved }: { experience: Experience;
               {ACTOR[a]}<DropdownMenu.ItemIndicator><CheckIcon className="size-3.5" aria-hidden="true" /></DropdownMenu.ItemIndicator>
             </DropdownMenu.RadioItem>)}
           </DropdownMenu.RadioGroup>
-          {e.sourceStatus !== "USER_ENTERED" && <p className="m-0 max-w-56 px-3 pt-1 pb-1.5 text-xs leading-relaxed text-muted"><UserEnteredNote experience={e} /></p>}
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
@@ -254,7 +253,6 @@ export function CompetencyField({ experience: e, aiMark, onSaved }: { experience
   const text = e.competencies.map((c) => COMPETENCIES[c]).join(" · ");
   return <PopoverEdit<Competency[]> label="역량 고치기" value={e.competencies} same={(a, b) => JSON.stringify(a) === JSON.stringify(b)}
     save={async (competencies) => { const data: UpdateExperienceRequest = { competencies }; onSaved(await updateExperience(e.id, data)); }}
-    footnote={<UserEnteredNote experience={e} />}
     trigger={<button type="button" aria-label={text ? `역량 고치기: ${text}` : "역량 붙이기"} title="눌러서 역량 고치기" className={cn(MENU_HOVER, "-mx-1 px-1 text-left")}>
       {text || <span className="text-muted">+ 역량</span>}{text && aiMark}
     </button>}>
