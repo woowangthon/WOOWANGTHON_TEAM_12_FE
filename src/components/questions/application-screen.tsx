@@ -29,7 +29,7 @@ import { useApplications } from "./use-applications";
 import { useChagokRun } from "./use-chagok-run";
 import { useDraftPicks } from "./use-draft-picks";
 import { ActivityCategoriesProvider } from "./activity-categories";
-import { ApplicationStatusTag, ApplicationTypeFields, QuestionTypeField, TargetLengthField } from "./type-fields";
+import { ApplicationStatusTag, ApplicationTypeFields, QuestionTypeField } from "./type-fields";
 import { OrganizationName } from "./organization-name";
 
 const STATUS = { ANALYZING: "분석 중", COMPLETED: "완료", FAILED: "실패" } as const;
@@ -354,12 +354,11 @@ function SelectedQuestion({ summary, question, application, index, loadError, on
       <div className="flex flex-wrap items-center gap-x-2">
         <p className="m-0 text-note font-medium text-muted">문항 {index + 1} · {STATUS[status]}</p>
         <QuestionTypeField question={question ?? summary} onSave={type => onTypeChange(summary.id, type)} />
-        <TargetLengthField value={(question ?? summary).targetLength ?? null} onSave={length => onTargetLengthChange(summary.id, length)} />
       </div>
       <h3 className="m-0 max-h-36 overflow-y-auto whitespace-pre-wrap text-xl leading-relaxed font-[650] tracking-[-0.3px]">{summary.text}</h3>
     </header>
     <AnswerInput key={`answer-${summary.id}`} questionId={summary.id} question={question} loadFailed={!!loadError} onAnswerChange={onAnswerChange} checks={groundingChecks} onAskDraft={onOpenOmissions}
-      onAnswer={onAnswerClarification} onRefresh={onRefresh} draftBusy={savingAnswer || requestingDraft} />
+      onAnswer={onAnswerClarification} onRefresh={onRefresh} draftBusy={savingAnswer || requestingDraft} onTargetLength={length => onTargetLengthChange(summary.id, length)} />
     {question && <SimilarAnswers question={question} application={application} />}
     {!question ? loadError ? <div role="alert" className="grid justify-items-start gap-3 py-8">
       <p className="m-0 text-error">{loadError}</p><Button variant="secondary" onClick={() => onReload(summary.id)}>다시 불러오기</Button>
