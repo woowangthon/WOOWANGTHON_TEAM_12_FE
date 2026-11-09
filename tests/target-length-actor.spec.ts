@@ -22,7 +22,8 @@ const shot = async (page: Page, name: string, reopen?: () => Promise<unknown>) =
   await page.screenshot({ path: `test-results/fe233/${name}-1024.png`, ...options });
   await page.setViewportSize(size);
 };
-const header = (page: Page) => page.getByRole("tabpanel", { name: "선택한 문항" }).locator("header");
+// 목표 글자 수는 답칸 아래 한 곳에만 있다(FE#269)
+const header = (page: Page) => page.getByRole("region", { name: "내가 쓴 답", exact: true });
 const patches = (api: FakeQuestionApi) => api.calls.filter(c => c.call === "PATCH /api/questions/41").map(c => c.body);
 
 async function openQuestion(page: Page, edit?: (q: QuestionDetail) => void) {

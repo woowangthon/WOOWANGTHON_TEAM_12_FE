@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { AnalysisCost } from "@/components/auth/analysis-cost";
 import { Button } from "@/components/ui/button";
+import { InfoTip } from "@/components/ui/info-tip";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { ApiError } from "@/lib/api/errors";
 import { suggestedFrame, type DraftFrame } from "@/lib/draft-frames";
@@ -77,8 +78,13 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
   };
 
   return <section aria-label="초안 설정" className="grid min-w-0 gap-3 rounded-md border border-hairline bg-canvas p-3.5">
-    <h4 className="m-0 text-sm font-semibold">{draft ? "초안 다시 만들기" : "초안 만들기"}</h4>
-    {draft?.status === "COMPLETED" && <p className="m-0 text-note leading-relaxed text-muted">다시 만들면 고른 경험과 최신 보완으로 다시 써요.</p>}
+    {/* 늘 펼쳐 둘 안내는 아니라 ⓘ 로 접는다(FE#269). 재료 부족 · 확인 전 답처럼 조건이 생길 때만 뜨는 경고는 그대로 펼친다 */}
+    <div className="flex items-center gap-0.5">
+      <h4 className="m-0 text-sm font-semibold">{draft ? "초안 다시 만들기" : "초안 만들기"}</h4>
+      <InfoTip label={draft ? "초안 다시 만들기" : "초안 만들기"}>
+        {draft?.status === "COMPLETED" ? "다시 만들면 고른 경험과 최신 보완으로 다시 써요. " : ""}참고 카드에서 고른 경험 1 ~ 3개를 뼈대로 써요. 자료에 없는 사실은 지어내지 않고 빈칸으로 남기고, 받칠 수 없는 구성 틀 단계는 건너뛰어요.
+      </InfoTip>
+    </div>
     <p className="m-0 text-sm text-body">{!question.recommendations.length ? "추천된 경험이 있으면 초안을 만들 수 있어요." : count ? `체크한 경험 ${count}개로 만들어요` : "참고 카드에서 경험을 1 ~ 3개 골라 주세요."}</p>
     {thin && <p className="m-0 text-note leading-relaxed text-muted">
       고른 경험의 자료가 목표 {target!.toLocaleString("ko-KR")}자의 절반이 안 돼요. 초안이 짧을 수 있어요 — 같은 활동의 다른 경험도 재료로 쓰고, 빠진 사실에 답하면 다음 초안이 길어져요.

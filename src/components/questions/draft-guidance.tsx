@@ -17,7 +17,6 @@ export function FramePicker({ frame, onChange, disabled, proposed }: { frame: Dr
     <label className="grid gap-2 text-sm font-semibold">구성 틀<Select<DraftFrame> aria-label="구성 틀" value={frame} disabled={disabled} onChange={next => { if (next) onChange(next); }} className="sm:max-w-80" options={FRAME_OPTIONS} /></label>
     {proposed && <p className="m-0 text-note text-muted">문항 유형에 맞춘 제안 · 바꿔도 괜찮아요.</p>}
     <FrameDescription frame={frame} />
-    <p className="m-0 text-note text-muted">자료로 받칠 수 없는 단계는 지어내지 않고 건너뛰어요.</p>
     <Link href="/guidelines" className="inline-flex min-h-11 items-center justify-self-start text-sm text-evidence underline underline-offset-3">작성 지침 관리 →</Link>
   </div>;
 }
