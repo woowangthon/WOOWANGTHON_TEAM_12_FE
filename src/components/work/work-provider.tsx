@@ -3,8 +3,8 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import Link from "next/link";
 import { BellIcon } from "@phosphor-icons/react";
-import { Popover } from "radix-ui";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Dialog as DialogPrimitive, Popover } from "radix-ui";
+import { Dialog, DialogOverlay, DialogPortal, DialogTitle } from "@/components/ui/dialog";
 import { useSidebar } from "@/components/sidebar-layout";
 import { Button } from "@/components/ui/button";
 import { isMockMode } from "@/lib/api/http";
@@ -55,8 +55,8 @@ export function WorkProvider({ children }: { children: ReactNode }) {
   const onCloseAutoFocus = (event: Event) => { event.preventDefault(); if (!navigating.current) trigger.current?.focus(); };
   const onNavigate = () => { navigating.current = true; setOpened(false); };
   const note = <p className="mb-0 mt-2 text-note text-muted lg:mt-0 lg:px-1.5">소식은 최근 24시간 · 최대 20개예요.</p>;
-  // Sheet 는 1024 미만, Popover 는 1024 이상에서만 뜬다 — 같은 내용을 lg: 로 시안 크기에 맞춘다
-  const body = <div className="min-h-0 flex-1 overflow-y-auto p-5 lg:p-0">
+  // 1024 미만은 빠른 찾기처럼 위에 붙은 떠 있는 창, 1024 이상은 종 아래 Popover — 같은 내용을 lg: 로 시안 크기에 맞춘다(FE#275)
+  const body = <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 lg:p-0">
     {work.error && <div role="alert" className="mb-4 grid gap-2"><p className="m-0 text-error">{work.error}</p><Button variant="secondary" onClick={work.refresh}>상태 다시 불러오기</Button></div>}
     {work.seenError && <div role="alert" className="mb-4 grid gap-2"><p className="m-0 text-error">읽음 상태를 저장하지 못했어요. {work.seenError}</p><Button variant="secondary" disabled={work.marking} onClick={() => void work.markSeen(displayedBoundary.current)}>읽음 저장 다시 시도</Button></div>}
     <section aria-label="진행 중인 일"><h3 className={GROUP_TITLE}>할 일 {inProgress.length}</h3>
@@ -78,12 +78,17 @@ export function WorkProvider({ children }: { children: ReactNode }) {
           {body}
         </Popover.Content>
       </Popover.Portal>
-    </Popover.Root> : <Sheet open={opened} onOpenChange={setOpened}>
-      <SheetContent aria-describedby={undefined} onCloseAutoFocus={onCloseAutoFocus} className="w-full! gap-0 sm:max-w-[420px]!">
-        <header className="border-b border-hairline p-5 pr-14"><SheetTitle>진행 중인 일 · 소식</SheetTitle>{note}</header>
-        {body}
-      </SheetContent>
-    </Sheet>}
+    </Popover.Root> : <Dialog open={opened} onOpenChange={setOpened}>
+      <DialogPortal>
+        <DialogOverlay />
+        {/* 빠른 찾기 창과 같은 자리 · 모양. Esc · 바깥을 누르면 닫힌다 */}
+        <DialogPrimitive.Content aria-describedby={undefined} onCloseAutoFocus={onCloseAutoFocus}
+          className="fixed inset-x-3 top-3 z-50 mx-auto flex max-h-[min(560px,calc(100dvh-24px))] max-w-[420px] flex-col overflow-hidden rounded-md bg-popover text-popover-foreground shadow-float outline-none">
+          <header className="px-4 pt-4 pb-3"><DialogTitle className="text-base">알림</DialogTitle>{note}</header>
+          {body}
+        </DialogPrimitive.Content>
+      </DialogPortal>
+    </Dialog>}
   </WorkContext>;
 }
 
