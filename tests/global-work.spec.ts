@@ -18,7 +18,7 @@ const requestsArrive = (page: Page) => page.waitForTimeout(300);
 async function setup(page: Page, snapshot: WorkSnapshot = { seenAt: null, inProgress: [], recent: [] }) {
   const api = new FakeQuestionApi();
   // 초안 소식은 초안이 있을 때 온다 — 없으면 패널이 열린 왼쪽에 초안 칸이 없다(FE#210)
-  if (snapshot.recent.some(r => r.kind === "DRAFT")) api.edit(41, q => { q.draft = { questionId: 41, status: "COMPLETED", error: null, experienceIds: [101], sentences: [], omitted: [], createdAt: FINISHED, updatedAt: FINISHED }; });
+  if (snapshot.recent.some(r => r.kind === "DRAFT")) api.edit(41, q => { q.draft = { questionId: 41, status: "COMPLETED", error: null, experienceIds: [101], sentences: [{ kind: "FACT", text: "폴링을 WebSocket 으로 바꿔 지연을 줄였다.", evidence: [] }], omitted: [], createdAt: FINISHED, updatedAt: FINISHED }; });
   await api.install(page);
   const state = { snapshot, reads: 0, posts: [] as string[], status: 200, seenStatus: 200, delay: null as null | Promise<void>, seenDelay: null as null | Promise<void>, current: 0, max: 0 };
   await page.route("**/api/work", async route => {
@@ -231,7 +231,7 @@ for (const [kind, area] of [["MATCH", "선택한 문항"], ["GROUNDING_CHECK", "
     await trigger(page).click(); await dialog(page).getByRole("link").click();
     await expect(page).toHaveURL(new RegExp("question=41&workArea="));
     if (kind === "MATCH") await expect(page.getByRole("tabpanel", { name: area })).toBeVisible();
-    else await expect(page.getByRole("heading", { name: area, exact: true })).toBeFocused();
+    else await expect(page.getByRole(kind === "DRAFT" ? "group" : "heading", { name: area, exact: true })).toBeFocused(); // 초안은 답칸 안의 한 줄(이름 있는 묶음)로 온다
   });
 }
 
