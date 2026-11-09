@@ -116,11 +116,11 @@ export function PublicProfileSection() {
       {settings.linkEnabled && settings.token ? <div className="space-y-3">
         <label htmlFor="public-profile-url" className="block text-sm font-semibold">공개 주소</label>
         <input id="public-profile-url" readOnly value={publicProfileUrl(settings.token)} spellCheck={false} className="h-11 w-full rounded-sm border border-hairline bg-surface-soft px-3 text-sm" />
-        {blocked && <p className="text-sm text-muted">지금은 실린 경험이 없어요. 주소를 열면 빈 페이지가 보여요.</p>}
+        {blocked && <p className="text-sm text-muted">지금은 실린 경험이 없어요. 주소를 열면 빈 페이지가 보이고, 새 주소도 만들 수 없어요.</p>}
         <div className="flex flex-wrap gap-2">
           <Button className="min-h-11" onClick={() => void copy()}>공개 주소 복사</Button>
           <Button asChild variant="secondary" className="min-h-11"><a href={publicProfileUrl(settings.token)} target="_blank" rel="noreferrer">공개 페이지 보기</a></Button>
-          <Button className="min-h-11" variant="secondary" disabled={busy || blocked} title={blocked ? "실을 수 있는 경험이 있어야 만들 수 있어요" : undefined} onClick={() => setConfirm("renew")}>새 주소 만들기</Button>
+          <Button className="min-h-11" variant="secondary" disabled={busy || blocked} onClick={() => setConfirm("renew")}>새 주소 만들기</Button>
           <Button className="min-h-11 text-error" variant="ghost" disabled={busy} onClick={() => setConfirm("off")}>링크 끄기</Button>
         </div>
       </div> : <Button className="min-h-11" disabled={busy || blocked} onClick={() => setConfirm("on")}>링크 켜기</Button>}

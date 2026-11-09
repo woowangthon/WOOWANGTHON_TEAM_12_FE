@@ -1,5 +1,6 @@
 "use client";
 
+import { InfoTip } from "@/components/ui/info-tip";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AnalysisCost } from "@/components/auth/analysis-cost";
@@ -36,8 +37,8 @@ export function NewFactCandidates({ confirmed: a }: { confirmed: Confirmed }) {
       </Button>
     </div>}
     {a.answer && <section aria-label="새 경험 후보" className="grid min-w-0 gap-3">
-      <h4 className="m-0 text-sm font-semibold">새 경험 후보</h4>
-      <p className="m-0 text-sm leading-relaxed text-muted">다 쓴 글에서 새로 쓴 사실을 찾아요. AI 제안이니 확인하고 고쳐 주세요. 경험은 저장을 눌러야 쌓여요.</p>
+      <div className="flex items-center gap-0.5"><h4 className="m-0 text-sm font-semibold">새 경험 후보</h4><InfoTip label="새 경험 후보">다 쓴 글에서 새로 쓴 사실을 찾아요. 경험은 저장을 눌러야 쌓여요.</InfoTip></div>
+      <p className="m-0 text-sm text-muted">AI 제안이니 확인하고 고쳐 주세요.</p>
       {facts?.status === "ANALYZING" && <p role="status" className="m-0 text-sm text-muted">새 경험 후보를 찾고 있어요… 새로고침해도 이어서 확인해요.</p>}
       {facts?.status === "FAILED" && !a.failure && <div className="grid justify-items-start gap-2">
         <p role="alert" className="m-0 text-sm text-error">답은 저장했어요 · {facts.error?.message || "후보를 찾지 못했어요."}</p>

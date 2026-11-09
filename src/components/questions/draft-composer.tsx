@@ -82,23 +82,25 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
     <div className="flex items-center gap-0.5">
       <h4 className="m-0 text-sm font-semibold">{draft ? "초안 다시 만들기" : "초안 만들기"}</h4>
       <InfoTip label={draft ? "초안 다시 만들기" : "초안 만들기"}>
-        {draft?.status === "COMPLETED" ? "다시 만들면 고른 경험과 최신 보완으로 다시 써요. " : ""}참고 카드에서 고른 경험 1 ~ 3개를 뼈대로 써요. 자료에 없는 사실은 지어내지 않고 빈칸으로 남기고, 받칠 수 없는 구성 틀 단계는 건너뛰어요.
+        고른 경험{draft ? "과 최신 보완" : ""}으로 써요. 자료에 없는 사실은 빈칸으로 남겨요.
       </InfoTip>
     </div>
     <p className="m-0 text-sm text-body">{!question.recommendations.length ? "추천된 경험이 있으면 초안을 만들 수 있어요." : count ? `체크한 경험 ${count}개로 만들어요` : "참고 카드에서 경험을 1 ~ 3개 골라 주세요."}</p>
-    {thin && <p className="m-0 text-note leading-relaxed text-muted">
-      고른 경험의 자료가 목표 {target!.toLocaleString("ko-KR")}자의 절반이 안 돼요. 초안이 짧을 수 있어요 — 같은 활동의 다른 경험도 재료로 쓰고, 빠진 사실에 답하면 다음 초안이 길어져요.
-    </p>}
     {pendingAnswers > 0 && <p className="m-0 text-note leading-relaxed text-muted">
       외부 AI 를 거친 답 {pendingAnswers}개는 아직 확인 전이라 초안 근거로 쓰이지 않아요. 활동 세부에서 맞아요를 눌러야 근거로 쓰여요.
     </p>}
+    {/* 재료 부족 경고 바로 밑에 그 해법(보조 재료 체크)을 둔다 — 체크 설명은 ⓘ 로(FE#301) */}
+    {thin && <p className="m-0 text-note leading-relaxed text-review">
+      고른 경험의 자료가 목표 {target!.toLocaleString("ko-KR")}자의 절반이 안 돼요. 초안이 짧을 수 있어요.
+    </p>}
+    <div className="flex items-center gap-0.5">
+      <label className="flex min-h-11 cursor-pointer items-center gap-2.5 text-sm text-body">
+        <input type="checkbox" className="size-4 shrink-0 accent-ink" checked={useContext} disabled={analyzing || savingAnswer} onChange={e => setUseContext(e.target.checked)} />
+        같은 활동의 다른 경험도 뒷받침 재료로 쓰기
+      </label>
+      <InfoTip label="뒷받침 재료">고른 경험이 뼈대고, 같은 활동의 기록으로 맥락을 채워요. 끄면 고른 경험만으로 써서 짧을 수 있어요.</InfoTip>
+    </div>
     <FramePicker frame={frame} disabled={analyzing || savingAnswer} proposed={!draft && chosenFrame === null} onChange={setChosenFrame} />
-    <label className="flex min-h-11 cursor-pointer items-start gap-2.5 text-sm text-body">
-      <input type="checkbox" className="mt-1 size-4 shrink-0 accent-ink" checked={useContext} disabled={analyzing || savingAnswer} onChange={e => setUseContext(e.target.checked)} />
-      <span className="grid gap-0.5">같은 활동의 다른 경험도 뒷받침 재료로 쓰기
-        <span className="text-note text-muted">{useContext ? "고른 경험이 뼈대고, 같은 활동의 기록으로 맥락을 채워요." : "고른 경험만으로 써서 짧거나 부실할 수 있어요."}</span>
-      </span>
-    </label>
     <div className="flex flex-wrap items-center gap-3">
       <Button data-draft-generate className="min-h-11" onClick={ask} disabled={!allowed || analyzing || savingAnswer}>{analyzing ? "초안 만드는 중…" : draft ? "다시 만들기" : "초안 만들기"}</Button>
       {free ? <span className="text-xs text-muted">이번 다시 만들기는 분석 횟수를 쓰지 않아요</span> : <AnalysisCost running={analyzing} />}

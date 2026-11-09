@@ -1,5 +1,6 @@
 "use client";
 
+import { InfoTip } from "@/components/ui/info-tip";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import Link from "next/link";
 import { BellIcon } from "@phosphor-icons/react";
@@ -54,7 +55,6 @@ export function WorkProvider({ children }: { children: ReactNode }) {
   const status = work.error ? "작업 상태를 확인하지 못했어요" : summary || (isMockMode() ? "작업 소식은 서버 연결 후 확인할 수 있어요" : "");
   const onCloseAutoFocus = (event: Event) => { event.preventDefault(); if (!navigating.current) trigger.current?.focus(); };
   const onNavigate = () => { navigating.current = true; setOpened(false); };
-  const note = <p className="mb-0 mt-2 text-note text-muted lg:mt-0 lg:px-1.5">소식은 최근 24시간 · 최대 20개예요.</p>;
   // 1024 미만은 빠른 찾기처럼 위에 붙은 떠 있는 창, 1024 이상은 종 아래 Popover — 같은 내용을 lg: 로 시안 크기에 맞춘다(FE#275)
   const body = <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 lg:p-0">
     {work.error && <div role="alert" className="mb-4 grid gap-2"><p className="m-0 text-error">{work.error}</p><Button variant="secondary" onClick={work.refresh}>상태 다시 불러오기</Button></div>}
@@ -62,7 +62,7 @@ export function WorkProvider({ children }: { children: ReactNode }) {
     <section aria-label="진행 중인 일"><h3 className={GROUP_TITLE}>할 일 {inProgress.length}</h3>
       {inProgress.length ? <WorkList items={inProgress} seenAt={snapshot?.seenAt ?? null} onNavigate={onNavigate} /> : <p className="text-sm text-muted lg:my-1 lg:px-3 lg:text-note">진행 중인 일이 없어요.</p>}
     </section>
-    <section aria-label="최근 소식" className="mt-7 lg:mt-1"><h3 className={GROUP_TITLE}>소식 {unread > 0 && <span>· 안 읽음 {unread}</span>}</h3>
+    <section aria-label="최근 소식" className="mt-7 lg:mt-1"><div className="flex items-center gap-0.5"><h3 className={GROUP_TITLE}>소식 {unread > 0 && <span>· 안 읽음 {unread}</span>}</h3><InfoTip label="소식">최근 24시간 · 최대 20개까지 보여요.</InfoTip></div>
       {recent.length ? <WorkList items={recent} seenAt={snapshot?.seenAt ?? null} onNavigate={onNavigate} /> : <p className="text-sm text-muted lg:my-1 lg:px-3 lg:text-note">아직 도착한 소식이 없어요.</p>}
     </section>
   </div>;
@@ -74,7 +74,7 @@ export function WorkProvider({ children }: { children: ReactNode }) {
         <Popover.Content aria-label="알림" side="bottom" align="end" sideOffset={8} collisionPadding={12} onCloseAutoFocus={onCloseAutoFocus}
           onInteractOutside={event => { if (trigger.current?.contains(event.target as Node)) event.preventDefault(); }} // 종은 스스로 닫는다
           className="z-50 flex max-h-[min(560px,var(--radix-popover-content-available-height))] w-85 flex-col gap-1.5 rounded-md bg-popover p-3.5 text-popover-foreground shadow-float outline-none">
-          <header><h2 className="m-0 px-1.5 pt-0.5 pb-1.5 text-sm leading-4 font-bold">알림</h2>{note}</header>
+          <header><h2 className="m-0 px-1.5 pt-0.5 pb-1.5 text-sm leading-4 font-bold">알림</h2></header>
           {body}
         </Popover.Content>
       </Popover.Portal>
@@ -84,7 +84,7 @@ export function WorkProvider({ children }: { children: ReactNode }) {
         {/* 빠른 찾기 창과 같은 자리 · 모양. Esc · 바깥을 누르면 닫힌다 */}
         <DialogPrimitive.Content aria-describedby={undefined} onCloseAutoFocus={onCloseAutoFocus}
           className="fixed inset-x-3 top-3 z-50 mx-auto flex max-h-[min(560px,calc(100dvh-24px))] max-w-[420px] flex-col overflow-hidden rounded-md bg-popover text-popover-foreground shadow-float outline-none">
-          <header className="px-4 pt-4 pb-3"><DialogTitle className="text-base">알림</DialogTitle>{note}</header>
+          <header className="px-4 pt-4 pb-3"><DialogTitle className="text-base">알림</DialogTitle></header>
           {body}
         </DialogPrimitive.Content>
       </DialogPortal>

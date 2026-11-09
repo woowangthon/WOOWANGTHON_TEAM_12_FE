@@ -1,5 +1,6 @@
 "use client";
 
+import { InfoTip } from "@/components/ui/info-tip";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CaretRightIcon } from "@phosphor-icons/react";
 import { AppHeader } from "@/components/app-header";
@@ -160,8 +161,7 @@ export function ConnectionScreen() {
         목 모드 · 연결 관리 화면을 미리 보는 중이에요. 표시되는 임시 주소는 Claude에서 사용할 수 없어요. 실제 연결은 만들어지지 않아요.
       </p>}
       <section aria-labelledby="mcp-title" className={cn(CONNECTION_CARD, "mt-6")}>
-        <h2 id="mcp-title" className="text-lg font-bold tracking-tight">다른 AI 에서 내 경험 쓰기</h2>
-        <p className="text-sm leading-relaxed text-muted">Claude 같은 AI 에 차곡을 연결하면, 거기서 「차곡에서 협업 경험 찾아 줘」라고 해도 근거와 함께 꺼내 와요.</p>
+        <div className="flex items-center gap-0.5"><h2 id="mcp-title" className="text-lg font-bold tracking-tight">다른 AI 에서 내 경험 쓰기</h2><InfoTip label="다른 AI 에서 내 경험 쓰기">Claude 같은 AI 에 차곡을 연결하면, 거기서 「차곡에서 협업 경험 찾아 줘」라고 해도 근거와 함께 꺼내 와요.</InfoTip></div>
 
         {error && <div role="alert" className="space-y-3">
           <p className="text-sm leading-relaxed text-error">{error}</p>
@@ -183,8 +183,8 @@ export function ConnectionScreen() {
             <Button className="min-h-11" onClick={() => void copy()}>주소 복사</Button>
           </div>
           <p className="text-sm leading-relaxed text-muted">지금 복사해 두세요. 화면을 떠나거나 새로고침하면 다시 볼 수 없어요.</p>
-        </div> : connection?.connected && <p className="rounded-sm bg-surface-soft p-3 text-sm leading-relaxed text-muted">주소는 만들 때 한 번만 보여요. 주소를 잃어버렸다면 「다시 만들기」로 새 주소를 받으세요.</p>}
-        <p className="text-note leading-relaxed text-muted">연결하면 내 경험 · 근거가 AI 서비스(Claude 등)로 전송돼요. 기본은 읽기만 해요. 연결 주소는 비밀번호와 같아요 — 남에게 보여 주지 마세요.</p>
+        </div> : connection?.connected && <p className="inline-flex items-center gap-0.5 text-sm text-muted">주소는 만들 때 한 번만 보여요<InfoTip label="연결 주소">잃어버렸다면 「다시 만들기」로 새 주소를 받으세요.</InfoTip></p>}
+        <p className="text-note leading-relaxed text-muted">연결하면 내 경험 · 근거가 연결한 AI(Claude 등)로 전송돼요 · 주소는 비밀번호처럼 남에게 보여 주지 마세요<InfoTip label="전송" className="align-middle">기본은 읽기만 해요. 쓰기는 따로 켜야 해요.</InfoTip></p>
 
         {connection && (connection.connected
           ? <div className="flex flex-wrap gap-2">

@@ -205,8 +205,8 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
       <Button variant="secondary" className="min-h-11" disabled={g.busy} onClick={() => void g.submit(g.check!.text)}>같은 글로 다시 시도</Button>
     </div>}
     {g.check?.status === "COMPLETED" && <div className="grid min-w-0 gap-4">
-      <h4 className="m-0 text-sm font-semibold">{stale ? "고치기 전 결과 — 다시 점검해 주세요" : "문장별 근거 점검"}</h4>
-      <p className="m-0 text-note leading-relaxed text-muted">근거 없음은 현재 자료에서 받칠 근거를 찾지 못했다는 뜻이에요. 거짓이라는 뜻은 아니에요. 판정과 이유는 AI 해석이니 직접 확인해 주세요.</p>
+      <div className="flex items-center gap-0.5"><h4 className="m-0 text-sm font-semibold">{stale ? "고치기 전 결과 — 다시 점검해 주세요" : "문장별 근거 점검"}</h4><InfoTip label="근거 없음">근거 없음은 지금 자료에서 받칠 근거를 찾지 못했다는 뜻이에요. 거짓이라는 뜻은 아니에요.</InfoTip></div>
+      <p className="m-0 text-note text-muted">판정과 이유는 AI 해석이니 직접 확인해 주세요.</p>
       <ol aria-label={stale ? "고치기 전 문장별 근거" : "문장별 근거"} className="m-0 grid list-none gap-4 p-0">
         {g.check.sentences.map((s, i) => <li key={i} className="grid min-w-0 gap-2">
           <p className="m-0 whitespace-pre-wrap break-words text-ui leading-loose"><span className={`${TINT[s.status]} rounded-sm px-1 py-0.5`}>{s.text}</span></p>

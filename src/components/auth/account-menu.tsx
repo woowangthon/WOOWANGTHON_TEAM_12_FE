@@ -36,7 +36,7 @@ export function AccountMenu({ variant = "bar" }: { variant?: "bar" | "sidebar" |
           <div className="grid gap-0.5 px-3 py-2.5">
             <span className="text-sm font-semibold text-ink">{me.loginId}</span>
             <span className={cn("text-xs tabular-nums", left <= 3 ? "font-medium text-review" : "text-muted")}>
-              {left === 0 ? "오늘 분석을 모두 썼어요" : `오늘 남은 분석 ${left}회`} · 한국 시간 자정에 다시 채워져요
+              {left === 0 ? "오늘 분석을 모두 썼어요" : `오늘 남은 분석 ${left}회`}{left <= 3 && " · 한국 시간 자정에 다시 채워져요"}
             </span>
           </div>
           <DropdownMenu.Separator className="my-1 h-px bg-hairline" />

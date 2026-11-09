@@ -3,6 +3,7 @@
 // 역량 고르기 — 닫힌 목록 13개에서 최대 3개 (SPEC 미결정 2 · FE#18). 자유 입력은 없다
 // 앞에 고른 것이 더 잘 맞는 역량이라 고른 순서를 숫자로 보이고, 그 순서 그대로 보낸다
 // 보이는 건 칩이지만 누르는 건 진짜 체크박스다 — 키보드 · 스크린 리더로도 고를 수 있다
+import { InfoTip } from "@/components/ui/info-tip";
 import { cn } from "@/lib/utils";
 import { COMPETENCIES, type Competency } from "@/lib/api/types";
 
@@ -13,7 +14,7 @@ export function CompetencyPicker({ value, onChange }: { value: Competency[]; onC
   return (
     <fieldset className="grid min-w-0 gap-2 border-0 p-0">
       <legend className="mb-1 flex w-full items-baseline justify-between gap-2">
-        <span>역량 (선택 · 최대 {MAX_COMPETENCIES}개)</span>
+        <span className="inline-flex items-center gap-0.5">역량 (선택 · 최대 {MAX_COMPETENCIES}개)<InfoTip label="역량 순서">먼저 고른 역량일수록 이 경험에 더 잘 맞는 것으로 저장돼요.</InfoTip></span>
         <span className="text-xs text-muted tabular-nums" aria-live="polite">
           {value.length} / {MAX_COMPETENCIES}
         </span>
@@ -55,7 +56,6 @@ export function CompetencyPicker({ value, onChange }: { value: Competency[]; onC
           );
         })}
       </div>
-      <p className="m-0 text-note text-muted">먼저 고른 역량일수록 이 경험에 더 잘 맞는 것으로 저장돼요.</p>
     </fieldset>
   );
 }

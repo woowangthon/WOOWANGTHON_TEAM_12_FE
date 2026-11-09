@@ -47,7 +47,7 @@ test("create, copy feedback, reload and route exit hide the address; confirm rep
   const state = await setup(page);
   await expect(page.getByText("아직 연결이 없어요")).toBeVisible();
   await expect(page.getByText(/연결하면 내 경험 · 근거가/)).toBeVisible();
-  await expect(page.getByText(/연결 주소는 비밀번호와 같아요/)).toBeVisible();
+  await expect(page.getByText(/주소는 비밀번호처럼 남에게 보여 주지 마세요/)).toBeVisible();
   await page.screenshot({ path: `artifacts/mcp-${info.project.name}-empty.png`, fullPage: true, style: "nextjs-portal { display: none !important; }" });
   await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => {} } }));
   await page.getByRole("button", { name: "연결 주소 만들기", exact: true }).click();

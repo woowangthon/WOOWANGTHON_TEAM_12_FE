@@ -167,6 +167,9 @@ test("자료 분석 10개 · 기다림 개수 · 긴 제목 · 끝까지 스크�
   await expect(links.last()).toBeFocused();
   await expect(links.last()).toBeInViewport();
   await page.keyboard.press("Tab");
+  // 「소식」 제목 옆 ⓘ 를 지나 첫 소식으로 간다(FE#301)
+  await expect(dialog(page).getByRole("button", { name: "소식 설명" })).toBeFocused();
+  await page.keyboard.press("Tab");
   await expect(dialog(page).getByRole("link", { name: /마지막 소식/ })).toBeFocused();
   await expect(dialog(page).getByRole("link", { name: /마지막 소식/ })).toBeInViewport();
   await links.last().focus();

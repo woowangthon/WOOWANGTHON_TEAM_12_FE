@@ -1,6 +1,7 @@
 "use client";
 
 // 내 경험 통계(S-83) — 쌓인 블록 · 분류 · 출처 상태 · 역량별 경험 수. 숫자는 모두 받은 활동 · 경험에서 센다(대회 규칙 1). AI 를 부르지 않는다
+import { InfoTip } from "@/components/ui/info-tip";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ArrowsClockwiseIcon, ChartPieSliceIcon } from "@phosphor-icons/react";
 import { AddSourceButton, type AddSourceProps } from "@/components/app-header";
@@ -85,19 +86,17 @@ export function ExperienceStats({ activities, version, hiddenIds, addSource, onO
 
   return (
     <section aria-label="내 경험 통계" className="mt-5 grid gap-4">
-      <Card title="쌓인 블록" aside={<span className="text-sm text-muted tabular-nums"><b className="text-2xl text-ink">{total}</b>개의 경험이 차곡차곡</span>}>
+      <Card title="쌓인 블록" info="활동 시작 연도별 경험 수예요. 블록 하나가 경험 하나이고, 점선은 확인이 필요한 경험이에요." aside={<span className="text-sm text-muted tabular-nums"><b className="text-2xl text-ink">{total}</b>개의 경험이 차곡차곡</span>}>
         <ExperienceBlocks years={years} size="md" />
-        <p className="mt-3 mb-0 text-note leading-relaxed text-muted">활동 시작 연도별 경험 수예요. 블록 하나가 경험 하나이고, 점선은 확인이 필요한 경험이에요. 색은 연도를 나눠 보이려는 것이에요.</p>
       </Card>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <Card title="분류별">
+        <Card title="분류별" info="활동에 붙은 분류로 그 안의 경험을 셌어요. 분류는 활동 세부에서 골라요.">
           <Bars total={total} rows={byCategory.map((r) => ({
             key: r.key, count: r.count,
             label: <span data-category={r.category ?? undefined} className="inline-flex items-center gap-1.5">{r.icon}{r.label}</span>,
             bar: <span data-category={r.category ?? undefined} className="block h-full bg-category" />,
           }))} />
-          <p className="mt-3 mb-0 text-note text-muted">활동에 붙은 분류로 그 안의 경험을 셌어요. 분류는 활동 세부에서 고를 수 있어요.</p>
         </Card>
 
         <Card title="출처 상태별">
@@ -120,11 +119,11 @@ export function ExperienceStats({ activities, version, hiddenIds, addSource, onO
   );
 }
 
-function Card({ title, aside, children }: { title: string; aside?: ReactNode; children: ReactNode }) {
+function Card({ title, info, aside, children }: { title: string; info?: ReactNode; aside?: ReactNode; children: ReactNode }) {
   return (
     <div role="group" aria-label={title} className="min-w-0 rounded-md border border-hairline bg-canvas p-4.5 lg:p-5">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="m-0 text-sm font-bold text-ink">{title}</h2>
+        <div className="flex items-center gap-0.5"><h2 className="m-0 text-sm font-bold text-ink">{title}</h2>{info && <InfoTip label={title}>{info}</InfoTip>}</div>
         {aside}
       </div>
       {children}
