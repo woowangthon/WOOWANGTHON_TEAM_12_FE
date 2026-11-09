@@ -113,7 +113,6 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
         </p>
         {(sources.length > 0 || canAddSource) && (
           <p className="m-0 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-note text-muted">
-            {sources.length > 0 && "이 활동을 만든 자료"}
             {sources.map(([id, name]) => readOnly ? <SourceFile key={id} name={name} /> : <SourceFileButton key={id} sourceId={id} name={name} />)}
             {canAddSource && (
               <button
@@ -132,7 +131,6 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
 
       {addSourceStatus && <div className="px-4.5 lg:px-7">{addSourceStatus}</div>}
 
-      {activity && <ActivityNote key={activity.id} activity={activity} readOnly={readOnly} onSaved={onNoteSaved} />}
       {activity && <ActivityLinks key={`links-${activity.id}`} activity={activity} readOnly={readOnly} onOpenActivity={onOpenActivity} />}
 
       {activity?.mergeSuggestion && !readOnly && onSuggestedMerge && onSuggestionDismiss && (
@@ -155,6 +153,9 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
         {/* 자주 쓰는 게 아니라 경험 목록 아래에 둔다 — 경험마다 하나씩 정하는 건 줄의 주체를 눌러서(FE#272) */}
         {activity && !readOnly && <ActivityActorDecision key={`actor-${activity.id}`} activity={activity} onSaved={onExperienceSaved} />}
       </div>
+
+      {/* 「그때의 나」는 경험보다 덜 중요해 경험 목록 아래(FE#293) */}
+      {activity && <ActivityNote key={activity.id} activity={activity} readOnly={readOnly} onSaved={onNoteSaved} />}
     </div>
   );
 }

@@ -53,8 +53,13 @@ async function setup(page: Page) {
   return api;
 }
 
-const saveButton = (page: Page, e: Experience) => page.locator(`#experience-${e.id}`).getByRole("button", { name: `저장: ${e.content}`, exact: true });
-const savedButton = (page: Page, e: Experience) => page.locator(`#experience-${e.id}`).getByRole("button", { name: `저장함: ${e.content}`, exact: true });
+// 활동 세부의 저장은 경험 「…」 메뉴의 체크 항목이고, 저장한 경험은 줄에 표시만 남는다(FE#293)
+const saveItem = async (page: Page, e: Experience) => {
+  if (await page.getByRole("menu").count()) await page.keyboard.press("Escape");
+  await page.locator(`#experience-${e.id}`).getByRole("button", { name: /^경험 메뉴: / }).click();
+  return page.getByRole("menuitemcheckbox", { name: "저장", exact: true });
+};
+const savedMark = (page: Page, e: Experience) => page.locator(`#experience-${e.id}`).getByTitle("저장한 경험이에요");
 const openDetail = async (page: Page) => {
   await page.goto("/experience");
   await page.getByRole("button", { name: /바꿔요 — 캠퍼스/ }).first().click();
@@ -70,20 +75,23 @@ test("saving in the activity detail stays after reload, says so in words and cha
   const api = await setup(page);
   await openDetail(page);
   const item = page.locator(`#experience-${CHAT.id}`);
-  await expect(saveButton(page, CHAT)).toHaveAttribute("aria-pressed", "false");
-  await saveButton(page, CHAT).click();
-  await expect(savedButton(page, CHAT)).toHaveAttribute("aria-pressed", "true");
-  await expect(savedButton(page, CHAT)).toContainText("저장함");
+  await expect(await saveItem(page, CHAT)).toHaveAttribute("aria-checked", "false");
+  await (await saveItem(page, CHAT)).click();
+  await expect(savedMark(page, CHAT)).toBeVisible();
+  await expect(savedMark(page, CHAT)).toContainText("저장함");
+  await expect(await saveItem(page, CHAT)).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("Escape");
   expect(api.puts).toEqual([{ id: String(CHAT.id), body: { saved: true } }]);
   await expect(item).toContainText(CHAT.content);
   await expect(item).toContainText("원문 확인");
   await expect(item).toContainText("근거 1");
-  await expect(saveButton(page, DEPLOY)).toBeVisible();
+  await expect(savedMark(page, DEPLOY)).toHaveCount(0);
 
   await page.reload();
   await page.getByRole("button", { name: /바꿔요 — 캠퍼스/ }).first().click();
-  await savedButton(page, CHAT).click();
-  await expect(saveButton(page, CHAT)).toBeVisible();
+  await expect(savedMark(page, CHAT)).toBeVisible();
+  await (await saveItem(page, CHAT)).click();
+  await expect(savedMark(page, CHAT)).toHaveCount(0);
   expect(api.puts.at(-1)?.body).toEqual({ saved: false });
 });
 
@@ -91,21 +99,21 @@ test("a failed save stays unsaved and shows an error", async ({ page }) => {
   const api = await setup(page);
   api.failPut = true;
   await openDetail(page);
-  await saveButton(page, CHAT).click();
+  await (await saveItem(page, CHAT)).click();
   await expect(page.locator(`#experience-${CHAT.id}`).getByRole("alert")).toContainText("저장을 바꾸지 못했어요");
-  await expect(saveButton(page, CHAT)).toHaveAttribute("aria-pressed", "false");
+  await expect(savedMark(page, CHAT)).toHaveCount(0);
 
   api.failPut = false;
-  await saveButton(page, CHAT).click();
-  await expect(savedButton(page, CHAT)).toBeVisible();
+  await (await saveItem(page, CHAT)).click();
+  await expect(savedMark(page, CHAT)).toBeVisible();
   await expect(page.locator(`#experience-${CHAT.id}`).getByRole("alert")).toHaveCount(0);
 });
 
 test("quick find filters by saved, an old saved address opens it there, and it has no save button", async ({ page }) => {
   const api = await setup(page);
   await openDetail(page);
-  await saveButton(page, CHAT).click();
-  await expect(savedButton(page, CHAT)).toBeVisible();
+  await (await saveItem(page, CHAT)).click();
+  await expect(savedMark(page, CHAT)).toBeVisible();
 
   await page.getByRole("button", { name: "빠른 찾기", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "빠른 찾기", exact: true });
@@ -128,11 +136,11 @@ test("reads at 1440, 1024 and 390", async ({ page }, info) => {
   for (const [width, height] of [[1440, 1000], [1024, 1000], [390, 844]]) {
     await page.setViewportSize({ width, height });
     await openDetail(page);
-    await saveButton(page, CHAT).click();
-    await expect(savedButton(page, CHAT)).toBeVisible();
+    await (await saveItem(page, CHAT)).click();
+    await expect(savedMark(page, CHAT)).toBeVisible();
     await capture(page, `detail-${width}`);
     expect(await noOverflow(page)).toBe(true);
-    await savedButton(page, CHAT).click();
-    await expect(saveButton(page, CHAT)).toBeVisible();
+    await (await saveItem(page, CHAT)).click();
+    await expect(savedMark(page, CHAT)).toHaveCount(0);
   }
 });
