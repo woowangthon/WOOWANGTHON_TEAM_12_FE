@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { ActorField, CompetencyField, ExperienceContentField, type InlineEditHandle } from "./inline-edit";
 import { ExperienceMcpChange } from "./experience-mcp-change";
 import { ExperienceSave } from "./experience-save";
-import { ProfileToggle } from "./profile-toggle";
+import { ProfileMenuItems, ProfileShareNote, useProfileShare } from "./profile-toggle";
 import { SupplementList } from "./supplement-list";
 import { UsedInChip, UsedInList } from "./used-in";
 
@@ -130,6 +130,7 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
   const editFromMenu = useRef(false);
   const [usedInOpen, setUsedInOpen] = useState(false);
   const e = experience;
+  const share = useProfileShare(e, onSaved);
   const usedIn = e.usedIn ?? [];
   const n = e.citations.length;
   const citeBtn =
@@ -159,6 +160,9 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
           <ExperienceContentField experience={e} readOnly={readOnly} editRef={contentEdit} onEditingChange={setEditing}
             onSaved={(result) => onSaved({ ...result, usedIn: result.usedIn ?? e.usedIn })} />
           {!readOnly && <>
+          {/* 저장은 위쪽 「…」 옆 아이콘, 프로필에 넣기는 「…」 메뉴 안 — 경험마다 늘 보이던 아래 줄을 없앤다(FE#272) */}
+          {/* 본문을 고치는 동안엔 숨긴다 — 좁은 폭에서 고치기 안내가 꺾이지 않게 */}
+          {!editing && <ExperienceSave compact experience={e} onChange={(saved) => onSaved({ ...e, saved })} />}
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
               <Button variant="ghost" size="icon" className="size-11" aria-label={`경험 메뉴: ${e.content}`}><DotsThreeIcon /></Button>
@@ -169,6 +173,7 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
                 <DropdownMenu.Item onSelect={() => onMove(e)} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">다른 활동으로 옮기기</DropdownMenu.Item>
                 {onMerge && <DropdownMenu.Item onSelect={() => onMerge(e)} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">다른 경험과 합치기</DropdownMenu.Item>}
                 <DropdownMenu.Item onSelect={() => onDelete(e)} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm text-error outline-none focus:bg-surface-soft">지우기</DropdownMenu.Item>
+                <ProfileMenuItems share={share} />
               </DropdownMenu.Content>
             </DropdownMenu.Portal>
           </DropdownMenu.Root></>}
@@ -201,12 +206,7 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
         )}
       </div>
       {<ExperienceMcpChange experience={e} readOnly={readOnly} onSaved={onSaved} />}
-      {!readOnly && (
-        <div className="flex flex-wrap items-center gap-x-3">
-          <ExperienceSave experience={e} onChange={(saved) => onSaved({ ...e, saved })} />
-          <ProfileToggle experience={e} onSaved={onSaved} />
-        </div>
-      )}
+      {!readOnly && <ProfileShareNote share={share} />}
       {usedInOpen && usedIn.length > 0 && <UsedInList usedIn={usedIn} id={`used-in-${e.id}`} />}
       {citationsOpen && (
         <div className="mt-1.5 hidden lg:block">

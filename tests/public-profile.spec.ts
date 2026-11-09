@@ -56,36 +56,45 @@ async function detail(page: Page, respond: (shared: boolean) => { status?: numbe
   return bodies;
 }
 
-const toggle = (page: Page, id: number) => page.locator(`#experience-${id}`).getByRole("switch", { name: /프로필에 넣기/ });
+// 프로필에 넣기는 경험 「…」 메뉴의 체크 항목이다(FE#272) — 메뉴를 열어 그 항목을 돌려준다
+async function toggle(page: Page, id: number) {
+  await page.keyboard.press("Escape");
+  await page.locator(`#experience-${id}`).getByRole("button", { name: /^경험 메뉴: / }).click();
+  return page.getByRole("menuitemcheckbox", { name: /프로필에 넣기/ });
+}
 
 test("experience goes in and out of the profile; needs-review cannot go in but can come out", async ({ page }) => {
   const bodies = await detail(page, (shared) => ({ json: { ...ACTIVITY.experiences[0], shared } }));
-  await expect(toggle(page, 101)).not.toBeChecked();
-  await toggle(page, 101).click();
-  await expect(toggle(page, 101)).toBeChecked();
-  await expect(page.locator("#experience-101").getByRole("link", { name: "공개 설정" })).toHaveAttribute("href", "/connections#public-profile");
-  await expect(page.locator("#experience-101")).toContainText("원문 확인");
-  await toggle(page, 101).click();
-  await expect(toggle(page, 101)).not.toBeChecked();
+  await expect(await toggle(page, 101)).toHaveAttribute("aria-checked", "false");
+  await (await toggle(page, 101)).click();
+  await expect(await toggle(page, 101)).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("menuitem", { name: "공개 설정" })).toHaveAttribute("href", "/connections#public-profile");
+  await (await toggle(page, 101)).click();
+  await expect(await toggle(page, 101)).toHaveAttribute("aria-checked", "false");
+  await page.keyboard.press("Escape");
   expect(bodies).toEqual([{ path: "/api/experiences/101/shared", shared: true }, { path: "/api/experiences/101/shared", shared: false }]);
+  // 늘 보이던 스위치는 줄에 없다
+  await expect(page.locator("#experience-101").getByRole("switch")).toHaveCount(0);
 
-  await expect(toggle(page, 104)).toBeDisabled();
-  await expect(page.locator("#experience-104")).toContainText("먼저 확인해 주세요");
+  await expect(await toggle(page, 104)).toHaveAttribute("aria-disabled", "true");
+  await expect(await toggle(page, 104)).toContainText("먼저 확인해 주세요");
+  await page.keyboard.press("Escape");
 
-  await expect(toggle(page, 105)).toBeEnabled();
+  await expect(await toggle(page, 105)).not.toHaveAttribute("aria-disabled", "true");
+  await page.keyboard.press("Escape");
   await expect(page.locator("#experience-105")).toContainText("확인이 필요해 공개에서 빠져 있어요");
 });
 
 test("409 from the server says to confirm first; other failures stay as they were", async ({ page }) => {
   let response = fail(409, "EXPERIENCE_NEEDS_REVIEW");
   await detail(page, () => response);
-  await toggle(page, 101).click();
+  await (await toggle(page, 101)).click();
   await expect(page.locator("#experience-101").getByRole("alert")).toHaveText("먼저 확인해 주세요");
-  await expect(toggle(page, 101)).not.toBeChecked();
+  await expect(await toggle(page, 101)).toHaveAttribute("aria-checked", "false");
   response = fail(500, "INTERNAL_ERROR");
-  await toggle(page, 101).click();
+  await (await toggle(page, 101)).click();
   await expect(page.locator("#experience-101").getByRole("alert")).toHaveText(/다시 시도/);
-  await expect(toggle(page, 101)).not.toBeChecked();
+  await expect(await toggle(page, 101)).toHaveAttribute("aria-checked", "false");
 });
 
 async function connections(page: Page, initial: Partial<PublicProfileSettings>) {
