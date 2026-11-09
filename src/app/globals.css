@@ -237,6 +237,44 @@
   .app-shell[data-sidebar-collapsed="false"] { --sidebar-width: 15.5rem; }
 }
 
+/* 차곡이(FE#276 · 디자인 데모 character-demo) — 블록이 맨 아래 분홍 → 초록 → 파랑 순으로 떨어져 쌓이고,
+   다 쌓이면 몇 초마다 눈을 깜빡인다. 움직임 줄이기면 아래 reduced-motion 규칙이 멈춘 그림으로 둔다. */
+.chagok-char {
+  --chagok-drop: 0.62s;
+  --chagok-stagger: 0.2s;
+}
+.chagok-char .chagok-block {
+  transform-box: fill-box;
+  transform-origin: 50% 100%; /* 바닥을 기준으로 찌그러졌다 펴진다 */
+  animation: chagok-drop var(--chagok-drop) both;
+}
+.chagok-char .chagok-block--green { animation-delay: var(--chagok-stagger); }
+.chagok-char .chagok-block--blue { animation-delay: calc(var(--chagok-stagger) * 2); }
+.chagok-char .chagok-eye {
+  transform-box: fill-box;
+  transform-origin: 50% 55%;
+  animation: chagok-blink 4s ease-in-out calc(var(--chagok-stagger) * 2 + var(--chagok-drop) + 0.15s) infinite;
+}
+@keyframes chagok-drop {
+  0% {
+    opacity: 0;
+    transform: translateY(-160px);
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  10% { opacity: 1; }
+  55% {
+    transform: translateY(0) scale(1, 1);
+    animation-timing-function: ease-out;
+  }
+  70% { transform: translateY(0) scale(1.08, 0.8); }
+  85% { transform: translateY(-3px) scale(0.97, 1.05); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes chagok-blink {
+  0%, 4%, 100% { transform: scaleY(1); }
+  2% { transform: scaleY(0.1); }
+}
+
 /* 분석 중 막대 — 정해진 진행률이 아니라 「돌고 있다」는 표시 */
 @keyframes analysis-slide {
   from {
