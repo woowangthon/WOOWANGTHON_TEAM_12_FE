@@ -26,19 +26,18 @@ export function categoryText(activity: Pick<ActivitySummary, "category" | "categ
   return `${ACTIVITY_CATEGORIES[category]}${activity.categoryBy === "AI" ? " (AI 해석)" : ""}`;
 }
 
-/** 활동 이름 칩의 모양 — 분류색은 [data-category] 가 정한다. onTint — 회색 카드 위(흰 칩) */
-export const activityTagClass = (onTint = false) =>
-  cn("inline-flex max-w-full rounded-full px-2.5 py-px text-xs font-semibold break-words text-category-ink", onTint ? "bg-canvas/85" : "bg-category-soft");
+/** 활동 이름 칩의 모양 — 분류색은 [data-category] 가 정한다. 회색 카드 위에서도 같은 분류색 칩(채팅 기준으로 통일) */
+const ACTIVITY_TAG = "inline-flex max-w-full rounded-full px-2.5 py-px text-xs font-semibold break-words text-category-ink bg-category-soft";
 
 /** 색만으로 분류를 알리지 않게 — 화면에선 숨기고 읽는 도구 · 마우스를 올린 말풍선으로 분류 이름을 준다 */
 export const categoryHint = (category: ActivityCategory | null | undefined) => category ? ACTIVITY_CATEGORIES[category] : undefined;
 
 /** 활동 이름 칩 — 내 경험 · 지원 · 알림 어디서든 분류색 칩은 이것(S-57 · FE#277). 색을 따로 주지 않는다 */
-export function ActivityTag({ category, onTint = false, className, children }: {
-  category: ActivityCategory | null | undefined; onTint?: boolean; className?: string; children: ReactNode;
+export function ActivityTag({ category, className, children }: {
+  category: ActivityCategory | null | undefined; className?: string; children: ReactNode;
 }) {
   const hint = categoryHint(category);
-  return <span data-category={category ?? undefined} title={hint} className={cn(activityTagClass(onTint), className)}>
+  return <span data-category={category ?? undefined} title={hint} className={cn(ACTIVITY_TAG, className)}>
     {children}{hint && <span className="sr-only"> ({hint})</span>}
   </span>;
 }

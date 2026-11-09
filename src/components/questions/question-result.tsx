@@ -12,9 +12,9 @@ import type { DraftActions } from "./answer-draft";
 /** 「바꿔요 — 캠퍼스 중고거래 앱」 → 「바꿔요」 (시안의 활동 칩) */
 export const shortName = (name: string) => name.split(" — ")[0];
 
-/** 활동 칩 — 분류색(S-57). onTint — 회색 카드 위(흰 칩), 아니면 흰 바탕 위(분류색 칩). 색은 칩에만 쓴다(시안 6 .act-chip) */
-export function ActivityChip({ name, onTint = false }: { name: string; onTint?: boolean }) {
-  return <ActivityTag category={useActivityCategory(name)} onTint={onTint} className="justify-self-start whitespace-nowrap">{shortName(name)}</ActivityTag>;
+/** 활동 칩 — 분류색(S-57). 어느 바탕 위에서도 같은 분류색 칩. 색은 칩에만 쓴다(시안 6 .act-chip) */
+export function ActivityChip({ name }: { name: string }) {
+  return <ActivityTag category={useActivityCategory(name)} className="justify-self-start whitespace-nowrap">{shortName(name)}</ActivityTag>;
 }
 
 export function RecommendationEvidence({ recommendation }: { recommendation: Pick<Recommendation, "experience" | "evidence"> }) {
@@ -67,7 +67,7 @@ export function QuestionResult({ question, elsewhere, savingAnswer, requestingDr
               disabled={picksLocked || (!picks.includes(r.experience.id) && pickedCount >= 3)} onChange={e => onPick(r.experience.id, e.target.checked)} />
           </label>
           <span className="grid gap-1">
-            <ActivityChip name={r.activity.name} onTint />
+            <ActivityChip name={r.activity.name} />
             <b className="text-ui leading-normal font-bold whitespace-pre-wrap">{r.experience.content}</b>
             <small className="text-note leading-normal text-muted">{r.reason}</small>
           </span>
