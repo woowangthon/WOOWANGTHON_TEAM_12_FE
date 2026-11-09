@@ -104,9 +104,11 @@ export function ApplicationScreen() {
   }, [restoreRun]);
   useEffect(() => {
     if (!linkedArea || !selectedQuestionId || selectedQuestionId !== linkedQuestion) return;
-    const id = linkedArea === "draft" ? `draft-title-${selectedQuestionId}` : linkedArea === "answer" ? `answer-title-${selectedQuestionId}` : "question-panel";
+    const answerId = `answer-title-${selectedQuestionId}`;
+    const id = linkedArea === "draft" ? `draft-title-${selectedQuestionId}` : linkedArea === "answer" ? answerId : "question-panel";
     const timer = setTimeout(() => {
-      const target = document.getElementById(id);
+      // 초안 카드는 문장이 있는 초안일 때만 그려진다 — 없으면 초안이 들어올 답칸으로 간다
+      const target = document.getElementById(id) ?? (linkedArea === "draft" ? document.getElementById(answerId) : null);
       target?.scrollIntoView({ block: "start" });
       target?.setAttribute("tabindex", "-1"); target?.focus({ preventScroll: true });
     }, 0);
