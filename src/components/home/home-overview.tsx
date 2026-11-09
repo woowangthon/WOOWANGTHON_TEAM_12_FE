@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { Popover } from "radix-ui";
-import { ClockCounterClockwiseIcon, FileTextIcon, StackIcon } from "@phosphor-icons/react";
+import { ArrowRightIcon, ClockCounterClockwiseIcon, FileTextIcon, StackIcon } from "@phosphor-icons/react";
+import { ExperienceBlocks, experienceYears } from "@/components/experience/experience-blocks";
 import { Mascot } from "@/components/questions/chagok-panel";
 import { Button } from "@/components/ui/button";
 import { thisTimeLastYear } from "@/lib/home-overview";
@@ -11,37 +12,27 @@ import type { HomeOverview } from "./use-home-overview";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "@/components/sidebar-layout";
 
+/** 내 경험 통계(S-83) — 쌓인 블록을 크게 보는 자리 */
+const STATS_HREF = "/experience?view=stats";
+
 export function HomeMascot({ overview, onRefresh, mode }: { overview: HomeOverview; onRefresh: () => void; mode: "out" | "in" }) {
   const { desktop } = useSidebar();
   const total = overview.activities?.reduce((n, a) => n + a.experienceCount, 0);
   const review = overview.details?.flatMap(a => a.experiences.filter(e => e.sourceStatus === "NEEDS_REVIEW").map(e => ({ activityId: a.id, experience: e })));
-  const years = new Map<string, { id: number; name: string; count: number }[]>();
-  overview.activities?.forEach(a => {
-    const year = a.period.start?.slice(0, 4) ?? "기간 모름";
-    years.set(year, [...(years.get(year) ?? []), { id: a.id, name: a.name, count: a.experienceCount }]);
-  });
+  const years = overview.activities ? experienceYears(overview.activities, overview.details) : [];
   return <>
     <Popover.Root>
       <Popover.Trigger asChild><button type="button" aria-label="차곡이 — 쌓인 경험 보기" className="rounded-md p-1.5 transition-transform hover:-translate-y-0.5 hover:-rotate-3 hover:bg-surface-soft"><Mascot size={56} /></button></Popover.Trigger>
       <Popover.Portal><Popover.Content side={desktop ? "right" : "bottom"} align="center" sideOffset={12} collisionPadding={16} aria-label="쌓인 블록" className="z-40 w-72 max-w-[calc(100vw-2rem)] rounded-md border border-hairline bg-canvas p-4 text-ink shadow-float">
         {overview.activityError ? <p className="m-0 text-sm text-error">{overview.activityError} <Button variant="link" onClick={onRefresh}>다시 시도</Button></p>
           : total === undefined ? <p role="status" className="m-0 text-sm text-muted">경험을 불러오고 있어요…</p>
-          : <Link href="/experience" className="flex items-end gap-3" aria-label={`쌓인 경험 ${total}개 — 내 경험 보기`}>
-            <span className="flex max-h-52 min-h-16 min-w-0 flex-1 items-end gap-3 overflow-auto py-1">
-              {[...years].sort(([a], [b]) => a.localeCompare(b)).map(([year, activities], index) => <span key={year} className="flex shrink-0 flex-col items-center gap-1.5">
-                <span className="flex min-h-8 flex-col-reverse gap-0.5" aria-label={`${year} 경험 ${activities.reduce((n, a) => n + a.count, 0)}개`}>
-                  {activities.flatMap(a => Array.from({ length: a.count }, (_, i) => {
-                    const experience = overview.details?.find(d => d.id === a.id)?.experiences[i];
-                    return <i key={`${a.id}-${i}`} title={experience?.content ?? `${a.name}의 경험`} className={cn("block h-1.5 w-5 rounded-sm even:translate-x-0.5", ["bg-mark", "bg-record-green", "bg-record-pink"][index % 3], experience?.sourceStatus === "NEEDS_REVIEW" && "outline-1 outline-offset-1 outline-dashed outline-review-line")} />;
-                  }))}
-                </span>
-                <small className="text-xs text-muted">{year}</small>
-              </span>)}
-            </span>
+          : <Link href={STATS_HREF} className="flex items-end gap-3" aria-label={`쌓인 경험 ${total}개 — 통계 보기`}>
+            <ExperienceBlocks years={years} className="max-h-52 min-h-16 flex-1 overflow-y-auto py-1" />
             <span className="shrink-0 self-center text-right text-xs leading-relaxed text-muted"><b className="text-2xl text-ink">{total}</b>개의 경험이<br />차곡차곡</span>
           </Link>}
         {total === 0 && <p className="mt-2 mb-0 text-note text-muted">자료를 넣으면 경험 하나가 블록 하나로 쌓여요.</p>}
         <p className="mt-3 mb-0 text-note leading-relaxed text-muted">활동 시작 연도별 경험 수예요. 점선은 확인이 필요한 경험이에요.</p>
+        {!!total && <Link href={STATS_HREF} className="mt-2 inline-flex min-h-11 items-center gap-1 text-note font-medium text-ink underline underline-offset-4 lg:min-h-0">내 경험 통계 보기<ArrowRightIcon className="size-3.5" aria-hidden="true" /></Link>}
         {overview.detailError && <p className="mt-2 mb-0 text-note text-error">{overview.detailError} <Button variant="link" onClick={onRefresh}>다시 시도</Button></p>}
       </Popover.Content></Popover.Portal>
     </Popover.Root>

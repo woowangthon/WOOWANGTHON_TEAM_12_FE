@@ -5,7 +5,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowsClockwiseIcon, ChartBarHorizontalIcon, MagnifyingGlassIcon, PlusIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { ArrowsClockwiseIcon, ChartBarHorizontalIcon, ChartPieSliceIcon, PlusIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { Tooltip } from "radix-ui";
 import { AddSourceButton, AppHeader, RailTip, type AddSourceProps } from "@/components/app-header";
 import { useSidebar } from "@/components/sidebar-layout";
@@ -22,9 +22,9 @@ import { ACTIVITY_CATEGORIES, type ActivityCategory, type ActivitySummary, type 
 import { monthNumber, periodText, spanOf, yearsOf, type Span } from "@/lib/period";
 import { CATEGORY_KEYS, CategoryIcon, categoryOf } from "./activity-category";
 import { ActivityDetailView, type DetailState } from "./activity-detail";
-import { ExperienceSearch } from "./experience-search";
-import { experienceSearchFromParams } from "@/lib/experience-search-link";
-import type { ExperienceSearch as ExperienceSearchConditions } from "@/lib/api/types";
+import { ExperienceStats } from "./experience-stats";
+import { EXPERIENCE_SEARCH_PARAMS, experienceSearchFromParams } from "@/lib/experience-search-link";
+import { useQuickFindOpen } from "@/components/quick-find/quick-find";
 import { MergeActivityDialog, MergeExperienceDialog, MoveExperienceDialog } from "./regroup-dialogs";
 import { Timeline } from "./timeline";
 import { useExperienceDeletion } from "./use-experience-deletion";
@@ -69,14 +69,11 @@ export function TimelineScreen() {
   const [mergeOpen, setMergeOpen] = useState(false);
   // 거르기 칩(S-57) — 받은 목록에서 FE 가 거른다. 저장하지 않아 새로고침하면 「전체」로 돌아간다
   const [categoryFilter, setCategoryFilter] = useState<ActivityCategory | null>(null);
-  // 경험 찾기(S-58) — ?q=낱말 로 들어오면 찾기부터. 한 번 열면 낱말 · 거르기를 지키려고 숨기기만 한다
-  const linkedQuery = params.get("q");
-  const [listView, setListView] = useState<ExperienceView>(linkedQuery === null ? "timeline" : "search");
-  const [searchOpened, setSearchOpened] = useState(linkedQuery !== null);
-  // 빠른 찾기(S-61)가 넘긴 조건 — 바뀌면 찾기를 그 조건으로 새로 연다
-  const [searchStart, setSearchStart] = useState(() => ({ search: experienceSearchFromParams(params), version: 0 }));
-  const [searchVersion, setSearchVersion] = useState(0);
-  const refreshSearch = () => setSearchVersion((n) => n + 1);
+  // 통계(S-83) — 홈 쌓인 블록의 「통계 보기」(?view=stats)로 들어오면 통계부터
+  const [listView, setListView] = useState<ExperienceView>(params.get("view") === "stats" ? "stats" : "timeline");
+  // 경험 내용이 바뀌면 통계가 출처 상태 · 역량을 다시 센다
+  const [statsVersion, setStatsVersion] = useState(0);
+  const refreshStats = () => setStatsVersion((n) => n + 1);
   const detailRequest = useRef(0);
   const savedNotes = useRef(new Map<number, { note: string | null }>());
   const listRequest = useRef(0);
@@ -194,6 +191,19 @@ export function TimelineScreen() {
     // 이 화면이 이미 떠 있을 때 들어온 ?add=1(빠른 찾기 창이 화면이 뜨는 도중에 보낸 것)도 받는다
   }, [addRequested, showToast]);
 
+  // 예전 경험 찾기 주소(?q=…)는 빠른 찾기 창 찾기 탭으로 넘긴다 — 경험 찾기 자리가 그 탭 하나다(S-58 · FE#274).
+  // 새로고침에 다시 열리지 않게 조건은 주소에서 지운다
+  const openQuickFind = useQuickFindOpen();
+  const linkedQuery = params.get("q");
+  useEffect(() => {
+    if (linkedQuery === null || !openQuickFind) return;
+    const search = experienceSearchFromParams(new URL(window.location.href).searchParams);
+    const url = new URL(window.location.href);
+    EXPERIENCE_SEARCH_PARAMS.forEach((key) => url.searchParams.delete(key));
+    window.history.replaceState(null, "", url);
+    openQuickFind(search);
+  }, [linkedQuery, openQuickFind]);
+
   const analysis = useAnalysisJob(async (job, { batch }) => {
     const target = job.targetActivityId;
     // 완료 알림은 목록을 다시 읽기 전에 띄운다 — 읽는 동안(운영은 요청 하나 0.5 ~ 1초) 화면을 옮기면 놓쳤다(FE#244).
@@ -205,7 +215,7 @@ export function TimelineScreen() {
       showToast(`${isMockMode() ? "목 결과예요. " : ""}자료에서 찾은 내용을 활동에 더했어요.${job.activityIds.length ? ` 새 활동 ${job.activityIds.length}개도 생겼어요.` : ""}`);
     } else if (!batch && target == null && job.activityIds.length) showToast(done);
     const activities = await loadList(mock);
-    refreshSearch();
+    refreshStats();
     if (!activities) {
       showToast("분석은 완료됐지만 활동을 불러오지 못했어요. 다시 시도해 주세요.");
       return;
@@ -249,20 +259,13 @@ export function TimelineScreen() {
     requestAnimationFrame(() => window.scrollTo(0, listScrollY.current));
   };
 
-  const searchFor = (search: ExperienceSearchConditions) => {
-    if (selectedRef.current != null) close(); // 모바일 — 세부가 목록을 가린다
-    setListView("search");
-    setSearchOpened(true);
-    setSearchStart((prev) => ({ search, version: prev.version + 1 }));
-  };
-
   const activitySaved = (activity: ActivitySummary) => {
     const queued = periodSaves.current.get(activity.id);
     if (queued && !queued.running) {
       queued.confirmed = queued.latest = activity.period;
     }
     ++listRequest.current;
-    refreshSearch();
+    refreshStats();
     setList((prev) => prev.status === "ready" ? { ...prev, activities: prev.activities.map((a) => a.id === activity.id ? activity : a) } : prev);
     setDetail((prev) => prev.status === "ready" && prev.activity.id === activity.id ? { ...prev, activity: { ...prev.activity, name: activity.name, period: activity.period } } : prev);
   };
@@ -278,7 +281,7 @@ export function TimelineScreen() {
   // 분류만 반영한다. 세부는 목록 줄(summary)의 분류를 읽으니 목록만 고치면 된다
   const categorySaved = (activity: ActivitySummary) => {
     ++listRequest.current;
-    refreshSearch();
+    refreshStats();
     setList(prev => prev.status === "ready" ? { ...prev, activities: prev.activities.map(a => a.id === activity.id ? { ...a, category: activity.category, categoryBy: activity.categoryBy } : a) } : prev);
   };
 
@@ -325,17 +328,12 @@ export function TimelineScreen() {
   };
 
   const experienceSaved = (experience: Experience) => {
-    refreshSearch();
+    refreshStats();
     setDetail((prev) => prev.status === "ready" && prev.activity.id === experience.activityId ? { ...prev, activity: { ...prev.activity, experiences: prev.activity.experiences.map((e) => e.id === experience.id ? experience : e) } } : prev);
   };
 
-  const savedChanged = (id: number, saved: boolean) => {
-    refreshSearch();
-    setDetail((prev) => prev.status === "ready" ? { ...prev, activity: { ...prev.activity, experiences: prev.activity.experiences.map((e) => e.id === id ? { ...e, saved } : e) } } : prev);
-  };
-
   const experienceAdded = (experience: Experience) => {
-    refreshSearch();
+    refreshStats();
     if (selectedRef.current === experience.activityId) ++detailRequest.current;
     ++listRequest.current;
     setDetail((prev) => prev.status === "ready" && prev.activity.id === experience.activityId
@@ -361,7 +359,7 @@ export function TimelineScreen() {
     shiftCount({ [fromId]: -1, [toId]: 1 });
     moveExperience(experience.id, toId).then(
       (moved) => {
-        refreshSearch();
+        refreshStats();
         // 그새 옮겨 간 활동을 열었으면 뒤에 붙인다(계약: 옮겨 온 경험은 뒤에)
         setDetail((prev) => prev.status === "ready" && prev.activity.id === moved.activityId && !prev.activity.experiences.some((e) => e.id === moved.id)
           ? { ...prev, activity: { ...prev.activity, experiences: [...prev.activity.experiences, moved] } } : prev);
@@ -384,7 +382,7 @@ export function TimelineScreen() {
   /** 활동 합치기(S-13) — 확인 창에서 응답을 기다린다. 실패하면 던져서 창에 이유를 남기고 화면은 그대로 둔다 */
   const merge = async (keepId: number, fromId: number) => {
     const kept = await mergeActivities(keepId, fromId);
-    refreshSearch();
+    refreshStats();
     periodSaves.current.delete(keepId);
     periodSaves.current.delete(fromId);
     ++listRequest.current;
@@ -404,7 +402,7 @@ export function TimelineScreen() {
   const mergeExperience = async (keepId: number, fromId: number) => {
     const merged = await mergeExperiences(keepId, fromId);
     const activityId = merged.activityId;
-    refreshSearch();
+    refreshStats();
     ++listRequest.current;
     shiftCount({ [activityId]: -1 });
     setDetail((prev) => prev.status === "ready" && prev.activity.id === activityId
@@ -433,7 +431,7 @@ export function TimelineScreen() {
   };
 
   const deletion = useExperienceDeletion((experience) => {
-    refreshSearch();
+    refreshStats();
     ++listRequest.current;
     if (selectedRef.current === experience.activityId) ++detailRequest.current;
     setDetail((prev) => prev.status === "ready" && prev.activity.id === experience.activityId
@@ -462,7 +460,7 @@ export function TimelineScreen() {
     const activities = categoryFilter ? ready.activities.filter((a) => categoryOf(a) === categoryFilter) : ready.activities;
     const shown = [...activities.flatMap((a) => spans.get(a.id) ?? []), ...marks];
     const years = yearsOf(shown).filter((y) => !categoryFilter || shown.some((s) => Math.floor(s.start / 12) <= y && y <= Math.floor(s.end / 12)));
-    return { spans, activities, years, activityYears: yearsOf([...spans.values()]) };
+    return { spans, activities, years };
   }, [ready, appItems, categoryFilter]);
 
   const selected = ready?.activities.find((a) => a.id === selectedId) ?? null;
@@ -491,7 +489,7 @@ export function TimelineScreen() {
 
   return (
     <div className="flex min-h-dvh flex-1 flex-col bg-canvas lg:h-dvh">
-      <AppHeader hideTabBar={!!selected} addSource={addSource} experienceCount={ready ? countExperiences(ready.activities) : null} quickFind={{ openActivity: select, search: searchFor }} />
+      <AppHeader hideTabBar={!!selected} addSource={addSource} experienceCount={ready ? countExperiences(ready.activities) : null} quickFind={{ openActivity: select }} />
       {Number(params.get("workJob")) > 0 && !isMockMode() && <SourceWorkDetail key={params.get("workJob")} jobId={Number(params.get("workJob"))} />}
       {/* 실제 API 모드엔 안내 줄을 두지 않는다 — 목 모드 표시(대회 규칙 1)와 지원에서 온 길만 (FE#174) */}
       {(isMockMode() || fromQuestion) && <p className="m-0 border-b border-hairline px-4 py-2 text-note text-muted" role="note">
@@ -537,16 +535,14 @@ export function TimelineScreen() {
                     </span>
                   </span>
                 </div>
-                <ViewSwitch view={listView} onChange={(next) => { setListView(next); if (next === "search") setSearchOpened(true); }} />
+                <ViewSwitch view={listView} onChange={setListView} />
               </div>
               {view && analysis.tracked && !shownInDetail && (
                 <AnalysisBanner view={view} tracked={analysis.tracked} {...analysisActions} />
               )}
               {batchStatus}
-              {searchOpened && (
-                <div hidden={listView !== "search"}>
-                  <ExperienceSearch key={searchStart.version} initial={searchStart.search} years={timeline.activityYears} mock={mock} version={searchVersion} hiddenIds={hiddenIds} onOpen={select} onSavedChange={savedChanged} />
-                </div>
+              {listView === "stats" && (
+                <ExperienceStats activities={ready.activities} version={statsVersion} hiddenIds={hiddenIds} addSource={addSource} onOpenActivity={select} />
               )}
               {listView === "timeline" && (
                 <>
@@ -662,12 +658,12 @@ export function TimelineScreen() {
   );
 }
 
-type ExperienceView = "timeline" | "search";
+type ExperienceView = "timeline" | "stats";
 
-/** 타임라인(활동 단위) · 경험 찾기(경험 단위) 전환 — 시안 6 .vt. 1024 미만은 말풍선이 없어 글자를 같이 보인다 */
+/** 타임라인 · 통계(S-83) 전환 — 시안 6 .vt 자리. 경험 찾기는 빠른 찾기 창 하나로 옮겼다(S-58 · FE#274). 1024 미만은 말풍선이 없어 글자를 같이 보인다 */
 function ViewSwitch({ view, onChange }: { view: ExperienceView; onChange: (next: ExperienceView) => void }) {
   const { desktop } = useSidebar();
-  const tab = (value: ExperienceView, label: string, Icon: typeof MagnifyingGlassIcon) => (
+  const tab = (value: ExperienceView, label: string, Icon: typeof ChartPieSliceIcon) => (
     <RailTip label={label} enabled={desktop}>
       <button
         type="button"
@@ -687,7 +683,7 @@ function ViewSwitch({ view, onChange }: { view: ExperienceView; onChange: (next:
     <Tooltip.Provider delayDuration={200}>
       <div data-slot="view-switch" className="ml-auto inline-flex gap-0.5 rounded-full bg-surface-soft p-[3px]">
         {tab("timeline", "타임라인", ChartBarHorizontalIcon)}
-        {tab("search", "경험 찾기", MagnifyingGlassIcon)}
+        {tab("stats", "통계", ChartPieSliceIcon)}
       </div>
     </Tooltip.Provider>
   );
