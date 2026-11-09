@@ -13,7 +13,7 @@ import { confirmDraftSentence, setDraftSentenceRemoved } from "@/lib/api/questio
 import { updateSupplement } from "@/lib/api/experience";
 import { MAX_GROUNDING_TEXT_LENGTH, type Answer, type GroundingStatus, type QuestionDetail } from "@/lib/api/question-types";
 import { AnswerEvidence } from "./answer-evidence";
-import { analyze, composeDraft, DraftEditor, type EditorHandle, type Mark, type Selection } from "./answer-draft";
+import { analyze, composeDraft, DraftEditor, GROUND_LABEL as LABEL, type EditorHandle, type Mark, type Selection } from "./answer-draft";
 import { setEditedAnswer } from "./answer-box-state";
 import type { AnswerHandler } from "./clarifications";
 import { DraftGuidance } from "./draft-guidance";
@@ -21,7 +21,6 @@ import { failureReason } from "./draft-errors";
 import { useGroundingCheck, type GroundingChecks } from "./use-grounding-check";
 import { TargetLengthField } from "./type-fields";
 
-const LABEL: Record<GroundingStatus, string> = { SOURCE: "원문", USER_INPUT: "내가 입력", UNSUPPORTED: "근거 없음", OPINION: "생각 · AI 해석" };
 const TINT: Record<GroundingStatus, string> = { SOURCE: "bg-evidence-soft", USER_INPUT: "bg-primary-soft", UNSUPPORTED: "bg-review-soft", OPINION: "" };
 
 type AnswerChange = (id: number, answer: Answer | null) => void;
@@ -46,9 +45,9 @@ function LoadedAnswer({ question, onAnswerChange, checks, draftLabel, onAskDraft
   </>;
 }
 
-/** 답칸의 상태 — 어느 초안(key)을 담았나, 이 화면에서 답한 빈칸(local), 고친 문장에 이 화면에서 누른 맞아요(mine — 문장 번호 → 그때 글).
+/** 답칸의 상태 — 어느 초안(key)을 담았나, 이 화면에서 답한 빈칸(local), 고친 문장에 이 화면에서 누른 맞아요(mine — 표시 키 → 그때 글).
  *  뺀 문장은 서버 값(sentences[].removed)이고 removed 는 저장을 기다리는 동안만 쓴다(FE#262). 고친 글 · mine 은 저장하지 않는다(자동 저장 S-72 · FE#213 전 — 떠날 때 경고) */
-type Box = { key: string | null; removed: Set<number>; local: Record<number, string>; mine: Record<number, string>; sawDrafting: boolean };
+type Box = { key: string | null; removed: Set<number>; local: Record<number, string>; mine: Record<string, string>; sawDrafting: boolean };
 const later = (a: string, b: string) => Date.parse(a) > Date.parse(b);
 
 function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, onAnswer, onRefresh, draftBusy, onTargetLength }: { question: QuestionDetail; confirmed: ReturnType<typeof useConfirmedAnswer>; checks: GroundingChecks; draftLabel: string | null; onAskDraft: () => void } & DraftHooks) {
@@ -83,11 +82,11 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
   }
   // 뺀 문장 — 서버에 저장된 것과 저장 중인 것
   const removed = useMemo(() => new Set([...box.removed, ...(removedKey ? removedKey.split(",").map(Number) : [])]), [box.removed, removedKey]);
-  const analysis = useMemo(() => ready ? analyze(question, ready, removed, box.local, box.mine, text) : null, [question, ready, removed, box.local, box.mine, text]);
+  const analysis = useMemo(() => analyze(question, ready, removed, box.local, box.mine, text, g.check), [question, ready, removed, box.local, box.mine, text, g.check]);
   const latest = useRef(analysis);
   useEffect(() => { latest.current = analysis; });
   const target = question.targetLength ?? null;
-  const marked = !!analysis?.marks.length;
+  const marked = !!analysis.marks.length || !!analysis.own.length;
   const left = analysis?.checks.length ?? 0;
   const blanksLeft = analysis?.chips.length ?? 0;
 
@@ -137,7 +136,7 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
     const sentence = ready?.sentences[mark.index];
     if (!sentence) return;
     if (!mark.edited && mark.need === "marked" && sentence.id != null) { await confirmDraftSentence(sentence.id); await onRefresh(); }
-    else setBox(b => ({ ...b, mine: { ...b.mine, [mark.index]: mark.text } }));
+    else setBox(b => ({ ...b, mine: { ...b.mine, [`s-${mark.index}`]: mark.text } }));
     setSelected(null);
   };
 
@@ -157,6 +156,7 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
   const analyzing = g.check?.status === "ANALYZING";
   const valid = !!text.trim() && text.length <= MAX_GROUNDING_TEXT_LENGTH;
   const stale = g.check?.status === "COMPLETED" && text !== g.check.text;
+  const unsupportedCount = g.check?.status === "COMPLETED" ? g.check.sentences.filter(x => x.status === "UNSUPPORTED").length : 0;
   // 고친 사실 문장 — 그 글로 근거 점검을 안 했으면 다 썼어요 때 한 번 권한다(뜻이 바뀐 건 코드가 못 잡는다)
   const editedFacts = analysis?.marks.filter(m => m.edited && ready?.sentences[m.index].kind === "FACT").length ?? 0;
   const groundFirst = editedFacts > 0 && !(g.check?.status === "COMPLETED" && g.check.text === text);
@@ -186,6 +186,7 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
         text={text} onText={g.setText} placeholder="여기에 답을 쓰거나, 차곡이에게 초안을 부탁해 보세요."
         disabled={g.loading || g.busy || analyzing || !g.initialized || locked} cardsDisabled={draftBusy || locked}
         selected={selected} onSelect={setSelected} onRemove={m => void remove(m)} onConfirm={confirm} onActorDecided={onRefresh}
+        onConfirmOwn={o => setBox(b => ({ ...b, mine: { ...b.mine, [`g-${o.index}`]: o.text } }))}
         onAnswer={async (chip, answer) => {
           await onAnswer(chip.omission.clarificationId!, answer);
           setBox(b => ({ ...b, local: { ...b.local, [chip.omission.clarificationId!]: answer } }));
@@ -244,9 +245,12 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
       <p role="alert" className="m-0 text-sm text-error">{g.check.error?.message || "근거 점검을 마치지 못했어요."} 점검할 글은 저장돼 있어요.</p>
       <Button variant="secondary" className="min-h-11" disabled={g.busy} onClick={() => void g.submit(g.check!.text)}>같은 글로 다시 시도</Button>
     </div>}
-    {g.check?.status === "COMPLETED" && <div className="grid min-w-0 gap-4">
-      <h4 className="m-0 text-sm font-semibold">{stale ? "고치기 전 결과 — 다시 점검해 주세요" : "문장별 근거 점검"}</h4>
-      <p className="m-0 text-note leading-relaxed text-muted">근거 없음은 현재 자료에서 받칠 근거를 찾지 못했다는 뜻이에요. 거짓이라는 뜻은 아니에요. 판정과 이유는 AI 해석이니 직접 확인해 주세요.</p>
+    {/* 점검 결과는 답칸 문장 카드에 붙는다(FE#307) — 목록은 요약 한 줄로 접어 화면 읽기 · 비교용으로 남긴다 */}
+    {g.check?.status === "COMPLETED" && <details className="grid min-w-0 gap-4 rounded-sm bg-surface-soft px-3.5 py-2.5">
+      <summary className="min-h-11 cursor-pointer content-center text-sm font-semibold">
+        {stale ? "고치기 전 근거 점검 — 다시 점검해 주세요" : unsupportedCount ? `근거 점검 — 근거 없음 ${unsupportedCount}문장 · 답칸에 칠했어요` : "근거 점검 — 근거 없음 없어요"}
+      </summary>
+      <p className="m-0 text-note leading-relaxed text-muted">근거 없음은 현재 자료에서 받칠 근거를 찾지 못했다는 뜻이에요. 거짓이라는 뜻은 아니에요. 판정과 이유는 AI 해석이니 직접 확인해 주세요. 답칸에서 문장을 누르면 그 문장의 결과가 보여요.</p>
       <ol aria-label={stale ? "고치기 전 문장별 근거" : "문장별 근거"} className="m-0 grid list-none gap-4 p-0">
         {g.check.sentences.map((s, i) => <li key={i} className="grid min-w-0 gap-2">
           <p className="m-0 whitespace-pre-wrap break-words text-ui leading-loose"><span className={`${TINT[s.status]} rounded-sm px-1 py-0.5`}>{s.text}</span></p>
@@ -257,7 +261,7 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
           {(s.status === "SOURCE" || s.status === "USER_INPUT") && !s.evidence.length && <p className="m-0 text-sm text-muted">연결된 근거가 지금은 없어요. 판정은 점검했을 때 그대로이니 다시 점검해 주세요.</p>}
         </li>)}
       </ol>
-    </div>}
+    </details>}
     <Dialog open={ask !== null} onOpenChange={o => { if (!o) setAsk(null); }}>
       <DialogContent>
         {ask === "ground" ? <>
