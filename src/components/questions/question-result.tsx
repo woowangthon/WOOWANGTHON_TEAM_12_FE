@@ -5,6 +5,7 @@ import { CitationList } from "@/components/experience/citation-list";
 import { McpAnswerLabel, UserEnteredLabel } from "@/components/experience/supplement-list";
 import type { QuestionDetail, Recommendation } from "@/lib/api/question-types";
 import type { OverlapUse } from "./overlap";
+import { ActivityTag } from "@/components/experience/activity-category";
 import { useActivityCategory } from "./activity-categories";
 import type { DraftActions } from "./answer-draft";
 
@@ -13,7 +14,7 @@ export const shortName = (name: string) => name.split(" — ")[0];
 
 /** 활동 칩 — 분류색(S-57). onTint — 회색 카드 위(흰 칩), 아니면 흰 바탕 위(분류색 칩). 색은 칩에만 쓴다(시안 6 .act-chip) */
 export function ActivityChip({ name, onTint = false }: { name: string; onTint?: boolean }) {
-  return <span data-category={useActivityCategory(name)} className={`inline-flex justify-self-start rounded-full px-2.5 py-px text-xs font-semibold whitespace-nowrap text-category-ink ${onTint ? "bg-canvas/85" : "bg-category-soft"}`}>{shortName(name)}</span>;
+  return <ActivityTag category={useActivityCategory(name)} onTint={onTint} className="justify-self-start whitespace-nowrap">{shortName(name)}</ActivityTag>;
 }
 
 export function RecommendationEvidence({ recommendation }: { recommendation: Pick<Recommendation, "experience" | "evidence"> }) {

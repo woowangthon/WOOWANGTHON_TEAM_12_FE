@@ -63,8 +63,8 @@ async function fakeApi(page: Page) {
   return state;
 }
 
-const addActivity = (state: Awaited<ReturnType<typeof fakeApi>>, id: number, name: string, mergeSuggestion: ActivitySummary["mergeSuggestion"] = null) => {
-  state.activities.push({ id, name, period, experienceCount: 1, mergeSuggestion });
+const addActivity = (state: Awaited<ReturnType<typeof fakeApi>>, id: number, name: string, mergeSuggestion: ActivitySummary["mergeSuggestion"] = null, category: ActivitySummary["category"] = null) => {
+  state.activities.push({ id, name, period, experienceCount: 1, mergeSuggestion, category });
   state.details.set(id, { id, name, period, mergeSuggestion, experiences: [experience(id * 10, id, `${name}에서 한 일`)] });
 };
 const textFile = (name: string, text = `${name} 내용`) => ({ name, mimeType: "text/plain", buffer: Buffer.from(text) });
@@ -106,10 +106,26 @@ test("못 넣는 파일은 이유를 보이고 나머지만 묶음으로 보낸�
   await expect(rows.nth(1)).toContainText("분석 중");
   expect(state.batches).toHaveLength(1);
 
-  addActivity(state, 8, "바꿔요 README", { activityId: 7, name: "바꿔요", period });
+  addActivity(state, 8, "바꿔요 README", { activityId: 7, name: "바꿔요", period }, "STUDY");
   Object.assign(state.jobs.get(35)!, { status: "COMPLETED", activityIds: [8] });
   await expect(rows.nth(1)).toContainText("완료 — 활동 1개", { timeout: 10000 });
   await expect(rows.nth(1)).toContainText("기존 활동과 같아 보이는 활동 1개");
+  // FE#277 — 알림의 새 활동 칩도 내 경험 · 지원과 같은 분류색(공부 · 성장)이고 분류 이름이 글자로 있다
+  const chip = rows.nth(1).locator("[data-category=STUDY]");
+  await expect(chip).toContainText("공부 · 성장");
+  const [shown, token] = await Promise.all([
+    chip.evaluate((el) => { const { backgroundColor, color } = getComputedStyle(el); return { backgroundColor, color }; }),
+    page.evaluate(() => {
+      const probe = document.createElement("span");
+      probe.dataset.category = "STUDY";
+      probe.style.cssText = "background-color: var(--category-soft); color: var(--category-ink)";
+      document.body.append(probe);
+      const { backgroundColor, color } = getComputedStyle(probe);
+      probe.remove();
+      return { backgroundColor, color };
+    }),
+  ]);
+  expect(shown).toEqual(token);
   await page.screenshot({ path: `test-results/source-batch-status-${test.info().project.name}.png`, style: "nextjs-portal { display: none !important; }" });
 
   await rows.nth(0).getByRole("button", { name: "다시 시도" }).click();
