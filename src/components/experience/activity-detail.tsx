@@ -119,12 +119,12 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
                 type="button"
                 onClick={onAddSource}
                 disabled={addSourceBusy}
-                title={addSourceBusy ? "지금 넣은 자료의 분석이 끝나면 더 넣을 수 있어요" : undefined}
                 className="min-h-8 rounded-full px-2 text-xs font-semibold text-muted hover:bg-surface-soft hover:text-ink disabled:pointer-events-none disabled:opacity-50"
               >
                 + 자료 더하기
               </button>
             )}
+            {canAddSource && addSourceBusy && <span>분석이 끝나면 더 넣을 수 있어요</span>}
           </p>
         )}
       </header>

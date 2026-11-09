@@ -1,5 +1,6 @@
 "use client";
 
+import { InfoTip } from "@/components/ui/info-tip";
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AppHeader } from '@/components/app-header';
@@ -75,8 +76,8 @@ export function GuidelineScreen() {
       <div className="mx-auto grid max-w-4xl min-w-0 gap-6">
         <header className="grid gap-3">
           <Link href="/questions" className="inline-flex min-h-11 items-center justify-self-start text-sm text-muted hover:underline">← 지원으로 돌아가기</Link>
-          <h1 className="m-0 text-2xl font-bold">작성 지침</h1>
-          <p className="m-0 text-sm leading-relaxed text-muted">들었던 작성법을 내 지침으로 쌓아 두세요. 켠 지침은 모든 답변 초안의 문체 · 구성 · 강조에 써요. 근거에 없는 사실은 만들지 않아요.</p>
+          <div className="flex items-center gap-1"><h1 className="m-0 text-2xl font-bold">작성 지침</h1><InfoTip label="작성 지침">켠 지침은 모든 답변 초안의 문체 · 구성 · 강조에 써요. 근거에 없는 사실은 만들지 않아요.</InfoTip></div>
+          <p className="m-0 text-sm leading-relaxed text-muted">들었던 작성법을 내 지침으로 쌓아 두세요.</p>
         </header>
         {error && <p role="alert" className="m-0 text-sm text-error">{error}</p>}
         <section aria-labelledby="compose-title" className={card}>
@@ -117,8 +118,7 @@ export function GuidelineScreen() {
           </form>}
         </section>}
         <section aria-labelledby="guidelines-title" className={card}>
-          <h2 id="guidelines-title" className="m-0 text-lg font-semibold">내 지침 {items.length} / 50 · 켬 {enabled} / 10</h2>
-          <p className="m-0 text-sm leading-relaxed text-muted">켠 지침은 다음에 만드는 초안부터 반영돼요. 고치거나 지워도 이미 만든 초안의 지침 표시는 그대로예요. 지침이 부딪치면 하나를 꺼 주세요.</p>
+          <div className="flex items-center gap-0.5"><h2 id="guidelines-title" className="m-0 text-lg font-semibold">내 지침 {items.length} / 50 · 켬 {enabled} / 10</h2><InfoTip label="내 지침">켠 지침은 다음에 만드는 초안부터 반영돼요. 지침이 부딪치면 하나를 꺼 주세요.</InfoTip></div>
           {loading ? <p role="status" className="m-0 text-sm text-muted">지침을 불러오고 있어요…</p> : loadError ? <div className="grid justify-items-start gap-2"><p role="alert" className="m-0 text-sm text-error">{loadError}</p><Button variant="secondary" onClick={() => { setLoading(true); void load(); }}>다시 불러오기</Button></div> : <>
             {!items.length && <p className="m-0 py-6 text-sm text-muted">아직 작성 지침이 없어요. 위 「지침 더하기」에 한 줄 쓰거나 들었던 작성법을 붙여 넣어 주세요.</p>}
             <ul className="m-0 grid list-none gap-4 p-0">{items.map(g => <li key={g.id} aria-label={'작성 지침 ' + g.id} className="grid min-w-0 gap-3 border-t border-hairline pt-4">

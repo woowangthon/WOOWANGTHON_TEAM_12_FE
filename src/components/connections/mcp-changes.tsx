@@ -2,6 +2,7 @@
 
 // 외부 AI 변경 기록 — 언제 · 어느 AI · 무엇을 · 왜, 건별 맞아요 · 되돌리기 (S-53 · S-54 · mcp-api.md 「변경 기록」)
 // 종류를 더할 때는 아래 표와 Body 에 한 줄씩 더한다(FE#118)
+import { InfoTip } from "@/components/ui/info-tip";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { CaretRightIcon } from "@phosphor-icons/react";
@@ -216,7 +217,7 @@ export function McpChangeLog({ writeEnabled }: { writeEnabled: boolean }) {
     </summary>
     <div className="pb-4">
       <div className="flex flex-wrap items-center justify-between gap-x-3">
-        <p className="text-sm leading-relaxed text-muted">외부 AI가 바꾼 것을 건별로 확인하고 되돌려요. 웹에서 고친 것은 남지 않아요.</p>
+        <p className="inline-flex items-center gap-0.5 text-sm text-muted">외부 AI가 바꾼 것을 되돌려요<InfoTip label="변경 기록">건별로 확인하고 되돌려요. 웹에서 고친 것은 남지 않아요.</InfoTip></p>
         {state.status === "ready" && <Button className="min-h-11" variant="ghost" size="sm" onClick={() => void load()}>새로고침</Button>}
       </div>
       {state.status === "loading" && <p role="status" className="mt-4 text-sm text-muted">변경 기록을 불러오고 있어요…</p>}

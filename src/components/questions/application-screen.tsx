@@ -1,5 +1,6 @@
 "use client";
 
+import { InfoTip } from "@/components/ui/info-tip";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { peekApplicationText, takeApplicationText } from "@/lib/application-handoff";
@@ -162,7 +163,7 @@ export function ApplicationScreen() {
     <div className="min-w-0 flex-1">
     <main className="mx-auto max-w-[1280px] px-4.5 py-5 lg:px-8 lg:py-6">
       {working ? <h1 className="sr-only">지원</h1> : <div className="mb-7 flex items-start justify-between gap-3">
-        <div><h1 className="m-0 text-display leading-snug font-bold tracking-[-0.4px]">지원</h1><p className="mt-2 mb-0 text-sm text-muted">지원서의 문항마다 꺼내 볼 경험을 찾아요. 같은 경험도 문항마다 다른 점을 보여 줄 수 있어요.</p></div>
+        <div className="flex items-center gap-1"><h1 className="m-0 text-display leading-snug font-bold tracking-[-0.4px]">지원</h1><InfoTip label="지원">지원서의 문항마다 꺼내 볼 경험을 찾아요. 같은 경험도 문항마다 다른 점을 보여 줄 수 있어요.</InfoTip></div>
         {(empty || matching.error) && restoreRun !== null && <Button variant="secondary" onClick={() => setPanelChoice(!panelOpen)} aria-expanded={panelOpen}>차곡이</Button>}
         {!empty && <Button className="min-h-11" disabled={composing || !!matching.error} onClick={startNew}><PlusIcon aria-hidden="true" />지원 넣기</Button>}
       </div>}
@@ -304,8 +305,8 @@ function QuestionTabs({ questions, selectedId, adding, canAdd, onPick, onAdd }: 
 function OverlapPanel({ overlaps, onPick }: { overlaps: Overlap[]; onPick: (questionId: number) => void }) {
   return <section aria-labelledby="overlap-title" className="mt-8 grid gap-3 rounded-md bg-surface-soft p-4.5">
     <div>
-      <h3 id="overlap-title" className="m-0 text-ui font-semibold">여러 문항에 추천된 활동</h3>
-      <p className="mt-1 mb-0 text-note text-muted">같은 활동이라도 문항마다 강조하는 점이 달라요. 겹쳐 보이면 문항마다 다른 경험을 골라도 돼요. 강조점은 AI 해석이에요.</p>
+      <div className="flex items-center gap-0.5"><h3 id="overlap-title" className="m-0 text-ui font-semibold">여러 문항에 추천된 활동</h3><InfoTip label="여러 문항에 추천된 활동">같은 활동이라도 문항마다 강조하는 점이 달라요. 겹쳐 보이면 문항마다 다른 경험을 골라도 돼요.</InfoTip></div>
+      <p className="mt-1 mb-0 text-note text-muted">강조점은 AI 해석이에요.</p>
     </div>
     <ul className="m-0 grid list-none gap-3 p-0">{overlaps.map(g => <li key={g.activity.id} className="grid gap-1.5">
       <span className="text-sm font-semibold">{g.activity.name}</span>

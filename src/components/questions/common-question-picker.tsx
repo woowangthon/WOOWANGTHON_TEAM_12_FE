@@ -1,5 +1,6 @@
 "use client";
 
+import { InfoTip } from "@/components/ui/info-tip";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -88,7 +89,7 @@ export function CommonQuestionPicker({ open, onOpenChange, room, onPick }: {
             ))}
           </fieldset>
 
-          <p className="m-0 border-t border-hairline pt-4 text-note text-muted">자주 나오는 문항 — 실제 지원서에서 모았어요. 지원처 이름은 지웠어요.</p>
+          <div className="flex items-center gap-0.5 border-t border-hairline pt-3"><p className="m-0 text-note font-medium text-muted">자주 나오는 문항</p><InfoTip label="자주 나오는 문항">실제 지원서에서 모았어요. 지원처 이름은 지웠어요.</InfoTip></div>
           {COMMON_QUESTIONS.map(group => (
             <fieldset key={group.kind} className="m-0 grid gap-1 border-0 p-0">
               <legend className="mb-1.5 p-0 text-sm font-semibold text-ink">{group.kind}</legend>

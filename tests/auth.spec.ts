@@ -135,7 +135,9 @@ test("account menu shows today's analyses and logs out", async ({ page }) => {
   await timelineReady(page);
   await page.getByRole("button", { name: "계정 메뉴: test" }).click();
   // FE#242 — 쓴 횟수(3 / 200)가 아니라 남은 횟수
-  await expect(page.getByRole("menu")).toContainText("오늘 남은 분석 197회 · 한국 시간 자정에 다시 채워져요");
+  await expect(page.getByRole("menu")).toContainText("오늘 남은 분석 197회");
+  // 넉넉할 땐 충전 안내를 숨기고 3회 이하일 때만 보인다(FE#301)
+  await expect(page.getByRole("menu")).not.toContainText("자정에 다시 채워져요");
   await expect(page.getByRole("menu")).not.toContainText("/ 200");
   await page.getByRole("menuitem", { name: "로그아웃" }).click();
   await expect(page.getByRole("heading", { name: "로그인", exact: true })).toBeVisible();
