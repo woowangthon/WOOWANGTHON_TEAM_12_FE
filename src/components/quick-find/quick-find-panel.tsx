@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ComponentType, type KeyboardEvent, ty
 import { ArrowsClockwiseIcon, CaretDownIcon, ArrowUpIcon, FileTextIcon, HouseIcon, MagnifyingGlassIcon, PencilSimpleIcon, PlusIcon, StackIcon } from "@phosphor-icons/react";
 import { CitationList } from "@/components/experience/citation-list";
 import { ExperienceFilterBar, isFiltered, type ExperienceFilters } from "@/components/experience/experience-filters";
-import { categoryOf } from "@/components/experience/activity-category";
+import { ActivityTag, categoryOf } from "@/components/experience/activity-category";
 import { ExperienceProperties, SourceStatusMark } from "@/components/experience/experience-item";
 import { useExperienceSearch } from "@/components/experience/use-experience-search";
 import { AnalysisCost } from "@/components/auth/analysis-cost";
@@ -224,7 +224,7 @@ function ResultLine({ experience: e }: { experience: ExperienceResult }) {
 
 function Preview({ experience: e }: { experience: ExperienceResult }) {
   return <>
-    <span data-category={categoryOf(e.activity) ?? undefined} className="inline-flex max-w-full rounded-full bg-category-soft px-2.5 py-0.5 text-xs font-semibold break-words text-category-ink">{e.activity.name}</span>
+    <ActivityTag category={categoryOf(e.activity)} className="py-0.5">{e.activity.name}</ActivityTag>
     <h4 className="m-0 text-title-md leading-snug font-bold whitespace-pre-wrap text-ink">{e.content}</h4>
     <ExperienceProperties experience={e} period={periodText(e.activity.period)} />
     <div className="mt-1 w-full">{e.citations.length ? <CitationList citations={e.citations} /> : <p className="m-0 text-note text-muted">근거 없음</p>}</div>
