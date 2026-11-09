@@ -4,9 +4,10 @@
 // target 을 주면 활동 세부의 「자료 더하기」(S-60) — 붙여넣기 또는 파일 하나
 // mode="line" 은 「직접 기록하기」(FE#179) — 같은 자료 넣기의 한 줄 입구. 안내만 다르고 파일은 받지 않는다
 // 폴더 · Notion ZIP 가져오기(S-62 · S-63, FE#127) — 노트 목록에서 10개까지 고르면 파일 여러 개 넣기(S-59)와 같은 길로 넣는다
+// GitHub 레포 가져오기(S-64, FE#128) — 읽어 온 글을 미리 보고 「보내기」하면 자료 하나(POST /api/sources)로 넣는다
 // PC 는 가운데 대화창, 모바일은 아래에 붙는 시트(ui/dialog)
 import { useEffect, useRef, useState, type DragEvent } from "react";
-import { FileTextIcon, LockSimpleIcon, PaperclipIcon, XIcon } from "@phosphor-icons/react";
+import { FileTextIcon, GithubLogoIcon, LockSimpleIcon, PaperclipIcon, XIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -21,6 +22,7 @@ import type { PendingJob } from "./use-analysis-job";
 import { tooLongText, useFilePicks, type FilePick } from "./use-file-picks";
 import { NoteImportButtons, NotePicker, PICK_BUTTON } from "./note-import";
 import { droppedImport, useNoteImport, type FolderItem } from "./use-note-import";
+import { GitHubImport, useGitHubImport } from "./github-import";
 
 const SUBMIT_ERRORS: Record<string, string> = {
   EMPTY_TEXT: "내용이 비어 있어요.",
@@ -62,6 +64,9 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
   const [choosing, setChoosing] = useState(false);
   const picking = choosing && notes.state.status === "ready";
   const listing = notes.state.status === "reading";
+  const gh = useGitHubImport();
+  /** GitHub 레포 가져오기를 보고 있다 — 창 안이 링크 · 아이디 · 미리 보기로 바뀐다 */
+  const [github, setGithub] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   /** 「이미 넣은 자료예요」(S-69) — 하나만 · 활동 없이 넣을 때만 온다. 글 · 파일을 바꾸면 닫는다 */
   const [duplicate, setDuplicate] = useState<DuplicateSource | null>(null);
@@ -83,6 +88,8 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
     setDragging(false);
     notes.reset();
     setChoosing(false);
+    gh.reset();
+    setGithub(false);
   };
 
   const changeOpen = (next: boolean) => {
@@ -129,8 +136,10 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
   const pasteError = tooLong(text) ? tooLongText(text) : null;
   // 파일을 고르면 파일을 넣는다 — 입력칸의 글은 파일을 빼면 다시 쓸 수 있다
   const usingFiles = picks.length > 0 || !!reading;
+  // GitHub 를 보고 있으면 미리 본 글 하나만 보낸다 — 이름은 「owner/repo (GitHub).md」(계약 그대로)
   const requests: SourceRequest[] =
-    !usingFiles
+    github ? (gh.source ? [{ kind: "FILE", name: gh.source.name, text: gh.source.text }] : [])
+    : !usingFiles
       ? text.trim() && !pasteError
         ? [{ kind: "TEXT", name: null, text }]
         : []
@@ -178,7 +187,9 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
         <DialogHeader className="pr-10">
           <DialogTitle>{target ? `「${target.name}」에 자료 더하기` : line ? "직접 기록하기" : "자료 쌓기"}</DialogTitle>
           <DialogDescription className="text-ui text-body">
-            {picking
+            {github
+              ? "공개 GitHub 레포의 README 와, 아이디를 넣으면 그 레포에서 내가 쓴 커밋 · 연 PR 의 제목을 읽어 자료 하나로 넣어요. 보내기 전에 넣을 글을 그대로 보여 드려요."
+              : picking
               ? `넣을 노트를 ${maxFiles}개까지 골라 주세요. 고른 노트는 하나씩 차례로 분석하고, 근거에 폴더 안 경로가 보여요.`
               : target
               ? "이 활동에 대한 새 자료(회고 · 발표 자료 · README)를 넣으면, 이 활동의 경험으로 붙이고 근거를 더해요. 다른 활동 얘기가 섞여 있으면 새 활동으로 남기고 따로 알려 줄게요."
@@ -190,6 +201,7 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
         {picking && notes.state.status === "ready" ? (
           <NotePicker label={notes.state.label} notes={notes.state.notes} selection={notes.selection} max={maxFiles} onToggle={notes.toggle} />
         ) : <>
+        {github ? <GitHubImport gh={gh} /> : (
         <div
           className={cn("grid gap-2 rounded-sm", dragging && "outline-2 outline-offset-4 outline-ink")}
           onDragOver={(e) => {
@@ -241,6 +253,12 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
               파일 올리기
             </label>
             {canImport && <NoteImportButtons disabled={!!reading || listing} onFolder={importFolder} onZip={importZip} />}
+            {canImport && (
+              <button type="button" className={PICK_BUTTON} disabled={!!reading || listing} onClick={() => { clearNotice(); setGithub(true); }}>
+                <GithubLogoIcon aria-hidden="true" />
+                GitHub 레포
+              </button>
+            )}
             {reading ? (
               <span className="text-note text-muted tabular-nums" role="status">
                 이 기기 안에서 글자를 읽는 중…{reading.total > 1 && ` ${reading.done} / ${reading.total}`}
@@ -284,6 +302,7 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
             </div>
           )}
         </div>
+        )}
 
         {/* S-16 — 분석을 시작하기 전에, 외부 AI 로 보내진다는 것을 보인다 */}
         <p className="m-0 flex gap-2.5 rounded-sm bg-surface-soft px-3.5 py-3 text-note leading-relaxed text-body">
@@ -316,12 +335,13 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
           </DialogFooter>
         ) : (
         <DialogFooter>
-          {onMoveToApplication && !usingFiles && <Button variant="link" disabled={submitting || !text.trim()} onClick={() => onMoveToApplication(text)}>지원으로 만들기</Button>}
+          {github && <Button variant="link" onClick={() => { clearNotice(); setGithub(false); }} disabled={submitting}>돌아가기</Button>}
+          {onMoveToApplication && !usingFiles && !github && <Button variant="link" disabled={submitting || !text.trim()} onClick={() => onMoveToApplication(text)}>지원으로 만들기</Button>}
           <Button variant="link" onClick={() => changeOpen(false)} disabled={submitting}>
             취소
           </Button>
           <Button onClick={() => void submit()} disabled={!requests.length || submitting || !!reading}>
-            {submitting ? "보내는 중…" : requests.length > 1 ? `${requests.length}개 넣기` : "넣기"}
+            {submitting ? "보내는 중…" : github ? (gh.nothingMine ? "그대로 보내기" : "보내기") : requests.length > 1 ? `${requests.length}개 넣기` : "넣기"}
           </Button>
         </DialogFooter>
         )}
