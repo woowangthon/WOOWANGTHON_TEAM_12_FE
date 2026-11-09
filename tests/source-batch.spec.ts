@@ -72,7 +72,7 @@ const stored = (page: Page) => page.evaluate(() => Object.keys(localStorage).fil
 
 async function openFiles(page: Page) {
   await openAddSource(page);
-  return page.locator('input[type="file"]');
+  return page.getByRole("dialog").getByLabel("파일 올리기", { exact: true });
 }
 
 test("못 넣는 파일은 이유를 보이고 나머지만 묶음으로 보낸다 · 파일마다 상태 · 실패한 것만 다시 시도 · 새로고침해도 이어진다", async ({ page }) => {
