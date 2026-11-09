@@ -62,7 +62,7 @@ test("checks text, distinguishes all statuses, opens non-recommended evidence, r
   await expect(items.nth(3)).toContainText("지우거나, 사실이면 근거를 더해 주세요");
   await expect(items.nth(3)).toContainText("AI 해석 — 문장의 숫자(80)");
   await expect(items.nth(3).locator("p").first().locator("span")).toHaveClass(/bg-review-soft/);
-  await expect(items.nth(4)).toContainText("생각 · AI 해석");
+  await expect(items.nth(4)).toContainText("생각");
   await expect(items.nth(4).locator("p").first().locator("span")).not.toHaveClass(/bg-/);
   await expect(items.last()).toContainText("연결된 근거가 지금은 없어요");
   await items.first().getByText("원문 · 연결된 발췌", { exact: true }).click();

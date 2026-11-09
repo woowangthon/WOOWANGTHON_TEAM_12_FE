@@ -565,7 +565,7 @@ test("opinion labels stay separate from facts and text-only copy across reload a
       await expect(card.locator("details")).toHaveCount(0);
       await expect(card).not.toContainText("연결된 근거가 지금은 없어요");
       await expect(card).toContainText("사실이 아니라 문항에 잇는 제안이에요");
-      if (!narrow(page)) await expect(card).toContainText("AI 제안 — 확인 필요");
+      if (!narrow(page)) await expect(card).toContainText("AI 초안 · 생각");
     } else if (index === 3) await expect(card).toContainText("연결된 근거가 지금은 없어요");
     else {
       await expect(card.locator("summary")).toHaveCount(1);
