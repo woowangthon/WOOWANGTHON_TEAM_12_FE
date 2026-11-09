@@ -130,6 +130,7 @@ test("question 41/42 switch shows contract judgments, actors and supplemental ev
   await page.goto("/questions");
   await expect(recommendation(page, 1)).toContainText("매주 금요일 스프린트 회고를 했다");
   await expect(page).toHaveURL(/question=42/);
+  await expand(page, 1); // 추천 카드는 처음에 모두 접혀 있다(FE#266)
   await expect(recommendation(page, 1).getByText("팀", { exact: true })).toBeVisible();
   // 참고 경험 쪽 2개 + 문항 유형 칸의 「AI 해석」 1개(FE#81 — 계약 예시의 유형은 AI 가 붙였다)
   await expect(result(page).getByText("AI 해석", { exact: true })).toHaveCount(3);
@@ -159,6 +160,7 @@ test("question 41/42 switch shows contract judgments, actors and supplemental ev
   await openList(page);
   await list(page).getByRole("button", { name: /OO 백엔드 부트캠프/ }).click();
   await expect(recommendation(page, 1)).toContainText("WebSocket");
+  await expand(page, 1);
   await expect(recommendation(page, 1).getByText("나", { exact: true })).toBeVisible();
   chagok = await openChagok(page);
   await expect(chagok.getByText("자료에서 확인 안 됨", { exact: true })).toHaveCount(2);
@@ -609,6 +611,7 @@ test("answering a clarification posts it and shows it on the experience as user-
   await closeChagokSheet(page);
 
   // 활동 세부(실제 타임라인) — 원문 확인 표시는 그대로, 보완은 「내가 입력한 보완」으로 따로 · 어느 지원에서 답했는지
+  await expand(page, 1);
   await recommendation(page, 1).getByRole("link", { name: /타임라인에서 활동 보기/ }).click();
   await expect(page).toHaveURL(/\/experience\?activity=7&fromQuestion=41/);
   const activity = page.getByRole("complementary", { name: "활동 세부" });

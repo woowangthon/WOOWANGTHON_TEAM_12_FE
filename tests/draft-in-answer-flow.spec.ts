@@ -4,7 +4,7 @@ import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import { FakeQuestionApi } from "./fake-question-api";
 import { DRAFT_S79 } from "./fixtures/draft-s79";
-import type { Answer, QuestionDetail } from "../src/lib/api/question-types";
+import type { QuestionDetail } from "../src/lib/api/question-types";
 
 const ELABORATED_802 = /^AI 보탬 — 확인 필요 — 메시지가 늦게/;
 const ELABORATED_804 = /^AI 보탬 — 확인 필요 — 제가 배포 전/;
@@ -29,6 +29,7 @@ async function open(page: Page, edit?: (q: QuestionDetail) => void, url = "/ques
 }
 
 const posts = (api: FakeQuestionApi) => api.calls.filter(c => c.call.startsWith("POST") || c.call.startsWith("PUT"));
+const patches = (api: FakeQuestionApi) => api.calls.filter(c => c.call.startsWith("PATCH /api/experiences/"));
 const sentenceCard = (page: Page) => page.getByRole("group", { name: "문장 카드" }).filter({ visible: true });
 const blankCard = (page: Page) => page.getByRole("group", { name: "빈칸 카드" }).filter({ visible: true });
 const copied = (page: Page) => page.evaluate(() => (window as unknown as { copied?: string }).copied);
@@ -47,12 +48,6 @@ async function goEdit(page: Page) {
   const box = page.getByRole("textbox", { name: "내가 쓴 답", exact: true });
   await expect(box).toBeVisible();
   return box;
-}
-async function openComposer(page: Page) {
-  await page.getByRole("button", { name: "초안 설정 열기" }).click();
-  const composer = page.getByRole("region", { name: "초안 설정", exact: true });
-  await expect(composer).toBeVisible();
-  return composer;
 }
 
 test("맞아요 — 확인한 문장은 밑줄이 없어지고 확인할 곳이 하나 줄며, 새로고침해도 유지된다", async ({ page }) => {
@@ -193,12 +188,17 @@ test("더 물어본 질문 줄 — 답하면 수가 줄고 0 이 되면 사라�
   await expect(page.getByText("차곡이가 더 물어본 게")).toHaveCount(0);
 });
 
-test("더 물어본 질문 줄 — 고치기 상태에서는 보이지 않고 초안의 빠진 사실 구역이 맡는다", async ({ page }) => {
-  await open(page, withExtraQuestion);
-  await expect(askedLine(page)).toBeVisible();
+test("더 물어본 질문 줄 — 고치기 상태에서도 한 줄로 보이고 빈칸 질문까지 센다, 옛 구역은 없다", async ({ page }) => {
+  await open(page, withExtraQuestion); // 빈칸 1(64) + 빈칸 아닌 질문 2(65 · 66)
+  await expect(askedLine(page)).toHaveText(new RegExp(ASKED_LINE(2)));
   await goEdit(page);
-  await expect(page.getByText("차곡이가 더 물어본 게")).toHaveCount(0);
-  await expect(page.getByRole("region", { name: "초안의 빠진 사실" })).toBeVisible();
+  await expect(askedLine(page)).toHaveText(new RegExp(ASKED_LINE(3)));
+  await expect(page.getByRole("region", { name: "초안의 빠진 사실" })).toHaveCount(0);
+  await expect(page.getByText("초안의 빠진 사실 — 답은 글과 따로")).toHaveCount(0);
+  await askedLine(page).getByRole("button", { name: "질문 보기", exact: true }).click();
+  await expect(page.locator('section[aria-label="차곡이의 초안"]:focus-within')).toBeVisible();
+  await expect(draftPanel(page).getByRole("list", { name: "초안의 빠진 사실" })).toBeVisible();
+  if (page.viewportSize()!.width < 1024) await expect(page.getByRole("dialog", { name: "차곡이" })).toBeVisible();
 });
 
 test("떠나기 경고 — 고친 글이 있을 때만 beforeunload 를 막는다", async ({ page }) => {
@@ -228,13 +228,14 @@ test("빈칸 카드에서 답하면 칩에 답이 보이고 확인할 곳이 줄
   await expect(page.getByRole("button", { name: "빈칸 [줄어든 정도] — 답하기" })).toHaveCount(0);
 });
 
-test("주체 줄 — 내가 했어요를 누르면 활동의 주체가 정해지고 다시 만들면 확인된 문장이 된다고 알린다", async ({ page }) => {
+test("주체 줄 — 내가 했어요를 누르면 그 문장 근거 경험의 주체만 정해지고 다시 만들면 확인된 문장이 된다고 알린다", async ({ page }) => {
   const api = await open(page);
   await page.getByRole("button", { name: ELABORATED_804 }).first().click();
   const card = sentenceCard(page);
   await expect(card.getByText("누가 했는지 확인 안 됨", { exact: false })).toBeVisible();
   await card.getByRole("button", { name: "내가 했어요", exact: true }).click();
-  await expect.poll(() => posts(api)).toEqual([{ call: "POST /api/activities/7/actor", body: { actor: "ME" } }]);
+  await expect.poll(() => patches(api)).toEqual([{ call: "PATCH /api/experiences/103", body: { actor: "ME" } }]);
+  expect(api.calls.filter(c => c.call.includes("/actor"))).toEqual([]);
   await expect(card.getByText("다시 만들면 확인된 문장으로 바뀌어요", { exact: false })).toBeVisible();
   await expect(card.getByRole("button", { name: "내가 했어요", exact: true })).toHaveCount(0);
 });
@@ -280,7 +281,7 @@ test("고치기 — 확인할 곳이 남았으면 먼저 묻고, 먼저 확인�
   await page.getByRole("button", { name: "직접 고치기", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "확인할 곳 4군데가 남았어요" });
   await expect(dialog).toContainText("빈칸 질문은 답칸 아래에서 계속 답할 수 있고");
-  await expect(dialog).toContainText("「근거 점검」으로 다시 볼 수 있어요");
+  await expect(dialog).toContainText("「근거 점검」(분석 1회)으로 다시 볼 수 있어요");
   await dialog.getByRole("button", { name: "먼저 확인하기", exact: true }).click();
   await expect(dialog).toBeHidden();
   // 글 순서로 첫 확인할 곳은 802(AI 보탬) 문장이다 — 빈칸(804 안)이 아니다
@@ -301,7 +302,7 @@ test("고치기 — 빈칸이 없어도 맞아요 전 문장이 있으면 묻고
   await expect(page.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toHaveCount(0);
 });
 
-test("고치기 — 확인할 곳이 없으면 묻지 않고 바로 입력칸으로 가며 근거 점검 안내가 보인다", async ({ page }) => {
+test("고치기 — 확인할 곳이 없으면 묻지 않고 바로 입력칸으로 가며 근거 점검 안내 줄은 없다", async ({ page }) => {
   await open(page, q => { q.draft!.sentences = q.draft!.sentences.slice(0, 2); q.draft!.omitted = []; });
   // 맞아요로 모두 확인한 뒤
   await page.getByRole("button", { name: ELABORATED_802 }).first().click();
@@ -311,98 +312,52 @@ test("고치기 — 확인할 곳이 없으면 묻지 않고 바로 입력칸으
   await page.getByRole("button", { name: "직접 고치기", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toBeVisible();
-  await expect(page.getByText("고친 글의 문장별 근거는 「근거 점검」으로 확인해요.")).toBeVisible();
+  await expect(page.getByText("고친 글의 문장별 근거는")).toHaveCount(0);
 });
 
-test("고치기 — 일반 입력칸에 초안 글이 들어가고, 빠진 사실에 답해도 글은 바뀌지 않는다", async ({ page }) => {
+test("고치기 — 일반 입력칸에 초안 글이 들어가고, 빠진 사실은 한 줄로만 알리며 글은 바뀌지 않는다", async ({ page }) => {
   const api = await open(page);
   const box = await goEdit(page);
   await expect(box).toHaveValue(COMPOSED);
   await expect(page.getByText(/확인할 곳 \d/)).toHaveCount(0);
-  const region = page.getByRole("region", { name: "초안의 빠진 사실" });
-  await expect(region).toBeVisible();
-  await expect(region.getByRole("listitem")).toHaveCount(2); // 연결된 질문 둘 — 글에 자리가 있는 빈칸(64)과 없는 빠진 사실(65)
-  await region.getByRole("textbox", { name: /^답: WebSocket 으로 바꾼 뒤/ }).fill("절반으로 줄었다");
-  await region.getByRole("listitem").first().getByRole("button", { name: "답하기", exact: true }).click();
-  await expect.poll(() => posts(api)).toEqual([{ call: "POST /api/clarifications/64/answer", body: { answer: "절반으로 줄었다" } }]);
-  await expect(region).toContainText("내가 입력 · 경험에 보완으로 쌓았어요");
-  await expect(box).toHaveValue(COMPOSED);
-  await expect(page.getByText("차곡이 초안 보기")).toHaveCount(0); // 고친 뒤엔 다시 만들기 전까지 초안 보기로 돌아가지 않는다
-});
-
-test("다시 만들기 경고 — 고친 글과 답하지 않은 빠진 사실을 알리고, 취소는 요청하지 않으며 확인하면 새 초안을 요청한다", async ({ page }) => {
-  const api = await open(page);
-  const box = await goEdit(page);
-  await box.fill(COMPOSED + " 직접 덧붙인 문장입니다.");
-  const composer = await openComposer(page);
-  await composer.getByRole("button", { name: "다시 만들기", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "다시 만들면 답칸이 새 초안으로 바뀌어요" });
-  await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText("답칸에서 고친 글이 새 초안으로 바뀌어요.");
-  await expect(dialog).toContainText("답하지 않은 빠진 사실 질문 2개가 사라져요");
-  await dialog.getByRole("button", { name: "취소", exact: true }).click();
-  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("region", { name: "초안의 빠진 사실" })).toHaveCount(0);
+  await expect(askedLine(page)).toHaveText(new RegExp(ASKED_LINE(2))); // 빈칸(64)과 글에 자리가 없는 빠진 사실(65)
   expect(posts(api)).toEqual([]);
-  await composer.getByRole("button", { name: "다시 만들기", exact: true }).click();
-  await dialog.getByRole("button", { name: "그래도 다시 만들기", exact: true }).click();
-  await expect.poll(() => posts(api).length).toBe(1);
-  const [call] = posts(api);
-  expect(call.call).toBe("POST /api/questions/41/draft");
-  expect(call.body).toMatchObject({ experienceIds: [101], useContext: true });
-});
-
-test("다시 만들기 — 같은 활동의 다른 경험 체크를 끄면 안내가 바뀌고 useContext false 로 요청한다", async ({ page }) => {
-  const api = await open(page);
-  const composer = await openComposer(page);
-  const check = composer.getByRole("checkbox", { name: /같은 활동의 다른 경험도 뒷받침 재료로 쓰기/ });
-  await expect(check).toBeChecked();
-  await check.uncheck();
-  await expect(composer.getByText("고른 경험만으로 써서 짧거나 부실할 수 있어요.")).toBeVisible();
-  await composer.getByRole("button", { name: "다시 만들기", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "다시 만들면 답칸이 새 초안으로 바뀌어요" });
-  await expect(dialog).not.toContainText("답칸에서 고친 글이"); // 고치지 않았으면 이 줄은 없다
-  await expect(dialog).toContainText("답하지 않은 빠진 사실 질문 2개가 사라져요");
-  await dialog.getByRole("button", { name: "그래도 다시 만들기", exact: true }).click();
-  await expect.poll(() => posts(api).length).toBe(1);
-  expect(posts(api)[0].body).toMatchObject({ experienceIds: [101], useContext: false });
-});
-
-const confirmedAnswer = (confirmedAt: string): Answer => ({ questionId: 41, text: "예전에 다 쓴 답입니다. 제가 WebSocket 으로 바꿨습니다.", confirmedAt, newFacts: null });
-
-test("다 쓴 답이 초안보다 오래됐으면 초안을 보여 주고, 다 쓴 답 불러오기로 입력칸에 돌아간다", async ({ page }) => {
-  const answer = confirmedAnswer("2026-11-07T10:00:00+09:00"); // 초안(11-08)보다 앞
-  await open(page, q => { q.answer = answer; });
-  await expect(page.getByText(/확인할 곳 \d/)).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "다 쓴 답 불러오기", exact: true }).click();
-  await expect(page.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toHaveValue(answer.text);
-  await expect(page.getByText(/확인할 곳 \d/)).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "다 쓴 답 불러오기" })).toHaveCount(0);
-  await expect(page.getByText("차곡이 초안 보기")).toBeVisible();
-  await page.getByText("차곡이 초안 보기").click();
-  await expect(page.getByText("확인할 곳 4군데", { exact: true })).toBeVisible();
-});
-
-test("다 쓴 답이 초안보다 새로우면 입력칸으로 시작하고 차곡이 초안 보기로 초안을 볼 수 있다", async ({ page }) => {
-  const answer = confirmedAnswer("2026-11-09T10:00:00+09:00"); // 초안(11-08)보다 뒤
-  await open(page, q => { q.answer = answer; });
-  await expect(page.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toHaveValue(answer.text);
-  await expect(page.getByText(/확인할 곳 \d/)).toHaveCount(0);
-  await page.getByRole("button", { name: "차곡이 초안 보기", exact: true }).click();
-  await expect(page.getByText("확인할 곳 4군데", { exact: true })).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toHaveCount(0);
-});
-
-test("목표 글자 수 — 도구 줄에 목표가 보이고, 짧으면 자료 안의 내용으로만 썼다고 알린다", async ({ page }) => {
-  await open(page, q => { q.targetLength = 500; });
-  await expect(page.getByText(`${COMPOSED.length}자 · 목표 500자`, { exact: true })).toBeVisible();
-  await expect(page.getByText("자료에 있는 내용으로만 써서 목표보다 짧을 수 있어요.", { exact: false })).toBeVisible();
-});
-
-test("목표가 없으면 5,000자 한도를 보이고 짧은 글 안내는 없다", async ({ page }) => {
-  await open(page);
-  await expect(page.getByText(`${COMPOSED.length}자 / 5,000자`, { exact: true })).toBeVisible();
+  await expect(page.getByText("차곡이 초안 보기")).toHaveCount(0);
   await expect(page.getByText("목표보다 짧을 수 있어요", { exact: false })).toHaveCount(0);
+});
+
+// ETC#249 — 근거 경험이 둘이면 경험마다 고른다. 보낸 경험만 바뀐다
+const TWO_UNKNOWN = (q: QuestionDetail) => {
+  const s = q.draft!.sentences[3];
+  s.evidence = [s.evidence[0], { ...s.evidence[0], id: 204, experienceId: 104, text: "알림 서버의 부하를 같이 점검했다." }];
+};
+
+test("주체 줄 — 근거 경험이 둘 다 모르면 경험마다 고르고, 고른 경험만 PATCH 한다", async ({ page }) => {
+  const api = await open(page, TWO_UNKNOWN);
+  await page.getByRole("button", { name: ELABORATED_804 }).first().click();
+  const card = sentenceCard(page);
+  const list = card.getByRole("list", { name: "근거 경험마다 주체 정하기" });
+  await expect(list.getByRole("listitem")).toHaveCount(2);
+  await expect(list.getByRole("listitem").nth(0)).toContainText("배포 전에 부하를 점검했다.");
+  await expect(list.getByRole("listitem").nth(1)).toContainText("알림 서버의 부하를 같이 점검했다.");
+  await list.getByRole("listitem").nth(1).getByRole("button", { name: "팀이 했어요", exact: true }).click();
+  await expect.poll(() => patches(api)).toEqual([{ call: "PATCH /api/experiences/104", body: { actor: "TEAM" } }]);
+  // 하나는 정해졌고 하나는 아직 모른다 — 남은 경험만 고르는 칸으로 남는다
+  await expect(card.getByRole("button", { name: "내가 했어요", exact: true })).toHaveCount(1);
+  await card.getByRole("button", { name: "내가 했어요", exact: true }).click();
+  await expect.poll(() => patches(api)).toEqual([
+    { call: "PATCH /api/experiences/104", body: { actor: "TEAM" } },
+    { call: "PATCH /api/experiences/103", body: { actor: "ME" } },
+  ]);
+  expect(api.calls.filter(c => c.call.includes("/actor"))).toEqual([]);
+});
+
+test("꺼내 쓸 경험 카드는 처음에 모두 접혀 있다", async ({ page }) => {
+  await open(page);
+  const cards = page.getByRole("listitem", { name: /^추천 경험 \d+$/ });
+  expect(await cards.count()).toBeGreaterThan(0);
+  for (const c of await cards.all()) await expect(c.locator("details")).not.toHaveAttribute("open", "");
 });
 
 test("근거 칩 — 추천 밖(보조 재료) 경험의 근거도 원문 이름과 함께 그려진다", async ({ page }) => {

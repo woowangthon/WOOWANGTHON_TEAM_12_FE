@@ -279,6 +279,20 @@ export class FakeQuestionApi {
         if (e.activityId === +m![1] && e.actor === "UNKNOWN") { e.actor = body.actor; changed++; }
       return json(route, { changed });
     }
+    // 경험 한 개 고치기(S-10) — 본문이 바뀔 때만 「내가 입력」. 초안 근거의 지금 주체(actor)도 그 경험 것만 같이 바뀐다(ETC#249)
+    if ((m = path.match(/^\/api\/experiences\/(\d+)$/)) && method === "PATCH") {
+      const id = +m[1];
+      const exps = this.questions.flatMap(q => q.detail.recommendations.map(r => r.experience)).filter(e => e.id === id);
+      for (const q of this.questions) for (const s of q.detail.draft?.sentences ?? []) for (const e of s.evidence)
+        if (e.experienceId === id && body.actor) e.actor = body.actor;
+      for (const e of exps) {
+        if (body.content !== undefined && body.content !== e.content) e.sourceStatus = "USER_ENTERED";
+        Object.assign(e, body);
+      }
+      const e = exps[0];
+      if (!e && !this.questions.some(q => q.detail.draft?.sentences.some(s => s.evidence.some(ev => ev.experienceId === id)))) return error(route, 404, "EXPERIENCE_NOT_FOUND");
+      return json(route, e ?? { id, activityId: 7, content: "", competencies: [], competenciesBy: "AI", actor: "UNKNOWN", sourceStatus: "SOURCE_CONFIRMED", citations: [], ...body });
+    }
     if ((m = path.match(/^\/api\/questions\/(\d+)\/retry$/)) && method === "POST") {
       const q = this.find(+m[1]);
       if (!q) return error(route, 404, "QUESTION_NOT_FOUND");

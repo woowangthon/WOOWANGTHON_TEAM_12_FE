@@ -15,7 +15,6 @@ import { setEditedAnswer } from "./answer-box-state";
 import type { AnswerHandler } from "./clarifications";
 import { DraftGuidance } from "./draft-guidance";
 import { failureReason } from "./draft-errors";
-import { OmissionItem } from "./draft-omissions";
 import { useGroundingCheck, type GroundingChecks } from "./use-grounding-check";
 
 const LABEL: Record<GroundingStatus, string> = { SOURCE: "원문", USER_INPUT: "내가 입력", UNSUPPORTED: "근거 없음", OPINION: "생각 · AI 해석" };
@@ -125,8 +124,9 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
   const left = ready && viewing ? checksLeft(ready, removed, box.local) : 0;
   const removedList = ready && viewing ? ready.sentences.flatMap((s, i) => removed.has(i) ? [{ s, i }] : []) : [];
   const linked = ready?.omitted.filter(o => o.clarificationId !== null) ?? [];
-  // 빈칸이 아닌 빠진 사실 질문은 차곡이 패널에만 있어 놓치기 쉽다 — 답칸 머리에서 알린다(FE#262). 빈칸은 「확인할 곳」이 센다
-  const asked = linked.filter(o => o.supplementId === null && !(o.placeholder && o.sentenceIndex != null)).length;
+  // 빠진 사실 질문은 차곡이 패널에서 답한다 — 답칸 위에서는 한 줄로 알린다(FE#262 · FE#266).
+  // 보기 상태는 빈칸이 아닌 질문만(빈칸은 「확인할 곳」이 센다), 고치기 상태는 빈칸 표시가 없으니 빈칸 질문도 센다
+  const asked = linked.filter(o => o.supplementId === null && (!viewing || !(o.placeholder && o.sentenceIndex != null))).length;
   return <>
     {drafting && <p role="status" className="m-0 text-sm text-muted">차곡이가 초안을 만들고 있어요. 다 되면 답칸에 들어와요.</p>}
     {draft?.status === "FAILED" && !drafting && <p role="alert" className="m-0 text-sm text-error">{failureReason(draft.error)} 차곡이에서 다시 만들 수 있어요.</p>}
@@ -137,7 +137,7 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
       <p className="m-0 min-w-0 flex-1 text-note text-muted">차곡이 초안이에요. 밑줄 · 빈칸을 누르면 근거와 이유가 보여요. 최종 문장은 직접 정해요.</p>
       <Button variant="secondary" size="sm" className="min-h-11" disabled={draftBusy || locked} onClick={edit}>직접 고치기</Button>
     </div>}
-    {viewing && asked > 0 && <p role="status" className="m-0 flex flex-wrap items-center gap-x-1.5 text-sm text-body">
+    {ready && asked > 0 && <p role="status" className="m-0 flex flex-wrap items-center gap-x-1.5 text-sm text-body">
       차곡이가 더 물어본 게 {asked}개 있어요 — 답하면 다음 초안에 들어가요
       <Button variant="link" size="sm" className="min-h-11" onClick={onAskDraft}>질문 보기</Button>
     </p>}
@@ -184,15 +184,7 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
     </details>}
     {viewing && ready && <DraftGuidance draft={ready} />}
     {viewing && a.answer && <Button variant="link" size="sm" className="min-h-11 justify-self-start" onClick={loadConfirmed}>다 쓴 답 불러오기</Button>}
-    {!viewing && ready && !g.check && <p className="m-0 text-note text-muted">고친 글의 문장별 근거는 「근거 점검」으로 확인해요.</p>}
     {!viewing && ready && !edited && g.text === (initialText ?? "") && <Button variant="link" size="sm" className="min-h-11 justify-self-start" onClick={() => setBox(b => ({ ...b, viewing: true }))}>차곡이 초안 보기</Button>}
-    {!viewing && ready && linked.length > 0 && <section aria-label="초안의 빠진 사실" className="grid gap-2.5 rounded-sm bg-surface-soft p-3.5">
-      <p className="m-0 text-sm font-semibold">초안의 빠진 사실 — 답은 글과 따로 경험에 저장돼요</p>
-      <p className="m-0 text-note leading-relaxed text-muted">답칸의 글은 바뀌지 않아요. 넣고 싶으면 직접 쓰거나, 「다시 만들기」를 눌러 주세요.</p>
-      <ul className="m-0 grid list-none gap-2.5 p-0">
-        {linked.map(item => <OmissionItem key={item.clarificationId} item={item} question={question} onAnswer={onAnswer} onRefresh={onRefresh} disabled={draftBusy || locked} />)}
-      </ul>
-    </section>}
     {a.answer && <p role="status" className="m-0 text-sm text-muted">{text === a.answer.text ? "다 쓴 답으로 저장했어요" : "고친 내용이 있어요 · 「다 썼어요」를 다시 눌러 주세요"}</p>}
     {g.loading && <p role="status" className="m-0 text-sm text-muted">마지막 근거 점검을 불러오고 있어요…</p>}
     {analyzing && <p role="status" className="m-0 text-sm text-muted">문장을 근거와 대조하고 있어요. 새로고침해도 점검한 글과 진행 상태를 이어서 확인해요.</p>}
@@ -227,7 +219,7 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
           <DialogDescription>
             직접 고치면 밑줄 · 빈칸 표시와 카드가 사라져서 여기서 맞아요 · 주체 확인 · 빈칸 답을 할 수 없어요.
             {open.length > 0 && " 빈칸 질문은 답칸 아래에서 계속 답할 수 있고, 답은 경험에 저장돼 다음 초안부터 쓰여요."}
-            {" "}고친 글의 근거는 「근거 점검」으로 다시 볼 수 있어요.
+            {" "}고친 글의 근거는 「근거 점검」(분석 1회)으로 다시 볼 수 있어요.
           </DialogDescription>
           <DialogFooter>
             <Button className="min-h-11" variant="secondary" onClick={checkFirst}>먼저 확인하기</Button>
