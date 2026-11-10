@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import type { DraftFrame } from "@/lib/draft-frames";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api/errors";
 import type { DraftOmission, QuestionDetail } from "@/lib/api/question-types";
 import { AnsweredItem, AnswerForm, bubble, openItem, SupplementNote, type AnswerHandler } from "./clarifications";
 import { DraftComposer } from "./draft-composer";
 import { isSupposedPair } from "./answer-draft";
+import { getShowsConfirmed, subscribeShowsConfirmed } from "./answer-box-state";
 import { ActivityChip } from "./question-result";
 import { requestError } from "./draft-errors";
 import { scrollWithinContainer } from "@/lib/scroll";
@@ -99,6 +100,8 @@ export function DraftFollowUp({ question, onGenerate, onRefresh, savingAnswer, r
     return () => { clearTimeout(on); clearTimeout(off); setHighlight(false); };
   }, [focusRequest]);
   const draft = question.draft;
+  // 답칸이 다 쓴 답을 보이면 「초안을 답칸에 넣었어요」라고 하지 않는다(FE#384)
+  const showsConfirmed = useSyncExternalStore(subscribeShowsConfirmed, () => getShowsConfirmed(question.id), () => false);
   // AI 가정의 짝은 「쓰지 않은 것」이 아니라 회색 문장으로 쓴 것 — 답칸의 그 문장 카드에서 확인한다(S-79 · ADR-014)
   // 경험에 붙지 않은 빈칸(포부 등)은 묻지 않는다 — 문장 속 빈칸이면 답칸의 빈칸 카드가 알린다(FE#382)
   const asks = question.draft ? draftAsks(question) : [];
@@ -119,7 +122,9 @@ export function DraftFollowUp({ question, onGenerate, onRefresh, savingAnswer, r
     {analyzing ? <p role="status" className={bubble}>고른 경험과 보완을 읽고 초안을 만드는 중이에요…</p> : draft ? <>
       {draft?.status === "FAILED" ? <p className={bubble}>초안을 완성하지 못했어요. 아래 설정에서 다시 요청해 주세요.</p> : <>
         {/* 초안 빈칸 질문은 문항 되묻기와 한 블록(「차곡이가 물어볼 것」)에서 묻는다(FE#336) */}
-        <p className={bubble}>{!draft?.sentences.length ? "고른 기록에서 받칠 내용을 찾지 못해 문장을 쓰지 않았어요. 경험이 없다는 뜻은 아니에요." : asks.length ? "초안을 답칸에 넣었어요. 자료에 없어 쓰지 않은 건 위 「차곡이가 물어볼 것」에서 물어봐요." : "초안을 답칸에 넣었어요. 밑줄 · 빈칸 · 회색 문장을 눌러 근거와 이유를 확인해 주세요."}</p>
+        <p className={bubble}>{!draft?.sentences.length ? "고른 기록에서 받칠 내용을 찾지 못해 문장을 쓰지 않았어요. 경험이 없다는 뜻은 아니에요."
+          : showsConfirmed ? `지금 답칸엔 다 쓴 답이 있어요. 초안 글은 답칸 아래 「초안 글 다시 넣기」로 넣을 수 있어요.${asks.length ? " 자료에 없어 쓰지 않은 건 위 「차곡이가 물어볼 것」에서 물어봐요." : ""}`
+          : asks.length ? "초안을 답칸에 넣었어요. 자료에 없어 쓰지 않은 건 위 「차곡이가 물어볼 것」에서 물어봐요." : "초안을 답칸에 넣었어요. 밑줄 · 빈칸 · 회색 문장을 눌러 근거와 이유를 확인해 주세요."}</p>
       </>}
       {savingAnswer && <p role="status" className={bubble}>보완으로 쌓는 중이에요…</p>}
     </> : null}
