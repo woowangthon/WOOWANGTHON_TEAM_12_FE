@@ -1,4 +1,4 @@
-// 초안 AI 가정(S-79 · ADR-014 · FE#348) — 회색 표시 · 카드의 비슷했어요 · 고치기 · 빼기 · 복사 · 다 썼어요 알림.
+// 초안 AI 가정(S-79 · ADR-014 · ADR-015 · FE#348 · FE#381) — 주황 물결 표시 · 카드의 비슷했어요 · 고치기 · 복사 · 다 썼어요 알림.
 // 시험 전용 HTTP 응답이다(가짜 BE 가 답한 되묻기 · 맞아요를 기억할 뿐 — 실제 BE 영속성 검증이 아니다).
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
@@ -27,7 +27,7 @@ const markOf = (page: Page, key: string) => page.locator(`[data-mark="${key}"]`)
 const answerBox = (page: Page) => page.getByRole("textbox", { name: "내가 쓴 답", exact: true });
 const narrow = (page: Page) => page.viewportSize()!.width < 1024;
 const card = (page: Page) => page.getByRole("group", { name: "AI 가정 카드" }).filter({ visible: true });
-const supposed = (page: Page, n: number) => expect(page.getByText(`AI 가정 ${n}곳`, { exact: true })).toBeVisible();
+const supposed = (page: Page, n: number) => expect(page.getByText(`· 그중 AI 가정 ${n}`, { exact: true })).toBeVisible();
 const posts = (api: FakeQuestionApi) => api.calls.filter(c => c.call.startsWith("POST"));
 const copied = (page: Page) => page.evaluate(() => (window as unknown as { copied?: string }).copied);
 
@@ -46,18 +46,33 @@ async function open(page: Page, edit?: (q: QuestionDetail) => void) {
   return api;
 }
 
-test("AI 가정은 회색 · 구체 값은 한 단계 진하게, 「확인할 곳」 옆에 따로 센다", async ({ page }) => {
+test("AI 가정은 주황 물결 · 구체 값은 한 단계 진하게, 「확인할 곳」 안에 「그중 AI 가정」으로 센다 (FE#381)", async ({ page }) => {
   await open(page);
   await supposed(page, 2);
-  await expect(page.getByText("확인할 곳 4군데", { exact: true })).toBeVisible(); // AI 보탬 둘 · 생각 · 빈칸
-  await expect(markOf(page, "s-4")).toHaveClass(/bg-surface-strong/);
+  await expect(page.getByText("확인할 곳 6군데", { exact: true })).toBeVisible(); // AI 보탬 둘 · 생각 · 빈칸 · 가정 둘
   await expect(markOf(page, "s-4")).toHaveClass(/decoration-wavy/);
-  await expect(markOf(page, "s-5")).toHaveClass(/bg-supposed-strong/);
+  await expect(markOf(page, "s-4")).toHaveClass(/decoration-review-line/);
+  await expect(markOf(page, "s-4")).not.toHaveClass(/bg-/); // 평소엔 바탕 없음 — 고르면 다른 확인할 곳과 같은 주황 바탕
+  await expect(markOf(page, "s-5")).toHaveClass(/decoration-review(?!-)/);
+  // 숫자와 「다음 확인할 곳 →」 이동 수가 같다 — 여섯 번 돌면 가정 둘을 한 번씩 지난다
+  if (!narrow(page)) {
+    const next = page.getByRole("button", { name: "다음 확인할 곳 →" });
+    const seen: string[] = [];
+    for (let i = 0; i < 6; i++) {
+      await next.click();
+      seen.push(await page.getByRole("group", { name: /카드$/ }).filter({ visible: true }).first().getAttribute("aria-label") ?? "");
+    }
+    expect(seen.filter(l => l === "AI 가정 카드")).toHaveLength(2);
+  }
   // 짝 되묻기는 「차곡이가 더 물어본 것」에 섞지 않는다 — 배운 점(65)만
   await expect(page.getByRole("status").filter({ hasText: "차곡이가 더 물어본 게 1개" })).toBeVisible();
   await openMark(page, "s-4");
   await expect(card(page)).toContainText("폴링과 WebSocket 을 바꾸기 전에 어떻게 비교했나요?");
   await expect(card(page).getByRole("button", { name: "비슷했어요" })).toBeVisible();
+  // 다른 카드와 같은 꼬리표 · 빼기 버튼 없음(FE#337 · FE#381) — 없던 일이면 글에서 지운다
+  await expect(card(page).getByText("확인 필요", { exact: true })).toBeVisible();
+  await expect(card(page).getByRole("button", { name: "빼기", exact: true })).toHaveCount(0);
+  await expect(card(page)).toContainText("없던 일이면 글에서 지워 주세요");
   await shot(page, "card-linked");
 });
 
@@ -98,12 +113,12 @@ test("경험에 안 붙은 가정 — 비슷했어요는 맞아요로만 저장�
   await supposed(page, 1);
 });
 
-test("빼기는 글에서 그 문장을 지운다", async ({ page }) => {
+test("글에서 가정 문장을 지우면 표시 · 숫자에서 빠지고 아무것도 저장하지 않는다 (FE#381)", async ({ page }) => {
   const api = await open(page);
-  await openMark(page, "s-5");
-  await card(page).getByRole("button", { name: "빼기", exact: true }).click();
-  await expect(answerBox(page)).toHaveValue(COMPOSED.replace(`${SUPPOSED_SPECIFIC} `, ""));
+  await answerBox(page).fill(COMPOSED.replace(`${SUPPOSED_SPECIFIC} `, ""));
   await supposed(page, 1);
+  await expect(page.getByText("확인할 곳 5군데", { exact: true })).toBeVisible();
+  await expect(markOf(page, "s-5")).toHaveCount(0);
   expect(posts(api)).toEqual([]);
 });
 
@@ -131,5 +146,5 @@ test("다 썼어요도 같은 알림을 띄운다", async ({ page }) => {
 test("다 쓴 답에 그대로 있어도 AI 가정은 확인 전으로 남고, 다른 표시는 확인 끝이다 (FE#370)", async ({ page }) => {
   await open(page, q => { q.answer = { questionId: 41, text: COMPOSED, confirmedAt: "2026-11-20T10:00:00+09:00", newFacts: null }; });
   await supposed(page, 2); // 가정 확인은 경험의 보완으로 쌓는 일이라 「다 썼어요」로 대신하지 않는다
-  await expect(page.getByText("확인할 곳 1군데", { exact: true })).toBeVisible(); // AI 보탬 · 생각은 끝, 빈칸만
+  await expect(page.getByText("확인할 곳 3군데", { exact: true })).toBeVisible(); // AI 보탬 · 생각은 끝, 빈칸 · 가정 둘
 });

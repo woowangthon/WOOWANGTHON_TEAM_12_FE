@@ -116,7 +116,6 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
   // 확인 전 AI 가정 · 그중 구체 값(specific) — 「확인할 곳」 옆에 따로 보이고, 복사 · 다 썼어요 때 한 번 알린다(막지 않음)
   const supposedLeft = analysis.marks.filter(m => m.need === "supposed");
   const specificLeft = supposedLeft.filter(m => ready?.sentences[m.index]?.specific).length;
-  const otherLeft = left - supposedLeft.length;
   const warnFirst = blanksLeft > 0 || supposedLeft.length > 0;
 
   useEffect(() => { setEditedAnswer(questionId, edited); }, [questionId, edited]);
@@ -155,12 +154,6 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
     // 기다리는 동안 글이 바뀌었을 수 있다 — 그 문장의 지금 자리를 바꾼다
     const now = latest.current.marks.find(m => m.index === mark.index);
     if (now) editor.current?.replace(now.start, now.end, value);
-  };
-  // 빼기 — 글에서 그 문장을 지운다(Ctrl+Z 로 되돌린다). 뒤 띄어쓰기 하나도 같이
-  const removeSentence = (mark: Mark) => {
-    const now = latest.current.marks.find(m => m.index === mark.index);
-    if (!now) return;
-    editor.current?.replace(now.start, text[now.end] === " " ? now.end + 1 : now.end, "");
   };
 
   const loadConfirmed = () => {
@@ -231,11 +224,11 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
     {marked && <div id={`draft-title-${questionId}`} role="group" aria-label="답변 초안" className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
       {/* 확인할 곳은 부가 정보라 작게 — 남은 개수는 늘 보인다(FE#262 · FE#269). 사용법은 ⓘ 로 접는다 */}
       <span role="status" className={cn("inline-flex items-center gap-1.5 text-note font-medium tabular-nums", left ? "text-review" : "text-evidence")}>
-        {otherLeft > 0 ? <><span aria-hidden="true" className="size-1.5 rounded-full bg-review" />확인할 곳 {otherLeft}군데</> : !left && "모두 확인했어요 ✓"}
+        {/* 숫자는 「다음 확인할 곳 →」이 도는 수와 같다 — AI 가정도 그 안에 센다(FE#381). 「AI 가정」은 답칸 표시처럼 물결 밑줄 — 그 자체가 범례다 */}
+        {left > 0 ? <><span aria-hidden="true" className="size-1.5 rounded-full bg-review" /><span>확인할 곳 {left}군데</span>
+          {supposedLeft.length > 0 && <span className="font-normal">· 그중 <span className="underline decoration-wavy decoration-review-line underline-offset-[3px]">AI 가정</span> {supposedLeft.length}</span>}</>
+          : "모두 확인했어요 ✓"}
       </span>
-      {supposedLeft.length > 0 && <span role="status" className="inline-flex items-center gap-1.5 text-note font-medium text-body tabular-nums">
-        <span aria-hidden="true" className="h-2 w-3 rounded-[2px] bg-surface-strong outline-1 outline-muted-soft" />AI 가정 {supposedLeft.length}곳
-      </span>}
       {ready && <DraftGuidance draft={ready} />}
       <span className="-ml-2 mr-auto inline-flex items-center"><InfoTip label="차곡이 초안">차곡이 초안이에요. 바로 고쳐 쓰고, 밑줄 · 빈칸을 누르면 근거와 이유가 보여요. 최종 문장은 직접 정해요.</InfoTip></span>
       {left > 0 && <Button variant="secondary" size="sm" className="min-h-11 lg:min-h-10" title="Alt + ↓" onClick={() => editor.current?.next()}>다음 확인할 곳 →</Button>}
@@ -249,7 +242,7 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
       <DraftEditor handleRef={editor} inputId={`answer-${questionId}`} question={question} draft={ready} analysis={analysis} local={box.local}
         text={text} onText={g.setText} placeholder="여기에 답을 쓰거나, 차곡이에게 초안을 부탁해 보세요."
         disabled={g.loading || g.busy || analyzing || !g.initialized || locked} cardsDisabled={draftBusy || locked}
-        selected={selected} onSelect={setSelected} onConfirm={confirm} onActorDecided={onRefresh} onSupposed={settleSupposed} onRemove={removeSentence}
+        selected={selected} onSelect={setSelected} onConfirm={confirm} onActorDecided={onRefresh} onSupposed={settleSupposed}
         onConfirmOwn={o => setBox(b => ({ ...b, seen: new Set(b.seen).add(o.text) }))}
         onAnswer={async (chip, answer) => {
           await onAnswer(chip.omission.clarificationId!, answer);
