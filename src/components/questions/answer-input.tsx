@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { InfoTip } from "@/components/ui/info-tip";
 import { Toast, useToast } from "@/components/ui/toast";
-import { confirmDraftSentence, setDraftSentenceRemoved } from "@/lib/api/questions";
+import { confirmDraftSentence } from "@/lib/api/questions";
 import { updateSupplement } from "@/lib/api/experience";
 import { MAX_GROUNDING_TEXT_LENGTH, type Answer, type AnswerDraft, type GroundingStatus, type QuestionDetail } from "@/lib/api/question-types";
 import { AnswerEvidence } from "./answer-evidence";
@@ -48,8 +48,9 @@ function LoadedAnswer({ question, onAnswerChange, onAnswerDraftChange, checks, d
 }
 
 /** 답칸의 상태 — 어느 초안(key)을 담았나, 이 화면에서 답한 빈칸(local), 서버 문장에 저장 못 하는 맞아요(seen — 문장 글, FE#317).
- *  뺀 문장은 서버 값(sentences[].removed)이고 removed 는 저장을 기다리는 동안만 쓴다(FE#262). 글 · local · seen 은 임시 글로 자동 저장한다(S-72 · FE#213) */
-type Box = { key: string | null; removed: Set<number>; local: Record<number, string>; seen: Set<string>; sawDrafting: boolean };
+ *  글 · local · seen 은 임시 글로 자동 저장한다(S-72 · FE#213). 문장 빼기는 글에서 지우는 것뿐이다 — 서버의 sentences[].removed 는 읽지 않는다(FE#337) */
+type Box = { key: string | null; local: Record<number, string>; seen: Set<string>; sawDrafting: boolean };
+const NONE = new Set<number>();
 const later = (a: string, b: string) => Date.parse(a) > Date.parse(b);
 
 /** 임시 글 state 의 모양(FE 가 정한다 — 계약 question-api.md 「임시 글」). 다른 모양 · 다른 초안의 것이면 버린다 */
@@ -66,23 +67,21 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
   const draft = question.draft ?? null;
   const ready = draft?.status === "COMPLETED" && draft.sentences.length > 0 ? draft : null;
   const draftKey = ready?.createdAt ?? null;
-  const removedKey = ready?.sentences.flatMap((s, i) => s.removed ? [i] : []).join() ?? "";
   // 새 초안이 다 쓴 답보다 나중이면 초안 글로 시작한다 — 다 쓴 답은 서버에 남고 「다 쓴 답 불러오기」로 돌아간다
   const fresh = !!ready && (!a.answer || later(ready.createdAt, a.answer.confirmedAt));
-  const serverRemoved = () => new Set(removedKey ? removedKey.split(",").map(Number) : []);
   // 임시 글(S-72)이 있으면 그 글로 시작한다 — 확정하면 지워지니 다 쓴 답보다 늘 새롭다. 그 뒤에 만든 초안이 있으면 초안이 이긴다
   const [start] = useState(() => {
     const saved = question.answerDraft ?? null;
     const restored = saved && !(ready && later(ready.createdAt, saved.updatedAt)) ? saved : null;
     const kept = restored ? readSavedBox(restored.state, draftKey) : null;
-    const composed = ready ? composeDraft(question, ready, serverRemoved(), kept?.local ?? {}) : null;
+    const composed = ready ? composeDraft(question, ready, NONE, kept?.local ?? {}) : null;
     const text = restored ? restored.text : fresh && composed !== null ? composed : a.initialText;
     // 고친 글의 기준 — 다시 만들기 전 경고가 읽는다. 초안이 있으면 초안 글, 없으면 처음 글
     return { text, kept, base: composed ?? text ?? "" };
   });
   const initialText = start.text;
   const g = useGroundingCheck(questionId, checks, initialText);
-  const [box, setBox] = useState<Box>(() => ({ key: draftKey, removed: new Set(), local: start.kept?.local ?? {}, seen: start.kept?.seen ?? new Set(), sawDrafting: false }));
+  const [box, setBox] = useState<Box>(() => ({ key: draftKey, local: start.kept?.local ?? {}, seen: start.kept?.seen ?? new Set(), sawDrafting: false }));
   const [editBase, setEditBase] = useState(start.base);
   const [selected, setSelected] = useState<Selection>(null);
   const [ask, setAsk] = useState<"copy" | "confirm" | "ground" | "load" | null>(null);
@@ -97,14 +96,12 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
   // 다른 탭에서 만든 초안은 고친 글을 덮지 않는다(새로고침하면 보인다 — 「불러오기」 안내는 백로그)
   if (box.key !== draftKey) {
     const take = !!ready && fresh && (box.sawDrafting || !edited);
-    setBox({ key: draftKey, removed: new Set(), local: {}, seen: new Set(), sawDrafting: false });
+    setBox({ key: draftKey, local: {}, seen: new Set(), sawDrafting: false });
     setSelected(null);
-    if (take) { const next = composeDraft(question, ready, serverRemoved(), {}); g.setText(next); setEditBase(next); }
+    if (take) { const next = composeDraft(question, ready, NONE, {}); g.setText(next); setEditBase(next); }
   }
-  // 뺀 문장 — 서버에 저장된 것과 저장 중인 것
-  const removed = useMemo(() => new Set([...box.removed, ...(removedKey ? removedKey.split(",").map(Number) : [])]), [box.removed, removedKey]);
   const settled = a.answer?.text ?? null;
-  const analysis = useMemo(() => analyze(question, ready, removed, box.local, box.seen, settled, text, g.check), [question, ready, removed, box.local, box.seen, settled, text, g.check]);
+  const analysis = useMemo(() => analyze(question, ready, NONE, box.local, box.seen, settled, text, g.check), [question, ready, box.local, box.seen, settled, text, g.check]);
   const latest = useRef(analysis);
   useEffect(() => { latest.current = analysis; });
   const target = question.targetLength ?? null;
@@ -124,38 +121,6 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
     return () => window.removeEventListener("beforeunload", warn);
   }, [autosave.unsaved]);
 
-  // 빼기 — 글에서 지우고 서버에 저장한다. 실패하면 알린다(글은 Ctrl+Z 로 되돌릴 수 있다)
-  const remove = async (mark: Mark) => {
-    const sentence = ready?.sentences[mark.index];
-    if (!sentence) return;
-    const after = text.slice(mark.end).match(/^\s*/)![0].length;
-    const before = after ? 0 : text.slice(0, mark.start).match(/\s*$/)![0].length;
-    editor.current?.replace(mark.start - before, mark.end + after, "");
-    setBox(b => ({ ...b, removed: new Set(b.removed).add(mark.index) }));
-    try {
-      if (sentence.id != null) { await setDraftSentenceRemoved(sentence.id, true); await onRefresh(); }
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : "저장하지 못했어요. 다시 시도해 주세요.", true);
-    } finally {
-      setBox(b => { const next = new Set(b.removed); next.delete(mark.index); return { ...b, removed: next }; });
-    }
-  };
-  // 다시 넣기 — 원래 초안 문장을 짝이 있는 가장 가까운 앞 문장 뒤에(없으면 맨 앞)
-  const restore = async (index: number) => {
-    if (!ready) return;
-    const sentence = ready.sentences[index];
-    try {
-      if (sentence.id != null) await setDraftSentenceRemoved(sentence.id, false);
-      const others = new Set(ready.sentences.flatMap((_, i) => i === index ? [] : [i]));
-      const original = composeDraft(question, ready, others, box.local);
-      const before = (latest.current?.marks ?? []).filter(m => m.index < index).sort((x, y) => y.index - x.index)[0];
-      const at = before ? before.end : 0;
-      editor.current?.replace(at, at, before ? ` ${original}` : text ? `${original} ` : original);
-      await onRefresh();
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : "저장하지 못했어요. 다시 시도해 주세요.", true);
-    }
-  };
   // 맞아요 — 고치지 않은 AI 보탬 · 생각은 서버에, 고친 문장 · 숫자 · 채운 빈칸 확인은 이 화면에서만(저장된 문장 글과 달라서)
   const confirm = async (mark: Mark) => {
     const sentence = ready?.sentences[mark.index];
@@ -188,7 +153,6 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
   const editedFacts = analysis?.marks.filter(m => m.edited && ready?.sentences[m.index].kind === "FACT").length ?? 0;
   const groundFirst = editedFacts > 0 && !(g.check?.status === "COMPLETED" && g.check.text === text);
   const finish = () => { if (groundFirst) setAsk("ground"); else void confirmAnswer(); };
-  const removedList = ready ? ready.sentences.flatMap((s, i) => removed.has(i) ? [{ s, i }] : []) : [];
   // 빠진 사실 질문은 차곡이 패널에서 답한다 — 답칸 위에서는 한 줄로 알린다(FE#262 · FE#266). 글에 칩으로 남은 빈칸은 「확인할 곳」이 센다
   const chipped = new Set(analysis?.chips.map(c => c.at) ?? []);
   const asked = ready?.omitted.filter((o, at) => o.clarificationId !== null && o.supplementId === null && !chipped.has(at)).length ?? 0;
@@ -212,7 +176,7 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
       <DraftEditor handleRef={editor} inputId={`answer-${questionId}`} question={question} draft={ready} analysis={analysis} local={box.local}
         text={text} onText={g.setText} placeholder="여기에 답을 쓰거나, 차곡이에게 초안을 부탁해 보세요."
         disabled={g.loading || g.busy || analyzing || !g.initialized || locked} cardsDisabled={draftBusy || locked}
-        selected={selected} onSelect={setSelected} onRemove={m => void remove(m)} onConfirm={confirm} onActorDecided={onRefresh}
+        selected={selected} onSelect={setSelected} onConfirm={confirm} onActorDecided={onRefresh}
         onConfirmOwn={o => setBox(b => ({ ...b, seen: new Set(b.seen).add(o.text) }))}
         onAnswer={async (chip, answer) => {
           await onAnswer(chip.omission.clarificationId!, answer);
@@ -249,15 +213,6 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
         </div>
       </div>
     </div>
-    {removedList.length > 0 && <details className="grid gap-2 rounded-sm bg-surface-soft px-3.5 py-2.5 text-sm">
-      <summary className="min-h-11 lg:min-h-10 cursor-pointer content-center font-medium text-body">뺀 문장 {removedList.length}개 — 다시 넣을 수 있어요</summary>
-      <ul aria-label="뺀 문장" className="m-0 grid list-none gap-2 p-0 pt-1">
-        {removedList.map(({ s, i }) => <li key={i} className="flex flex-wrap items-center justify-between gap-2">
-          <span className="min-w-0 flex-1 break-words text-muted line-through decoration-hairline">{s.text}</span>
-          <Button variant="secondary" size="sm" className="min-h-11 lg:min-h-10" disabled={draftBusy || locked} onClick={() => void restore(i)}>다시 넣기</Button>
-        </li>)}
-      </ul>
-    </details>}
     {autosave.status === "error" && <p role="alert" className="m-0 text-sm text-error">쓰는 글을 저장하지 못했어요. {autosave.error} 글은 이 화면에 그대로 있어요 — 「다시 저장」을 눌러 주세요.</p>}
     {marked && ready && <DraftGuidance draft={ready} />}
     {a.answer && text !== a.answer.text && <Button variant="link" size="sm" className="min-h-11 lg:min-h-10 justify-self-start" onClick={() => { if (edited) setAsk("load"); else loadConfirmed(); }}>다 쓴 답 불러오기</Button>}

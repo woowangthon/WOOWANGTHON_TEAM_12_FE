@@ -1,4 +1,4 @@
-// 시험 전용 HTTP 응답 — 답칸 안의 초안(FE#235 · S-79 · FE#283)의 동작 흐름: 맞아요 · 빼기 · 빈칸 · 주체 · 복사 · 다음 확인할 곳 · 다시 만들기 경고.
+// 시험 전용 HTTP 응답 — 답칸 안의 초안(FE#235 · S-79 · FE#283)의 동작 흐름: 맞아요 · 빈칸 · 주체 · 복사 · 다음 확인할 곳 · 다시 만들기 경고.
 // 실제 BE 영속성 검증이 아니다(가짜 BE 가 확인한 문장 · 답한 빈칸을 기억할 뿐이다).
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
@@ -60,66 +60,36 @@ test("맞아요 — 확인한 문장은 밑줄이 없어지고 확인할 곳이 
   await expect(markOf(page, S_802)).not.toHaveClass(UNDERLINED);
 });
 
-test("빼기 — 문장이 답칸에서 빠지고 글자 수가 줄며 확인할 곳에서도 빠지고 서버에 저장한다", async ({ page }) => {
-  const api = await open(page);
-  await expect(answerBox(page)).toHaveValue(COMPOSED);
-  const before = await charCount(page);
-  expect(before).toBe(COMPOSED.length);
-  await clickMark(page, S_802);
-  await sentenceCard(page).getByRole("button", { name: "빼기", exact: true }).click();
-  await expect(markOf(page, S_802)).toHaveCount(0);
-  await expect(answerBox(page)).not.toHaveValue(new RegExp(DRAFT_S79.sentences[1].text.slice(0, 12)));
-  await expect(page.getByText("확인할 곳 3군데", { exact: true })).toBeVisible();
-  const removed = DRAFT_S79.sentences[1].text.length + 1; // 문장 + 이어 붙이는 공백 하나
-  await expect.poll(() => charCount(page)).toBe(before - removed);
-  expect(posts(api)).toEqual([{ call: "PUT /api/draft-sentences/802/removed", body: { removed: true } }]);
-  // 빈칸이 있는 문장을 빼면 그 빈칸도 확인할 곳에서 빠진다
-  await clickMark(page, S_804);
-  await sentenceCard(page).getByRole("button", { name: "빼기", exact: true }).click();
-  await expect(markOf(page, BLANK_64)).toHaveCount(0);
-  await expect(page.getByText("확인할 곳 1군데", { exact: true })).toBeVisible(); // 남은 건 AI 제안 805 하나
-});
-
 const OPINION_805_TEXT = "앞으로도 문제의 원인을 끝까지 살피는 개발자가 되고 싶습니다.";
 
-test("빼기 저장 — PUT removed true 뒤 새로고침해도 빠져 있고, 뺀 문장 목록에서 다시 넣을 수 있다", async ({ page }) => {
+// FE#337 — 빼기 · 닫기 버튼과 뺀 문장 목록은 없다. 문장은 글에서 지우고(Ctrl+Z 로 되돌린다), 글은 자동 저장(S-72)으로 남는다
+test("카드에 빼기 · 닫기가 없고, 글에서 지운 문장은 확인할 곳에서 빠지며 새로고침해도 지운 채다", async ({ page }, info) => {
   const api = await open(page);
   await clickMark(page, S_805);
-  await sentenceCard(page).getByRole("button", { name: "빼기", exact: true }).click();
-  await expect.poll(() => posts(api)).toEqual([{ call: "PUT /api/draft-sentences/805/removed", body: { removed: true } }]);
+  await expect(sentenceCard(page)).toBeVisible();
+  await expect(sentenceCard(page).getByRole("button", { name: "빼기", exact: true })).toHaveCount(0);
+  await expect(sentenceCard(page).getByRole("button", { name: "닫기", exact: true })).toHaveCount(0);
+  await page.screenshot({ path: `docs/fe-337/card-${info.project.name}.png` });
+  if (narrow(page)) await closeCard(page); else { await page.keyboard.press("Escape"); await expect(sentenceCard(page)).toHaveCount(0); }
+  await answerBox(page).fill(COMPOSED.replace(" " + OPINION_805_TEXT, ""));
   await expect(markOf(page, S_805)).toHaveCount(0);
-  await expect(page.getByText("뺀 문장 1개 — 다시 넣을 수 있어요")).toBeVisible();
+  await expect.poll(() => charCount(page)).toBe(COMPOSED.length - OPINION_805_TEXT.length - 1);
+  await expect(page.getByText(/^뺀 문장 \d+개/)).toHaveCount(0);
+  await expect(page.getByText("저장됨", { exact: true })).toBeVisible();
+  expect(api.calls.filter(c => c.call.includes("/removed"))).toHaveLength(0);
   await page.reload();
-  await expect(page.getByText(/확인할 곳 \d|모두 확인했어요/)).toBeVisible();
+  await expect(answerBox(page)).toHaveValue(COMPOSED.replace(" " + OPINION_805_TEXT, ""));
   await expect(markOf(page, S_805)).toHaveCount(0);
-  const summary = page.getByText("뺀 문장 1개 — 다시 넣을 수 있어요");
-  await expect(summary).toBeVisible();
-  await summary.click(); // <details> 를 연다
-  const list = page.getByRole("list", { name: "뺀 문장" });
-  await expect(list.getByText(OPINION_805_TEXT)).toBeVisible();
-  await list.getByRole("button", { name: "다시 넣기", exact: true }).click();
-  await expect.poll(() => posts(api).at(-1)).toEqual({ call: "PUT /api/draft-sentences/805/removed", body: { removed: false } });
-  await expect(markOf(page, S_805)).toBeVisible();
-  await expect(page.getByText(/^뺀 문장 \d+개/)).toHaveCount(0);
-  await expect.poll(() => charCount(page)).toBe(COMPOSED.length);
-  await expect(answerBox(page)).toHaveValue(COMPOSED); // 원래 자리(앞 문장 뒤)로 돌아온다
 });
 
-test("빼기가 저장되지 않으면 알리고, 서버에는 문장이 그대로 있으며 글은 Ctrl+Z 로 되돌린다", async ({ page }) => {
-  const api = await open(page);
-  await page.route("**/api/draft-sentences/805/removed", route => route.fulfill({ status: 503, json: { error: { code: "INTERNAL_ERROR", message: "문장을 빼지 못했어요. 서버 연결을 확인해 주세요." } } }));
+test("넓은 폭 카드는 「내가 쓴 답」 칸 밖을 누르면 닫힌다", async ({ page }) => {
+  test.skip(narrow(page), "좁은 폭은 시트가 스스로 닫는다");
+  await open(page);
   await clickMark(page, S_805);
-  await sentenceCard(page).getByRole("button", { name: "빼기", exact: true }).click();
-  await expect(page.getByRole("alert").filter({ hasText: "문장을 빼지 못했어요" })).toBeVisible();
-  await expect(page.getByText(/^뺀 문장 \d+개/)).toHaveCount(0);
-  expect(api.questions.flatMap(q => q.detail.draft?.sentences ?? []).find(s => s.id === 805)?.removed).toBeFalsy();
-  // 넓은 폭은 브라우저 입력 명령으로 지워서 Ctrl+Z 로 돌아온다(좁은 폭은 바로 바꾸는 방식이라 기록이 없다)
-  if (narrow(page)) return;
-  await answerBox(page).focus();
-  await page.keyboard.press("Control+z");
-  await expect(answerBox(page)).toHaveValue(COMPOSED);
+  await expect(sentenceCard(page)).toBeVisible();
+  await page.locator("#question-panel header h3").click();
+  await expect(sentenceCard(page)).toHaveCount(0);
 });
-
 test("문장 카드에는 고치기 · 직접 고치기가 없고, 초안 글은 처음부터 입력칸에 있다", async ({ page }) => {
   await open(page);
   await expect(answerBox(page)).toHaveValue(COMPOSED);
@@ -396,7 +366,7 @@ test("근거 문장에서 내가 했어요를 누른 뒤 다시 열어도 · 새
   await expect(sentenceCard(page).getByText("주체 · 내가 한 일", { exact: false })).toBeVisible();
   await expect(sentenceCard(page).getByText("다시 만들면 확인된 문장으로 바뀌어요", { exact: false })).toBeVisible();
   // 카드를 닫았다 다시 연다
-  if (narrow(page)) await closeCard(page); else await sentenceCard(page).getByRole("button", { name: "닫기", exact: true }).click();
+  if (narrow(page)) await closeCard(page); else await page.keyboard.press("Escape");
   await expect(sentenceCard(page)).toHaveCount(0);
   await openMark(page, S_801);
   await expect(sentenceCard(page).getByText("주체 · 내가 한 일", { exact: false })).toBeVisible();
