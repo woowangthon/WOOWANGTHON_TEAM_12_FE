@@ -61,77 +61,106 @@ async function setup(page: Page, initial: Answer | null = null) {
   return { state, api };
 }
 
-test("confirms before finding; edits, saves and dismisses; restores and opens actual saved experience", async ({ page }, info) => {
+// 후보는 차곡이 패널에서 찾고 고른다(FE#270) — 1440 은 옆 패널, 1024 · 390 은 시트
+const panel = (page: Page) => page.locator("#chagok-panel");
+const factsBox = (page: Page) => panel(page).getByRole("region", { name: "새 경험 후보" });
+const findLine = (page: Page) => screen(page).getByRole("button", { name: "새 경험 후보 찾기", exact: true });
+const showFacts = (page: Page) => screen(page).getByRole("button", { name: "차곡이에서 보기", exact: true }).click();
+/** 시트면 닫는다 — 시트가 열린 동안 가운데는 누를 수 없다 */
+async function closeSheet(page: Page) {
+  const sheet = page.getByRole("dialog", { name: "차곡이" });
+  if (await sheet.isVisible()) { await page.getByRole("button", { name: "차곡이 닫기", exact: true }).click(); await expect(sheet).toBeHidden(); }
+}
+
+test("다 썼어요 saves only; the line under it finds in the panel; same text is blocked; picks survive", async ({ page }, info) => {
   const { state, api } = await setup(page);
   const s = screen(page), input = s.getByRole("textbox", { name: "내가 쓴 답", exact: true });
-  await expect(s.getByRole("button", { name: "다 썼어요", exact: true })).toBeDisabled();
+  const done = s.getByRole("button", { name: "다 썼어요", exact: true });
+  await expect(done).toBeDisabled();
   const drafts = () => api.calls.filter(c => c.call.endsWith("/answer-draft"));
-  state.hold = true;
-  await input.fill(TEXT); await s.getByRole("button", { name: "다 썼어요", exact: true }).click();
-  await expect(s.getByText(/새 경험 후보를 찾고 있어요/)).toBeVisible();
-  expect(state.puts).toEqual([TEXT]); expect(state.finds).toBe(1);
+  await input.fill(TEXT); await done.click();
+  await expect(s.getByText("다 쓴 답으로 저장했어요", { exact: true })).toBeVisible();
+  // 저장만 한다 — 분석을 쓰지 않는다. 같은 글이면 「다 썼어요」가 막힌다
+  expect(state.puts).toEqual([TEXT]); expect(state.finds).toBe(0);
+  await expect(findLine(page)).toBeVisible();
+  await expect(done).toBeDisabled();
   // 「다 썼어요」 뒤엔 기다리던 자동 저장이 늦게 도착해 지운 임시 글을 되살리지 않는다
   await page.waitForTimeout(1500); expect(api.questions[0].detail.answerDraft ?? null).toBeNull();
+  await closeSheet(page);
+  await s.scrollIntoViewIfNeeded();
+  await s.screenshot({ path: `docs/fe-270/saved-line-${info.project.name}.png` });
+  state.hold = true;
+  await findLine(page).click();
+  await expect(factsBox(page).getByText(/새 경험 후보를 찾고 있어요/)).toBeVisible();
+  expect(state.finds).toBe(1);
   await page.reload(); state.hold = false;
-  await expect(s.getByRole("textbox", { name: "경험 문장" })).toHaveCount(2);
   await expect(input).toHaveValue(TEXT);
+  await closeSheet(page);
+  await showFacts(page);
+  const cards = factsBox(page).getByRole("listitem");
+  await expect(factsBox(page).getByRole("textbox", { name: "경험 문장" })).toHaveCount(2);
   expect(state.decisions).toHaveLength(0);
-  const cards = s.getByRole("region", { name: "새 경험 후보" }).getByRole("listitem");
   await expect(cards.first().getByRole("combobox", { name: "붙일 활동" })).toHaveText(ACTIVITY_7);
   await expect(cards.nth(1).getByRole("button", { name: "경험으로 저장" })).toBeDisabled();
   await expect(cards.first().getByText("AI 제안", { exact: true })).toBeVisible();
-  if (info.project.name === "grounding-rail") {
-    const toggle = page.getByRole("button", { name: /^차곡이/ });
-    if (await toggle.getAttribute("aria-expanded") === "false") await toggle.click();
-    await expect(page.getByRole("dialog", { name: "차곡이" })).toBeVisible();
-    await page.screenshot({ path: "docs/fe-108/chagok-1024.png", fullPage: true });
-    await page.getByRole("button", { name: "차곡이 닫기", exact: true }).click();
-  }
-  await s.scrollIntoViewIfNeeded();
-  await page.screenshot({ path: `docs/fe-108/application-${info.project.name}.png`, fullPage: true });
-  await s.screenshot({ path: `docs/fe-108/candidates-${info.project.name}.png` });
+  await factsBox(page).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `docs/fe-270/panel-${info.project.name}.png` });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await cards.first().getByRole("textbox", { name: "경험 문장" }).fill("두 기기로 메시지를 보내 팀과 함께 확인했다");
   await pickOption(cards.first().getByRole("combobox", { name: "수행 주체" }), "팀");
   await cards.first().getByRole("button", { name: "경험으로 저장" }).click();
   await expect(cards.first().getByText("경험으로 저장했어요")).toBeVisible();
   expect(state.decisions[0]).toEqual({ activityId: 7, content: "두 기기로 메시지를 보내 팀과 함께 확인했다", actor: "TEAM" });
-  await cards.nth(1).getByRole("button", { name: "저장 안 함", exact: true }).click();
-  await expect(cards.nth(1)).toContainText("저장하지 않았어요");
-  // 고친 글은 멈추면 임시 글로 저장되고, 새로고침해도 그 글로 시작한다(S-72)
+  await expect(s.getByText(/새 경험 후보 1개를 골라 주세요/)).toBeAttached();
+  await closeSheet(page);
+  // 같은 글은 다시 확정하지 않는다 — 고치면 켜지고, 되돌리면 다시 막힌다
   await input.fill("수정한 답"); await expect(s.getByText(/고친 내용이 있어요/)).toBeVisible();
+  await expect(done).toBeEnabled();
   await expect(s.getByText("저장됨", { exact: true })).toBeVisible();
   expect(drafts().at(-1)?.body).toMatchObject({ text: "수정한 답" });
   await page.reload(); await expect(input).toHaveValue("수정한 답");
+  await closeSheet(page);
   await expect(s.getByText(/고친 내용이 있어요/)).toBeVisible();
-  await s.getByRole("link", { name: "저장한 경험 보기" }).click();
+  await input.fill(TEXT); await expect(done).toBeDisabled();
+  await expect(s.getByText(/새 경험 후보 1개를 골라 주세요/)).toBeVisible();
+  await showFacts(page);
+  await factsBox(page).getByRole("listitem").nth(1).getByRole("button", { name: "저장 안 함", exact: true }).click();
+  await expect(factsBox(page).getByRole("listitem").nth(1)).toContainText("저장하지 않았어요");
+  expect(state.puts).toEqual([TEXT]); expect(state.finds).toBe(1);
+  await factsBox(page).getByRole("link", { name: "저장한 경험 보기" }).click();
   await expect(page).toHaveURL(/experience[?]experience=108&fromQuestion=41/);
   await expect(page.getByText("내가 쓴 지원서 · OO 부트캠프 ·", { exact: false }).first()).toBeVisible();
-  await page.screenshot({ path: `docs/fe-108/origin-${info.project.name}.png`, fullPage: true });
 });
 
-test("PUT failure never starts analysis; 429 retains confirmed answer and retries only finding", async ({ page }) => {
+test("PUT failure never shows saved; 429 on finding keeps the answer and retries only finding", async ({ page }) => {
   const { state } = await setup(page); const s = screen(page);
+  await closeSheet(page);
   state.putError = "INTERNAL_ERROR";
   await s.getByRole("textbox").fill(TEXT); await s.getByRole("button", { name: "다 썼어요", exact: true }).click();
   await expect(s.getByRole("alert")).toContainText("답 저장 실패"); expect(state.finds).toBe(0);
   await expect(s.getByText("다 쓴 답으로 저장했어요", { exact: true })).toHaveCount(0);
-  state.putError = ""; state.findError = "DAILY_LIMIT_EXCEEDED";
+  state.putError = "";
   await s.getByRole("button", { name: "같은 답으로 다시 저장" }).click();
-  await expect(s.getByRole("alert")).toContainText("답은 저장했어요 · 오늘 분석 횟수를 다 썼어요");
-  await s.getByRole("textbox").fill("아직 확정하지 않은 수정");
+  await expect(s.getByText("다 쓴 답으로 저장했어요", { exact: true })).toBeVisible();
+  expect(state.finds).toBe(0);
+  state.findError = "DAILY_LIMIT_EXCEEDED";
+  await findLine(page).click();
+  await expect(factsBox(page).getByRole("alert")).toContainText("답은 저장했어요 · 오늘 분석 횟수를 다 썼어요");
   state.findError = ""; state.empty = true;
-  await s.getByRole("button", { name: "다시 찾기", exact: true }).click();
-  await expect(s.getByText("새로 쓴 사실이 없어요")).toBeVisible();
+  await factsBox(page).getByRole("button", { name: "다시 찾기", exact: true }).click();
+  await expect(factsBox(page).getByText("새로 쓴 사실이 없어요")).toBeVisible();
+  await expect(s.getByText("새로 쓴 사실이 없어요")).toBeAttached();
   expect(state.puts).toHaveLength(2); expect(state.finds).toBe(2);
-  await expect(s.getByRole("textbox")).toHaveValue("아직 확정하지 않은 수정");
 });
 
-test("AI failure retries finding; decided conflicts refresh without another save or analysis", async ({ page }) => {
+test("AI failure retries finding in the panel; decided conflicts refresh without another save or analysis", async ({ page }) => {
   const { state } = await setup(page, answer(facts("FAILED"))); const s = screen(page);
-  await expect(s.getByRole("alert")).toContainText("AI 응답 시간이 초과됐어요");
-  await s.getByRole("button", { name: "다시 찾기", exact: true }).click();
-  const cards = s.getByRole("region", { name: "새 경험 후보" }).getByRole("listitem");
+  await closeSheet(page);
+  await expect(s.getByText("새 경험 후보를 찾지 못했어요")).toBeVisible();
+  await showFacts(page);
+  await expect(factsBox(page).getByRole("alert")).toContainText("AI 응답 시간이 초과됐어요");
+  await factsBox(page).getByRole("button", { name: "다시 찾기", exact: true }).click();
+  const cards = factsBox(page).getByRole("listitem");
   await expect(cards).toHaveCount(2); expect(state.puts).toHaveLength(0);
   state.decisionError = "NEW_FACT_ALREADY_DECIDED"; state.saved!.newFacts!.candidates[0].status = "DISMISSED";
   await cards.first().getByRole("button", { name: "경험으로 저장" }).click();
@@ -141,34 +170,37 @@ test("AI failure retries finding; decided conflicts refresh without another save
 
 test("polling stops after repeated read failures and recovers with GET only", async ({ page }) => {
   const { state } = await setup(page, answer()); const s = screen(page);
+  await closeSheet(page);
   state.hold = true;
-  await s.getByRole("button", { name: "새 경험 후보 찾기" }).click();
-  await expect(s.getByText(/새 경험 후보를 찾고 있어요/)).toBeVisible(); state.readError = true;
+  await findLine(page).click();
+  await expect(factsBox(page).getByText(/새 경험 후보를 찾고 있어요/)).toBeVisible(); state.readError = true;
+  // 진행 중 확인은 답칸이 한다 — 패널을 닫아도 이어진다
+  await closeSheet(page);
   await expect(s.getByRole("alert")).toContainText("자동 확인을 멈췄어요", { timeout: 12000 });
   const reads = state.reads;
   // 타이머가 이미 걸린 뒤라 가짜 시계로는 못 돌린다. 폴링 간격 2초를 넘겨 실제로 기다린다(FE#170).
   await page.waitForTimeout(2500); expect(state.reads).toBe(reads);
   state.readError = false; state.hold = false;
   await s.getByRole("button", { name: "저장 상태 다시 확인" }).click();
-  await expect(s.getByRole("textbox", { name: "경험 문장" })).toHaveCount(2);
+  await expect(s.getByText(/새 경험 후보 2개를 골라 주세요/)).toBeVisible();
   expect(state.puts).toHaveLength(0); expect(state.finds).toBe(1);
 });
 
 test("late confirmation never overwrites another question; re-confirmation clears undecided candidates", async ({ page }) => {
   const { state } = await setup(page, answer(facts("COMPLETED"))); const s = screen(page);
+  await closeSheet(page);
   let release!: () => void; const gate = new Promise<void>(r => { release = r; });
   await page.route("**/api/questions/41/answer", async route => { await gate; await route.fallback(); });
   await s.getByRole("textbox", { name: "내가 쓴 답", exact: true }).fill("다시 확정할 답");
   await s.getByRole("button", { name: "다 썼어요", exact: true }).click();
-  state.empty = true;
   const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab"); await tabs.nth(1).click(); release();
   await expect.poll(() => state.puts.length).toBe(1);
   await expect(s.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toHaveValue("");
-  await expect.poll(() => state.finds).toBe(1);
   await tabs.first().click();
   await expect(s.getByRole("textbox")).toHaveValue("다시 확정할 답");
-  await expect(s.getByRole("textbox", { name: "경험 문장" })).toHaveCount(0);
-  await expect(s.getByText("새로 쓴 사실이 없어요")).toBeVisible();
+  await expect(findLine(page)).toBeVisible();
+  await expect(panel(page).getByRole("textbox", { name: "경험 문장" })).toHaveCount(0);
+  expect(state.finds).toBe(0);
 });
 
 
@@ -176,34 +208,42 @@ test("saved candidate without a suggested activity still opens its actual experi
   const saved = candidates()[0]; saved.status = "SAVED"; saved.experienceId = 108; saved.activityId = null; saved.activityName = null;
   const { state, api } = await setup(page, answer(facts("COMPLETED", [saved])));
   state.experiences.push({ ...structuredClone(api.questions[0].detail.recommendations[0].experience), id: 108, origin: { type: "ANSWER", questionId: 41, applicationId: 22, organization: null, questionText: "확인한 방법" } });
-  await screen(page).getByRole("link", { name: "저장한 경험 보기" }).click();
+  await closeSheet(page);
+  await expect(screen(page).getByText(/새 경험 후보를 모두 정했어요/)).toBeVisible();
+  await showFacts(page);
+  await factsBox(page).getByRole("link", { name: "저장한 경험 보기" }).click();
   await expect(page.getByText("내가 쓴 지원서 · 지원처 미입력 · 확인한 방법", { exact: true })).toBeVisible();
 });
 
 test("409 finds existing job without reposting; initial read failure recovers with GET", async ({ page }) => {
   const { state } = await setup(page, answer()); const s = screen(page);
+  await closeSheet(page);
   state.hold = true; state.findError = "NEW_FACTS_IN_PROGRESS"; state.saved!.newFacts = facts("ANALYZING");
-  await s.getByRole("button", { name: "새 경험 후보 찾기" }).click();
-  await expect(s.getByText(/새 경험 후보를 찾고 있어요/)).toBeVisible();
+  await findLine(page).click();
+  await expect(factsBox(page).getByText(/새 경험 후보를 찾고 있어요/)).toBeVisible();
   state.hold = false;
-  await expect(s.getByRole("textbox", { name: "경험 문장" })).toHaveCount(2);
+  await expect(factsBox(page).getByRole("textbox", { name: "경험 문장" })).toHaveCount(2);
   expect(state.finds).toBe(1); expect(state.puts).toHaveLength(0);
   state.readError = true; await page.reload();
   // 답은 받아 둔 문항에서 읽으므로(FE#143) 첫 조회 실패는 화면의 「다시 불러오기」로 복구한다
-  const panel = page.getByRole("tabpanel", { name: "선택한 문항", exact: true });
-  await expect(panel.getByRole("alert")).toContainText("후보 상태 연결 실패");
+  const question = page.getByRole("tabpanel", { name: "선택한 문항", exact: true });
+  await expect(question.getByRole("alert")).toContainText("후보 상태 연결 실패");
   await expect(s.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toHaveCount(0);
   state.readError = false;
-  await panel.getByRole("button", { name: "다시 불러오기", exact: true }).click();
+  await closeSheet(page);
+  await question.getByRole("button", { name: "다시 불러오기", exact: true }).click();
   await expect(s.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toHaveValue(TEXT);
   expect(state.finds).toBe(1);
 });
 
 test("confirmed answer and its candidates survive leaving the tab without reading the question again", async ({ page }) => {
   const { state } = await setup(page); const s = screen(page);
+  await closeSheet(page);
   await s.getByRole("textbox", { name: "내가 쓴 답", exact: true }).fill(TEXT);
   await s.getByRole("button", { name: "다 썼어요", exact: true }).click();
-  await expect(s.getByRole("textbox", { name: "경험 문장" })).toHaveCount(2);
+  await findLine(page).click();
+  await expect(factsBox(page).getByRole("textbox", { name: "경험 문장" })).toHaveCount(2);
+  await closeSheet(page);
   const reads = state.reads;
   const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab");
   await tabs.nth(1).click();
@@ -211,14 +251,17 @@ test("confirmed answer and its candidates survive leaving the tab without readin
   await tabs.first().click();
   await expect(s.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toHaveValue(TEXT);
   await expect(s.getByText("다 쓴 답으로 저장했어요", { exact: true })).toBeVisible();
-  await expect(s.getByRole("textbox", { name: "경험 문장" })).toHaveCount(2);
+  await showFacts(page);
+  await expect(factsBox(page).getByRole("textbox", { name: "경험 문장" })).toHaveCount(2);
   expect(state.reads).toBe(reads);
 });
 
 
 test("null activity requires explicit selection; failed save preserves edits for retry", async ({ page }) => {
   const { state } = await setup(page, answer(facts("COMPLETED")));
-  const card = screen(page).getByRole("region", { name: "새 경험 후보" }).getByRole("listitem").nth(1);
+  await closeSheet(page);
+  await showFacts(page);
+  const card = factsBox(page).getByRole("listitem").nth(1);
   const save = card.getByRole("button", { name: "경험으로 저장" });
   await expect(save).toBeDisabled();
   await pickOption(card.getByRole("combobox", { name: "붙일 활동" }), ACTIVITY_7);

@@ -7,12 +7,14 @@ import { useEffect, useRef } from "react";
 import { CheckIcon, MinusCircleIcon, WarningCircleIcon, XIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { QuestionDetail, RequirementStatus, Supplement } from "@/lib/api/question-types";
+import type { Answer, QuestionDetail, RequirementStatus, Supplement } from "@/lib/api/question-types";
 import { bubble, ClarificationItem, ClarifyBlock, clarifyList, type AnswerHandler } from "./clarifications";
 import { DraftFollowUp, type DraftPanelActions } from "./draft-omissions";
 import { shortName } from "./question-result";
 import { ChagokComposer, ChagokRunFeed } from "./chagok-run";
 import type { ChagokRunControl } from "./use-chagok-run";
+import { NewFactCandidates } from "./new-fact-candidates";
+import { useConfirmedAnswer } from "./use-confirmed-answer";
 
 const JUDGMENT: Record<RequirementStatus, { label: string; icon: typeof CheckIcon; tone: string }> = {
   SUPPORTED: { label: "근거 있음", icon: CheckIcon, tone: "text-evidence" },
@@ -46,8 +48,11 @@ export function Mascot({ size = 28, animate = false, className }: { size?: numbe
 /** 보완이 어디서 나왔나 — 「OO 부트캠프 문항」 · 「이 지원의 문항 2」 */
 export type SupplementOrigin = (supplement: Supplement) => string;
 
-export function ChagokPanel({ question, index, originOf, onAnswer, onClose, draftActions, control }: {
-  question: QuestionDetail | null; index: number; originOf: SupplementOrigin; onAnswer: AnswerHandler; onClose: () => void; draftActions: DraftPanelActions; control: ChagokRunControl;
+/** 새 경험 후보(S-48)를 패널에서 찾고 고른다(FE#270) — 답은 화면이 받아 둔 문항의 것을 같이 쓴다 */
+export type NewFactActions = { onAnswerChange: (id: number, answer: Answer | null) => void; findRequested: boolean; onFindStarted: () => void };
+
+export function ChagokPanel({ question, index, originOf, onAnswer, onClose, draftActions, control, newFacts }: {
+  question: QuestionDetail | null; index: number; originOf: SupplementOrigin; onAnswer: AnswerHandler; onClose: () => void; draftActions: DraftPanelActions; control: ChagokRunControl; newFacts: NewFactActions;
 }) {
   // 단계가 쌓이면 맨 아래를 보인다
   const body = useRef<HTMLDivElement>(null);
@@ -67,10 +72,18 @@ export function ChagokPanel({ question, index, originOf, onAnswer, onClose, draf
       {control.restoring && <p role="status" className={bubble}>차곡이 일을 다시 열고 있어요…</p>}
       {control.restoreError && <div role="alert" className={bubble}><p>{control.restoreError}</p><Button variant="secondary" onClick={control.restore}>일 다시 불러오기</Button></div>}
       {question ? <Feed key={question.id} question={question} originOf={originOf} onAnswer={onAnswer} draftActions={draftActions} /> : <p className={bubble}>문항을 고르면 읽어 보고 맞는 경험을 찾아 둘게요.</p>}
+      {/* 흐름의 끝 — 다 쓴 답에서 새로 쓴 사실을 경험으로(S-48) */}
+      {question?.answer && <PanelNewFacts key={`facts-${question.id}`} question={question} {...newFacts} />}
       {!control.restoring && !control.restoreError && <ChagokRunFeed control={control} currentQuestionId={question?.id ?? null} />}
     </div>
     <ChagokComposer control={control} hasQuestion={!!question} />
   </div>;
+}
+
+function PanelNewFacts({ question, onAnswerChange, findRequested, onFindStarted }: { question: QuestionDetail } & NewFactActions) {
+  // 진행 중 확인은 답칸이 한다 — 패널이 닫혀도 「다 썼어요」 잠금이 풀리게
+  const confirmed = useConfirmedAnswer(question.id, question.answer ?? null, onAnswerChange, { poll: false });
+  return <div className="mt-2.5"><NewFactCandidates confirmed={confirmed} findRequested={findRequested} onFindStarted={onFindStarted} /></div>;
 }
 
 function Feed({ question: q, originOf, onAnswer, draftActions }: { question: QuestionDetail; originOf: SupplementOrigin; onAnswer: AnswerHandler; draftActions: DraftPanelActions }) {
