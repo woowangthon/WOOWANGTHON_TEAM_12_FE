@@ -3,13 +3,15 @@
 // 수정 이력(S-80 · ADR-013 · revision-api.md) — 언제 · 누가(나 / 외부 AI) · 무엇이 바뀌었나, 줄마다 「이 수정 전으로」.
 // 「최근 수정」(헤더 — 전체)과 「수정 이력」(경험 · 활동 메뉴, 답칸 줄 — 그 항목만)이 같이 쓴다.
 // 줄은 세로선 타임라인에 접어 두고 한 줄 요약만 보인다 — 펼치면 바뀐 부분만 강조한 글 · 짧은 값 · 되돌리기(FE#413)
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
-import { ArrowRightIcon, ArrowsClockwiseIcon, CaretDownIcon, ClockCounterClockwiseIcon, RobotIcon, UserIcon } from "@phosphor-icons/react";
+import { ArrowRightIcon, ArrowsClockwiseIcon, CaretDownIcon, ClockCounterClockwiseIcon, RobotIcon, UserIcon, XIcon } from "@phosphor-icons/react";
 import { diff } from "@/components/questions/draft-match";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
+import { useSidebar } from "@/components/sidebar-layout";
 import { timestamp } from "@/components/connections/mcp-changes";
 import { ApiError } from "@/lib/api/errors";
 import { mcpClientName } from "@/lib/api/mcp";
@@ -240,13 +242,13 @@ export function RevisionList({ target, beforeRestore, onRestored, onNavigate }: 
 }
 
 /** 헤더의 「최근 수정」 — 시안 6 「모두 저장됨」 자리(구분선 뒤). 저장은 고칠 때마다 바로 되고 답칸은 자기 줄에 저장 상태가 있어
- *  「모두 저장됨」이라고 단정하지 않는다. 좁은 화면은 아이콘만 */
+ *  「모두 저장됨」이라고 단정하지 않는다. 좁은 화면은 아이콘만. 다시 누르면 닫는다 */
 export function RecentRevisionsButton({ compact = false }: { compact?: boolean }) {
   const [open, setOpen] = useState(false);
   return <>
-    <button type="button" data-slot="recent-revisions" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open} aria-label={compact ? "최근 수정" : undefined} title="최근 수정 — 경험 · 활동 · 답을 고친 기록"
+    <button type="button" data-slot="recent-revisions" onClick={() => setOpen(o => !o)} aria-haspopup="dialog" aria-expanded={open} aria-label={compact ? "최근 수정" : undefined} title="최근 수정 — 경험 · 활동 · 답을 고친 기록"
       className={compact ? "flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-surface-soft focus-visible:outline-2 focus-visible:outline-ink"
-        : "flex h-9 shrink-0 items-center gap-1.5 rounded-full px-2 text-xs text-muted hover:bg-surface-soft hover:text-ink focus-visible:outline-2 focus-visible:outline-ink"}>
+        : cn("flex h-9 shrink-0 items-center gap-1.5 rounded-full px-2 text-xs text-muted hover:bg-surface-soft hover:text-ink focus-visible:outline-2 focus-visible:outline-ink", open && "bg-surface-soft text-ink")}>
       <ClockCounterClockwiseIcon aria-hidden="true" className={compact ? "size-5" : "size-4"} />
       {!compact && "최근 수정"}
     </button>
@@ -255,15 +257,72 @@ export function RecentRevisionsButton({ compact = false }: { compact?: boolean }
   </>;
 }
 
-/** 이력 창 — PC 는 가운데 창, 좁은 화면은 아래 시트(Dialog 가 폭으로 바꾼다) */
+// 오른쪽 이력 패널은 한 번에 하나(FE#424) — 열린 패널의 id. 다른 패널이 열리거나 closeRevisionPanel() 이 불리면 앞의 것이 닫힌다.
+// 활동을 고르거나 차곡이를 열면 그 자리를 돌려준다
+let activePanel: string | null = null;
+const panelListeners = new Set<() => void>();
+function setActivePanel(id: string | null) { activePanel = id; panelListeners.forEach(l => l()); }
+const subscribePanel = (listener: () => void) => { panelListeners.add(listener); return () => { panelListeners.delete(listener); }; };
+/** 열린 이력 패널을 닫는다 — 오른쪽 자리를 쓰는 다른 패널(활동 세부 · 차곡이)이 열릴 때 */
+export const closeRevisionPanel = () => { if (activePanel !== null) setActivePanel(null); };
+export const isRevisionPanelOpen = () => activePanel !== null;
+
+/** 이력 패널 — 넓은 화면(1280 이상)은 머리 아래 오른쪽 사이드바(활동 세부 · 차곡이 자리를 덮고, 닫으면 그대로 드러난다).
+ *  그보다 좁으면 차곡이처럼 오른쪽 시트 */
 export function RevisionDialog({ open, onOpenChange, title, description, ...list }: Parameters<typeof RevisionList>[0] & {
   open: boolean; onOpenChange: (open: boolean) => void; title: string; description: string;
 }) {
-  return <Dialog open={open} onOpenChange={onOpenChange}>
-    <DialogContent className="content-start gap-2 lg:max-w-2xl">
-      <DialogTitle className="pr-10">{title}</DialogTitle>
-      <DialogDescription>{description}</DialogDescription>
-      {open && <RevisionList {...list} onNavigate={() => { list.onNavigate?.(); onOpenChange(false); }} />}
-    </DialogContent>
-  </Dialog>;
+  const id = useId();
+  const { wide } = useSidebar();
+  const current = useSyncExternalStore(subscribePanel, () => activePanel, () => null);
+  const claimed = useRef(false);
+  const opener = useRef<HTMLElement | null>(null);
+  const panel = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (open) {
+      claimed.current = true;
+      opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      setActivePanel(id);
+      return;
+    }
+    if (claimed.current) { claimed.current = false; if (activePanel === id) setActivePanel(null); }
+  }, [open, id]);
+  // 다른 패널이 자리를 가져가면 닫는다
+  // current 는 바뀐 것을 알리는 신호로만 쓰고, 판단은 지금 값으로 — 같은 렌더에서 막 자리를 잡은 패널을 닫지 않게
+  useEffect(() => { if (open && claimed.current && activePanel !== id) onOpenChange(false); }, [current, open, id, onOpenChange]);
+  useEffect(() => () => { if (activePanel === id) setActivePanel(null); }, [id]);
+  // 넓은 화면 패널은 모달이 아니다 — 열면 패널로 초점을 옮기고, 닫으면 연 버튼으로 돌려준다
+  useEffect(() => {
+    if (!wide || !open) return;
+    panel.current?.focus();
+    const back = opener.current;
+    // 닫혀 초점이 갈 곳을 잃었을 때만 — 다른 활동을 눌러 닫혔으면 그 자리에 둔다
+    return () => { requestAnimationFrame(() => { if (back?.isConnected && (!document.activeElement || document.activeElement === document.body)) back.focus(); }); };
+  }, [wide, open]);
+
+  const close = () => onOpenChange(false);
+  const content = open && <RevisionList {...list} onNavigate={() => { list.onNavigate?.(); close(); }} />;
+
+  if (wide) return open ? createPortal(
+    <section ref={panel} role="dialog" aria-modal="false" aria-labelledby={`${id}-title`} aria-describedby={`${id}-desc`} tabIndex={-1}
+      onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); close(); } }}
+      className="fixed top-14 right-0 bottom-0 z-20 flex w-[440px] flex-col border-l border-hairline bg-canvas outline-none">
+      <header className="flex items-start gap-2 border-b border-hairline-soft px-6 pt-5 pb-4">
+        <div className="min-w-0 flex-1">
+          <h2 id={`${id}-title`} className="m-0 text-title-md font-semibold text-ink">{title}</h2>
+          <p id={`${id}-desc`} className="m-0 mt-1 text-note text-muted">{description}</p>
+        </div>
+        <Button variant="ghost" size="icon" aria-label="닫기" onClick={close}><XIcon /></Button>
+      </header>
+      <div className="min-h-0 flex-1 overflow-auto px-6 pb-6">{content}</div>
+    </section>, document.body) : null;
+
+  return <Sheet open={open} onOpenChange={onOpenChange}>
+    <SheetContent side="right" className="w-full! gap-2 overflow-auto p-5 pt-6 sm:max-w-[440px]!">
+      <SheetTitle className="pr-10 text-title-md">{title}</SheetTitle>
+      <SheetDescription className="text-note">{description}</SheetDescription>
+      {content}
+    </SheetContent>
+  </Sheet>;
 }
