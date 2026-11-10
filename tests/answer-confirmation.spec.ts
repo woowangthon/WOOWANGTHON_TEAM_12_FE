@@ -28,7 +28,8 @@ async function setup(page: Page, initial: Answer | null = null) {
   await page.route("**/api/questions/41/answer", async route => {
     const { text } = route.request().postDataJSON() as { text: string }; state.puts.push(text);
     if (state.putError) return route.fulfill({ status: 503, json: { error: { code: state.putError, message: "답 저장 실패" } } });
-    state.saved = { ...answer(), text }; return route.fulfill({ json: { answer: state.saved } });
+    // 확정하면 그 문항의 임시 글을 지운다(S-72 · question-api.md)
+    state.saved = { ...answer(), text }; api.questions[0].detail.answerDraft = null; return route.fulfill({ json: { answer: state.saved } });
   });
   await page.route("**/api/questions/41/answer/new-facts", async route => {
     state.finds++;
@@ -61,13 +62,16 @@ async function setup(page: Page, initial: Answer | null = null) {
 }
 
 test("confirms before finding; edits, saves and dismisses; restores and opens actual saved experience", async ({ page }, info) => {
-  const { state } = await setup(page);
+  const { state, api } = await setup(page);
   const s = screen(page), input = s.getByRole("textbox", { name: "내가 쓴 답", exact: true });
   await expect(s.getByRole("button", { name: "다 썼어요", exact: true })).toBeDisabled();
+  const drafts = () => api.calls.filter(c => c.call.endsWith("/answer-draft"));
   state.hold = true;
   await input.fill(TEXT); await s.getByRole("button", { name: "다 썼어요", exact: true }).click();
   await expect(s.getByText(/새 경험 후보를 찾고 있어요/)).toBeVisible();
   expect(state.puts).toEqual([TEXT]); expect(state.finds).toBe(1);
+  // 「다 썼어요」 뒤엔 기다리던 자동 저장이 늦게 도착해 지운 임시 글을 되살리지 않는다
+  await page.waitForTimeout(1500); expect(api.questions[0].detail.answerDraft ?? null).toBeNull();
   await page.reload(); state.hold = false;
   await expect(s.getByRole("textbox", { name: "경험 문장" })).toHaveCount(2);
   await expect(input).toHaveValue(TEXT);
@@ -94,8 +98,12 @@ test("confirms before finding; edits, saves and dismisses; restores and opens ac
   expect(state.decisions[0]).toEqual({ activityId: 7, content: "두 기기로 메시지를 보내 팀과 함께 확인했다", actor: "TEAM" });
   await cards.nth(1).getByRole("button", { name: "저장 안 함", exact: true }).click();
   await expect(cards.nth(1)).toContainText("저장하지 않았어요");
+  // 고친 글은 멈추면 임시 글로 저장되고, 새로고침해도 그 글로 시작한다(S-72)
   await input.fill("수정한 답"); await expect(s.getByText(/고친 내용이 있어요/)).toBeVisible();
-  await page.reload(); await expect(input).toHaveValue(TEXT);
+  await expect(s.getByText("저장됨", { exact: true })).toBeVisible();
+  expect(drafts().at(-1)?.body).toMatchObject({ text: "수정한 답" });
+  await page.reload(); await expect(input).toHaveValue("수정한 답");
+  await expect(s.getByText(/고친 내용이 있어요/)).toBeVisible();
   await s.getByRole("link", { name: "저장한 경험 보기" }).click();
   await expect(page).toHaveURL(/experience[?]experience=108&fromQuestion=41/);
   await expect(page.getByText("내가 쓴 지원서 · OO 부트캠프 ·", { exact: false }).first()).toBeVisible();
@@ -223,4 +231,26 @@ test("null activity requires explicit selection; failed save preserves edits for
   state.decisionError = ""; await save.click();
   await expect(card.getByText("경험으로 저장했어요")).toBeVisible();
   expect(state.decisions).toEqual([{ activityId: 7, content: "직접 고친 경험", actor: "TEAM" }]);
+});
+
+test("autosave: failure keeps text and retries; switching question tabs keeps the saved draft (S-72)", async ({ page }, info) => {
+  const { api } = await setup(page);
+  const s = screen(page), input = s.getByRole("textbox", { name: "내가 쓴 답", exact: true });
+  api.answerDraftDown = true;
+  await input.fill("쓰는 중인 답");
+  await expect(s.getByRole("alert").filter({ hasText: "쓰는 글을 저장하지 못했어요" })).toBeVisible();
+  await expect(input).toHaveValue("쓰는 중인 답");
+  await s.screenshot({ path: `docs/fe-213/autosave-error-${info.project.name}.png` });
+  api.answerDraftDown = false;
+  await s.getByRole("button", { name: "다시 저장", exact: true }).click();
+  await expect(s.getByText("저장됨", { exact: true })).toBeVisible();
+  expect(api.questions[0].detail.answerDraft?.text).toBe("쓰는 중인 답");
+  await s.screenshot({ path: `docs/fe-213/autosave-saved-${info.project.name}.png` });
+  // 멈추기 전에 다른 문항으로 가도 기다리던 저장을 보내고, 돌아오면 그 글이다
+  await input.fill("탭을 바꾸기 직전 글");
+  const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab");
+  await tabs.nth(1).click(); await expect(tabs.nth(1)).toHaveAttribute("aria-selected", "true");
+  await expect.poll(() => api.questions[0].detail.answerDraft?.text).toBe("탭을 바꾸기 직전 글");
+  await tabs.first().click();
+  await expect(input).toHaveValue("탭을 바꾸기 직전 글");
 });

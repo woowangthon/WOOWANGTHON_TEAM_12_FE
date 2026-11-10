@@ -67,9 +67,11 @@ export function useConfirmedAnswer(questionId: number, saved: Answer | null, onC
         : "답은 저장했어요 · " + message(e), action: "find" });
     }
   };
-  const confirm = (text: string) => run(async () => {
+  /** onConfirmed — 확정이 서버에 들어간 뒤(그 문항의 임시 글은 서버가 지웠다 · S-72) */
+  const confirm = (text: string, onConfirmed?: () => void) => run(async () => {
     try {
       keep(await confirmAnswer(questionId, text));
+      onConfirmed?.();
       // 문항을 떠났어도 확정 한 번의 후보 찾기는 끝까지 시작한다.
       await find();
     } catch (e) {
