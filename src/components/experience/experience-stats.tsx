@@ -16,10 +16,11 @@ import { PeriodLabel } from "./timeline";
 
 type DetailState = { status: "loading" } | { status: "ready"; details: ActivityDetail[]; failed: number };
 
-const SOURCE: { value: SourceStatus; label: string; bar: string }[] = [
-  { value: "SOURCE_CONFIRMED", label: "원문 확인", bar: "bg-evidence" },
-  { value: "USER_ENTERED", label: "내가 입력", bar: "bg-ink" },
-  { value: "NEEDS_REVIEW", label: "확인 필요", bar: "border border-dashed border-review bg-review-line" },
+// 블록 색은 분류라서 출처 상태엔 색을 쓰지 않는다 — 「확인 필요」만 블록과 같은 점선 표시(FE#371)
+const SOURCE: { value: SourceStatus; label: string }[] = [
+  { value: "SOURCE_CONFIRMED", label: "원문 확인" },
+  { value: "USER_ENTERED", label: "내가 입력" },
+  { value: "NEEDS_REVIEW", label: "확인 필요" },
 ];
 
 type Props = {
@@ -88,16 +89,18 @@ export function ExperienceStats({ activities, version, hiddenIds, addSource, onO
   const missing = (Object.keys(COMPETENCIES) as Competency[]).filter((c) => !competencyCounts.has(c)).map((c) => COMPETENCIES[c]);
 
   return (
-    <div className="mt-5 grid gap-10">
-    <section aria-label="내 경험 통계" className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-      <Card title="쌓인 블록" info="활동 시작 연도별 경험 수예요. 블록 하나가 경험 하나이고, 점선은 확인이 필요한 경험이에요.">
+    <div className="@container mt-5 grid gap-10">
+    {/* 폭은 화면이 아니라 이 자리 기준 — 활동 세부가 열려 좁아지면 쌓인 블록이 한 줄, 아래 두 장(FE#371) */}
+    <section aria-label="내 경험 통계" className="grid gap-4 @2xl:grid-cols-2 @5xl:grid-cols-3">
+      <Card className="@2xl:col-span-2 @5xl:col-span-1" title="쌓인 블록" info="활동 시작 연도별 경험 수예요. 블록 하나가 경험 하나이고, 점선은 확인이 필요한 경험이에요.">
         <ExperienceBlocks years={years} size="md" className="min-h-32 flex-1 content-end" />
         <div className="mt-4">
           {detailNote || <>
-            <ul aria-label="출처 상태별" className="m-0 flex list-none flex-wrap gap-x-3.5 gap-y-1 p-0 text-note text-muted">
-              {bySource.map((s) => (
+            <ul aria-label="출처 상태별" className="m-0 flex list-none flex-wrap items-center gap-y-1 p-0 text-note text-muted">
+              {bySource.map((s, i) => (
                 <li key={s.value} className="inline-flex items-center gap-1.5">
-                  <span aria-hidden="true" className={cn("inline-block h-2 w-3.5 rounded-sm", s.bar)} />
+                  {i > 0 && <span aria-hidden="true" className="mx-2 h-3 w-px bg-hairline" />}
+                  {s.value === "NEEDS_REVIEW" && <span aria-hidden="true" className="inline-block h-2 w-3.5 rounded-sm outline-1 outline-offset-1 outline-dashed outline-review-line" />}
                   {s.label} <b className="font-semibold text-ink tabular-nums">{s.count}</b>
                 </li>
               ))}
@@ -162,6 +165,7 @@ function CompetencyChips({ counts }: { counts: [Competency, number][] }) {
 }
 
 type Sort = "latest" | "oldest";
+const SORTS: [Sort, string][] = [["latest", "최신순"], ["oldest", "오래된순"]];
 
 /** 활동 서랍 — 활동 하나가 폴더 하나. 누르면 활동 세부(S-08). 시작을 모르는 활동은 순서와 상관없이 맨 뒤 */
 function ActivityDrawer({ activities, onOpenActivity }: { activities: ActivitySummary[]; onOpenActivity: (id: number) => void }) {
@@ -175,13 +179,16 @@ function ActivityDrawer({ activities, onOpenActivity }: { activities: ActivitySu
     <section aria-labelledby="activity-drawer" className="grid gap-4">
       <div className="flex items-center justify-between gap-3">
         <h2 id="activity-drawer" className="m-0 text-base font-bold text-ink">활동 서랍 <span className="font-normal text-muted tabular-nums">{activities.length}</span></h2>
-        <select aria-label="정렬" value={sort} onChange={(e) => setSort(e.target.value as Sort)}
-          className="min-h-11 cursor-pointer rounded-full bg-surface-soft px-3.5 text-note text-body lg:min-h-9">
-          <option value="latest">최신순</option>
-          <option value="oldest">오래된순</option>
-        </select>
+        {/* 지원 「묶어 보기」와 같은 둥근 토글 */}
+        <div role="group" aria-label="정렬" className="inline-flex gap-0.5 rounded-full bg-surface-soft p-[3px]">
+          {SORTS.map(([value, label]) => (
+            <button key={value} type="button" aria-pressed={sort === value} onClick={() => setSort(value)}
+              className={cn("inline-flex min-h-11 items-center rounded-full px-3.5 text-note font-medium text-muted lg:h-8 lg:min-h-0",
+                sort === value && "bg-canvas font-bold text-ink shadow-sm")}>{label}</button>
+          ))}
+        </div>
       </div>
-      <ul className="m-0 grid list-none gap-x-5 gap-y-4 p-0 sm:gap-y-6 sm:grid-cols-2 xl:grid-cols-4">
+      <ul className="m-0 grid list-none gap-x-5 gap-y-4 p-0 @xl:grid-cols-2 @xl:gap-y-6 @3xl:grid-cols-3 @5xl:grid-cols-4">
         {sorted.map((a) => {
           const category = categoryOf(a) ?? undefined;
           return (
@@ -204,9 +211,9 @@ function ActivityDrawer({ activities, onOpenActivity }: { activities: ActivitySu
   );
 }
 
-function Card({ title, info, aside, children }: { title: string; info?: ReactNode; aside?: ReactNode; children: ReactNode }) {
+function Card({ title, info, aside, className, children }: { title: string; info?: ReactNode; aside?: ReactNode; className?: string; children: ReactNode }) {
   return (
-    <div role="group" aria-label={title} className="flex min-w-0 flex-col rounded-md border border-hairline bg-canvas p-5 lg:p-6">
+    <div role="group" aria-label={title} className={cn("flex min-w-0 flex-col rounded-md border border-hairline bg-canvas p-5 lg:p-6", className)}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-0.5"><h2 className="m-0 text-base font-bold text-ink">{title}</h2>{info && <InfoTip label={title}>{info}</InfoTip>}</div>
         {aside}
