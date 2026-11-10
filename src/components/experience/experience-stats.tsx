@@ -1,6 +1,6 @@
 "use client";
 
-// 내 경험 통계(S-83) — 쌓인 블록(+출처 상태) · 분류 · 역량 제안(역량별 경험 수). 카드 세 장 한 줄(FE#365). 숫자는 모두 받은 활동 · 경험에서 센다(대회 규칙 1). AI 를 부르지 않는다
+// 내 경험 통계(S-83) — 쌓인 블록(+출처 상태) · 분류 · 나를 보여 주는 역량(역량별 경험 수) 카드 세 장 + 활동 서랍(FE#365 · FE#368). 숫자는 모두 받은 활동 · 경험에서 센다(대회 규칙 1). AI 를 부르지 않는다
 import { InfoTip } from "@/components/ui/info-tip";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ArrowsClockwiseIcon, ChartPieSliceIcon } from "@phosphor-icons/react";
@@ -12,6 +12,7 @@ import { ACTIVITY_CATEGORIES, COMPETENCIES, type ActivityDetail, type ActivitySu
 import { cn } from "@/lib/utils";
 import { CATEGORY_KEYS, CategoryIcon, categoryOf } from "./activity-category";
 import { ExperienceBlocks, experienceYears } from "./experience-blocks";
+import { PeriodLabel } from "./timeline";
 
 type DetailState = { status: "loading" } | { status: "ready"; details: ActivityDetail[]; failed: number };
 
@@ -84,12 +85,11 @@ export function ExperienceStats({ activities, version, hiddenIds, addSource, onO
       </div>
     );
 
-  const top = byCompetency.slice(0, 3);
-  const rest = byCompetency.slice(3);
   const missing = (Object.keys(COMPETENCIES) as Competency[]).filter((c) => !competencyCounts.has(c)).map((c) => COMPETENCIES[c]);
 
   return (
-    <section aria-label="내 경험 통계" className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div className="mt-5 grid gap-10">
+    <section aria-label="내 경험 통계" className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       <Card title="쌓인 블록" info="활동 시작 연도별 경험 수예요. 블록 하나가 경험 하나이고, 점선은 확인이 필요한 경험이에요.">
         <ExperienceBlocks years={years} size="md" className="min-h-32 flex-1 content-end" />
         <div className="mt-4">
@@ -116,36 +116,90 @@ export function ExperienceStats({ activities, version, hiddenIds, addSource, onO
         }))} />
       </Card>
 
-      <Card title="역량 제안" info={<>경험에 붙은 역량을 많은 순으로 셌어요. 역량은 AI 해석이 섞여 있고, 경험 하나에 여러 개 붙을 수 있어요.</>}>
-        {detailNote || <div className="grid gap-4">
-          <div className="grid gap-2">
-            <p className="m-0 text-note text-muted">내세우기 좋은 역량</p>
-            {top.length === 0 ? <p className="m-0 text-sm text-muted">아직 역량이 붙은 경험이 없어요.</p> : <>
-              <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
-                {top.map(([c, n]) => (
-                  <li key={c} className="rounded-full border border-hairline px-3.5 py-1.5 text-sm text-ink">{COMPETENCIES[c]} <b className="font-bold tabular-nums">{n}</b></li>
-                ))}
-              </ul>
-              {(rest.length > 0 || noCompetency > 0) && (
-                <p className="m-0 text-note text-muted tabular-nums">
-                  {rest.length > 0 && <>그 밖에 {rest.map(([c, n]) => `${COMPETENCIES[c]} ${n}`).join(" · ")}</>}
-                  {rest.length > 0 && noCompetency > 0 && " · "}
-                  {noCompetency > 0 && `역량 없는 경험 ${noCompetency}개`}
-                </p>
-              )}
-            </>}
+      <Card title="나를 보여 주는 역량" info={<>경험에 붙은 역량을 많은 순으로 셌어요. 역량은 AI 해석이 섞여 있고, 경험 하나에 여러 개 붙을 수 있어요{noCompetency ? ` · 역량 없는 경험 ${noCompetency}개` : ""}.</>}>
+        {detailNote || <div className="grid gap-5">
+          <div className="grid gap-2.5">
+            <p className="m-0 text-note text-muted">많이 해 본 역량</p>
+            {byCompetency.length === 0 ? <p className="m-0 text-sm text-muted">아직 역량이 붙은 경험이 없어요.</p> : <CompetencyChips counts={byCompetency} />}
           </div>
           {missing.length > 0 && (
-            <div className="grid gap-2">
+            <div className="grid gap-2.5">
               <p className="m-0 text-note text-muted">아직 경험이 없는 역량</p>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <p title={missing.join(" · ")} className="m-0 line-clamp-2 min-w-0 flex-1 basis-40 text-sm text-body">{missing.join(" · ")}</p>
-                <AddSourceButton {...addSource} className="shrink-0" />
-              </div>
+              <p title={missing.join(" · ")} className="m-0 line-clamp-2 text-sm text-body">{missing.join(" · ")}</p>
             </div>
           )}
         </div>}
       </Card>
+    </section>
+
+    <ActivityDrawer activities={activities} onOpenActivity={onOpenActivity} />
+    </div>
+  );
+}
+
+/** 많이 해 본 역량 — 위 3개만 펴 두고 나머지는 「+N」으로 접는다(FE#368) */
+function CompetencyChips({ counts }: { counts: [Competency, number][] }) {
+  const [open, setOpen] = useState(false);
+  const shown = open ? counts : counts.slice(0, 3);
+  const hidden = counts.length - 3;
+  return (
+    <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
+      {shown.map(([c, n], i) => (
+        <li key={c} className={cn("rounded-full border px-3.5 py-1.5 text-sm", i < 3 ? "border-hairline text-ink" : "border-transparent bg-surface-soft text-body")}>
+          {COMPETENCIES[c]} <b className="font-bold tabular-nums">{n}</b>
+        </li>
+      ))}
+      {hidden > 0 && (
+        <li>
+          <button type="button" aria-expanded={open} onClick={() => setOpen((v) => !v)}
+            className="min-h-11 cursor-pointer rounded-full px-3 text-sm text-muted tabular-nums hover:bg-surface-soft hover:text-ink lg:min-h-9">
+            {open ? "접기" : `+${hidden}`}
+          </button>
+        </li>
+      )}
+    </ul>
+  );
+}
+
+type Sort = "latest" | "oldest";
+
+/** 활동 서랍 — 활동 하나가 폴더 하나. 누르면 활동 세부(S-08). 시작을 모르는 활동은 순서와 상관없이 맨 뒤 */
+function ActivityDrawer({ activities, onOpenActivity }: { activities: ActivitySummary[]; onOpenActivity: (id: number) => void }) {
+  const [sort, setSort] = useState<Sort>("latest");
+  const sorted = [...activities].sort((a, b) => {
+    const x = a.period.start, y = b.period.start;
+    if (!x || !y) return x ? -1 : y ? 1 : 0;
+    return sort === "latest" ? y.localeCompare(x) : x.localeCompare(y);
+  });
+  return (
+    <section aria-labelledby="activity-drawer" className="grid gap-4">
+      <div className="flex items-center justify-between gap-3">
+        <h2 id="activity-drawer" className="m-0 text-base font-bold text-ink">활동 서랍 <span className="font-normal text-muted tabular-nums">{activities.length}</span></h2>
+        <select aria-label="정렬" value={sort} onChange={(e) => setSort(e.target.value as Sort)}
+          className="min-h-11 cursor-pointer rounded-full bg-surface-soft px-3.5 text-note text-body lg:min-h-9">
+          <option value="latest">최신순</option>
+          <option value="oldest">오래된순</option>
+        </select>
+      </div>
+      <ul className="m-0 grid list-none gap-x-5 gap-y-4 p-0 sm:gap-y-6 sm:grid-cols-2 xl:grid-cols-4">
+        {sorted.map((a) => {
+          const category = categoryOf(a) ?? undefined;
+          return (
+            <li key={a.id} data-category={category}>
+              <button type="button" onClick={() => onOpenActivity(a.id)}
+                className="group relative block w-full cursor-pointer pt-4 text-left">
+                {/* 폴더 탭 */}
+                <span aria-hidden="true" className="absolute top-0 left-0 h-8 w-2/5 rounded-t-md bg-category-soft [clip-path:polygon(0_0,72%_0,100%_100%,0_100%)]" />
+                <span className="relative flex min-h-28 flex-col sm:min-h-40 rounded-md rounded-tl-none bg-category-soft p-5 transition-transform group-hover:-translate-y-0.5 group-focus-visible:outline-2 group-focus-visible:outline-ink">
+                  <span className="truncate text-base font-bold text-ink">{a.name}</span>
+                  <span className="mt-1 text-sm text-category-ink tabular-nums">경험 {a.experienceCount}</span>
+                  <span className="mt-auto pt-4 text-sm sm:pt-6 text-body tabular-nums"><PeriodLabel period={a.period} /></span>
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }
