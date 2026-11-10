@@ -356,9 +356,9 @@ test("omitted facts have optional experience questions, while unlinked gaps stay
   await expect(manual.getByRole("button")).toHaveCount(0);
   await expect(omissions.getByRole("link").first()).toContainText(QUESTION_EXAMPLES[0].recommendations[0].experience.content);
   const first = omissions.getByRole("listitem").first();
-  await first.getByRole("button", { name: "건너뛰기", exact: true }).click();
-  await expect(first).toContainText("건너뛰었어요");
-  await first.getByRole("button", { name: "다시 답하기", exact: true }).click();
+  // 답은 선택 — 건너뛰기 버튼이 없고, 쓰기 전엔 보내기도 없다(FE#320)
+  await expect(first.getByRole("button", { name: "건너뛰기", exact: true })).toHaveCount(0);
+  await expect(first.getByRole("button", { name: "답하기", exact: true })).toHaveCount(0);
   await expect(first.getByRole("textbox")).toHaveAttribute("maxlength", "2000");
   await closeDraftPanel(page);
   await expect(answerBox(page)).toHaveValue(DRAFT_EXAMPLE.sentences.map(s => s.text).join(" ")); // 초안 글은 바로 입력칸에 있다

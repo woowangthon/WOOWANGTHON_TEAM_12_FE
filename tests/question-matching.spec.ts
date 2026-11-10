@@ -569,24 +569,25 @@ test("daily limit (429) keeps the draft and says nothing was saved", async ({ pa
   await expect(list(page).getByRole("button", { name: /지원처 이름 없음|OO/ })).toHaveCount(2);
 });
 
-// FE#31 — 되묻기에 답하기 · 건너뛰기 · 활동 세부의 「내가 입력」 보완(S-22 · S-23 · S-25)
+// FE#31 — 되묻기에 답하기(비워 두면 보내지 않음, FE#320) · 활동 세부의 「내가 입력」 보완(S-22 · S-23 · S-25)
 const shot = (name: string, project: string) => process.env.UPDATE_QUESTION_SCREENSHOTS === "1" ? { path: `docs/fe-32/${name}-${project}.png`, style: "nextjs-portal { display: none !important; }" } : null;
 
-test("answering a clarification posts it and shows it on the experience as user-entered; skipping sends nothing", async ({ page }, info) => {
+test("answering a clarification posts it and shows it on the experience as user-entered; leaving it empty sends nothing", async ({ page }, info) => {
   const api = await fake(page);
   await page.goto("/questions");
-  // 문항 42 — 건너뛰기는 서버에 아무것도 보내지 않는다
+  // 문항 42 — 답은 선택이다. 건너뛰기 버튼 없이, 비워 두면 보내기도 없고 서버에 아무것도 보내지 않는다(FE#320)
   await openChagok(page);
   const asks = () => chagokPanel(page).getByRole("list", { name: "차곡이의 질문", exact: true });
   await expect(asks()).toContainText("매주 회고에서 직접 맡은 일이 있었다면 무엇이었나요?");
   await expect(asks().getByText("바꿔요", { exact: true })).toBeVisible();
   await expect(asks().getByRole("textbox", { name: /^답: / })).toBeVisible();
-  await asks().getByRole("button", { name: "건너뛰기", exact: true }).click();
-  await expect(asks()).toContainText("건너뛰었어요");
-  await expect(asks().getByRole("textbox")).toHaveCount(0);
+  await expect(asks().getByRole("button", { name: "건너뛰기", exact: true })).toHaveCount(0);
+  await expect(asks().getByRole("button", { name: "답하기", exact: true })).toHaveCount(0);
+  await asks().getByRole("textbox", { name: /^답: / }).fill("   ");
+  await expect(asks().getByRole("button", { name: "답하기", exact: true })).toHaveCount(0);
+  await asks().getByRole("textbox", { name: /^답: / }).press("Enter");
   expect(posts(api)).toEqual([]);
-  await asks().getByRole("button", { name: "다시 답하기", exact: true }).click();
-  await expect(asks().getByRole("textbox", { name: /^답: / })).toBeVisible();
+  await asks().getByRole("textbox", { name: /^답: / }).fill("");
   await closeChagokSheet(page);
 
   // 문항 41 — 61 은 이미 답함(보완 301), 62 에 답한다
@@ -597,8 +598,7 @@ test("answering a clarification posts it and shows it on the experience as user-
   const stacked = "「바꿔요」 경험에 보완으로 쌓았어요. 다른 지원서에서도 이 답을 근거로 같이 써요.";
   await expect(asks().getByText(stacked, { exact: true })).toHaveCount(1);
   await expect(asks()).toContainText("서버에 STOMP 엔드포인트를 만들고");
-  await asks().getByRole("button", { name: "답하기", exact: true }).click();
-  await expect(asks().getByRole("alert")).toContainText("답을 적어 주세요");
+  await expect(asks().getByRole("button", { name: "답하기", exact: true })).toHaveCount(0); // 쓰기 전엔 보내기가 없다
   await asks().getByRole("textbox", { name: /^답: / }).fill("두 기기로 동시에 보내 보며 지연이 사라졌는지 확인했다");
   await asks().getByRole("button", { name: "답하기", exact: true }).click();
   await expect(asks().getByText(stacked, { exact: true })).toHaveCount(2);
