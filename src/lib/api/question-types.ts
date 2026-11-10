@@ -1,5 +1,5 @@
 // ETC docs/contracts/question-api.md · experience-api.md — 요청·응답 모양 그대로.
-import type { ActivitySummary, Experience, JobStatus as SourceJobStatus, Job, Supplement, Actor } from "./types";
+import type { ActivitySummary, Experience, JobStatus as SourceJobStatus, Job, Supplement, Actor, Period } from "./types";
 
 import type { DraftFrame } from '../draft-frames';
 import type { DraftGuideline } from './guidelines';
@@ -211,4 +211,7 @@ export type Answer = {
   questionId: number; text: string; confirmedAt: string;
   newFacts: { status: JobStatus; error: Job["error"]; candidates: NewFactCandidate[]; createdAt: string; updatedAt: string } | null;
 };
-export type SaveNewFactRequest = { activityId: number; content: string; actor: Actor };
+/** 새 활동을 만들어 붙일 때(S-48 · ETC#260) — 이름은 필수, 기간은 빼면 「기간 모름」. 분류는 받지 않는다 */
+export type NewActivityInput = { name: string; period?: Period };
+/** 붙일 곳은 기존 활동(`activityId`) · 새 활동(`newActivity`) 중 정확히 하나 */
+export type SaveNewFactRequest = { content: string; actor: Actor } & ({ activityId: number; newActivity?: never } | { newActivity: NewActivityInput; activityId?: never });

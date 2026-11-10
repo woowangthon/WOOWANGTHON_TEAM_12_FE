@@ -6,10 +6,12 @@ import { useEffect, useRef, useState } from "react";
 import { AnalysisCost } from "@/components/auth/analysis-cost";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
+import { MonthField } from "@/components/experience/activity-editor";
+import { activityError } from "@/lib/api/editing";
 import { fetchActivities } from "@/lib/api/experience";
 import { scrollWithinContainer } from "@/lib/scroll";
 import type { NewFactCandidate, SaveNewFactRequest } from "@/lib/api/question-types";
-import type { ActivitySummary, Actor } from "@/lib/api/types";
+import type { ActivitySummary, Actor, Period } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 import type { useConfirmedAnswer } from "./use-confirmed-answer";
 
@@ -82,25 +84,42 @@ export function NewFactCandidates({ confirmed: a, findRequested, onFindStarted, 
     {facts?.status === "COMPLETED" && !facts.candidates.length && <p role="status" className="m-0 text-muted">새로 쓴 사실이 없어요</p>}
     {facts?.status === "COMPLETED" && facts.candidates.length > 0 && <p className="m-0 text-muted">AI 제안이니 확인하고 고쳐 주세요.</p>}
     {activityError && needsActivities && <div className="grid justify-items-start gap-2"><p role="alert" className="m-0 text-error">{activityError}</p><Button variant="secondary" onClick={() => { setLoading(true); setAttempt(n => n + 1); }}>활동 다시 불러오기</Button></div>}
-    {facts?.status === "COMPLETED" && facts.candidates.length > 0 && <ol className="m-0 grid list-none gap-3 p-0">{facts.candidates.map(c => <CandidateCard key={c.id} candidate={c} activities={activities} unavailable={loading || !!activityError} busy={a.busy} decide={a.decide} questionId={a.answer!.questionId} />)}</ol>}
+    {facts?.status === "COMPLETED" && facts.candidates.length > 0 && <ol className="m-0 grid list-none gap-3 p-0">{facts.candidates.map(c => <CandidateCard key={c.id} candidate={c} activities={activities} unavailable={loading || !!activityError} busy={a.busy} decide={a.decide} questionId={a.answer!.questionId} onActivityCreated={() => setAttempt(n => n + 1)} />)}</ol>}
   </section>;
 }
 
-function CandidateCard({ candidate: c, activities, unavailable, busy, decide, questionId }: {
+/** 「+ 새 활동 만들기」를 고른 값 — 활동 id 는 양의 정수라 겹치지 않는다 */
+const NEW = "new";
+const NO_PERIOD: Period = { start: null, end: null, ongoing: false };
+
+/** onActivityCreated — 새 활동을 만들어 저장했다. 다른 후보 카드도 그 활동을 고를 수 있게 활동 목록을 다시 읽는다 */
+function CandidateCard({ candidate: c, activities, unavailable, busy, decide, questionId, onActivityCreated }: {
   candidate: NewFactCandidate; activities: ActivitySummary[]; unavailable: boolean; busy: boolean;
-  decide: Confirmed["decide"]; questionId: number;
+  decide: Confirmed["decide"]; questionId: number; onActivityCreated: () => void;
 }) {
   const [content, setContent] = useState(c.content);
   const [actor, setActor] = useState<Actor>(c.actor);
-  const [activity, setActivity] = useState(c.activityId === null ? "" : String(c.activityId));
+  // AI 가 붙일 활동을 못 찾았으면(null) 새 활동 만들기를 바로 연다(S-48 · ETC#260)
+  const [activity, setActivity] = useState(c.activityId === null ? NEW : String(c.activityId));
+  const [name, setName] = useState("");
+  const [period, setPeriod] = useState<Period>(NO_PERIOD);
   const [error, setError] = useState("");
+  const creating = activity === NEW;
   const activityId = Number(activity);
-  const validActivity = activities.some(a => a.id === activityId);
-  const submit = async (data?: SaveNewFactRequest) => {
+  const chosen = activities.find(a => a.id === activityId);
+  // 기간은 이름보다 먼저 보이지 않게 — 이름 빈칸은 버튼을 막는 것으로 알린다
+  const periodError = creating ? activityError("-", period) : null;
+  const ready = creating ? !!name.trim() && !periodError : !!chosen;
+  const submit = async (data?: SaveNewFactRequest, activityName?: string) => {
     setError("");
-    try { await decide(c.id, data); }
-    catch (e) { setError(e instanceof Error ? e.message : "저장하지 못했어요. 다시 시도해 주세요."); }
+    try {
+      await decide(c.id, data, activityName);
+      if (data?.newActivity) onActivityCreated();
+    } catch (e) { setError(e instanceof Error ? e.message : "저장하지 못했어요. 다시 시도해 주세요."); }
   };
+  const save = () => void (creating
+    ? submit({ newActivity: { name: name.trim(), period }, content, actor }, name.trim())
+    : submit({ activityId, content, actor }, chosen?.name));
   return <li className="grid min-w-0 gap-3 rounded-md border border-hairline p-3">
     <p className="m-0 text-xs font-semibold text-muted">AI 제안</p>
     <div className="grid gap-1"><p className="m-0 text-xs text-muted">다 쓴 답의 원래 문장</p><blockquote className="m-0 whitespace-pre-wrap break-words border-l-2 border-hairline pl-3 text-sm leading-relaxed">{c.sentence}</blockquote></div>
@@ -108,14 +127,28 @@ function CandidateCard({ candidate: c, activities, unavailable, busy, decide, qu
       <label className="grid min-w-0 gap-1 text-xs text-muted">경험 문장<textarea rows={3} className={field} value={content} disabled={busy} onChange={e => setContent(e.target.value)} /></label>
       <div className="grid min-w-0 gap-3">
         <label className="grid min-w-0 gap-1 text-xs text-muted">수행 주체<Select<Actor> value={actor} disabled={busy} onChange={next => { if (next) setActor(next); }} className="min-h-10" options={[{ value: "ME", label: "나" }, { value: "TEAM", label: "팀" }, { value: "UNKNOWN", label: "알 수 없음" }]} /></label>
-        <label className="grid min-w-0 gap-1 text-xs text-muted">붙일 활동<Select value={validActivity ? activity : ""} disabled={busy || unavailable} onChange={setActivity} className="min-h-10" placeholder="활동을 골라 주세요" options={activities.map(a => ({ value: String(a.id), label: a.name }))} /></label>
+        <label className="grid min-w-0 gap-1 text-xs text-muted">붙일 활동<Select value={creating || chosen ? activity : ""} disabled={busy || (unavailable && !creating)} onChange={setActivity} className="min-h-10" placeholder="활동을 골라 주세요"
+          options={[...activities.map(a => ({ value: String(a.id), label: a.name })), { value: NEW, label: "+ 새 활동 만들기" }]} /></label>
       </div>
-      {!unavailable && !activities.length && <p className="m-0 text-sm text-muted">저장할 활동이 없어요. 내 경험에서 활동을 준비한 뒤 다시 열어 주세요.</p>}
-      {c.activityName && <p className="m-0 break-words text-note text-muted">AI가 제안한 활동 — {c.activityName}</p>}
+      {c.activityName ? <p className="m-0 break-words text-note text-muted">AI가 제안한 활동 — {c.activityName}</p>
+        : c.activityId === null && <p className="m-0 break-words text-note text-muted">맞는 활동이 없어 보여요. 새 활동을 만들어 붙이거나 기존 활동을 골라 주세요.</p>}
+      {creating && <fieldset className="m-0 grid min-w-0 gap-3 rounded-sm border border-hairline p-3" disabled={busy}>
+        <legend className="px-1 text-xs font-semibold text-muted">새 활동</legend>
+        <label className="grid min-w-0 gap-1 text-xs text-muted">활동 이름<input className={field} value={name} required placeholder="예: 교내 해커톤 · 결제 서버 운영" onChange={e => setName(e.target.value)} /></label>
+        <div className="grid min-w-0 gap-2 text-xs text-muted">
+          <p className="m-0">기간 (선택 — 비우면 기간 모름)</p>
+          {(["start", "end"] as const).map(key => <MonthField key={key} label={key === "start" ? "시작" : "종료"} value={period[key]} original={null}
+            disabled={busy || (key === "end" && period.ongoing)} onChange={value => setPeriod(p => ({ ...p, [key]: value }))} />)}
+          <label className="flex min-h-11 lg:min-h-10 items-center gap-2 text-sm text-ink"><input type="checkbox" checked={period.ongoing} onChange={e => setPeriod(p => ({ ...p, ongoing: e.target.checked, end: e.target.checked ? null : p.end }))} />진행 중</label>
+          {periodError && <p role="alert" className="m-0 text-sm text-error">{periodError}</p>}
+        </div>
+        <p className="m-0 text-note text-muted">분류는 저장한 뒤 활동 세부에서 정해요.</p>
+      </fieldset>}
+      {!unavailable && !activities.length && !creating && <p className="m-0 text-sm text-muted">기존 활동이 없어요. 「+ 새 활동 만들기」로 붙여 주세요.</p>}
       {error && <p role="alert" className="m-0 text-sm text-error">{error}</p>}
-      <div className="flex flex-wrap gap-2"><Button disabled={busy || unavailable || !validActivity || !content.trim()} onClick={() => void submit({ activityId, content, actor })}>경험으로 저장</Button><Button variant="secondary" disabled={busy} onClick={() => void submit()}>저장 안 함</Button></div>
+      <div className="flex flex-wrap gap-2"><Button disabled={busy || (unavailable && !creating) || !ready || !content.trim()} onClick={save}>경험으로 저장</Button><Button variant="secondary" disabled={busy} onClick={() => void submit()}>저장 안 함</Button></div>
     </> : c.status === "SAVED" ? <>
-      <p role="status" className="m-0 text-sm">경험으로 저장했어요</p>
+      <p role="status" className="m-0 break-words text-sm">{c.activityName ? <>「{c.activityName}」에 경험으로 저장했어요</> : "경험으로 저장했어요"}</p>
       {c.experienceId !== null ? <Link className="inline-flex min-h-11 lg:min-h-10 items-center justify-self-start text-sm underline underline-offset-3" href={`/experience?experience=${c.experienceId}&fromQuestion=${questionId}#experience-${c.experienceId}`}>저장한 경험 보기 →</Link>
         : <p className="m-0 text-sm text-muted">저장했던 경험이 지금은 없어요.</p>}
     </> : <p role="status" className="m-0 text-sm text-muted">저장하지 않았어요</p>}

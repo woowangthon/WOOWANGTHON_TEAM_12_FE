@@ -47,6 +47,8 @@ type Props = {
   draggingId: number | null;
   /** 다른 활동이 없으면 undefined — 메뉴를 숨긴다 */
   onMergeRequest?: () => void;
+  /** 「지우기」(S-88) — 확인 창은 부모가 연다 */
+  onDeleteRequest?: () => void;
   /** 같은 활동 제안 줄(S-44 · FE#246) — 이 활동이 새 쪽이든 기존 쪽이든. 결정은 비교 창에서 */
   suggestions?: ReactNode;
   /** 이어진 활동(S-35)을 누르면 그 활동 세부로 간다 */
@@ -59,7 +61,7 @@ type Props = {
   addSourceStatus?: ReactNode;
 };
 
-export function ActivityDetailView({ summary, state, now, onClose, onRetry, onActivitySaved, onNoteSaved, onCategorySaved, onExperienceSaved, onExperienceAdded, onExperienceDelete, onExperienceMove, onExperienceMerge, onDragChange, draggingId, onMergeRequest, suggestions, onOpenActivity, onAddSource, addSourceBusy, addSourceStatus, readOnly = false }: Props) {
+export function ActivityDetailView({ summary, state, now, onClose, onRetry, onActivitySaved, onNoteSaved, onCategorySaved, onExperienceSaved, onExperienceAdded, onExperienceDelete, onExperienceMove, onExperienceMerge, onDragChange, draggingId, onMergeRequest, onDeleteRequest, suggestions, onOpenActivity, onAddSource, addSourceBusy, addSourceStatus, readOnly = false }: Props) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const activity = state.status === "ready" ? state.activity : null;
   const current = activity ?? summary;
@@ -86,7 +88,7 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
       <header className="grid gap-2.5 border-b border-hairline px-4.5 pt-5 pb-4 lg:px-7 lg:pt-7 lg:pb-5">
         <div className="flex items-start gap-2">
           <ActivityNameField key={current.id} activity={{ ...summary, name: current.name, period }} readOnly={readOnly || !activity} onSaved={onActivitySaved} />
-          {/* 활동이 하나여도 메뉴는 있다 — 수정 이력(S-80). 합치기만 둘 이상일 때 */}
+          {/* 활동이 하나여도 메뉴는 있다 — 수정 이력(S-80) · 지우기(S-88). 합치기만 둘 이상일 때 */}
           {activity && !readOnly && (
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild>
@@ -96,6 +98,7 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
                 <DropdownMenu.Content align="end" sideOffset={4} className="z-50 min-w-40 rounded-md border border-hairline bg-canvas p-1 shadow-float">
                   <DropdownMenu.Item onSelect={() => setHistoryOpen(true)} className="flex min-h-11 lg:min-h-10 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">수정 이력</DropdownMenu.Item>
                   {onMergeRequest && <DropdownMenu.Item onSelect={onMergeRequest} className="flex min-h-11 lg:min-h-10 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">다른 활동과 합치기</DropdownMenu.Item>}
+                  {onDeleteRequest && <DropdownMenu.Item onSelect={onDeleteRequest} className="flex min-h-11 lg:min-h-10 cursor-pointer items-center rounded-sm px-3 text-sm text-error outline-none focus:bg-surface-soft">지우기</DropdownMenu.Item>}
                 </DropdownMenu.Content>
               </DropdownMenu.Portal>
             </DropdownMenu.Root>

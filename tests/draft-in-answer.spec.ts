@@ -49,7 +49,7 @@ test("빈칸 카드와 주체 확인 카드", async ({ page }) => {
   await shot(page, "card-blank");
   if (page.viewportSize()!.width < 1024) { await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toHaveCount(0); } // 좁은 폭은 시트가 뒤 화면을 덮는다
   await openMark(page, "s-3");
-  await expect(page.getByText("누가 했는지 확인 안 됨", { exact: false }).filter({ visible: true })).toBeVisible();
+  await expect(page.getByText("이 근거 경험을 누가 했는지 확인해 주세요", { exact: false }).filter({ visible: true })).toBeVisible();
   await shot(page, "card-actor");
 });
 

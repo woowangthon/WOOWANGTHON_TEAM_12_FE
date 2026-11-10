@@ -274,7 +274,8 @@ test("옮기기가 실패하면 원래 자리 · 개수로 돌리고 실패를 �
   await moveByMenu(page, "Weekly retro", "Algo study");
   await expect(detail(page).getByText("Weekly retro", { exact: true })).toHaveCount(0); // 바로 반영
   await expect(page.getByRole("alert").filter({ hasText: "옮기지" })).toContainText("옮기지 못해서 원래 활동에 돌려 놨어요. Server rejected");
-  await expect(detail(page).locator("li").nth(1)).toContainText("Weekly retro");
+  // 「확인 필요」(Deploy)가 맨 위라 원래 자리는 세 번째(S-10)
+  await expect(detail(page).locator('li[id^="experience-"]').nth(2)).toContainText("Weekly retro");
   await expect(detail(page).getByText("이 활동에서 한 일 3", { exact: true })).toBeVisible();
   await backToTimeline(page);
   await expect(row(page, "Algo study")).toContainText("경험 1");

@@ -4,6 +4,7 @@ import type { Answer, AnswerDraft, SaveNewFactRequest, SimilarAnswer } from "./q
 import type { Experience } from "./types";
 import { ApiError } from "./errors";
 import { request } from "./http";
+import { activityError } from "./editing";
 import { DRAFT_FRAMES } from "../draft-frames";
 import { MAX_DRAFT_EXPERIENCES, MAX_GROUNDING_TEXT_LENGTH, type GroundingCheck, type CreateDraftRequest, type Draft } from "./question-types";
 import {
@@ -94,6 +95,22 @@ export function updateQuestionTargetLength(id: number, targetLength: number | nu
   return request(`/questions/${id}`, { targetLength }, "PATCH");
 }
 
+/** PATCH /api/questions/{id} — 문항 글 고치기(S-89). 글이 바뀌면 202 · ANALYZING — 추천이 다시 돌고(분석 1회) 초안 · 근거 점검은 지워진다 */
+export async function updateQuestionText(id: number, text: string): Promise<QuestionDetail> {
+  checkText(text);
+  return request(`/questions/${id}`, { text }, "PATCH");
+}
+
+/** DELETE /api/applications/{id} — 지원과 그 문항 전부(S-89). 204 */
+export function deleteApplication(id: number): Promise<void> {
+  return request(`/applications/${id}`, undefined, "DELETE");
+}
+
+/** DELETE /api/questions/{id} — 문항 하나(S-89). 지원의 마지막 문항이면 409 LAST_QUESTION. 204 */
+export function deleteQuestion(id: number): Promise<void> {
+  return request(`/questions/${id}`, undefined, "DELETE");
+}
+
 /** POST /api/applications/{id}/questions — 그 지원에 문항 더하기 */
 export async function addApplicationQuestion(applicationId: number, req: AddQuestionRequest): Promise<QuestionAdded> {
   checkText(req.text);
@@ -154,8 +171,16 @@ export async function findNewFacts(questionId: number): Promise<Answer> {
   return (await request<{ answer: Answer }>(`/questions/${questionId}/answer/new-facts`, undefined, "POST")).answer;
 }
 export async function saveNewFact(id: number, data: SaveNewFactRequest): Promise<Experience> {
-  if (!data.content.trim() || !Number.isInteger(data.activityId) || data.activityId <= 0 || !["ME", "TEAM", "UNKNOWN"].includes(data.actor)) {
+  const target = data.newActivity ? !!data.newActivity.name.trim() : Number.isInteger(data.activityId) && data.activityId! > 0;
+  if (!data.content.trim() || !target || !["ME", "TEAM", "UNKNOWN"].includes(data.actor)) {
     throw new ApiError("INVALID_REQUEST", "경험 문장 · 수행 주체 · 붙일 활동을 확인해 주세요.");
+  }
+  if (data.newActivity) {
+    const period = data.newActivity.period;
+    const invalid = period && activityError(data.newActivity.name, period);
+    if (invalid) throw new ApiError("INVALID_PERIOD", invalid);
+    // 계약: 이름은 앞뒤 공백을 걷는다 · 기간은 빼면 「기간 모름」
+    return request(`/new-fact-candidates/${id}/save`, { content: data.content, actor: data.actor, newActivity: { name: data.newActivity.name.trim(), ...(period ? { period } : {}) } }, "POST");
   }
   return request(`/new-fact-candidates/${id}/save`, data, "POST");
 }
