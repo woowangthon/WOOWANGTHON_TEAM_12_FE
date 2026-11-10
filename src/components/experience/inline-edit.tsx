@@ -181,8 +181,7 @@ function PopoverEdit<T>({ trigger, label, value, same, validate, save, children,
         {draft !== null && <fieldset disabled={saving} className="m-0 grid min-w-0 gap-3 border-0 p-0">{children(draft, (next) => { setDraft(next); setError(null); })}</fieldset>}
         {error && <p role="alert" className="m-0 font-medium text-error">{error}</p>}
         {footnote && <p className="m-0 text-note text-muted">{footnote}</p>}
-        <div className="flex items-center gap-2">
-          <span className="mr-auto text-xs text-muted">밖을 누르면 저장 · Esc 취소</span>
+        <div className="flex items-center justify-end gap-2">
           <Button size="sm" variant="ghost" disabled={saving} onClick={discard}>취소</Button>
           <Button size="sm" disabled={saving} onClick={() => void commit()}>{saving ? "저장 중…" : "저장"}</Button>
         </div>
