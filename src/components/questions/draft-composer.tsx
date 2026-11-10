@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { AnalysisCost } from "@/components/auth/analysis-cost";
+import { AnalysisButton, AnalysisCost } from "@/components/auth/analysis-cost";
 import { Button } from "@/components/ui/button";
 import { InfoTip } from "@/components/ui/info-tip";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
@@ -21,6 +21,8 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
   const suggested = suggestedFrame(question.questionType);
   const frame = chosenFrame ?? (draft ? draft.frame ?? 'NONE' : suggested);
   const [busy, setBusy] = useState(false);
+  // 「초안 상태 확인」은 상태만 읽는다 — 만들기 버튼 글자(「초안 만드는 중…」)를 바꾸지 않게 따로 둔다(FE#391)
+  const [checking, setChecking] = useState(false);
   // 다시 만들기 전 경고 — 덮이는 것이 있을 때만(고친 글 · 답하지 않은 빠진 사실 질문 · 다 쓴 답)
   const [warning, setWarning] = useState<string[] | null>(null);
   const [error, setError] = useState<{ text: string; code?: string } | null>(null);
@@ -60,15 +62,15 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
       await onGenerate(ids, frame, true);
       setChosenFrame(null);
       onResetPicks(question.id);
-    } catch (e) { setError({ text: requestError(e), code: e instanceof ApiError ? e.code : undefined }); }
+    } catch (e) { setError({ text: requestError(e, !!draft), code: e instanceof ApiError ? e.code : undefined }); }
     finally { pending.current = false; setBusy(false); }
   };
   const refresh = async () => {
     if (pending.current || savingAnswer) return;
-    pending.current = true; setBusy(true); setError(null);
+    pending.current = true; setChecking(true); setError(null);
     try { await onRefresh(); }
-    catch (e) { setError({ text: requestError(e) }); }
-    finally { pending.current = false; setBusy(false); }
+    catch (e) { setError({ text: requestError(e, !!draft) }); }
+    finally { pending.current = false; setChecking(false); }
   };
 
   return <section aria-label="초안 설정" className="grid min-w-0 gap-3 rounded-md border border-hairline bg-canvas p-3.5">
@@ -85,12 +87,15 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
     </p>}
     <FramePicker frame={frame} suggested={suggested} disabled={analyzing || savingAnswer} proposed={!draft && chosenFrame === null} onChange={setChosenFrame} />
     <div className="flex flex-wrap items-center gap-3">
-      <Button data-draft-generate className="min-h-11 lg:min-h-10" onClick={ask} disabled={!allowed || analyzing || savingAnswer}>{analyzing ? "초안 만드는 중…" : draft ? "다시 만들기" : "초안 만들기"}</Button>
+      {free
+        ? <Button data-draft-generate className="min-h-11 lg:min-h-10" onClick={ask} disabled={!allowed || checking || savingAnswer}>다시 만들기</Button>
+        : <AnalysisButton data-draft-generate className="min-h-11 lg:min-h-10" running={analyzing} onClick={ask} disabled={!allowed || analyzing || checking || savingAnswer}>{analyzing ? "초안 만드는 중…" : draft ? "다시 만들기" : "초안 만들기"}</AnalysisButton>}
       {free ? <span className="text-xs text-muted">이번 다시 만들기는 분석 횟수를 쓰지 않아요</span> : <AnalysisCost running={analyzing} />}
     </div>
     {error && (error.code !== "DRAFT_IN_PROGRESS" || analyzing) && <div className="grid justify-items-start gap-2">
       <p role="alert" className="m-0 text-sm text-error">{error.text}</p>
-      <Button variant="secondary" className="min-h-11 lg:min-h-10" disabled={busy || savingAnswer} onClick={() => void refresh()}>초안 상태 확인</Button>
+      {/* 한도를 다 썼으면 서버에서 확인할 상태가 없다(FE#391) */}
+      {error.code !== "DAILY_LIMIT_EXCEEDED" && <Button variant="secondary" className="min-h-11 lg:min-h-10" disabled={busy || checking || savingAnswer} onClick={() => void refresh()}>{checking ? "확인하는 중…" : "초안 상태 확인"}</Button>}
     </div>}
     {draft?.status === "FAILED" && !analyzing && <p role="alert" className="m-0 text-sm text-error">{failureReason(draft.error)} 「다시 만들기」로 같은 경험을 다시 요청할 수 있어요.</p>}
     <Dialog open={warning !== null} onOpenChange={o => { if (!o) setWarning(null); }}>

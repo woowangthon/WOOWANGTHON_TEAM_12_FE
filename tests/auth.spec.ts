@@ -169,6 +169,13 @@ test("daily limit: remaining count in the dialog, and a 429 keeps the text with 
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("오늘 남은 분석 0회 — 한국 시간 자정에 다시 채워져요");
   await dialog.getByRole("textbox").fill("오늘 넣어 보는 자료");
+  // 0회면 넣기를 막는다(FE#391) — 남은 횟수를 못 읽어 서버가 429 를 주는 경우는 아래에서 본다
+  await expect(page.getByRole("button", { name: "넣기", exact: true })).toBeDisabled();
+  await page.route("**/api/auth/me", route => route.fulfill({ json: ME }));
+  await page.reload();
+  await timelineReady(page);
+  await openAddSource(page);
+  await dialog.getByRole("textbox").fill("오늘 넣어 보는 자료");
   await page.getByRole("button", { name: "넣기", exact: true }).click();
   await expect(dialog.getByRole("alert")).toContainText("오늘 분석 횟수를 다 썼어요");
   await expect(dialog.getByRole("alert")).toContainText("저장하지 않았어요");
@@ -187,7 +194,7 @@ test("남은 분석이 3회 이하일 때만 홈 · 묻기에서 경고한다(FE
   await expect(page.getByText("오늘 남은 분석 3회")).toBeVisible();
   await page.keyboard.press("Control+k");
   await page.getByRole("button", { name: "차곡이에게" }).click();
-  await expect(page.getByRole("dialog")).toContainText("분석 1회 · 오늘 3회 남음");
+  await expect(page.getByRole("dialog")).toContainText("오늘 3회 남음");
 });
 
 test("auth check failure is an error with retry — not a login screen and not mock data", async ({ page }) => {

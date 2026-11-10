@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { DotsThreeIcon } from "@phosphor-icons/react";
 import { DropdownMenu } from "radix-ui";
-import { AnalysisCost } from "@/components/auth/analysis-cost";
+import { AnalysisButton, AnalysisCost } from "@/components/auth/analysis-cost";
 import { MENU_ITEM } from "@/components/experience/profile-toggle";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -169,9 +169,11 @@ function EditQuestionTextBody({ target, onClose, onSave }: {
       <AnalysisCost running={busy} className="max-sm:order-last" />
       <div className="flex flex-col-reverse gap-2 sm:flex-row">
         <Button variant="secondary" className="min-h-11 lg:min-h-10" disabled={busy} onClick={onClose}>취소</Button>
-        <Button className="min-h-11 lg:min-h-10" disabled={busy || !text.trim() || tooLong} onClick={() => void save()}>
-          {busy ? "저장하는 중…" : error ? "다시 시도" : unchanged ? "닫기" : "저장하고 다시 추천받기"}
-        </Button>
+        {unchanged
+          ? <Button className="min-h-11 lg:min-h-10" disabled={busy} onClick={() => void save()}>닫기</Button>
+          : <AnalysisButton className="min-h-11 lg:min-h-10" running={busy} disabled={busy || !text.trim() || tooLong} onClick={() => void save()}>
+            {busy ? "저장하는 중…" : error ? "다시 시도" : "저장하고 다시 추천받기"}
+          </AnalysisButton>}
       </div>
     </DialogFooter>
   </DialogContent>;

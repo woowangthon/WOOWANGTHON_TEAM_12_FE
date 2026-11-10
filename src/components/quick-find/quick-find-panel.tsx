@@ -128,7 +128,7 @@ export function QuickFindPanel({ asked, addSourceBusy, initial, onGo }: { asked:
         aria-autocomplete={hasList ? "list" : undefined} aria-activedescendant={hasList && count ? optionId(current) : undefined}
         className="min-h-11 min-w-0 flex-1 bg-transparent lg:h-5.5 lg:min-h-0 text-title-md text-ellipsis text-ink outline-none placeholder:text-muted" />
       {tab === "ask" && <AnalysisCost className="shrink-0" />}
-      {tab === "ask" && <Button type="button" size="icon" className="size-11 shrink-0 lg:size-8" aria-label="보내기" aria-describedby={exhausted ? "quick-find-exhausted" : undefined} disabled={!query || asked.asking || exhausted} onClick={send}><ArrowUpIcon aria-hidden="true" /></Button>}
+      {tab === "ask" && <Button type="button" size="icon" className="size-11 shrink-0 lg:size-8" aria-label="보내기" title="분석 1회" aria-describedby={exhausted ? "quick-find-exhausted" : undefined} disabled={!query || asked.asking || exhausted} onClick={send}><ArrowUpIcon aria-hidden="true" /></Button>}
     </div>
     <div role="group" aria-label="빠른 찾기 탭" className={cn("flex gap-1.5 px-3.5 lg:px-4.5", tab === "find" ? "pb-1.5" : "border-b border-hairline-soft pb-2.5")}>
       {TABS.map(t => <button key={t.value} type="button" aria-pressed={tab === t.value} onClick={() => moveTo(t.value)}

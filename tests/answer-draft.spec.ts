@@ -226,7 +226,8 @@ for (const [status, code, text] of [
     api.draftError = { status, code };
     await regenerate(page, await openDraftComposer(page));
     await expect((await openDraftComposer(page)).getByRole("alert")).toContainText(text);
-    await expect((await openDraftComposer(page)).getByRole("button", { name: "초안 상태 확인", exact: true })).toBeEnabled();
+    // 한도를 다 썼으면 서버에서 확인할 상태가 없다(FE#391)
+    await expect((await openDraftComposer(page)).getByRole("button", { name: "초안 상태 확인", exact: true })).toHaveCount(code === "DAILY_LIMIT_EXCEEDED" ? 0 : 1);
     await expect((await referenceChoices(page))).toBeChecked();
     await closeDraftPanel(page);
     await expect(draftSentences(page)).toHaveCount(2);
@@ -695,19 +696,18 @@ test("초안 부탁하기 — 열린 패널에서도 「초안 준비」를 강�
   await page.screenshot({ path: "artifacts/draft-ask-1024.png", style: "nextjs-portal { display: none !important; }" });
 });
 
-test("답 칸 줄의 「분석 1회」는 「근거 점검」 바로 뒤에만 있다 — 「다 썼어요」는 저장만 한다 (FE#270)", async ({ page }) => {
+test("답 칸 줄의 ✦ 는 「근거 점검」에만 있다 — 「다 썼어요」는 저장만 한다 (FE#270 · FE#434)", async ({ page }) => {
   await setup(page);
   await closeDraftPanel(page);
   // 근거 점검은 직접 쓴 글이 있을 때만 보인다(FE#336)
   await answerBox(page).fill("직접 쓴 문장이에요.");
   const done = page.getByRole("button", { name: "다 썼어요", exact: true });
-  const doneGroup = await done.evaluate((el) => [...el.parentElement!.children].map((c) => c.textContent?.trim()));
-  expect(doneGroup.some((text) => text?.startsWith("분석 1회"))).toBe(false);
-  const order = await page.getByRole("button", { name: "근거 점검", exact: true }).evaluate((el) =>
-    [...el.parentElement!.children].map((c) => c.textContent?.trim()));
-  const check = order.indexOf("근거 점검");
-  expect(order[check + 1]).toMatch(/^분석 1회/);
-  expect(order.filter((text) => text?.startsWith("분석 1회"))).toHaveLength(1);
+  await expect(done.locator("[data-analysis-mark]")).toHaveCount(0);
+  const check = page.getByRole("button", { name: "근거 점검", exact: true });
+  await expect(check.locator("[data-analysis-mark]")).toHaveCount(1);
+  await expect(check).toHaveAttribute("title", "분석 1회");
+  // 「분석 1회」 글자는 늘 보이지 않는다 — 3회 이하 경고만
+  await expect(page.getByText("분석 1회", { exact: true })).toHaveCount(0);
 });
 
 // S-84 · FE#358 — 추천을 활동 카드로 묶고 활동만 체크한다. 초안 요청은 체크한 활동의 추천 경험을 활동 순서대로

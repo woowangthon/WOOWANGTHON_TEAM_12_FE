@@ -4,7 +4,8 @@
 // 사용자가 「맞아요 / 아니에요」로 정한다. 시안 6 mock.js 「그때의 나」의 link-sug 자리. 그래프는 그리지 않는다.
 // 실패는 오류 + 다시 시도로만 — 정해진 제안으로 채우지 않는다(대회 규칙 2)
 import { useRef, useState } from "react";
-import { ArrowRightIcon, ArrowsClockwiseIcon, SparkleIcon } from "@phosphor-icons/react";
+import { ArrowRightIcon, ArrowsClockwiseIcon } from "@phosphor-icons/react";
+import { AnalysisButton, AnalysisCost, useAnalysisExhausted } from "@/components/auth/analysis-cost";
 import { Button } from "@/components/ui/button";
 import { isDailyLimit } from "@/lib/api/auth";
 import { ApiError, decideLink, suggestLinks } from "@/lib/api/experience";
@@ -14,7 +15,7 @@ type Finding =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "empty" }
-  | { status: "error"; message: string };
+  | { status: "error"; message: string; limit: boolean };
 
 function suggestError(e: unknown): string {
   if (isDailyLimit(e)) return "오늘 분석 횟수를 다 써서 찾아보지 못했어요. 한국 시간 자정에 다시 채워지면 찾아봐 주세요.";
@@ -33,6 +34,7 @@ export function ActivityLinks({ activity, readOnly = false, onOpenActivity }: {
   const [finding, setFinding] = useState<Finding>({ status: "idle" });
   const running = useRef(false);
   const hasNote = !!activity.note;
+  const exhausted = useAnalysisExhausted(1, finding.status === "loading");
 
   const find = async () => {
     if (running.current) return;
@@ -43,7 +45,7 @@ export function ActivityLinks({ activity, readOnly = false, onOpenActivity }: {
       setLinks((prev) => [...prev, ...found.filter((l) => !prev.some((p) => p.id === l.id))]);
       setFinding(found.length ? { status: "idle" } : { status: "empty" });
     } catch (e) {
-      setFinding({ status: "error", message: suggestError(e) });
+      setFinding({ status: "error", message: suggestError(e), limit: isDailyLimit(e) });
     } finally {
       running.current = false;
     }
@@ -86,10 +88,12 @@ export function ActivityLinks({ activity, readOnly = false, onOpenActivity }: {
       {hasNote && !readOnly && (
         <div className="grid justify-items-start gap-2">
           {finding.status !== "loading" && finding.status !== "error" && (
-            <Button variant="secondary" size="sm" className="min-h-11 lg:min-h-10" onClick={() => void find()}>
-              <SparkleIcon />
-              이어진 활동 찾아보기
-            </Button>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <AnalysisButton variant="secondary" size="sm" className="min-h-11 lg:min-h-10" onClick={() => void find()}>
+                이어진 활동 찾아보기
+              </AnalysisButton>
+              <AnalysisCost />
+            </div>
           )}
           {finding.status === "loading" && (
             <p role="status" className="m-0 text-sm text-muted">계기와 그 뒤에 시작한 활동을 살펴보고 있어요… 1분까지 걸릴 수 있어요.</p>
@@ -100,10 +104,10 @@ export function ActivityLinks({ activity, readOnly = false, onOpenActivity }: {
           {finding.status === "error" && (
             <>
               <p role="alert" className="m-0 text-sm text-error">{finding.message}</p>
-              <Button variant="secondary" size="sm" className="min-h-11 lg:min-h-10" onClick={() => void find()}>
+              {!finding.limit && <Button variant="secondary" size="sm" className="min-h-11 lg:min-h-10" title="분석 1회" disabled={exhausted} onClick={() => void find()}>
                 <ArrowsClockwiseIcon />
                 다시 시도
-              </Button>
+              </Button>}
             </>
           )}
         </div>

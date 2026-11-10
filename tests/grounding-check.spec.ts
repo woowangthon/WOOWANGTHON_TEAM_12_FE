@@ -85,9 +85,9 @@ test("HTTP failure and AI failure retry the exact submitted text after editing",
   await expect(input).toBeEnabled();
   const submitted = `${GROUNDING_EXAMPLE.text} 한 줄 더.`; // 같은 글은 다시 점검하지 못한다(FE#317) — 조금 고쳐 다시 점검한다
   await input.fill(submitted);
-  state.postError = "DAILY_LIMIT_EXCEEDED";
+  state.postError = "INTERNAL_ERROR";
   await s.getByRole("button", { name: "근거 점검", exact: true }).click();
-  await expect(s.getByRole("alert")).toContainText("오늘 분석 횟수를 다 썼어요");
+  await expect(s.getByRole("alert")).toBeVisible();
   await input.fill("다르게 고친 글");
   state.postError = ""; state.fail = true;
   await s.getByRole("button", { name: "같은 글로 다시 시도" }).click();
@@ -99,6 +99,17 @@ test("HTTP failure and AI failure retry the exact submitted text after editing",
   await expect(checkButton(page)).toBeEnabled(); // 점검은 끝났고, 지금 글은 그 뒤에 고친 글이다
   expect(state.posts[2].text).toBe(submitted);
   await expect(input).toHaveValue("또 고친 글");
+});
+
+test("a 429 on grounding check shows the reason without a retry (FE#391)", async ({ page }) => {
+  const { state } = await setup(page, structuredClone(GROUNDING_EXAMPLE));
+  const s = screen(page), input = s.getByRole("textbox");
+  await expect(input).toBeEnabled();
+  await input.fill(`${GROUNDING_EXAMPLE.text} 한 줄 더.`);
+  state.postError = "DAILY_LIMIT_EXCEEDED";
+  await s.getByRole("button", { name: "근거 점검", exact: true }).click();
+  await expect(s.getByRole("alert")).toContainText("오늘 분석 횟수를 다 썼어요");
+  await expect(s.getByRole("button", { name: "같은 글로 다시 시도" })).toHaveCount(0);
 });
 
 test("initial GET error and stopped polling recover with GET, without spending another analysis", async ({ page }) => {

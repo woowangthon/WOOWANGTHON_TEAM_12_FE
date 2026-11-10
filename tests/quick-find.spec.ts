@@ -334,7 +334,7 @@ test("with no analyses left the ask send button is blocked with the reason, and 
   await openByButton(page);
   await dialog(page).getByRole("button", { name: "차곡이에게", exact: true }).click();
   await box(page).pressSequentially("동아리에서 의견 모은 적");
-  await expect(dialog(page)).toContainText("분석 1회 · 오늘 0회 남음");
+  await expect(dialog(page)).toContainText("오늘 0회 남음");
   await expect(dialog(page).getByRole("button", { name: "보내기", exact: true })).toBeDisabled();
   await expect(dialog(page)).toContainText("오늘 분석 횟수를 다 썼어요. 한국 시간 자정에 다시 채워지면 보내 주세요.");
   await page.keyboard.press("Enter");

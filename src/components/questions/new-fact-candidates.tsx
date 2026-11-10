@@ -3,7 +3,7 @@
 import { InfoTip } from "@/components/ui/info-tip";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { AnalysisCost } from "@/components/auth/analysis-cost";
+import { AnalysisButton, AnalysisCost, useAnalysisExhausted } from "@/components/auth/analysis-cost";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { MonthField } from "@/components/experience/activity-editor";
@@ -60,6 +60,7 @@ export function NewFactCandidates({ confirmed: a, findRequested, onFindStarted, 
     highlightTimers.current = [setTimeout(() => setHighlight(true), 0), setTimeout(() => setHighlight(false), 1200)];
   }, [focusRequest, onFocused]);
   const facts = a.answer?.newFacts;
+  const exhausted = useAnalysisExhausted(1, a.busy);
   if (!a.answer) return null;
   return <section ref={section} tabIndex={-1} aria-label="새 경험 후보" data-highlight={highlight || undefined}
     // 강조는 테두리 한 번 — 움직임 줄이기면 서서히 사라지지 않고 바로 켜졌다 꺼진다
@@ -68,18 +69,18 @@ export function NewFactCandidates({ confirmed: a, findRequested, onFindStarted, 
     <div className="flex items-center gap-0.5"><h4 className="m-0 text-sm font-semibold">새 경험 후보</h4><InfoTip label="새 경험 후보">다 쓴 답에서 새로 쓴 사실을 찾아요. 경험은 저장을 눌러야 쌓여요.</InfoTip></div>
     {a.failure && <div className="grid justify-items-start gap-2">
       <p role="alert" className="m-0 text-sm text-error">{a.failure.message}{a.pollFailures >= 3 && " 자동 확인을 멈췄어요."}</p>
-      <Button variant="secondary" disabled={a.busy} onClick={() => void (a.failure?.action === "find" ? a.retryFind() : a.refresh())}>
+      {!a.failure.limit && <Button variant="secondary" title={a.failure.action === "find" ? "분석 1회" : undefined} disabled={a.busy || (a.failure.action === "find" && exhausted)} onClick={() => void (a.failure?.action === "find" ? a.retryFind() : a.refresh())}>
         {a.failure.action === "find" ? "다시 찾기" : "상태 다시 확인"}
-      </Button>
+      </Button>}
     </div>}
     {!facts && !a.failure && <>
       <p className="m-0 text-body">다 쓴 답에서 내가 새로 쓴 사실을 찾아 경험으로 쌓을 수 있어요.</p>
-      <div className="flex flex-wrap items-center gap-2"><Button variant="secondary" disabled={a.busy} onClick={() => void a.retryFind()}>{a.busy ? "찾기 시작하는 중…" : "새 경험 후보 찾기"}</Button><AnalysisCost running={a.busy} /></div>
+      <div className="flex flex-wrap items-center gap-2"><AnalysisButton variant="secondary" running={a.busy} disabled={a.busy} onClick={() => void a.retryFind()}>{a.busy ? "찾기 시작하는 중…" : "새 경험 후보 찾기"}</AnalysisButton><AnalysisCost running={a.busy} /></div>
     </>}
     {facts?.status === "ANALYZING" && <p role="status" className="m-0 text-muted">새 경험 후보를 찾고 있어요… 새로고침해도 이어서 확인해요.</p>}
     {facts?.status === "FAILED" && !a.failure && <div className="grid justify-items-start gap-2">
       <p role="alert" className="m-0 text-error">답은 저장했어요 · {facts.error?.message || "후보를 찾지 못했어요."}</p>
-      <div className="flex flex-wrap items-center gap-2"><Button variant="secondary" disabled={a.busy} onClick={() => void a.retryFind()}>다시 찾기</Button><AnalysisCost running={a.busy} /></div>
+      <div className="flex flex-wrap items-center gap-2"><Button variant="secondary" title="분석 1회" disabled={a.busy || exhausted} onClick={() => void a.retryFind()}>다시 찾기</Button><AnalysisCost running={a.busy} /></div>
     </div>}
     {facts?.status === "COMPLETED" && !facts.candidates.length && <p role="status" className="m-0 text-muted">새로 쓴 사실이 없어요</p>}
     {facts?.status === "COMPLETED" && facts.candidates.length > 0 && <p className="m-0 text-muted">AI 제안이니 확인하고 고쳐 주세요.</p>}
