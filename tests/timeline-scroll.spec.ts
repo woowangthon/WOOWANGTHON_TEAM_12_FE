@@ -45,3 +45,20 @@ test("활동을 열어도 목록이 맨 위로 튀지 않는다(PC) · 좁은 �
     await expect.poll(() => scrollPos(page)).toBe(before);
   }
 });
+
+// FE#438 — PC 는 목록 · 세부가 각자 스크롤한다. 목록을 끝까지 내려도 문서는 그대로라 세부가 화면 안에 남는다
+test("PC 에서 목록을 끝까지 내려도 활동 세부가 화면에 보인다", async ({ page }) => {
+  test.skip(page.viewportSize()!.width < 1024, "좁은 화면은 세부가 전체 화면");
+  await setup(page);
+  await page.getByRole("button", { name: /^활동 60 / }).first().click();
+  const detail = page.getByRole("complementary", { name: "활동 세부" });
+  await expect(detail.getByText("활동 60 에서 한 일")).toBeInViewport();
+  await page.mouse.move(300, 500);
+  await page.mouse.wheel(0, 50000);
+  await expect.poll(() => page.evaluate(() => document.querySelector("main")!.scrollTop)).toBeGreaterThan(1000);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  await expect(detail.getByText("활동 60 에서 한 일")).toBeInViewport();
+  // 아래쪽 활동을 눌러도 세부가 바로 보인다
+  await page.getByRole("button", { name: /^활동 1 / }).getByText("활동 1", { exact: true }).click();
+  await expect(detail.getByText("활동 1 에서 한 일")).toBeInViewport();
+});
