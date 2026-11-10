@@ -7,16 +7,23 @@ import { useAuth } from "./auth-gate";
 
 const LOW_LEFT = 3;
 
-/** 3회 이하일 때 남은 횟수, 아니면 null. 처음 보일 때와 분석이 끝날 때마다(running) 다시 읽는다 */
-function useLowAnalysisLeft(running: boolean) {
+/** 오늘 남은 분석 횟수. 목 모드 · 아직 못 읽었으면 null. 처음 보일 때와 분석이 끝날 때마다(running) 다시 읽는다 */
+export function useAnalysisLeft(running = false) {
   const { me, refresh } = useAuth();
   useEffect(() => {
     if (!running) refresh();
   }, [running, refresh]);
-  if (!me) return null;
-  const left = Math.max(0, me.dailyAnalysis.limit - me.dailyAnalysis.used);
-  return left <= LOW_LEFT ? left : null;
+  return me ? Math.max(0, me.dailyAnalysis.limit - me.dailyAnalysis.used) : null;
 }
+
+/** 3회 이하일 때 남은 횟수, 아니면 null */
+function useLowAnalysisLeft(running: boolean) {
+  const left = useAnalysisLeft(running);
+  return left !== null && left <= LOW_LEFT ? left : null;
+}
+
+/** 0회일 때 보내기를 막는 이유(S-15) — 막힌 버튼 옆에 둔다 */
+export const ANALYSIS_EXHAUSTED_NOTE = "오늘 분석 횟수를 다 썼어요. 한국 시간 자정에 다시 채워지면 보내 주세요.";
 
 /** 분석 1회를 쓰는 버튼 옆에 둔다 */
 export function AnalysisCost({ running = false, className }: { running?: boolean; className?: string }) {
