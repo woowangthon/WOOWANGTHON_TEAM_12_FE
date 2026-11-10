@@ -33,6 +33,8 @@ export class FakeQuestionApi {
   calls: { call: string; body: unknown }[] = [];
   /** 켜 두면 GET /api/applications 가 503 — 불러오기 실패 화면 */
   listDown = false;
+  /** 켜 두면 문항 글 고치기(S-89)가 429 DAILY_LIMIT_EXCEEDED */
+  textLimit = false;
   /** 켜 두면 PATCH(지원처 종류 · 직무 · 상태 · 낸 달 · 문항 유형)가 503 — 저장 실패 */
   patchDown = false;
   /** 켜 두면 지원 PATCH 가 400 INVALID_REQUEST — 서버 검증 문구(필드 이름)가 그대로 온다(FE#240) */
@@ -207,9 +209,18 @@ export class FakeQuestionApi {
       if (this.patchDown) return error(route, 503, "INTERNAL_ERROR", "잠시 뒤 다시 시도해 주세요");
       const q = this.questions.find(x => x.detail.id === +m![1]);
       if (!q) return error(route, 404, "QUESTION_NOT_FOUND");
-      // question-api 「PATCH /api/questions」 — questionType · targetLength 중 하나 이상, 보낸 필드만
-      const hasType = body && "questionType" in body, hasLength = body && "targetLength" in body;
-      if (!hasType && !hasLength) return error(route, 400, "INVALID_REQUEST");
+      // question-api 「PATCH /api/questions」 — text · questionType · targetLength 중 하나 이상, 보낸 필드만
+      const hasType = body && "questionType" in body, hasLength = body && "targetLength" in body, hasText = body && "text" in body;
+      if (!hasType && !hasLength && !hasText) return error(route, 400, "INVALID_REQUEST");
+      // 문항 글이 바뀌면(S-89) 추천이 다시 돈다 — 202 ANALYZING, 초안 · 근거 점검은 지우고 답 · 임시 글은 남긴다
+      if (hasText && typeof body.text === "string" && body.text.trim() && body.text.trim() !== q.detail.text.trim()) {
+        if (q.detail.status === "ANALYZING" || q.detail.draft?.status === "ANALYZING") return error(route, 409, "QUESTION_ANALYZING");
+        if (this.textLimit) return error(route, 429, "DAILY_LIMIT_EXCEEDED");
+        q.fail = false; q.startedAt = Date.now();
+        q.detail = { ...q.detail, text: body.text.trim(), status: "ANALYZING", error: null, requirements: [], recommendations: [], clarifications: [], draft: null };
+        return json(route, this.now(q.detail), 202);
+      }
+      if (!hasType && !hasLength) return json(route, this.now(q.detail));
       if (hasType && !body.questionType) return error(route, 400, "INVALID_REQUEST");
       const length = hasLength ? body.targetLength : undefined;
       if (length !== undefined && length !== null && (!Number.isInteger(length) || length < 100 || length > 5000)) return error(route, 400, "INVALID_REQUEST");
@@ -230,6 +241,20 @@ export class FakeQuestionApi {
       if (!this.applications.has(+m[1])) return error(route, 404, "APPLICATION_NOT_FOUND");
       if (this.options.limit) return error(route, 429, "DAILY_LIMIT_EXCEEDED");
       return json(route, { questionId: this.push(+m[1], body.text), status: "ANALYZING" }, 202);
+    }
+    // 지우기(S-89) — 지원은 문항째, 문항은 지원의 마지막이면 409 LAST_QUESTION
+    if ((m = path.match(/^\/api\/applications\/(\d+)$/)) && method === "DELETE") {
+      if (!this.applications.has(+m[1])) return error(route, 404, "APPLICATION_NOT_FOUND");
+      this.applications.delete(+m[1]);
+      this.questions = this.questions.filter(q => q.detail.applicationId !== +m![1]);
+      return route.fulfill({ status: 204 });
+    }
+    if ((m = path.match(/^\/api\/questions\/(\d+)$/)) && method === "DELETE") {
+      const q = this.find(+m[1]);
+      if (!q) return error(route, 404, "QUESTION_NOT_FOUND");
+      if (this.questions.filter(x => x.detail.applicationId === q.detail.applicationId).length === 1) return error(route, 409, "LAST_QUESTION");
+      this.questions = this.questions.filter(x => x !== q);
+      return route.fulfill({ status: 204 });
     }
     if ((m = path.match(/^\/api\/applications\/(\d+)$/)) && method === "GET") {
       const application = this.application(+m[1]);

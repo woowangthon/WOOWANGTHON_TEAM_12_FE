@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { addApplicationQuestion, answerClarification, createQuestionDraft, fetchApplications, fetchQuestion, retryQuestion, submitApplication, updateApplication, updateQuestionTargetLength, updateQuestionType } from "@/lib/api/questions";
+import { addApplicationQuestion, answerClarification, createQuestionDraft, deleteApplication, deleteQuestion, fetchApplications, fetchQuestion, retryQuestion, submitApplication, updateApplication, updateQuestionTargetLength, updateQuestionText, updateQuestionType } from "@/lib/api/questions";
 import { ApiError } from "@/lib/api/errors";
 import type { DraftFrame } from "@/lib/draft-frames";
 import type { Answer, AnswerDraft, Application, CreateApplicationRequest, QuestionDetail, QuestionSummary, QuestionType, UpdateApplicationRequest } from "@/lib/api/question-types";
@@ -39,6 +39,13 @@ function keepInUrl(id: number) {
   const url = new URL(window.location.href);
   if (url.searchParams.get("question") === String(id)) return;
   url.searchParams.set("question", String(id));
+  window.history.replaceState(window.history.state, "", url);
+}
+/** 지운 지원 · 문항을 가리키는 주소를 바로잡는다(S-89) — 남은 문항이 없으면 `?question=` · `?application=` 을 지워 새로고침이 「문항을 불러오지 못했어요」가 되지 않게 */
+function moveUrlTo(id: number | null) {
+  if (id !== null) { keepInUrl(id); return; }
+  const url = new URL(window.location.href);
+  url.searchParams.delete("question"); url.searchParams.delete("application");
   window.history.replaceState(window.history.state, "", url);
 }
 
@@ -331,6 +338,42 @@ export function useApplications(composingAtStart = false) {
         const kept = prev.details[questionId];
         const detail = kept ? { ...kept, targetLength: saved.targetLength ?? null } : saved;
         return { ...prev, details: { ...prev.details, [questionId]: detail }, applications: patch(prev.applications, [detail]) };
+      });
+    },
+    /** 문항 글 고치기(S-89) — 202 ANALYZING 응답을 그대로 옮긴다(초안 · 근거 점검은 null). 분석 중이면 위 폴링이 잇는다. 실패는 부르는 쪽(창)에 던진다 */
+    updateQuestionText: async (questionId: number, text: string) => {
+      ++generation.current;
+      const saved = await updateQuestionText(questionId, text);
+      commit(++generation.current, [saved]);
+    },
+    /** 지원 지우기(S-89) — 지운 지원과 그 문항을 목록 · 받아 둔 문항에서 뺀다. 연 지원이었으면 남은 첫 지원을 연다. 실패는 부르는 쪽에 던진다 */
+    deleteApplication: async (applicationId: number) => {
+      await deleteApplication(applicationId);
+      ++generation.current;
+      const gone = state.applications.find(a => a.id === applicationId);
+      const rest = state.applications.filter(a => a.id !== applicationId);
+      const wasOpen = !!gone?.questions.some(q => q.id === state.questionId);
+      const next = wasOpen ? rest[0]?.questions[0]?.id ?? null : state.questionId;
+      if (wasOpen) moveUrlTo(next);
+      setState(prev => {
+        const details = { ...prev.details };
+        gone?.questions.forEach(q => { delete details[q.id]; });
+        return { ...prev, applications: prev.applications.filter(a => a.id !== applicationId), details, questionId: wasOpen ? next : prev.questionId };
+      });
+    },
+    /** 문항 지우기(S-89) — 그 지원에서 문항을 빼고, 고른 문항이었으면 바로 앞(첫 문항이면 다음) 문항을 고른다. 실패는 부르는 쪽에 던진다 */
+    deleteQuestion: async (questionId: number) => {
+      await deleteQuestion(questionId);
+      ++generation.current;
+      const owner = ownerOf(state.applications, questionId);
+      const index = owner?.questions.findIndex(q => q.id === questionId) ?? -1;
+      const left = owner?.questions.filter(q => q.id !== questionId) ?? [];
+      const next = state.questionId === questionId ? left[Math.max(0, index - 1)]?.id ?? null : state.questionId;
+      if (state.questionId === questionId) moveUrlTo(next);
+      setState(prev => {
+        const details = { ...prev.details }; delete details[questionId];
+        const applications = prev.applications.map(a => a.id === owner?.id ? { ...a, questions: a.questions.filter(q => q.id !== questionId) } : a);
+        return { ...prev, applications, details, questionId: next };
       });
     },
     retry: (questionId: number) => once(async () => {

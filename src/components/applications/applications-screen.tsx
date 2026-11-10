@@ -15,6 +15,9 @@ import { isMockMode } from "@/lib/api/http";
 import { APPLICATION_STATUS_LABEL, JOB_ROLE_LABEL, ORGANIZATION_TYPE_LABEL, type Application } from "@/lib/api/question-types";
 import { groupApplications, type GroupBy } from "@/lib/application-groups";
 import { cn } from "@/lib/utils";
+import { deleteApplication } from "@/lib/api/questions";
+import { Toast, useToast } from "@/components/ui/toast";
+import { ApplicationMenu, DeleteApplicationDialog } from "@/components/questions/question-menus";
 
 const GROUP_BY: [GroupBy, string][] = [["period", "시기별"], ["type", "종류별"]];
 const statusTag = "inline-flex h-6 shrink-0 items-center rounded-full bg-surface-soft px-2.5 text-xs font-medium whitespace-nowrap text-body";
@@ -26,6 +29,9 @@ export function ApplicationsScreen() {
   const [by, setBy] = useState<GroupBy>("period");
   const applications = list.applications;
   const newApplication = () => router.push("/questions?new=1");
+  // 지원 지우기(S-89) — 줄의 ⋯ 메뉴 → 확인 창 → 목록에서 뺀다
+  const [deleting, setDeleting] = useState<{ id: number; name: string; questionCount: number } | null>(null);
+  const { toast, showToast } = useToast();
 
   return (
     <>
@@ -67,7 +73,7 @@ export function ApplicationsScreen() {
                     {group.label}<span className="font-normal text-muted tabular-nums">{group.applications.length}</span>
                   </h2>
                   <ul className="m-0 list-none p-0">
-                    {group.applications.map((a) => <ApplicationRow key={a.id} application={a} by={by} />)}
+                    {group.applications.map((a) => <ApplicationRow key={a.id} application={a} by={by} onDelete={() => setDeleting({ id: a.id, name: a.organization || "지원처 이름 없음", questionCount: a.questions.length })} />)}
                   </ul>
                 </section>
               ))}
@@ -75,12 +81,19 @@ export function ApplicationsScreen() {
           </>
         )}
       </main>
+      <DeleteApplicationDialog target={deleting} onClose={() => setDeleting(null)} onDelete={async (id) => {
+        await deleteApplication(id);
+        list.remove(id);
+        setDeleting(null);
+        showToast("지원을 지웠어요.");
+      }} />
+      <Toast toast={toast} />
     </>
   );
 }
 
 /** 지원서 한 줄 — 지원처 · 상태 꼬리표 · 종류 · 직무 / 첫 문항 글 / 문항 수 · 낸 달. 묶음 제목과 겹치는 값(종류별의 종류 · 시기별의 낸 달)은 뺀다. 없는 값은 비운다(지어내지 않는다) */
-function ApplicationRow({ application: a, by }: { application: Application; by: GroupBy }) {
+function ApplicationRow({ application: a, by, onDelete }: { application: Application; by: GroupBy; onDelete: () => void }) {
   const name = a.organization || "지원처 이름 없음";
   const count = (status: Application["questions"][number]["status"]) => a.questions.filter((q) => q.status === status).length;
   const meta = [by !== "type" && a.organizationType && ORGANIZATION_TYPE_LABEL[a.organizationType], a.jobRole && JOB_ROLE_LABEL[a.jobRole]].filter(Boolean);
@@ -93,8 +106,9 @@ function ApplicationRow({ application: a, by }: { application: Application; by: 
   const first = a.questions[0];
   const href = first ? `/questions?question=${first.id}` : "/questions";
   return (
-    <li className="border-b border-hairline">
-      <Link href={href} className="-mx-2 grid gap-1 rounded-sm px-2 py-3.5 transition-colors hover:bg-surface-soft lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-x-8">
+    // 링크 안에 버튼을 둘 수 없어 메뉴는 줄의 형제로 오른쪽에 둔다
+    <li className="flex items-center gap-1 border-b border-hairline">
+      <Link href={href} className="-ml-2 grid min-w-0 flex-1 gap-1 rounded-sm px-2 py-3.5 transition-colors hover:bg-surface-soft lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-x-8">
         <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <span className="min-w-0 truncate text-ui font-semibold text-ink" title={name}>{name}</span>
           <span className={statusTag}>{APPLICATION_STATUS_LABEL[a.applicationStatus]}</span>
@@ -106,6 +120,7 @@ function ApplicationRow({ application: a, by }: { application: Application; by: 
           {a.questions.length > 1 && <span className="shrink-0 pl-1.5 text-muted">외 {a.questions.length - 1}</span>}
         </span>}
       </Link>
+      <ApplicationMenu label={name} onDelete={onDelete} className="-mr-2" />
     </li>
   );
 }
