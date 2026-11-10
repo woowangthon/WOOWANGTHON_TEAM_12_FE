@@ -14,11 +14,23 @@ export async function clickMark(page: Page, key: string) {
   await page.mouse.click(at.x, at.y);
 }
 
-/** 문장 표시를 눌러 카드를 연다 — 좁은 폭에서 확인할 곳이 아닌 문장은 「이 문장의 근거 보기」를 눌러야 시트가 열린다 */
+/** 문장 표시를 눌러 카드를 연다 — 좁은 폭에서 확인할 곳이 아닌 문장은 말풍선 「근거 보기」를 눌러야 시트가 열린다 */
 export async function openMark(page: Page, key: string) {
   await clickMark(page, key);
   if ((page.viewportSize()?.width ?? 1440) >= 1024) return;
-  const peek = page.getByRole("button", { name: "이 문장의 근거 보기", exact: true });
+  const peek = page.getByRole("button", { name: "근거 보기", exact: true });
   await expect(peek.or(page.getByRole("dialog"))).toBeVisible();
   if (await peek.isVisible()) await peek.click();
+}
+
+/** 마우스를 표시 위에 올린다(넓은 폭) — 클릭과 같은 자리 */
+export async function hoverMark(page: Page, key: string) {
+  const at = await page.locator(`[data-mark="${key}"]`).evaluate(el => {
+    el.scrollIntoView({ block: "center" });
+    const rects = [...el.getClientRects()];
+    const r = rects.find(x => x.width >= 8) ?? rects.sort((a, b) => b.width - a.width)[0];
+    return { x: r.left + Math.min(r.width / 2, 24), y: r.top + r.height / 2 };
+  });
+  await page.mouse.move(at.x - 30, at.y - 30);
+  await page.mouse.move(at.x, at.y);
 }

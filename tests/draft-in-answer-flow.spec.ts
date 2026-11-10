@@ -307,6 +307,7 @@ test("확인할 곳이 없으면 다음 확인할 곳 버튼이 없고, 글은 �
   await sentenceCard(page).getByRole("button", { name: "맞아요", exact: true }).click();
   await expect(page.getByText("모두 확인했어요 ✓", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "다음 확인할 곳 →", exact: true })).toHaveCount(0);
+  await closeCard(page); // 맞아요 뒤에도 카드는 남는다(FE#325)
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(answerBox(page)).toBeVisible();
   await expect(page.getByText("고친 글의 문장별 근거는")).toHaveCount(0);
@@ -373,7 +374,7 @@ test("근거 문장의 주체 줄은 고칠 일이 아니라 선택으로 보인
   await open(page, q => { q.draft!.sentences[0].evidence = q.draft!.sentences[0].evidence.map(e => ({ ...e, actor: "UNKNOWN" as const })); });
   await openMark(page, S_801);
   const card = sentenceCard(page);
-  await expect(card.getByText("이 문장은 누가 했는지 쓰지 않았어요.", { exact: false })).toBeVisible();
+  await expect(card.getByText("누가 했나요? (선택)", { exact: false })).toBeVisible();
   await expect(card.getByText("누가 했는지 확인 안 됨", { exact: false })).toHaveCount(0);
   await expect(card.getByRole("button", { name: "내가 했어요", exact: true })).toBeVisible();
 });

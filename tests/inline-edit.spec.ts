@@ -153,8 +153,7 @@ test("고친 FACT 문장은 확인할 곳을 늘리지 않지만 표시 · 원�
   await open(page);
   await change(page, "엔드포인트를", "엔드포인트도");
   await expect(markOf(page, "s-2")).toContainText("엔드포인트도");
-  await expect(markOf(page, "s-2")).toHaveClass(/decoration-dotted/); // 조용한 점선 — 확인할 곳의 굵은 밑줄이 아니다
-  await expect(markOf(page, "s-2")).not.toHaveClass(/decoration-review/);
+  await expect(markOf(page, "s-2")).not.toHaveClass(/decoration-(dotted|review)/); // 기준(점검 · 다 쓴 답)이 없으면 표시가 없다(FE#325)
   await checks(page, 4);
   await openMark(page, "s-2");
   await expect(sentenceCard(page).getByText("원래 문장 — 서버에 STOMP 엔드포인트를", { exact: false })).toBeVisible();
@@ -199,6 +198,7 @@ test("사실 문장의 숫자를 바꾸면 확인할 곳이 늘고 숫자 안내
   await expect(sentenceCard(page).getByText("숫자가 원래 근거와 달라요 — 근거 점검으로 확인해 주세요.")).toBeVisible();
   await sentenceCard(page).getByRole("button", { name: "맞아요", exact: true }).click();
   await checks(page, 4);
+  if (narrow(page)) { await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toHaveCount(0); } // 맞아요 뒤에도 카드가 남는다
   // 숫자를 원래대로 돌리면 다시 같은 문장
   await change(page, "5초", "3초");
   await expect(markOf(page, "s-2")).toContainText("3초");
@@ -274,7 +274,10 @@ test("고친 문장을 빼고 다시 넣으면 원래 초안 문장으로 돌아
   await change(page, "자주 끊기는", "종종 끊기는");
   await expect(markOf(page, "s-1")).toContainText("종종 끊기는");
   await clickMark(page, "s-1");
-  await expect(sentenceCard(page).getByText("빼고 다시 넣으면 원래 문장으로 돌아가요.")).toBeVisible();
+  await sentenceCard(page).getByRole("button", { name: "빼기 설명" }).click();
+  await expect(page.getByRole("dialog", { name: "빼기 설명" })).toContainText("빼고 다시 넣으면 원래 문장으로 돌아가요.");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "빼기 설명" })).toHaveCount(0);
   await sentenceCard(page).getByRole("button", { name: "빼기", exact: true }).click();
   await expect(answerBox(page)).not.toHaveValue(/종종 끊기는/);
   await expect.poll(() => posts(api)).toEqual([{ call: "PUT /api/draft-sentences/802/removed", body: { removed: true } }]);
@@ -330,7 +333,7 @@ test("옛 보기 · 고치기 상태의 흔적이 없다 — 직접 고치기 ·
 test("좁은 폭 — 확인할 곳이 아닌 문장을 탭하면 근거 보기 버튼이 나오고, 글을 고치면 사라진다", async ({ page }) => {
   test.skip(!narrow(page), "넓은 폭은 탭하면 카드가 바로 열린다");
   await open(page);
-  const peek = page.getByRole("button", { name: "이 문장의 근거 보기", exact: true });
+  const peek = page.getByRole("button", { name: "근거 보기", exact: true });
   await clickMark(page, "s-0");
   await expect(peek).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0); // 시트는 아직 안 열린다
