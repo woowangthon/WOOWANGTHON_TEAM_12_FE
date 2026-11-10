@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ArrowDownIcon, ArrowUpIcon, LinkIcon, ListChecksIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
+import { ArrowDownIcon, ArrowUpIcon, ArticleIcon, LinkIcon, ListChecksIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { CommonQuestionPicker } from "./common-question-picker";
 import { ParseFailureNotice, useApplicationParse, type ParseFailure, type ParseInput } from "./application-parse";
@@ -156,7 +156,7 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
             placeholder={askingLink ? "https://… 공고 페이지 주소를 붙여 넣어 주세요" : "예: [OO 부트캠프 백엔드 과정] 1. 기술적인 문제를 해결한 경험을 적어 주세요 (700자) 2. 지원 동기 … 글에 적힌 문항만 찾아요."} />
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" variant="secondary" size="sm" className="min-h-11 lg:min-h-10" disabled={room === 0} title={room === 0 ? `문항은 한 번에 ${MAX_QUESTIONS_PER_SUBMIT}개까지 넣을 수 있어요` : undefined} onClick={() => setPicking(true)}><ListChecksIcon />넣었던 · 자주 나오는 문항에서 고르기</Button>
-            <Button type="button" variant="secondary" size="sm" className="min-h-11 lg:min-h-10" onClick={() => { setAskingLink(true); pasteBox.current?.focus(); }}><LinkIcon />공고 링크로 가져오기</Button>
+            <Button type="button" variant="secondary" size="sm" className="min-h-11 lg:min-h-10" onClick={() => { setAskingLink(prev => !prev); pasteBox.current?.focus(); }}>{askingLink ? <ArticleIcon /> : <LinkIcon />}{askingLink ? "글 붙여넣기로 돌아가기" : "공고 링크로 가져오기"}</Button>
             <span className={`ml-auto text-xs tabular-nums ${paste.length > MAX_PARSE_TEXT_LENGTH ? "text-error" : "text-muted"}`}>{paste.length > 0 && `${paste.length.toLocaleString("ko-KR")} / 20,000`}</span>
           </div>
           {(pastedLink || askingLink) && !urlShown && <p className="m-0 text-note text-muted">{LINK_NOTE}</p>}
