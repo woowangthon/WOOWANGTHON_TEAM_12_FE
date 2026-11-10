@@ -657,17 +657,21 @@ function DraftCard({ question, draft, analysis, local, selected, onAnswer, onCon
       <WarningCircleIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />사실이 아니라 문항에 잇는 제안이에요. 맞는지 보고 고치거나 빼 주세요.</p>}
     {s.note && <p className="m-0 text-note leading-relaxed text-body">왜 확인이 필요한가요 — {s.note}</p>}
     {mark.ground && !(mark.done && mark.ground.status === "UNSUPPORTED") && <GroundNotes ground={mark.ground} />}
-    {s.kind !== "OPINION" && (evidence.length
-      ? <div className="grid min-w-0 gap-2">{mark.edited && <p className="m-0 flex items-center gap-1 text-note text-muted">원래 문장의 근거
-          <InfoTip label="원래 문장의 근거">고친 내용이 이 근거와 맞는지는 근거 점검으로 볼 수 있어요.</InfoTip></p>}
-        {evidence.map((e, j) => <AnswerEvidence key={`${e.type}-${e.id}-${j}`} evidence={e} questionId={question.id} question={question} />)}</div>
-      : <p className="m-0 text-note text-muted">연결된 근거가 지금은 없어요. 문장은 만들었을 때 그대로예요.</p>)}
-    {/* AI 보탬의 「누가 했는지」는 근거 경험이 UNKNOWN 이라 「제가」로 쓴 것 — 내가 했어요가 곧 그 문장의 확인이다(FE#431).
-        고친 문장은 글이 달라 맞아요를 따로 받는다 */}
-    {s.kind !== "OPINION" && <ActorLine sentence={s} edited={mark.edited} onDecided={onActorDecided}
-      onConfirm={s.kind === "ELABORATED" && mark.need === "marked" && !mark.edited && !disabled
-        ? async () => { await onConfirm(mark); onFlash(`s-${mark.index}`); } : undefined} />}
-    {mark.need && <div className="flex flex-wrap gap-2">
+    {/* 근거와 주체는 한 묶음 — 주체 줄은 문장이 아니라 근거 경험의 것이라 근거 목록 바로 밑에 둔다.
+        근거 없음 경고 · 맞아요와 떨어뜨려 「주체를 고르면 근거가 생긴다」로 읽히지 않게 한다(FE#428) */}
+    {s.kind !== "OPINION" && <div role="group" aria-label="근거 경험" className="grid min-w-0 gap-2">
+      {evidence.length
+        ? <>{mark.edited && <p className="m-0 flex items-center gap-1 text-note text-muted">원래 문장의 근거
+            <InfoTip label="원래 문장의 근거">고친 내용이 이 근거와 맞는지는 근거 점검으로 볼 수 있어요.</InfoTip></p>}
+          {evidence.map((e, j) => <AnswerEvidence key={`${e.type}-${e.id}-${j}`} evidence={e} questionId={question.id} question={question} />)}</>
+        : <p className="m-0 text-note text-muted">연결된 근거가 지금은 없어요. 문장은 만들었을 때 그대로예요.</p>}
+      {/* AI 보탬의 「누가 했는지」는 근거 경험이 UNKNOWN 이라 「제가」로 쓴 것 — 내가 했어요가 곧 그 문장의 확인이다(FE#431).
+          고친 문장은 글이 달라 맞아요를 따로 받는다 */}
+      <ActorLine sentence={s} edited={mark.edited} unsupported={mark.ground?.status === "UNSUPPORTED" && !mark.ground.stale} onDecided={onActorDecided}
+        onConfirm={s.kind === "ELABORATED" && mark.need === "marked" && !mark.edited && !disabled
+          ? async () => { await onConfirm(mark); onFlash(`s-${mark.index}`); } : undefined} />
+    </div>}
+    {mark.need && <div className="flex flex-wrap gap-2 border-t border-hairline-soft pt-3">
       <ConfirmButton onConfirm={async () => { await onConfirm(mark); onFlash(`s-${mark.index}`); }} disabled={disabled} />
     </div>}
   </div>;
@@ -815,7 +819,7 @@ function SupposedCard({ question, sentence, mark, pair, local, disabled, onSuppo
 /** 주체 줄(S-79) — 근거 경험의 지금 주체. 확인 안 된(UNKNOWN) 경험이 있으면 경험마다 정한다(ETC#249).
  *  onConfirm 이 있으면(고치지 않은 AI 보탬) 남은 경험을 모두 내가 한 일로 정한 순간 그 문장의 맞아요까지 한다(FE#431).
  *  팀이 했어요는 「제가」 문장과 어긋나니 확인하지 않는다 — 고치거나 다시 만든다(S-78) */
-function ActorLine({ sentence, edited, onDecided, onConfirm }: { sentence: DraftSentence; edited: boolean; onDecided: () => Promise<void>; onConfirm?: () => Promise<void> }) {
+function ActorLine({ sentence, edited, unsupported, onDecided, onConfirm }: { sentence: DraftSentence; edited: boolean; unsupported: boolean; onDecided: () => Promise<void>; onConfirm?: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [decided, setDecided] = useState(false);
@@ -826,7 +830,7 @@ function ActorLine({ sentence, edited, onDecided, onConfirm }: { sentence: Draft
   if (!unknown.length) {
     // 정해진 주체는 늘 조용히 보인다(새로고침해도 서버 값). 「다시 만들면 바뀌어요」는 방금 정한 자리에서만 — 초안 이후에 정했는지 화면이 알 수 없다(FE#260)
     return <>
-      <p className="m-0 text-note text-body">주체 · {actors.includes("TEAM") ? "팀이 한 일" : "내가 한 일"}
+      <p className="m-0 text-note text-body">근거 경험의 주체 · {actors.includes("TEAM") ? "팀이 한 일" : "내가 한 일"}
         {decided && <span className="block text-muted">다시 만들면 확인된 문장으로 바뀌어요(분석 횟수 안 씀).</span>}</p>
       {error && <p role="alert" className="m-0 text-note text-error">{error}</p>}
     </>;
@@ -851,17 +855,19 @@ function ActorLine({ sentence, edited, onDecided, onConfirm }: { sentence: Draft
   </div>;
   return <div className="grid gap-2 rounded-sm bg-surface-soft px-3 py-2.5">
     {/* AI 보탬은 확인 전 「제가」를 쓴 문장이라 확인을 묻고, 근거 문장은 누가 했는지 쓰지 않았으니 선택으로만 보인다(FE#258) */}
-    <p className="m-0 flex items-center gap-1 text-note text-body">{edited ? "근거 경험을 누가 했나요?" : sentence.kind === "ELABORATED" ? "누가 했는지 확인 안 됨" : "누가 했나요? (선택)"}
+    {/* 문장 · 보완이 아니라 위 근거 경험의 주체를 묻는다 — 라벨과 경험 글로 대상을 늘 밝힌다(FE#428) */}
+    <p className="m-0 flex items-center gap-1 text-note text-body">{sentence.kind === "ELABORATED" && !edited ? "이 근거 경험을 누가 했는지 확인해 주세요" : `이 근거 경험을 누가 했나요?${sentence.kind === "FACT" && !edited ? " (선택)" : ""}`}
       <InfoTip label="주체">{edited ? "고친 문장이 아니라 근거 경험을 누가 했는지 정해요 — 정하면 그 경험만 바뀌어요."
-        : sentence.kind === "ELABORATED" ? `정하면 이 문장의 근거 경험만 바뀌어요.${onConfirm ? " 내가 했어요면 이 문장도 확인한 것으로 봐요." : ""}`
-          : "이 문장은 누가 했는지 쓰지 않았어요. 정해 두면 다음 초안이 「제가」 · 「팀은」으로 써요."}</InfoTip></p>
-    {/* 근거 경험이 여럿이거나 고친 문장이면 경험 글을 같이 보인다 — 문장이 아니라 경험으로 판단한다 */}
-    {unknown.length === 1 && !edited ? choose(unknown[0].experienceId) : <ul aria-label="근거 경험마다 주체 정하기" className="m-0 grid list-none gap-2.5 p-0">
+        : sentence.kind === "ELABORATED" ? `문장이 아니라 근거 경험의 주체예요. 정하면 그 경험만 바뀌어요.${onConfirm ? " 내가 했어요면 이 문장도 확인한 것으로 봐요." : ""}`
+          : "문장이 아니라 근거 경험의 주체예요. 정해 두면 다음 초안이 「제가」 · 「팀은」으로 써요."}</InfoTip></p>
+    {unsupported && <p className="m-0 text-note text-muted">주체를 정해도 근거 점검 판정은 바뀌지 않아요.</p>}
+    {/* 경험 글을 늘 같이 보인다 — 문장이 아니라 경험으로 판단한다. 하나면 두 줄로 줄인다 */}
+    <ul aria-label="근거 경험마다 주체 정하기" className="m-0 grid list-none gap-2.5 p-0">
       {unknown.map(e => <li key={e.experienceId} className="grid gap-1.5">
-        <p className="m-0 text-note break-words text-muted">「{e.text}」</p>
+        <p className={cn("m-0 text-note break-words text-muted", unknown.length === 1 && !edited && "line-clamp-2")}>「{e.text}」</p>
         {choose(e.experienceId)}
       </li>)}
-    </ul>}
+    </ul>
     {error && <p role="alert" className="m-0 text-note text-error">{error}</p>}
   </div>;
 }

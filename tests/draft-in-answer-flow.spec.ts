@@ -202,8 +202,9 @@ test("주체 줄 — 내가 했어요를 누르면 그 문장 근거 경험의 �
   await expect(page.getByText("확인할 곳 4군데", { exact: true })).toBeVisible();
   await openMark(page, S_804);
   const card = sentenceCard(page);
-  await expect(card.getByText("누가 했는지 확인 안 됨", { exact: false })).toBeVisible();
-  await card.getByRole("button", { name: "내가 했어요", exact: true }).click();
+  await expect(card.getByText("이 근거 경험을 누가 했는지 확인해 주세요", { exact: false })).toBeVisible();
+  // FE#428 — 주체 줄은 근거 목록과 한 묶음이다(근거 없음 경고 · 맞아요와 떨어져 있다)
+  await card.getByRole("group", { name: "근거 경험" }).getByRole("button", { name: "내가 했어요", exact: true }).click();
   await expect.poll(() => patches(api)).toEqual([{ call: "PATCH /api/experiences/103", body: { actor: "ME" } }]);
   expect(api.calls.filter(c => c.call.includes("/actor"))).toEqual([]);
   await expect(card.getByText("다시 만들면 확인된 문장으로 바뀌어요", { exact: false })).toBeVisible();
@@ -221,7 +222,7 @@ test("주체 줄 — 팀이 했어요는 「제가」 문장과 어긋나니 문
   const card = sentenceCard(page);
   await card.getByRole("button", { name: "팀이 했어요", exact: true }).click();
   await expect.poll(() => patches(api)).toEqual([{ call: "PATCH /api/experiences/103", body: { actor: "TEAM" } }]);
-  await expect(card.getByText("주체 · 팀이 한 일", { exact: false })).toBeVisible();
+  await expect(card.getByText("근거 경험의 주체 · 팀이 한 일", { exact: false })).toBeVisible();
   await expect(card.getByRole("button", { name: "맞아요", exact: true })).toBeVisible();
   expect(posts(api).filter(c => c.call.endsWith("/confirm"))).toEqual([]);
   await expect(page.getByText("확인할 곳 4군데", { exact: true })).toBeVisible();
@@ -336,7 +337,7 @@ test("주체 줄 — 근거 경험이 둘 다 모르면 경험마다 고르고, 
   ]);
   expect(api.calls.filter(c => c.call.includes("/actor"))).toEqual([]);
   // 한 경험을 팀으로 정했으니 「제가」 문장은 맞지 않다 — 문장 확인은 하지 않는다(FE#431)
-  await expect(card.getByText("주체 · 팀이 한 일", { exact: false })).toBeVisible();
+  await expect(card.getByText("근거 경험의 주체 · 팀이 한 일", { exact: false })).toBeVisible();
   expect(posts(api).filter(c => c.call.endsWith("/confirm"))).toEqual([]);
 });
 
@@ -378,8 +379,8 @@ test("근거 문장의 주체 줄은 고칠 일이 아니라 선택으로 보인
   await open(page, q => { q.draft!.sentences[0].evidence = q.draft!.sentences[0].evidence.map(e => ({ ...e, actor: "UNKNOWN" as const })); });
   await openMark(page, S_801);
   const card = sentenceCard(page);
-  await expect(card.getByText("누가 했나요? (선택)", { exact: false })).toBeVisible();
-  await expect(card.getByText("누가 했는지 확인 안 됨", { exact: false })).toHaveCount(0);
+  await expect(card.getByText("이 근거 경험을 누가 했나요? (선택)", { exact: false })).toBeVisible();
+  await expect(card.getByText("이 근거 경험을 누가 했는지 확인해 주세요", { exact: false })).toHaveCount(0);
   await expect(card.getByRole("button", { name: "내가 했어요", exact: true })).toBeVisible();
 });
 
@@ -397,23 +398,23 @@ test("근거 문장에서 내가 했어요를 누른 뒤 다시 열어도 · 새
   await open(page, q => { q.draft!.sentences[0].evidence = q.draft!.sentences[0].evidence.map(e => ({ ...e, actor: "UNKNOWN" as const })); });
   await openMark(page, S_801);
   await sentenceCard(page).getByRole("button", { name: "내가 했어요", exact: true }).click();
-  await expect(sentenceCard(page).getByText("주체 · 내가 한 일", { exact: false })).toBeVisible();
+  await expect(sentenceCard(page).getByText("근거 경험의 주체 · 내가 한 일", { exact: false })).toBeVisible();
   await expect(sentenceCard(page).getByText("다시 만들면 확인된 문장으로 바뀌어요", { exact: false })).toBeVisible();
   // 카드를 닫았다 다시 연다
   if (narrow(page)) await closeCard(page); else await page.keyboard.press("Escape");
   await expect(sentenceCard(page)).toHaveCount(0);
   await openMark(page, S_801);
-  await expect(sentenceCard(page).getByText("주체 · 내가 한 일", { exact: false })).toBeVisible();
+  await expect(sentenceCard(page).getByText("근거 경험의 주체 · 내가 한 일", { exact: false })).toBeVisible();
   await expect(sentenceCard(page).getByText("다시 만들면 확인된 문장으로 바뀌어요", { exact: false })).toHaveCount(0);
   await page.reload();
   await expect(page.getByText(/확인할 곳 \d|모두 확인했어요/)).toBeVisible();
   await openMark(page, S_801);
-  await expect(sentenceCard(page).getByText("주체 · 내가 한 일", { exact: false })).toBeVisible();
+  await expect(sentenceCard(page).getByText("근거 경험의 주체 · 내가 한 일", { exact: false })).toBeVisible();
 });
 
 test("원래 정해진 주체도 중립 문구로 보인다", async ({ page }) => {
   await open(page);
   await openMark(page, S_803);
-  await expect(sentenceCard(page).getByText("주체 · 내가 한 일", { exact: false })).toBeVisible();
+  await expect(sentenceCard(page).getByText("근거 경험의 주체 · 내가 한 일", { exact: false })).toBeVisible();
   await expect(sentenceCard(page).getByRole("button", { name: "내가 했어요", exact: true })).toHaveCount(0);
 });
