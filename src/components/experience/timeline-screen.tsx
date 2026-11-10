@@ -37,6 +37,7 @@ import { SourceWorkDetail } from "@/components/work/source-work-detail";
 import { useWorkRefresh } from "@/components/work/work-provider";
 import { SameActivityDialog, SuggestionLines, suggestionPairs } from "./merge-suggestion";
 import { closeRevisionPanel } from "@/components/revisions/revision-list";
+import { useRestoreListener } from "@/components/revisions/restore-bus";
 
 type ListState =
   | { status: "loading" }
@@ -379,6 +380,21 @@ export function TimelineScreen() {
     refreshStats();
     setDetail((prev) => prev.status === "ready" && prev.activity.id === experience.activityId ? { ...prev, activity: { ...prev.activity, experiences: prev.activity.experiences.map((e) => e.id === experience.id ? experience : e) } } : prev);
   };
+
+  // 헤더 「최근 수정」에서 되돌리면 그 자리에서 바꾼다(FE#401) — 경험 · 활동 메뉴의 「수정 이력」과 같은 길.
+  // 연 세부에 없는 경험은 그 활동을 열 때 새로 받는다
+  useRestoreListener({ restored: ({ experience, activity }) => {
+    if (experience) {
+      refreshStats();
+      setDetail(prev => prev.status === "ready" && prev.activity.id === experience.activityId
+        ? { ...prev, activity: { ...prev.activity, experiences: prev.activity.experiences.map(e => e.id === experience.id ? { ...experience, usedIn: experience.usedIn ?? e.usedIn } : e) } } : prev);
+      return true;
+    }
+    const found = activity && list.status === "ready" ? list.activities.find(a => a.id === activity.id) : undefined;
+    if (!activity || !found) return false;
+    activitySaved({ ...found, name: activity.name, period: activity.period });
+    return true;
+  } });
 
   const experienceAdded = (experience: Experience) => {
     refreshStats();

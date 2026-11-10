@@ -2,6 +2,7 @@
 import type { Page, Route } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import { FakeQuestionApi } from "./fake-question-api";
+import { DRAFT_EXAMPLE } from "./fixtures/draft-example";
 import type { ActivityDetail, Experience } from "../src/lib/api/types";
 import type { Revision } from "../src/lib/api/revisions";
 
@@ -295,4 +296,78 @@ test("초안을 답칸에 넣은 저장에만 fromDraft 를 싣는다 — 그 �
   await page.keyboard.press("End");
   await page.keyboard.type(" 덧붙임");
   await expect.poll(drafts, { timeout: 10000 }).toEqual([true, false]);
+});
+
+test("헤더 「최근 수정」에서 되돌리면 열어 둔 활동 세부가 그 자리에서 바뀐다 — 새로 불러오기 없이 (FE#401)", async ({ page }) => {
+  const state = await setupTimeline(page);
+  // 그때 값이 지금과 다른 줄 둘 — 경험 본문 · 활동 이름
+  state.all = [{ ...EXPERIENCE_EDIT, id: 905, before: EXPERIENCE_EDIT.after, after: snap("백엔드 API 설계를 전부 맡았다") }, OLDER];
+  await page.getByRole("button", { name: /바꿔요/ }).first().click();
+  await expect(page.getByRole("button", { name: /^경험 고치기: 백엔드 API 중/ })).toBeVisible();
+  await page.getByRole("button", { name: "최근 수정" }).filter({ visible: true }).click();
+  const dialog = page.getByRole("dialog", { name: "최근 수정" });
+  await dialog.getByRole("button", { name: /^본문을 고쳤어요/ }).click();
+  await dialog.getByRole("button", { name: "이때로 되돌리기" }).click();
+  await dialog.getByRole("button", { name: "되돌리기", exact: true }).click();
+  await expect(dialog.getByText("되돌렸어요.", { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "새로 불러오기" })).toHaveCount(0);
+  // 펼친 줄은 목록을 새로 받아도 펼친 채라 접고 다음 줄로
+  await dialog.getByRole("button", { name: /^본문을 고쳤어요/ }).click();
+  await dialog.getByRole("button", { name: /^이름을 고쳤어요/ }).click();
+  await dialog.getByRole("button", { name: "이때로 되돌리기" }).click();
+  await dialog.getByRole("button", { name: "되돌리기", exact: true }).click();
+  await expect.poll(() => state.calls.filter(c => c.startsWith("restore"))).toEqual(["restore:905:AFTER", "restore:880:AFTER"]);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "경험 고치기: 백엔드 API 설계를 전부 맡았다" })).toBeVisible();
+  await expect(page.getByRole("complementary").getByText("바꿔요", { exact: true }).first()).toBeVisible();
+});
+
+test("헤더 「최근 수정」에서 연 답을 되돌리면 답칸이 그 자리에서 바뀐다 (FE#401)", async ({ page }) => {
+  const api = new FakeQuestionApi({ sameApplication: true });
+  await api.install(page);
+  await hideDevOverlay(page);
+  const DRAFT: Revision = { ...base, id: 970, kind: "DRAFT_OVERWRITE", targetType: "ANSWER", targetId: 41, target: target({ questionId: 41, questionText: "문항", applicationId: 22, organization: "OO 부트캠프" }),
+    before: { text: "" }, after: { text: "차곡이가 처음 써 준 초안입니다." } };
+  const state: State = { all: [DRAFT], calls: [], restoreFail: "" };
+  await routeRevisions(page, state, (id, to) => {
+    const text = (to === "AFTER" ? DRAFT.after : DRAFT.before).text!;
+    const revision: Revision = { ...DRAFT, id: 971, kind: "RESTORE", restoredFromId: id, before: { text: "" }, after: { text } };
+    return { revision, experience: null, activity: null, answerDraft: { text, state: null, updatedAt: new Date().toISOString() } };
+  });
+  await page.goto("/questions?question=41");
+  const region = page.getByRole("region", { name: "내가 쓴 답", exact: true });
+  const box = region.getByRole("textbox", { name: "내가 쓴 답", exact: true });
+  await expect(box).toBeEnabled();
+  await page.getByRole("button", { name: "최근 수정" }).filter({ visible: true }).click();
+  const dialog = page.getByRole("dialog", { name: "최근 수정" });
+  await dialog.getByRole("button", { name: /^초안을 답칸에 넣었어요/ }).click();
+  await dialog.getByRole("button", { name: "이때로 되돌리기" }).click();
+  await dialog.getByRole("button", { name: "되돌리기", exact: true }).click();
+  await expect(dialog.getByText(/답칸에 그때 글을 넣었어요/)).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "새로 불러오기" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(box).toContainText("차곡이가 처음 써 준 초안입니다.");
+});
+
+test("다른 화면에 있을 때 끝난 초안 — 열어서 답칸에 들어오면 그 글을 한 번 fromDraft 로 저장한다 (FE#401)", async ({ page }) => {
+  test.skip(test.info().project.name !== "desktop");
+  const api = new FakeQuestionApi({ sameApplication: true });
+  api.edit(41, q => { q.draft = { ...structuredClone(DRAFT_EXAMPLE), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }; });
+  await api.install(page);
+  await hideDevOverlay(page);
+  await page.goto("/questions?question=41");
+  const region = page.getByRole("region", { name: "내가 쓴 답", exact: true });
+  const box = region.getByRole("textbox", { name: "내가 쓴 답", exact: true });
+  await expect(box).toContainText("폴링을 WebSocket 으로 바꿔");
+  const drafts = () => api.calls.filter(c => c.call.endsWith("/answer-draft")).map(c => ({ fromDraft: (c.body as { fromDraft?: boolean }).fromDraft ?? false, text: (c.body as { text: string }).text }));
+  await expect.poll(drafts, { timeout: 10000 }).toHaveLength(1);
+  const [saved] = drafts();
+  expect(saved.fromDraft).toBe(true);
+  expect(saved.text).toContain("폴링을 WebSocket 으로 바꿔");
+  await expect(region.getByText("저장됨")).toBeVisible();
+  // 다시 열면 저장한 임시 글로 시작한다 — 또 기록하지 않는다
+  await page.reload();
+  await expect(box).toContainText("폴링을 WebSocket 으로 바꿔");
+  await page.waitForTimeout(1500);
+  expect(drafts()).toHaveLength(1);
 });
