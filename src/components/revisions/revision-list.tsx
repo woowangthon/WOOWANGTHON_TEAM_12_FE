@@ -1,12 +1,14 @@
 "use client";
 
-// 수정 이력(S-80 · ADR-013 · revision-api.md) — 언제 · 누가(나 / 외부 AI) · 무엇이 바뀌었나, 줄마다 「이 수정 전으로」.
+// 수정 이력(S-80 · ADR-013 · revision-api.md) — 언제 · 누가(나 / 외부 AI) · 무엇이 바뀌었나, 줄마다 「이때로 되돌리기」.
+// 되돌리기는 그 줄에 보이는 그때 값(after)으로 — 「수정 전으로」는 처음 넣은 초안 줄에서 답칸을 비웠다(FE#430).
+// 맨 처음 값(첫 수정 전)은 항목 이력 맨 아래 「처음 값」 줄, 지금 값과 같은 줄에는 버튼을 두지 않는다.
 // 「최근 수정」(헤더 — 전체)과 「수정 이력」(경험 · 활동 메뉴, 답칸 줄 — 그 항목만)이 같이 쓴다.
 // 줄은 세로선 타임라인에 접어 두고 한 줄 요약만 보인다 — 펼치면 바뀐 부분만 강조한 글 · 짧은 값 · 되돌리기(FE#413)
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { ArrowRightIcon, ArrowsClockwiseIcon, CaretDownIcon, ClockCounterClockwiseIcon, RobotIcon, UserIcon, XIcon } from "@phosphor-icons/react";
+import { ArrowRightIcon, ArrowsClockwiseIcon, CaretDownIcon, ClockCounterClockwiseIcon, FlagIcon, RobotIcon, UserIcon, XIcon } from "@phosphor-icons/react";
 import { diff } from "@/components/questions/draft-match";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -15,7 +17,7 @@ import { useSidebar } from "@/components/sidebar-layout";
 import { timestamp } from "@/components/connections/mcp-changes";
 import { ApiError } from "@/lib/api/errors";
 import { mcpClientName } from "@/lib/api/mcp";
-import { fetchRevisions, restoreRevision, type RestoreResult, type Revision, type RevisionTarget, type RevisionTargetType } from "@/lib/api/revisions";
+import { fetchRevisions, restoreRevision, type RestoreResult, type RestoreTo, type Revision, type RevisionTarget, type RevisionTargetType } from "@/lib/api/revisions";
 import { COMPETENCIES, type Actor, type SourceStatus } from "@/lib/api/types";
 import { periodText } from "@/lib/period";
 
@@ -24,8 +26,8 @@ const SOURCE: Record<SourceStatus, string> = { SOURCE_CONFIRMED: "원문 확인"
 
 /** 되돌리기 전에 알릴 것 — 무엇이 돌아가나 */
 const RESTORE_NOTE: Record<RevisionTargetType, string> = {
-  EXPERIENCE: "본문 · 수행 주체 · 역량 · 출처 상태가 이 수정 전으로 돌아가요. 근거 · 보완은 그대로예요.",
-  ACTIVITY: "이름 · 기간이 이 수정 전으로 돌아가요. 분류 · 계기는 그대로예요.",
+  EXPERIENCE: "본문 · 수행 주체 · 역량 · 출처 상태가 그때 값으로 돌아가요. 근거 · 보완은 그대로예요.",
+  ACTIVITY: "이름 · 기간이 그때 값으로 돌아가요. 분류 · 계기는 그대로예요.",
   ANSWER: "그때 글이 답칸에 들어가요. 다 쓴 답은 「다 썼어요」를 다시 눌러야 바뀌어요.",
 };
 
@@ -75,7 +77,7 @@ function wordDiff(b: string, a: string) {
 
 /** 줄 머리의 한 줄 요약 — 무엇을 어떻게 바꿨나. 본문을 고치면 출처 상태는 늘 같이 바뀌니 그땐 요약에 넣지 않는다(펼치면 보인다) */
 function summary(r: Revision) {
-  if (r.kind === "RESTORE") return r.targetType === "ANSWER" ? "그때 답을 답칸에 되돌렸어요 · 임시 글" : "이 수정 전으로 되돌렸어요";
+  if (r.kind === "RESTORE") return r.targetType === "ANSWER" ? "그때 답을 답칸에 되돌렸어요 · 임시 글" : "예전 값으로 되돌렸어요";
   if (r.kind === "CONFIRM") return "답을 다 썼어요";
   if (r.kind === "DRAFT_OVERWRITE") return "초안을 답칸에 넣었어요";
   const key = TEXT_KEY[r.targetType], name = TEXT_NAME[r.targetType];
@@ -108,36 +110,25 @@ function TextDiff({ before, after }: { before: string; after: string }) {
 }
 
 function restoreError(e: unknown) {
-  if (e instanceof ApiError && e.code === "NOTHING_TO_RESTORE") return "지금 값이 이미 이 수정 전과 같아요.";
+  if (e instanceof ApiError && e.code === "NOTHING_TO_RESTORE") return "지금 값이 이미 이때와 같아요.";
   if (e instanceof ApiError && e.code === "REVISION_TARGET_DELETED") return "지운 항목이라 되돌릴 수 없어요.";
   if (e instanceof ApiError && e.code === "REVISION_NOT_FOUND") return "이 기록을 찾지 못했어요. 목록을 새로 불러와 주세요.";
   return e instanceof ApiError && e.code !== "INVALID_RESPONSE" ? `되돌리지 못했어요. ${e.message}` : "되돌리지 못했어요. 다시 시도해 주세요.";
 }
 
 /** 이력 한 줄 — 세로선 위 아이콘(나 / 외부 AI) · 접힌 머리(요약 · 대상 · 누가 · 언제). 펼치면 차이 · 짧은 값 · 되돌리기 */
-function Row({ revision: r, all, latest, last, defaultOpen, beforeRestore, onRestored, onNavigate }: {
-  revision: Revision; all: boolean; latest: boolean; last: boolean; defaultOpen: boolean;
+function Row({ revision: r, all, current, badge, last, defaultOpen, beforeRestore, onRestored, onNavigate }: {
+  /** current — 이 줄의 값이 지금 값과 같다(되돌릴 것이 없다). badge — 그중 가장 새 줄에만 「현재」 */
+  revision: Revision; all: boolean; current: boolean; badge: boolean; last: boolean; defaultOpen: boolean;
   beforeRestore?: () => Promise<void>; onRestored: (result: RestoreResult) => void; onNavigate?: () => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
-  const [asking, setAsking] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const link = all ? targetLink(r) : null;
   const ai = r.by === "EXTERNAL_AI";
   const who = ai ? mcpClientName(r.client ?? "외부 AI") : "나";
   const key = TEXT_KEY[r.targetType];
   const before = r.before[key] ?? "", after = r.after[key] ?? "";
   const fields = fieldChanges(r);
-
-  async function restore() {
-    setBusy(true); setError(null);
-    try {
-      await beforeRestore?.();
-      onRestored(await restoreRevision(r.id));
-      setAsking(false);
-    } catch (e) { setError(restoreError(e)); } finally { setBusy(false); }
-  }
 
   return <li className="relative grid grid-cols-[2rem_minmax(0,1fr)] gap-x-2 pb-2">
     {!last && <span aria-hidden="true" className="absolute top-10 bottom-0 left-4 w-px -translate-x-1/2 bg-hairline" />}
@@ -157,7 +148,7 @@ function Row({ revision: r, all, latest, last, defaultOpen, beforeRestore, onRes
             <time dateTime={r.createdAt}>{timestamp(r.createdAt)}</time>
           </span>
         </span>
-        {latest && !all && !r.target.deleted && <span className="shrink-0 rounded-full bg-canvas px-2 py-0.5 text-xs text-muted">현재</span>}
+        {badge && !r.target.deleted && <span className="shrink-0 rounded-full bg-canvas px-2 py-0.5 text-xs text-muted">현재</span>}
         <CaretDownIcon aria-hidden="true" className={cn("size-4 shrink-0 text-muted transition-transform", !open && "-rotate-90")} />
       </button>
       {open && <div className="mt-2 grid gap-3 rounded-sm border border-hairline-soft p-3">
@@ -166,18 +157,74 @@ function Row({ revision: r, all, latest, last, defaultOpen, beforeRestore, onRes
           {fields.map(([label, x, y]) => <p key={label} className="m-0 text-sm text-body"><span className="text-muted">{label}</span> {x} → <strong className="font-semibold text-ink">{y}</strong></p>)}
         </div>}
         {r.target.deleted ? <p className="m-0 text-note text-muted">지운 항목이라 그 항목으로 가거나 되돌릴 수 없어요.</p>
-          : asking ? <div className="grid gap-2 rounded-sm bg-surface-soft p-3">
-            <p className="m-0 text-sm text-body">이 수정 전으로 되돌릴까요? {RESTORE_NOTE[r.targetType]}</p>
-            <div className="flex flex-wrap gap-2">
-              <Button className="min-h-11 lg:min-h-10" disabled={busy} onClick={() => void restore()}>{busy ? "되돌리는 중…" : error ? "다시 시도" : "되돌리기"}</Button>
-              <Button className="min-h-11 lg:min-h-10" variant="secondary" disabled={busy} onClick={() => { setAsking(false); setError(null); }}>취소</Button>
-            </div>
-          </div>
-          : <div className="flex flex-wrap items-center gap-2">
-            <Button className="min-h-11 lg:min-h-9" variant="secondary" size="sm" onClick={() => setAsking(true)}><ArrowsClockwiseIcon />이 수정 전으로</Button>
+          : current ? <p className="m-0 text-note text-muted">{badge ? "지금 값이에요. 되돌리려면 아래에서 돌아갈 때를 골라 주세요." : "지금 값과 같아요."}</p>
+          : <RestoreAction revision={r} to="AFTER" label="이때로 되돌리기" question="이때 값으로 되돌릴까요?" beforeRestore={beforeRestore} onRestored={onRestored}>
             {link && <Link href={link.href} onClick={onNavigate} className="inline-flex min-h-11 items-center gap-1 rounded-full bg-surface-soft px-3 text-xs font-medium text-body hover:text-ink lg:min-h-9">{link.label}<ArrowRightIcon aria-hidden="true" className="size-3.5" /></Link>}
-          </div>}
-        {error && <p role="alert" className="m-0 text-sm text-error">{error}</p>}
+          </RestoreAction>}
+      </div>}
+    </div>
+  </li>;
+}
+
+/** 되돌리기 버튼 → 확인 → 실행. 실패하면 같은 자리에서 다시 시도 */
+function RestoreAction({ revision: r, to, label, question, beforeRestore, onRestored, children }: {
+  revision: Revision; to: RestoreTo; label: string; question: string;
+  beforeRestore?: () => Promise<void>; onRestored: (result: RestoreResult) => void; children?: ReactNode;
+}) {
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function restore() {
+    setBusy(true); setError(null);
+    try {
+      await beforeRestore?.();
+      onRestored(await restoreRevision(r.id, to));
+      setAsking(false);
+    } catch (e) { setError(restoreError(e)); } finally { setBusy(false); }
+  }
+
+  return <>
+    {asking ? <div className="grid gap-2 rounded-sm bg-surface-soft p-3">
+      <p className="m-0 text-sm text-body">{question} {RESTORE_NOTE[r.targetType]}</p>
+      <div className="flex flex-wrap gap-2">
+        <Button className="min-h-11 lg:min-h-10" disabled={busy} onClick={() => void restore()}>{busy ? "되돌리는 중…" : error ? "다시 시도" : "되돌리기"}</Button>
+        <Button className="min-h-11 lg:min-h-10" variant="secondary" disabled={busy} onClick={() => { setAsking(false); setError(null); }}>취소</Button>
+      </div>
+    </div>
+    : <div className="flex flex-wrap items-center gap-2">
+      <Button className="min-h-11 lg:min-h-9" variant="secondary" size="sm" onClick={() => setAsking(true)}><ArrowsClockwiseIcon />{label}</Button>
+      {children}
+    </div>}
+    {error && <p role="alert" className="m-0 text-sm text-error">{error}</p>}
+  </>;
+}
+
+/** 맨 아래 「처음 값」 줄 — 가장 오래된 기록의 before(첫 수정 전). 줄마다 그때 값(after)으로 되돌리니, 처음 값으로 가는 길은 여기 하나다 */
+function OriginRow({ oldest: r, current, beforeRestore, onRestored }: {
+  oldest: Revision; current: boolean; beforeRestore?: () => Promise<void>; onRestored: (result: RestoreResult) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const b = r.before;
+  const fields = r.targetType === "EXPERIENCE" ? [b.actor && `수행 주체 ${ACTOR[b.actor]}`, `역량 ${(b.competencies ?? []).map(c => COMPETENCIES[c]).join(" · ") || "없음"}`, b.sourceStatus && `출처 상태 ${SOURCE[b.sourceStatus]}`]
+    : r.targetType === "ACTIVITY" && b.period ? [`기간 ${periodText(b.period)}`] : [];
+  return <li className="relative grid grid-cols-[2rem_minmax(0,1fr)] gap-x-2 pb-2">
+    <span aria-hidden="true" className="mt-1.5 flex size-8 items-center justify-center rounded-full bg-surface-soft text-muted"><FlagIcon className="size-4" /></span>
+    <div className="min-w-0">
+      <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)}
+        className={cn("flex min-h-11 w-full min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-left hover:bg-surface-soft focus-visible:outline-2 focus-visible:outline-ink", open && "bg-surface-soft")}>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-ink">처음 값</span>
+          <span className="mt-0.5 block text-note text-muted">첫 수정 전 · <time dateTime={r.createdAt}>{timestamp(r.createdAt)}</time>까지</span>
+        </span>
+        {current && <span className="shrink-0 rounded-full bg-canvas px-2 py-0.5 text-xs text-muted">현재</span>}
+        <CaretDownIcon aria-hidden="true" className={cn("size-4 shrink-0 text-muted transition-transform", !open && "-rotate-90")} />
+      </button>
+      {open && <div className="mt-2 grid gap-3 rounded-sm border border-hairline-soft p-3">
+        <p className="m-0 max-h-60 overflow-auto whitespace-pre-wrap break-words text-sm leading-relaxed text-body">{b[TEXT_KEY[r.targetType]]}</p>
+        {fields.length > 0 && <p className="m-0 text-note text-muted">{fields.filter(Boolean).join(" · ")}</p>}
+        {current ? <p className="m-0 text-note text-muted">지금 값이에요.</p>
+          : <RestoreAction revision={r} to="BEFORE" label="처음 값으로 되돌리기" question="처음 값으로 되돌릴까요?" beforeRestore={beforeRestore} onRestored={onRestored} />}
       </div>}
     </div>
   </li>;
@@ -186,8 +233,10 @@ function Row({ revision: r, all, latest, last, defaultOpen, beforeRestore, onRes
 type ListState = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; revisions: Revision[]; nextCursor: string | null };
 
 /** 이력 목록 — target 이 없으면 전체(최근 수정). 「더 보기」로 넘긴다 */
-export function RevisionList({ target, beforeRestore, onRestored, onNavigate }: {
+export function RevisionList({ target, current, beforeRestore, onRestored, onNavigate }: {
   target: RevisionTarget | null;
+  /** 지금 화면의 글 — 자동 저장은 이력에 안 남아 답칸은 맨 위 기록과 다를 수 있다. 빼면 맨 위 기록이 지금 값이다(경험 · 활동) */
+  current?: string;
   /** 되돌리기 직전 — 답칸은 기다리던 자동 저장을 먼저 보낸다 */
   beforeRestore?: () => Promise<void>;
   onRestored?: (result: RestoreResult) => void;
@@ -229,11 +278,21 @@ export function RevisionList({ target, beforeRestore, onRestored, onNavigate }: 
     <p className="m-0 text-sm text-error">{state.message}</p>
     <Button size="sm" className="min-h-11 lg:min-h-9" onClick={() => { setState({ status: "loading" }); void load(); }}><ArrowsClockwiseIcon />다시 시도</Button>
   </div>;
+  // 지금 값과 같은 줄에는 되돌리기를 두지 않는다 — 항목 이력에서만 안다(전체 목록은 항목이 섞여 있다. 같으면 서버가 409).
+  // 지금 값은 답칸이면 넘겨받은 글, 경험 · 활동이면 맨 위 기록의 after
+  const top = state.revisions[0];
+  const isNow = (snapshot: Revision["after"], type: RevisionTargetType) => !!target && !!top
+    && (current !== undefined ? (snapshot[TEXT_KEY[type]] ?? "") === current : same(snapshot, top.after));
+  const nowIndex = state.revisions.findIndex(r => isNow(r.after, r.targetType));
+  // 「처음 값」 줄 — 끝까지 불러온 항목 이력에만. 빈 글이면 두지 않는다(답칸을 비우는 되돌리기는 없다)
+  const oldest = target && !state.nextCursor ? state.revisions.at(-1) : undefined;
+  const origin = oldest && !oldest.target.deleted && (oldest.before[TEXT_KEY[oldest.targetType]] ?? "") !== "" ? oldest : undefined;
   return <div className="min-w-0">
     {outcome && <p role="status" className="m-0 mb-1 rounded-sm bg-surface-soft px-3 py-2 text-sm text-body">{outcome}</p>}
     {state.revisions.length === 0
       ? <p className="m-0 py-4 text-sm text-body">{target ? "아직 고친 기록이 없어요. 고치면 바뀌기 전 값이 여기에 남아요." : "아직 고친 기록이 없어요. 경험 · 활동 · 답을 고치면 여기에 모여요."}</p>
-      : <ul className="m-0 list-none p-0 pt-2">{state.revisions.map((r, i) => <Row key={r.id} revision={r} all={!target} latest={i === 0} last={i === state.revisions.length - 1} defaultOpen={!!target && i === 0} beforeRestore={beforeRestore} onRestored={restored} onNavigate={onNavigate} />)}</ul>}
+      : <ul className="m-0 list-none p-0 pt-2">{state.revisions.map((r, i) => <Row key={r.id} revision={r} all={!target} current={isNow(r.after, r.targetType)} badge={i === nowIndex} last={i === state.revisions.length - 1 && !origin} defaultOpen={!!target && i === 0} beforeRestore={beforeRestore} onRestored={restored} onNavigate={onNavigate} />)}
+        {origin && <OriginRow oldest={origin} current={isNow(origin.before, origin.targetType)} beforeRestore={beforeRestore} onRestored={restored} />}</ul>}
     {state.nextCursor && <div className="grid justify-items-start gap-2 pt-2">
       {more === "error" && <p role="alert" className="m-0 text-sm text-error">더 불러오지 못했어요.</p>}
       <Button variant="secondary" size="sm" className="min-h-11 lg:min-h-9" disabled={more === "busy"} onClick={() => void loadMore()}>{more === "busy" ? "불러오는 중…" : more === "error" ? "다시 시도" : "더 보기"}</Button>
