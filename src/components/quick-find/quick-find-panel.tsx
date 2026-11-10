@@ -84,7 +84,9 @@ export function QuickFindPanel({ asked, addSourceBusy, initial, onGo }: { asked:
   const changeFilters = (next: ExperienceFilters) => { setFilters(next); setActive(0); setRows(PAGE_ROWS); };
   // 화면 키보드가 결과를 가리지 않게 PC 폭에서만 입력칸으로 돌아간다
   const backToInput = () => { if (matchMedia("(min-width: 64rem)").matches) input.current?.focus(); };
-  const moveTo = (next: Tab) => { setTab(next); setActive(0); input.current?.focus(); };
+  // 창은 열 때마다 새로 그려 입력이 비지만 묻기 답은 남는다(FE#288). 답 카드엔 질문을 다시 적지 않으니(FE#363) 빈 입력에 그 질문을 되살린다(FE#449)
+  const lastAsked = asked.answer?.text ?? asked.failure?.text;
+  const moveTo = (next: Tab) => { setTab(next); setActive(0); if (next === "ask" && !word && lastAsked) setWord(lastAsked); input.current?.focus(); };
   /** 맨 앞 ? · > 는 탭을 바꾸는 덤이고 글에 남기지 않는다 — 그래서 탭으로 들어와 글을 지워도 그 탭에 머문다 */
   const type = (value: string) => {
     const prefix = /^([?>])\s*/.exec(value);

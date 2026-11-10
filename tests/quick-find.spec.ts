@@ -202,7 +202,7 @@ test("ask calls the API only when sent, once, and shows cards in the window", as
   await expect(dialog(page).getByRole("region", { name: "꺼내기 답", exact: true })).toContainText("시험 응답");
   expect(api.asks).toEqual(["WebSocket 쓴 거 뭐였지"]);
   await capture(page, `ask-${page.viewportSize()!.width}`);
-  await dialog(page).getByRole("link", { name: "활동 세부 보기 →", exact: true }).click();
+  await dialog(page).getByRole("link", { name: `${ACTIVITY.name} — 활동 세부 보기`, exact: true }).click();
   await expect(dialog(page)).toBeHidden();
   await expect(page).toHaveURL(/\/experience\?activity=7/);
 });
@@ -223,7 +223,8 @@ test("the ask answer stays after closing and reopening the window, without calli
   await openByButton(page);
   await dialog(page).getByRole("button", { name: "차곡이에게", exact: true }).click();
   await expect(answer).toContainText("시험 응답");
-  await expect(answer).toContainText("WebSocket 쓴 거 뭐였지");
+  // 답 카드엔 질문을 다시 적지 않는다 — 입력 칸에 그대로 남는다(FE#363)
+  await expect(box(page)).toHaveValue("WebSocket 쓴 거 뭐였지");
   await capture(page, `ask-reopened-${page.viewportSize()!.width}`, "fe-288");
 
   // 다른 화면으로 옮긴 뒤에도 남는다 — 앱 공통 틀 안이라 화면 이동으로 사라지지 않는다
@@ -251,6 +252,7 @@ test("a failed ask stays after reopening, and a new question replaces it", async
   await openByButton(page);
   await dialog(page).getByRole("button", { name: "차곡이에게", exact: true }).click();
   await expect(dialog(page).getByRole("alert")).toContainText("오늘 분석 횟수를 다 썼어요");
+  await expect(box(page)).toHaveValue("동아리에서 의견 모은 적");
   expect(api.asks).toEqual(["동아리에서 의견 모은 적"]);
 
   api.ask = { json: ANSWER };
