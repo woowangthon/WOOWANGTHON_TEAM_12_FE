@@ -235,6 +235,24 @@ test("zero recommendations show record-focused guidance", async ({ page }) => {
   await expect(page.getByText(/역량 부족|합격 가능성/)).toHaveCount(0);
 });
 
+test("a finished question finds experiences again: zero results offer it, results keep a small button (S-90)", async ({ page }) => {
+  const api = await fake(page, { noMatch: true });
+  await page.goto("/questions");
+  await compose(page, "경험을 나중에 넣은 문항");
+  await expect(result(page).getByText("현재 자료에서 연결된 경험을 찾지 못했어요.", { exact: true })).toBeVisible({ timeout: 10000 });
+  const again = result(page).getByRole("button", { name: "경험 다시 찾기", exact: true });
+  await expect(again).toBeVisible();
+  await expect(result(page).getByText("분석 1회", { exact: false }).first()).toBeVisible();
+  // 그새 경험을 넣었다 — 같은 문항으로 추천이 다시 돈다
+  api.options.noMatch = false;
+  await again.click();
+  await expect(analyzingNotice(page)).toBeVisible();
+  await expect(recommendation(page, 1)).toContainText("WebSocket", { timeout: 10000 });
+  expect(posts(api).map(c => c.call)).toEqual(["POST /api/applications", "POST /api/questions/43/retry"]);
+  // 추천이 있어도 다시 찾을 수 있다
+  await expect(result(page).getByRole("button", { name: "경험 다시 찾기", exact: true })).toBeVisible();
+});
+
 test("loading failure shows the server message and loads again", async ({ page }) => {
   const api = await fake(page);
   api.listDown = true;

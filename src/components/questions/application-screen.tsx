@@ -159,7 +159,7 @@ export function ApplicationScreen() {
   };
   const panelQuestion = composing || adding ? null : selected;
   const chagok = useChagokRun(panelQuestion?.id ?? null, restoreRun);
-  const panel = <ChagokPanel question={panelQuestion} index={selectedIndex} originOf={originOf} control={chagok}
+  const panel = <ChagokPanel question={panelQuestion} index={selectedIndex} originOf={originOf} control={chagok} onRematch={id => matching.retry(id)}
     onAnswer={(clarificationId, answer) => selected ? matching.answer(selected.id, clarificationId, answer) : Promise.resolve()}
     draftActions={{ ...draftActions, focusRequest: draftFocus?.questionId === selected?.id ? draftFocus?.request ?? 0 : 0 }}
     newFacts={{ onAnswerChange: matching.keepAnswer, findRequested: findFor !== null && findFor === selected?.id, onFindStarted }}
@@ -403,7 +403,7 @@ function SelectedQuestion({ summary, question, application, index, loadError, on
           finally { retryPending.current = false; setRetrying(false); }
         }}><ArrowsClockwiseIcon aria-hidden="true" />{retrying ? "다시 시작하고 있어요…" : "다시 시도"}</Button>
         {retryError && <p role="alert" className="m-0 text-sm text-error">{retryError}</p>}
-      </CenterState> : <QuestionResult key={question.id} question={question} elsewhere={id => sameExperienceElsewhere(overlaps, question.id, id)} onOpenOmissions={onOpenOmissions} savingAnswer={savingAnswer} requestingDraft={requestingDraft} picks={picks} onPick={onPick} />}
+      </CenterState> : <QuestionResult key={question.id} question={question} elsewhere={id => sameExperienceElsewhere(overlaps, question.id, id)} onOpenOmissions={onOpenOmissions} savingAnswer={savingAnswer} requestingDraft={requestingDraft} picks={picks} onPick={onPick} onRematch={onRetry} />}
     {overlaps.length > 0 && <OverlapPanel overlaps={overlaps} onPick={onPickOverlap} />}
   </section>;
 }

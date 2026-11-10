@@ -11,6 +11,7 @@ import { ActivityTag } from "@/components/experience/activity-category";
 import { useActivityCategory } from "./activity-categories";
 import type { DraftActions } from "./answer-draft";
 import { groupByActivity, type ActivityGroup } from "./use-draft-picks";
+import { RematchButton, type Rematch } from "./rematch-button";
 
 /** 「바꿔요 — 캠퍼스 중고거래 앱」 → 「바꿔요」 (시안의 활동 칩) */
 export const shortName = (name: string) => name.split(" — ")[0];
@@ -54,15 +55,19 @@ const VISIBLE_LINES = 3;
 /** 「참고 — 꺼내 쓸 경험」(시안 6 apply.html 의 접기 카드)을 활동 카드로 묶는다(S-84 · FE#358).
  *  카드 = 활동 이름 · 기간 + 그 활동 첫 추천의 이유 · 강조점(AI 해석) + 「이 문항에 쓸 만한 줄」. 사용자는 활동만 체크한다.
  *  줄을 펼치면 근거 · 빠진 것. 요구사항 판정 · 되묻기는 차곡이 패널에 있다. elsewhere — 같은 지원의 다른 문항에도 추천된 같은 경험(FE#38 · S-21) */
-export function QuestionResult({ question, elsewhere, savingAnswer, requestingDraft, picks, onPick }: { question: QuestionDetail; elsewhere?: (experienceId: number) => OverlapUse[]; onPick: (activityId: number, on: boolean) => void } & Pick<DraftActions, "onOpenOmissions" | "savingAnswer" | "requestingDraft" | "picks">) {
+export function QuestionResult({ question, elsewhere, savingAnswer, requestingDraft, picks, onPick, onRematch }: { question: QuestionDetail; elsewhere?: (experienceId: number) => OverlapUse[]; onPick: (activityId: number, on: boolean) => void; onRematch: Rematch } & Pick<DraftActions, "onOpenOmissions" | "savingAnswer" | "requestingDraft" | "picks">) {
   const picksLocked = savingAnswer || requestingDraft || question.draft?.status === "ANALYZING";
   const groups = groupByActivity(question.recommendations);
   // 초안은 답칸 안에 있다(S-79 · FE#235) — 여기는 참고 경험만
   return <><section aria-labelledby="refs-title">
-    <div className="flex flex-wrap items-baseline gap-x-2"><h3 id="refs-title" className="m-0 text-title-md font-semibold">참고 — 꺼내 쓸 경험</h3>{groups.length > 0 && <span className="text-note text-muted">체크한 활동으로 초안을 만들어요</span>}</div>
+    <div className="flex flex-wrap items-baseline gap-x-2"><h3 id="refs-title" className="m-0 text-title-md font-semibold">참고 — 꺼내 쓸 경험</h3>{groups.length > 0 && <span className="text-note text-muted">체크한 활동으로 초안을 만들어요</span>}
+      {/* 추천이 있어도 그 뒤에 넣은 경험을 반영한다(S-90) — 0개일 때는 아래 안내 자리에 크게 */}
+      {groups.length > 0 && <RematchButton className="ml-auto justify-items-end" questionId={question.id} onRematch={onRematch} busy={picksLocked} />}</div>
     {groups.length === 0 ? <div className="mt-4 grid gap-2 rounded-sm bg-surface-soft p-5">
       <p className="m-0 font-medium">현재 자료에서 연결된 경험을 찾지 못했어요.</p>
       <p className="m-0 text-sm text-muted">경험이 없다는 뜻은 아니에요. 관련 기록을 더 확인하면 좋겠어요.</p>
+      <p className="m-0 mt-1 text-sm text-body">경험을 더 넣으셨나요? 지금 쌓인 경험으로 다시 찾아볼 수 있어요.</p>
+      <RematchButton prominent questionId={question.id} onRematch={onRematch} busy={picksLocked} />
     </div> : <ol className="m-0 mt-4 grid list-none gap-2.5 p-0">{groups.map((g, i) => <ActivityCard key={g.activity.id} group={g} index={i} question={question} elsewhere={elsewhere}
       checked={picks.includes(g.recommendations[0].experience.id)} disabled={picksLocked} onPick={on => onPick(g.activity.id, on)} />)}</ol>}
   </section></>;
