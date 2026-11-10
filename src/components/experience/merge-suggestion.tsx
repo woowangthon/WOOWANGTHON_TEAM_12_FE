@@ -74,7 +74,8 @@ export function SameActivityDialog({ pairs, startId, onClose, onMerge, onDismiss
 
   return (
     <Dialog open={startId != null && pair != null} onOpenChange={(next) => { if (!next) onClose(); }}>
-      <DialogContent className="lg:max-w-3xl">
+      {/* 모바일 시트(< lg)는 제목 · 본문(여기만 스크롤) · 버튼 칸(고정된 판)으로 나눈다(FE#344). 판 쪽이 아래 여백 · 홈 바 영역을 가져서 버튼 밑으로 내용이 비치지 않는다. lg 이상은 wrapper 가 contents 라 예전 그대로 */}
+      <DialogContent className="max-lg:flex max-lg:flex-col max-lg:gap-0 max-lg:overflow-hidden max-lg:p-0 lg:max-w-3xl">
         {pair && <PairView key={pair.newId} pair={pair} position={index + 1} total={pairs.length}
           onMove={(step) => setCurrentId(pairs[(index + step + pairs.length) % pairs.length].newId)} onMerge={onMerge} onDismiss={onDismiss} />}
       </DialogContent>
@@ -124,6 +125,7 @@ function PairView({ pair, position, total, onMove, onMerge, onDismiss }: {
 
   return (
     <>
+      <div className="max-lg:shrink-0 max-lg:px-5 max-lg:pt-6 max-lg:pb-3 lg:contents">
       <DialogHeader className="pr-10">
         <div className="flex min-h-9 flex-wrap items-center gap-2">
           <DialogTitle>같은 활동인가요?</DialogTitle>
@@ -140,7 +142,9 @@ function PairView({ pair, position, total, onMove, onMerge, onDismiss }: {
           <span><span className="font-semibold text-review">AI 제안</span> · 이름과 기간을 보고 같아 보인다고 했어요. 맞는지는 직접 봐 주세요.</span>
         </DialogDescription>
       </DialogHeader>
+      </div>
 
+      <div className="grid gap-4 max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto max-lg:px-5 max-lg:pb-4 lg:contents">
       {loaded.status === "loading" && <p role="status" className="m-0 py-8 text-center text-sm text-muted">두 활동을 불러오고 있어요…</p>}
       {loaded.status === "error" && (
         <div className="grid justify-items-start gap-2 py-4">
@@ -149,27 +153,29 @@ function PairView({ pair, position, total, onMove, onMerge, onDismiss }: {
         </div>
       )}
       {ready && kept && from && (
-        <>
           <fieldset className="m-0 grid min-w-0 gap-3 border-0 p-0 lg:grid-cols-2" disabled={!!busy}>
             <legend className="sr-only">이름 · 기간을 남길 활동</legend>
             <Side label="기존 활동" activity={ready.old} checked={keep === pair.oldId} onPick={() => setKeepId(pair.oldId)} />
             <p aria-hidden="true" className="m-0 -my-1.5 text-center text-note text-muted lg:hidden">= 같아 보여요</p>
             <Side label="새 활동" activity={ready.next} checked={keep === pair.newId} onPick={() => setKeepId(pair.newId)} />
           </fieldset>
-          <p className="m-0 rounded-sm bg-surface-soft px-3.5 py-3 text-sm leading-relaxed text-body" aria-live="polite">
-            합치면 「{kept.name}」 하나에 경험 {kept.experiences.length + from.experiences.length}개와 근거가 모두 모이고, 「{from.name}」은 사라져요. 되돌릴 수 없어요.
-          </p>
-        </>
       )}
+      </div>
 
+      <div className="grid gap-3 max-lg:shrink-0 max-lg:border-t max-lg:border-hairline max-lg:px-5 max-lg:pt-3 max-lg:pb-[calc(16px+env(safe-area-inset-bottom,0px))] lg:contents">
+      {ready && kept && from && (
+        <p className="m-0 rounded-sm bg-surface-soft px-3.5 py-3 text-sm leading-relaxed text-body" aria-live="polite">
+          합치면 「{kept.name}」 하나에 경험 {kept.experiences.length + from.experiences.length}개와 근거가 모두 모이고, 「{from.name}」은 사라져요. 되돌릴 수 없어요.
+        </p>
+      )}
       {busy && <p role="status" className="m-0 text-sm text-muted">{busy === "merge" ? "합치고 있어요…" : "저장하고 있어요…"}</p>}
       {error && <p role="alert" className="m-0 text-sm font-medium text-error">{error}</p>}
 
-      {/* 모바일 시트는 길어서 스크롤된다 — 두 버튼을 나란히 아래에 붙여 둔다 */}
-      <DialogFooter className="max-sm:sticky max-sm:bottom-0 max-sm:-mx-5 max-sm:flex-row max-sm:bg-popover max-sm:px-5 max-sm:pt-3 max-sm:[&>*]:flex-1">
+      <DialogFooter className="max-lg:flex-row max-lg:[&>*]:flex-1">
         <Button variant="secondary" disabled={!!busy || !ready} onClick={() => void act("dismiss")}>따로 두기</Button>
         <Button disabled={!!busy || !ready} onClick={() => void act("merge")}>하나로 합치기</Button>
       </DialogFooter>
+      </div>
     </>
   );
 }

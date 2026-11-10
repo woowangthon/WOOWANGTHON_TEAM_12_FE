@@ -40,3 +40,26 @@ test("내 지원서는 시기별로 묶이고 종류별로 바꿔 볼 수 있다
   await main.getByRole("link", { name: /△△ 테크 인턴/ }).click();
   await expect(page).toHaveURL(/\/questions\?question=21/);
 });
+
+// FE#374 — 「새 지원서」는 1번 지원서로 가지 않고 새 지원 입력을 연다
+test("내 지원서의 「새 지원서」 · 「첫 지원서 넣기」는 새 지원 입력을 연다", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop");
+  await page.route("https://cdn.jsdelivr.net/**", route => route.abort());
+  await new FakeQuestionApi().install(page);
+  let current = list;
+  await page.route("**/api/applications", route => route.request().method() === "GET" ? route.fulfill({ json: { applications: current } }) : route.fallback());
+  const section = page.locator("#selected-application");
+
+  await page.goto("/applications");
+  await page.getByRole("main").getByRole("button", { name: "새 지원서" }).click();
+  await expect(page).toHaveURL(/\/questions/);
+  await expect(section).toHaveAttribute("aria-label", "새 지원 입력");
+  await page.waitForTimeout(500); // 늦게 오는 목록이 1번 지원서로 덮지 않는지
+  await expect(section).toHaveAttribute("aria-label", "새 지원 입력");
+  await expect(page).not.toHaveURL(/new=1|question=/); // 1번 지원서의 문항으로 주소를 덮지 않는다
+
+  current = [];
+  await page.goto("/applications");
+  await page.getByRole("button", { name: "첫 지원서 넣기" }).click();
+  await expect(section).toHaveAttribute("aria-label", "새 지원 입력");
+});

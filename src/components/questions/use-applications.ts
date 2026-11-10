@@ -62,8 +62,10 @@ const ownerOf = (applications: Application[], questionId: number | null) =>
  *  - 지원 목록(`GET /api/applications`)은 처음 들어올 때 · 지원을 넣었을 때만 받는다
  *  - 탭 · 지원 고르기는 받아 둔 문항으로 바로 바꾼다. 처음 보는 문항만 그것만 받는다
  *  - 분석 중인 문항은 2초마다 그 문항만 다시 읽는다 — 고른 탭과 상관없이
- *  - 되묻기 답 · 문항 더하기 · 넣기 · 다시 시도 뒤에 다시 받는다. 그보다 먼저 출발한 폴링 응답은 번호표(generation)로 버린다 */
-export function useApplications() {
+ *  - 되묻기 답 · 문항 더하기 · 넣기 · 다시 시도 뒤에 다시 받는다. 그보다 먼저 출발한 폴링 응답은 번호표(generation)로 버린다
+ *  - `composingAtStart` — 새 지원서 작성으로 들어왔는가(첫 값만 본다). 이때는 처음 받은 뒤에도 주소의 `?question=` 을 건드리지 않는다 */
+export function useApplications(composingAtStart = false) {
+  const composingAtStartRef = useRef(composingAtStart);
   const [state, setState] = useState<State>({ loading: true, applications: [], details: {}, detailErrors: {}, pollFailures: {}, questionId: null, error: null });
   const generation = useRef(0);
   const pending = useRef(false);
@@ -113,11 +115,14 @@ export function useApplications() {
       const wanted = questionInUrl();
       const [applications, first] = await Promise.all([fetchApplications(), wanted ? fetchQuestion(wanted).catch(() => null) : null]);
       if (version !== generation.current) return;
+      const composingStart = composingAtStartRef.current;
+      composingAtStartRef.current = false;
       const wantedApplication = applicationInUrl();
       const application = ownerOf(applications, wanted) ?? applications.find(a => a.id === wantedApplication) ?? applications[0] ?? null;
       if (wanted && !first && !ownerOf(applications, wanted)) throw new ApiError("QUESTION_NOT_FOUND", "알림의 문항을 불러오지 못했어요. 다시 불러와 주세요.");
       const questionId = application ? (application.questions.find(q => q.id === wanted) ?? application.questions[0]).id : null;
-      if (questionId !== null) keepInUrl(questionId);
+      // 「새 지원서」로 들어왔으면(`?new=1`, FE#147) 작성 중이다 — 첫 지원서를 골라 주소를 `?question=` 으로 덮지 않는다(FE#374)
+      if (questionId !== null && !composingStart) keepInUrl(questionId);
       const details = first && first.id === questionId ? { [first.id]: first } : {};
       setState({ loading: false, applications: patch(applications, Object.values(details)), details, detailErrors: {}, pollFailures: {}, questionId, error: null });
     } catch (e) {

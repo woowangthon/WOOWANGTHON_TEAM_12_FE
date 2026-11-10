@@ -53,7 +53,7 @@ export function ApplicationScreen() {
   const params = useSearchParams();
   const rawRun = Number(params.get("run"));
   const restoreRun = Number.isSafeInteger(rawRun) && rawRun > 0 ? rawRun : null;
-  const matching = useApplications();
+  const matching = useApplications(params.get("new") === "1");
   const [groundingChecks] = useState(createGroundingChecks);
   // 사이드바 「+ 추가」 → 새 지원서(FE#147). 새로고침하면 다시 뜨지 않게 주소에서 지운다
   const [composing, setComposing] = useState(useSearchParams().get("new") === "1");
@@ -261,7 +261,7 @@ function AnswerSkeleton() {
   </div>)}</div>;
 }
 
-/** 지원 목록 — 펼친 사이드바 안(머리 · 상태는 SidebarApplications), 접으면 화면 안 왼쪽, 좁으면 세부와 나눠서 한 번에 하나만 */
+/** 지원 목록 — 펼친 사이드바 안(머리 · 상태는 SidebarApplications), 접으면 화면 안 왼쪽, 좁으면 세부와 나눠서 한 번에 하나만(좁을 땐 높이 제한 없이 페이지가 스크롤 — FE#340) */
 function ApplicationList({ applications, activeId, onPick, onSave, sidebar = false }: {
   applications: Application[]; activeId: number | null; onPick: (application: Application) => void;
   onSave: (applicationId: number, req: UpdateApplicationRequest) => Promise<void>; sidebar?: boolean;
@@ -274,7 +274,7 @@ function ApplicationList({ applications, activeId, onPick, onSave, sidebar = fal
         <Link href="/applications" className="inline-flex min-h-11 items-center text-ink underline-offset-3 hover:underline lg:min-h-0">전체 보기</Link>
       </span>
     </div>}
-    <ul className={cn("m-0 grid list-none content-start gap-1 overflow-y-auto p-0", sidebar ? "min-h-0" : "max-h-72 lg:max-h-[calc(100dvh-240px)] xl:max-h-72")}>{applications.map(a => {
+    <ul className={cn("m-0 grid list-none content-start gap-1 p-0", sidebar ? "min-h-0 overflow-y-auto" : "lg:max-h-[calc(100dvh-240px)] lg:overflow-y-auto xl:max-h-72")}>{applications.map(a => {
       const active = activeId === a.id;
       return <li key={a.id} className="relative">
         <button type="button" aria-pressed={active} onClick={() => onPick(a)}
