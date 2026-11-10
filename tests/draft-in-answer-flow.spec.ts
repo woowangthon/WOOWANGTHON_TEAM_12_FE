@@ -172,12 +172,12 @@ test("더 물어본 질문 줄 — 답하면 수가 줄고 0 이 되면 사라�
   await askedLine(page).getByRole("button", { name: "질문 보기", exact: true }).click();
   const panel = draftPanel(page);
   await panel.getByRole("textbox", { name: "답: 채팅 방식을 바꾸며 배운 점이나 느낀 점이 있나요?" }).fill("협업이 중요하다는 점");
-  await panel.getByRole("textbox", { name: "답: 채팅 방식을 바꾸며 배운 점이나 느낀 점이 있나요?" }).locator("xpath=following-sibling::button[1]").click();
+  await panel.getByRole("textbox", { name: "답: 채팅 방식을 바꾸며 배운 점이나 느낀 점이 있나요?" }).locator("xpath=ancestor::form[1]").getByRole("button", { name: "답하기", exact: true }).click();
   if (page.viewportSize()!.width < 1024) { await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toHaveCount(0); }
   await expect(askedLine(page)).toHaveText(new RegExp(ASKED_LINE(1)));
   await askedLine(page).getByRole("button", { name: "질문 보기", exact: true }).click();
   await draftPanel(page).getByRole("textbox", { name: "답: 이 일을 얼마 동안 맡았나요?" }).fill("두 달");
-  await draftPanel(page).getByRole("textbox", { name: "답: 이 일을 얼마 동안 맡았나요?" }).locator("xpath=following-sibling::button[1]").click();
+  await draftPanel(page).getByRole("textbox", { name: "답: 이 일을 얼마 동안 맡았나요?" }).locator("xpath=ancestor::form[1]").getByRole("button", { name: "답하기", exact: true }).click();
   if (page.viewportSize()!.width < 1024) { await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toHaveCount(0); }
   await expect(page.getByText("차곡이가 더 물어본 게")).toHaveCount(0);
 });
