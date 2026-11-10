@@ -17,7 +17,8 @@ import { hasEditedAnswer } from "./answer-box-state";
 export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, requestingDraft, picks, onResetPicks }: { question: QuestionDetail } & Pick<DraftActions, "onGenerate" | "onRefresh" | "savingAnswer" | "requestingDraft" | "picks" | "onResetPicks">) {
   const draft = question.draft ?? null;
   const [chosenFrame, setChosenFrame] = useState<DraftFrame | null>(null);
-  const frame = chosenFrame ?? (draft ? draft.frame ?? 'NONE' : suggestedFrame(question.questionType));
+  const suggested = suggestedFrame(question.questionType);
+  const frame = chosenFrame ?? (draft ? draft.frame ?? 'NONE' : suggested);
   const [busy, setBusy] = useState(false);
   // 같은 활동의 다른 경험도 재료로(S-75) — 기본 켬, 다시 만들 땐 그 초안의 값
   const [useContext, setUseContext] = useState(draft?.useContext ?? true);
@@ -100,7 +101,7 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
       </label>
       <InfoTip label="뒷받침 재료">고른 경험이 뼈대고, 같은 활동의 기록으로 맥락을 채워요. 끄면 고른 경험만으로 써서 짧을 수 있어요.</InfoTip>
     </div>
-    <FramePicker frame={frame} disabled={analyzing || savingAnswer} proposed={!draft && chosenFrame === null} onChange={setChosenFrame} />
+    <FramePicker frame={frame} suggested={suggested} disabled={analyzing || savingAnswer} proposed={!draft && chosenFrame === null} onChange={setChosenFrame} />
     <div className="flex flex-wrap items-center gap-3">
       <Button data-draft-generate className="min-h-11 lg:min-h-10" onClick={ask} disabled={!allowed || analyzing || savingAnswer}>{analyzing ? "초안 만드는 중…" : draft ? "다시 만들기" : "초안 만들기"}</Button>
       {free ? <span className="text-xs text-muted">이번 다시 만들기는 분석 횟수를 쓰지 않아요</span> : <AnalysisCost running={analyzing} />}

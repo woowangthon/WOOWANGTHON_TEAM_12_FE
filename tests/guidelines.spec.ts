@@ -192,6 +192,13 @@ test('structure cards are listed in the picker and a picked card goes into the d
   const picker = controls.getByRole('combobox', { name: '구성 틀', exact: true });
   await picker.click();
   for (const frame of Object.values(DRAFT_FRAMES)) await expect(page.getByRole('option', { name: frame.name, exact: true })).toBeVisible();
+  // 문항 유형(성과 → STAR)의 추천이 맨 위, 「틀 없이」는 맨 아래, 그 사이는 「다른 틀」(S-50)
+  const names = await page.getByRole('option').allTextContents();
+  expect(names[0]).toBe(DRAFT_FRAMES.STAR.name);
+  expect(names.at(-1)).toBe(DRAFT_FRAMES.NONE.name);
+  expect(names).toHaveLength(Object.keys(DRAFT_FRAMES).length);
+  await expect(page.getByRole('group', { name: '추천', exact: true }).getByRole('option')).toHaveText([DRAFT_FRAMES.STAR.name]);
+  await expect(page.getByRole('group', { name: '다른 틀', exact: true }).getByRole('option')).toHaveCount(Object.keys(DRAFT_FRAMES).length - 2);
   await page.getByRole('option', { name: DRAFT_FRAMES.SKILL_STEPS.name, exact: true }).click();
   await expect(controls.getByText(DRAFT_FRAMES.SKILL_STEPS.steps, { exact: true })).toBeVisible();
   // 사용자가 바꾼 틀은 「문항 유형에 맞춘 제안」이 아니다

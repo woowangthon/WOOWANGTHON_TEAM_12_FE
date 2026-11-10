@@ -19,3 +19,10 @@ const suggested: Record<QuestionType, DraftFrame> = {
   ACHIEVEMENT: 'STAR', FAILURE: 'CARL', SELF_INTRO: 'PREP', STRENGTH_WEAKNESS: 'PREP', OTHER: 'NONE',
 };
 export function suggestedFrame(type?: QuestionType | null): DraftFrame { return type ? suggested[type] : 'NONE'; }
+
+/** 고르기 목록 — 문항 유형에 맞춘 추천을 맨 위, 나머지는 「다른 틀」, 「틀 없이」는 맨 아래(S-50). 새 정책 없이 묶음 · 순서만 정한다 */
+export function frameOptions(suggestedOne: DraftFrame): { value: DraftFrame; label: string; group?: string }[] {
+  const pick = (value: DraftFrame, group?: string) => ({ value, label: DRAFT_FRAMES[value].name, group });
+  const others = (Object.keys(DRAFT_FRAMES) as DraftFrame[]).filter(v => v !== suggestedOne && v !== 'NONE');
+  return [pick(suggestedOne, '추천'), ...others.map(v => pick(v, '다른 틀')), ...(suggestedOne === 'NONE' ? [] : [pick('NONE')])];
+}
