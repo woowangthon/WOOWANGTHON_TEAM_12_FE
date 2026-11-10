@@ -87,12 +87,13 @@ export function useConfirmedAnswer(questionId: number, saved: Answer | null, onC
   const retryFind = () => run(async () => {
     try { await find(); } catch (e) { if (mounted.current) setFailure({ message: message(e), action: "read" }); }
   });
-  const decide = (id: number, data?: SaveNewFactRequest) => run(async () => {
+  /** activityName — 저장한 활동 이름. 새 활동이면 그 이름(응답엔 이름이 없다 — 계약) */
+  const decide = (id: number, data?: SaveNewFactRequest, activityName?: string) => run(async () => {
     try {
       const experience = data ? await saveNewFact(id, data) : (await dismissNewFact(id), null);
       const prev = latest.current;
       if (prev?.newFacts) keep({ ...prev, newFacts: { ...prev.newFacts, candidates: prev.newFacts.candidates.map(c => c.id === id
-        ? { ...c, status: experience ? "SAVED" : "DISMISSED", experienceId: experience?.id ?? null, activityId: experience?.activityId ?? c.activityId, ...(data ? { content: data.content, actor: data.actor } : {}) } : c) } });
+        ? { ...c, status: experience ? "SAVED" : "DISMISSED", experienceId: experience?.id ?? null, activityId: experience?.activityId ?? c.activityId, activityName: experience ? activityName ?? c.activityName : c.activityName, ...(data ? { content: data.content, actor: data.actor } : {}) } : c) } });
     } catch (e) {
       // 다른 탭에서 결정했거나 다시 확정해 사라진 후보는 최신 상태를 읽는다.
       if (e instanceof ApiError && ["NEW_FACT_ALREADY_DECIDED", "NEW_FACT_NOT_FOUND"].includes(e.code)) {
