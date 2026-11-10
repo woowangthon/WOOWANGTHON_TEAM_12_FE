@@ -37,6 +37,8 @@ async function openList(page: Page) {
   if (page.viewportSize()!.width < 1024) await page.getByRole("button", { name: "지원 목록으로", exact: true }).click();
 }
 const recommendation = (page: Page, n: number) => result(page).getByRole("listitem", { name: `추천 경험 ${n}`, exact: true });
+// 추천은 활동 카드로 묶인다(S-84 · FE#358) — 활동 체크 · 「타임라인에서 활동 보기」는 카드에 있다
+const activityCard = (page: Page, n: number) => result(page).getByRole("listitem", { name: `추천 활동 ${n}`, exact: true });
 // 차곡이 패널(FE#51) — 1280 이상은 옆에 붙어 기본으로 열리고, 좁으면 버튼으로 여는 시트
 const chagokPanel = (page: Page) => page.locator("#chagok-panel");
 const chagokToggle = (page: Page) => page.getByRole("button", { name: /^차곡이( ?질문 \d+)?$/ });
@@ -132,8 +134,8 @@ test("question 41/42 switch shows contract judgments, actors and supplemental ev
   await expect(page).toHaveURL(/question=42/);
   await expand(page, 1); // 추천 카드는 처음에 모두 접혀 있다(FE#266)
   await expect(recommendation(page, 1).getByText("팀", { exact: true })).toBeVisible();
-  // 참고 경험 쪽 2개 + 문항 유형 칸의 「AI 해석」 1개(FE#81 — 계약 예시의 유형은 AI 가 붙였다)
-  await expect(result(page).getByText("AI 해석", { exact: true })).toHaveCount(3);
+  // 활동 카드 1개(두 추천이 같은 활동 — S-84)의 이유 + 문항 유형 칸의 「AI 해석」 1개(FE#81 — 계약 예시의 유형은 AI 가 붙였다)
+  await expect(result(page).getByText("AI 해석", { exact: true })).toHaveCount(2);
   await expect(result(page).getByLabel("문항 유형", { exact: true })).toHaveAccessibleDescription("AI 해석");
   // FE#75부터 초안도 실제 API다. 다른 기능의 목으로 대체하지 않는다.
   await expect(page.getByText("초안 목 모드", { exact: true })).toHaveCount(0);
@@ -617,7 +619,7 @@ test("answering a clarification posts it and shows it on the experience as user-
 
   // 활동 세부(실제 타임라인) — 원문 확인 표시는 그대로, 보완은 「내가 입력한 보완」으로 따로 · 어느 지원에서 답했는지
   await expand(page, 1);
-  await recommendation(page, 1).getByRole("link", { name: /타임라인에서 활동 보기/ }).click();
+  await activityCard(page, 1).getByRole("link", { name: /타임라인에서 활동 보기/ }).click();
   await expect(page).toHaveURL(/\/experience\?activity=7&fromQuestion=41/);
   const activity = page.getByRole("complementary", { name: "활동 세부" });
   const first = activity.locator("li").first();

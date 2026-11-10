@@ -110,7 +110,7 @@ test("default selection, zero-selection guard, generating, evidence details and 
   // 화면과 기존 추천은 함께 남는다. 문항을 오가도 최신 초안 하나만 유지한다.
   const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab");
   await tabs.nth(1).click();
-  await expect((await referenceChoices(page))).toHaveCount(2);
+  await expect((await referenceChoices(page))).toHaveCount(1); // 두 추천이 같은 활동이라 카드 하나(S-84)
   await closeDraftPanel(page);
   await expect(draftBody(page)).toHaveCount(0);
   await tabs.first().click();
@@ -126,22 +126,18 @@ test("default selection, zero-selection guard, generating, evidence details and 
   }
 });
 
-test("three selected by default, a fourth cannot be selected, and only recommendations are offered", async ({ page }) => {
-  await setup(page, q => {
-    q.recommendations.push(structuredClone(QUESTION_EXAMPLES[1].recommendations[0]));
-    // 계약 experience-api의 103·104. 선택 경계만 확인하므로 근거는 비운다.
+test("recommendations of one activity make one card with one checkbox and all of them are sent", async ({ page }) => {
+  const api = await setup(page, q => {
+    // 계약 experience-api의 103·104. 같은 활동(7)의 줄로 묶이는지만 확인하므로 근거는 비운다.
     for (const [id, content] of [[103, "서비스를 AWS 에 배포했다"], [104, "백엔드 API 설계를 맡았다"]] as const) {
       q.recommendations.push({ ...structuredClone(q.recommendations[0]), experience: { ...structuredClone(q.recommendations[0].experience), id, content, actor: id === 103 ? "TEAM" : "ME", citations: [], supplements: [] }, evidence: [] });
     }
   });
   const choices = await referenceChoices(page);
-  await expect(choices).toHaveCount(4);
-  for (let i = 0; i < 3; i++) await expect(choices.nth(i)).toBeChecked();
-  await expect(choices.nth(3)).toBeDisabled();
-  await choices.first().uncheck();
-  await choices.nth(3).check();
-  await expect(choices.first()).toBeDisabled();
-  await expect((await openDraftComposer(page)).getByRole("button", { name: "초안 만들기", exact: true })).toBeEnabled();
+  await expect(choices).toHaveCount(1);
+  await expect(choices).toBeChecked();
+  await (await openDraftComposer(page)).getByRole("button", { name: "초안 만들기", exact: true }).click();
+  await expect.poll(() => api.calls.filter(c => c.call.endsWith("/draft")).map(c => c.body)).toMatchObject([{ experienceIds: [101, 103, 104] }]);
 });
 
 test("failure shows its reason without success text; retry uses the same POST flow", async ({ page }) => {
@@ -207,7 +203,7 @@ test("no recommended experiences cannot generate a draft", async ({ page }) => {
 });
 
 for (const [status, code, text] of [
-  [400, "INVALID_REQUEST", "추천 경험을 1 ~ 3개 다시"],
+  [400, "INVALID_REQUEST", "추천 활동을 다시 골라"],
   [404, "QUESTION_NOT_FOUND", "문항을 찾을 수 없어요"],
   [409, "QUESTION_NOT_COMPLETED", "문항 분석이 아직"],
   [429, "DAILY_LIMIT_EXCEEDED", "오늘 분석 횟수를"],
@@ -331,7 +327,7 @@ test("retry uses server experienceIds and UNKNOWN sentences are shown verbatim w
   });
   await regenerate(page, await openDraftComposer(page));
   await expect.poll(() => api.calls.filter(c => c.call.endsWith("/draft")).length).toBe(1);
-  expect(api.calls.find(c => c.call.endsWith("/draft"))!.body).toMatchObject({ experienceIds: [101], frame: "NONE" });
+  expect(api.calls.find(c => c.call.endsWith("/draft"))!.body).toMatchObject({ experienceIds: [102, 101], frame: "NONE" }); // 초안 경험이 속한 활동을 체크 — 그 활동의 추천 줄을 모두(S-84)
   api.holdDraft = true;
   api.edit(41, q => {
     q.recommendations.find(r => r.experience.id === 101)!.experience.actor = "UNKNOWN";
@@ -482,12 +478,12 @@ test("a completed draft restores its selected experiences for regeneration", asy
     q.recommendations = structuredClone(QUESTION_EXAMPLES[1].recommendations);
     q.draft = { ...structuredClone(DRAFT_EXAMPLE), experienceIds: [102] };
   });
+  await expect(await referenceChoices(page)).toHaveCount(1);
   await expect((await referenceChoices(page)).first()).toBeChecked();
-  await expect((await referenceChoices(page)).last()).not.toBeChecked();
   await regenerate(page, await openDraftComposer(page));
   await expect.poll(() => api.calls.filter(c => c.call.endsWith("/draft")).length).toBe(1);
   expect(api.calls.filter(c => c.call.endsWith("/draft"))).toMatchObject([
-    { call: "POST /api/questions/41/draft", body: { experienceIds: [102], frame: "NONE" } },
+    { call: "POST /api/questions/41/draft", body: { experienceIds: [102, 101], frame: "NONE" } },
   ]);
 });
 
@@ -661,4 +657,48 @@ test("답 칸 줄의 「분석 1회」는 「근거 점검」 바로 뒤에만 �
   const check = order.indexOf("근거 점검");
   expect(order[check + 1]).toMatch(/^분석 1회/);
   expect(order.filter((text) => text?.startsWith("분석 1회"))).toHaveLength(1);
+});
+
+// S-84 · FE#358 — 추천을 활동 카드로 묶고 활동만 체크한다. 초안 요청은 체크한 활동의 추천 경험을 활동 순서대로
+test("activity cards: group by activity in first-recommendation order, check activities only, send their experiences", async ({ page }, info) => {
+  const api = await setup(page, q => {
+    const base = q.recommendations[0];
+    const line = (id: number, activity: { id: number; name: string }, content: string) => ({
+      ...structuredClone(base), activity: { ...base.activity, ...activity }, reason: `${content} 이유`, emphasis: `${content} 강조`,
+      experience: { ...structuredClone(base.experience), id, activityId: activity.id, content },
+    });
+    const other = { id: 8, name: "모각코 — 주말 스터디" };
+    q.recommendations = [base, line(102, other, "스터디 발표를 맡았다"), line(103, base.activity, "STOMP 엔드포인트를 만들었다"),
+      ...[104, 105, 106].map(id => line(id, base.activity, `바꿔요 기록 ${id}`))];
+  });
+  await closeDraftPanel(page);
+  const refs = page.getByRole("region", { name: "참고 — 꺼내 쓸 경험", exact: true });
+  const cards = refs.getByRole("listitem", { name: /^추천 활동 \d+$/ });
+  await expect(cards).toHaveCount(2);
+  await expect(cards.nth(0)).toContainText("바꿔요 — 캠퍼스 중고거래 앱");
+  await expect(cards.nth(1)).toContainText("모각코 — 주말 스터디");
+  // 줄은 체크하지 않는다 — 체크는 활동마다 하나
+  await expect(refs.getByRole("checkbox")).toHaveCount(2);
+  await expect(cards.nth(0).getByRole("checkbox")).toBeChecked();
+  await expect(cards.nth(1).getByRole("checkbox")).not.toBeChecked();
+  // 첫째 활동 줄 5개 중 3개만 보이고 「더 보기」
+  await expect(cards.nth(0).getByRole("listitem", { name: /^추천 경험 \d+$/ })).toHaveCount(3);
+  await cards.nth(0).getByRole("button", { name: "2줄 더 보기" }).click();
+  await expect(cards.nth(0).getByRole("listitem", { name: /^추천 경험 \d+$/ })).toHaveCount(5);
+  await cards.nth(1).getByRole("checkbox").check();
+  if (process.env.UPDATE_FE358_SCREENSHOTS === "1") {
+    await cards.nth(0).getByRole("button", { name: "접기" }).click();
+    await cards.nth(0).locator("summary").first().click();
+    for (const width of info.project.name === "desktop" ? [1440, 1024] : [390]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await refs.scrollIntoViewIfNeeded();
+      await refs.screenshot({ path: `docs/fe-358/activity-cards-${width}.png`, style: "nextjs-portal { display: none !important; }" });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    }
+    await page.setViewportSize({ width: info.project.name === "desktop" ? 1440 : 390, height: info.project.name === "desktop" ? 1000 : 844 });
+  }
+  const controls = await openDraftComposer(page);
+  await expect(controls).toContainText("체크한 활동 2개로 만들어요");
+  await controls.getByRole("button", { name: "초안 만들기", exact: true }).click();
+  await expect.poll(() => api.calls.filter(c => c.call.endsWith("/draft")).map(c => c.body)).toMatchObject([{ experienceIds: [101, 103, 104, 105, 106, 102] }]);
 });
