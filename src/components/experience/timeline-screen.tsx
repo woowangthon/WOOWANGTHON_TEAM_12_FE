@@ -17,7 +17,7 @@ import { hasPendingAnalysis, useAnalysisJob } from "@/components/source/use-anal
 import { Button } from "@/components/ui/button";
 import { ToastCard, toastStack, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
-import { dismissMergeSuggestion, fetchActivities, fetchActivity, isMockMode, mergeActivities, mergeExperiences, moveExperience, updateActivity, type MockAnalysis, type MockMode } from "@/lib/api/experience";
+import { deleteActivity, dismissMergeSuggestion, fetchActivities, fetchActivity, isMockMode, mergeActivities, mergeExperiences, moveExperience, updateActivity, type MockAnalysis, type MockMode } from "@/lib/api/experience";
 import { ACTIVITY_CATEGORIES, type ActivityCategory, type ActivityDetail, type ActivitySummary, type Experience, type Period } from "@/lib/api/types";
 import { monthNumber, periodText, spanOf, yearsOf, type Span } from "@/lib/period";
 import { CATEGORY_KEYS, CategoryIcon, categoryOf } from "./activity-category";
@@ -25,7 +25,7 @@ import { ActivityDetailView, type DetailState } from "./activity-detail";
 import { ExperienceStats } from "./experience-stats";
 import { EXPERIENCE_SEARCH_PARAMS, experienceSearchFromParams } from "@/lib/experience-search-link";
 import { useQuickFindOpen } from "@/components/quick-find/quick-find";
-import { MergeActivityDialog, MergeExperienceDialog, MoveExperienceDialog } from "./regroup-dialogs";
+import { DeleteActivityDialog, MergeActivityDialog, MergeExperienceDialog, MoveExperienceDialog } from "./regroup-dialogs";
 import { Timeline } from "./timeline";
 import { useExperienceDeletion } from "./use-experience-deletion";
 import { useTimelineApplications, type TimelineApplicationsState } from "./use-timeline-applications";
@@ -69,6 +69,7 @@ export function TimelineScreen() {
   const [moving, setMoving] = useState<Experience | null>(null);
   const [mergingExperience, setMergingExperience] = useState<Experience | null>(null);
   const [mergeOpen, setMergeOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   // 같은 활동 비교 창(S-44 · FE#246) — 연 쌍의 새 활동 id
   const [compareId, setCompareId] = useState<number | null>(null);
   const closeCompare = useCallback(() => setCompareId(null), []);
@@ -469,6 +470,24 @@ export function TimelineScreen() {
     );
   };
 
+  /** 활동 지우기(S-88) — 확인 창에서 응답을 기다린다. 실패하면 던져서 창에 이유를 남기고 활동은 그대로 둔다.
+   *  성공하면 타임라인으로 돌아가고 그 활동이 빠진다. 지운 활동을 가리키던 같은 활동 제안도 지운다(계약) */
+  const removeActivity = async (id: number) => {
+    await deleteActivity(id);
+    // 되돌리기를 기다리던 그 활동의 경험 지우기는 이미 같이 지워졌다 — 보내지 않는다
+    for (const item of deletion.pending) if (item.experience.activityId === id) deletion.undo(item.experience.id);
+    const name = list.status === "ready" ? list.activities.find((a) => a.id === id)?.name : undefined;
+    refreshStats();
+    refreshWork();
+    periodSaves.current.delete(id);
+    ++listRequest.current;
+    setList((prev) => prev.status === "ready" ? { ...prev, activities: prev.activities.filter((a) => a.id !== id)
+      .map((a) => a.mergeSuggestion?.activityId === id ? { ...a, mergeSuggestion: null } : a) } : prev);
+    setDeleteOpen(false);
+    if (selectedRef.current === id) close();
+    showToast(name ? `「${name}」을 지웠어요.` : "활동을 지웠어요.");
+  };
+
   const dismissSuggestion = async (id: number) => {
     const previousDetailRequest = detailRequest.current;
     await dismissMergeSuggestion(id);
@@ -668,6 +687,7 @@ export function TimelineScreen() {
               suggestions={<SuggestionLines activityId={selected.id} activities={ready.activities} onCompare={setCompareId} />}
               onOpenActivity={select}
               onMergeRequest={ready.activities.length > 1 ? () => setMergeOpen(true) : undefined}
+              onDeleteRequest={() => setDeleteOpen(true)}
               onAddSource={() => setAddToActivity(true)}
               addSourceBusy={analysis.busy}
               addSourceStatus={shownInDetail && view && analysis.tracked && <AnalysisBanner view={view} tracked={analysis.tracked} {...analysisActions} />}
@@ -684,6 +704,9 @@ export function TimelineScreen() {
       {selected && ready && (
         <MergeActivityDialog key={selected.id} activity={selected} activities={ready.activities} open={mergeOpen} onOpenChange={setMergeOpen} onMerge={merge} />
       )}
+
+      <DeleteActivityDialog key={`delete-${selectedId}`} activity={visibleDetail.status === "ready" && visibleDetail.activity.id === selectedId ? visibleDetail.activity : null}
+        open={deleteOpen} onOpenChange={setDeleteOpen} onDelete={removeActivity} />
 
       <SameActivityDialog pairs={pairs} startId={compareId} onClose={closeCompare} onMerge={merge} onDismiss={dismissSuggestion} />
 
