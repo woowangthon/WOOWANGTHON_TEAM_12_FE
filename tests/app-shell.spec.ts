@@ -47,7 +47,8 @@ test("sidebar shows the applications anywhere and a row opens that application",
   await expect(page).toHaveURL(/\/questions\?question=\d+/);
   await expect(page.getByRole("tabpanel", { name: "선택한 문항", exact: true })).toBeVisible();
   await expect(sidebar(page).locator("button[aria-pressed=true]")).toContainText("OO 연합 동아리");
-  await expect(applications(page).getByRole("link", { name: "모든 지원서", exact: true })).toHaveCount(0);
+  // 사이드바는 최근 5개만이라 지원 화면에서도 「모든 지원서」가 있다(FE#347)
+  await expect(applications(page).getByRole("link", { name: "모든 지원서", exact: true })).toHaveAttribute("href", "/applications");
   await capture(page, "questions-1440");
 });
 
