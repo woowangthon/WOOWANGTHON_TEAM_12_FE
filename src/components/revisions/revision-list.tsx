@@ -20,6 +20,7 @@ import { mcpClientName } from "@/lib/api/mcp";
 import { fetchRevisions, restoreRevision, type RestoreResult, type RestoreTo, type Revision, type RevisionTarget, type RevisionTargetType } from "@/lib/api/revisions";
 import { COMPETENCIES, type Actor, type SourceStatus } from "@/lib/api/types";
 import { periodText } from "@/lib/period";
+import { beforeRestore as beforeRestoreAll, publishRestored } from "./restore-bus";
 
 const ACTOR: Record<Actor, string> = { ME: "나", TEAM: "팀", UNKNOWN: "알 수 없음" };
 const SOURCE: Record<SourceStatus, string> = { SOURCE_CONFIRMED: "원문 확인", USER_ENTERED: "내가 입력", NEEDS_REVIEW: "확인 필요" };
@@ -131,7 +132,7 @@ function restoreError(e: unknown) {
 function Row({ revision: r, all, current, badge, last, defaultOpen, beforeRestore, onRestored, onNavigate }: {
   /** current — 이 줄의 값이 지금 값과 같다(되돌릴 것이 없다). badge — 그중 가장 새 줄에만 「현재」 */
   revision: Revision; all: boolean; current: boolean; badge: boolean; last: boolean; defaultOpen: boolean;
-  beforeRestore?: () => Promise<void>; onRestored: (result: RestoreResult) => void; onNavigate?: () => void;
+  beforeRestore?: BeforeRestore; onRestored: (result: RestoreResult) => void; onNavigate?: () => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const link = all ? targetLink(r) : null;
@@ -177,10 +178,12 @@ function Row({ revision: r, all, current, badge, last, defaultOpen, beforeRestor
   </li>;
 }
 
+type BeforeRestore = (revision: Revision) => Promise<unknown> | void;
+
 /** 되돌리기 버튼 → 확인 → 실행. 실패하면 같은 자리에서 다시 시도 */
 function RestoreAction({ revision: r, to, label, question, beforeRestore, onRestored, children }: {
   revision: Revision; to: RestoreTo; label: string; question: string;
-  beforeRestore?: () => Promise<void>; onRestored: (result: RestoreResult) => void; children?: ReactNode;
+  beforeRestore?: BeforeRestore; onRestored: (result: RestoreResult) => void; children?: ReactNode;
 }) {
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -189,7 +192,7 @@ function RestoreAction({ revision: r, to, label, question, beforeRestore, onRest
   async function restore() {
     setBusy(true); setError(null);
     try {
-      await beforeRestore?.();
+      await beforeRestore?.(r);
       onRestored(await restoreRevision(r.id, to));
       setAsking(false);
     } catch (e) { setError(restoreError(e)); } finally { setBusy(false); }
@@ -213,7 +216,7 @@ function RestoreAction({ revision: r, to, label, question, beforeRestore, onRest
 
 /** 맨 아래 「처음 값」 줄 — 가장 오래된 기록의 before(첫 수정 전). 줄마다 그때 값(after)으로 되돌리니, 처음 값으로 가는 길은 여기 하나다 */
 function OriginRow({ oldest: r, current, beforeRestore, onRestored }: {
-  oldest: Revision; current: boolean; beforeRestore?: () => Promise<void>; onRestored: (result: RestoreResult) => void;
+  oldest: Revision; current: boolean; beforeRestore?: BeforeRestore; onRestored: (result: RestoreResult) => void;
 }) {
   const [open, setOpen] = useState(false);
   const b = r.before;
@@ -276,10 +279,14 @@ export function RevisionList({ target, current, beforeRestore, onRestored, onNav
     } catch { setMore("error"); }
   }
 
+  // 전체 목록(헤더)은 그 항목을 연 화면에 알린다 — 같은 항목이 열려 있으면 그 자리에서 바뀐다(FE#401).
+  // 받은 화면이 없으면(다른 화면에서 되돌림) 새로 불러오기를 권한다
+  const before: BeforeRestore | undefined = target ? beforeRestore && (() => beforeRestore()) : beforeRestoreAll;
   function restored(result: RestoreResult) {
     onRestored?.(result);
-    setOutcome(target ? (result.revision.targetType === "ANSWER" ? "되돌렸어요. 답칸에 그때 글을 넣었어요 — 「다 썼어요」를 눌러야 확정돼요." : "되돌렸어요.")
-      : <>되돌렸어요. 열어 둔 화면에는 새로 불러오면 보여요. <button type="button" className="font-medium underline underline-offset-3" onClick={() => window.location.reload()}>새로 불러오기</button></>);
+    const shown = !!target || publishRestored(result);
+    setOutcome(!shown ? <>되돌렸어요. 열어 둔 화면에는 새로 불러오면 보여요. <button type="button" className="font-medium underline underline-offset-3" onClick={() => window.location.reload()}>새로 불러오기</button></>
+      : result.revision.targetType === "ANSWER" ? "되돌렸어요. 답칸에 그때 글을 넣었어요 — 「다 썼어요」를 눌러야 확정돼요." : "되돌렸어요.");
     setMore("idle");
     void load();
   }
@@ -302,8 +309,8 @@ export function RevisionList({ target, current, beforeRestore, onRestored, onNav
     {outcome && <p role="status" className="m-0 mb-1 rounded-sm bg-surface-soft px-3 py-2 text-sm text-body">{outcome}</p>}
     {state.revisions.length === 0
       ? <p className="m-0 py-4 text-sm text-body">{target ? "아직 고친 기록이 없어요. 고치면 바뀌기 전 값이 여기에 남아요." : "아직 고친 기록이 없어요. 경험 · 활동 · 답을 고치면 여기에 모여요."}</p>
-      : <ul className="m-0 list-none p-0 pt-2">{state.revisions.map((r, i) => <Row key={r.id} revision={r} all={!target} current={isNow(r.after, r.targetType)} badge={i === nowIndex} last={i === state.revisions.length - 1 && !origin} defaultOpen={!!target && i === 0} beforeRestore={beforeRestore} onRestored={restored} onNavigate={onNavigate} />)}
-        {origin && <OriginRow oldest={origin} current={isNow(origin.before, origin.targetType)} beforeRestore={beforeRestore} onRestored={restored} />}</ul>}
+      : <ul className="m-0 list-none p-0 pt-2">{state.revisions.map((r, i) => <Row key={r.id} revision={r} all={!target} current={isNow(r.after, r.targetType)} badge={i === nowIndex} last={i === state.revisions.length - 1 && !origin} defaultOpen={!!target && i === 0} beforeRestore={before} onRestored={restored} onNavigate={onNavigate} />)}
+        {origin && <OriginRow oldest={origin} current={isNow(origin.before, origin.targetType)} beforeRestore={before} onRestored={restored} />}</ul>}
     {state.nextCursor && <div className="grid justify-items-start gap-2 pt-2">
       {more === "error" && <p role="alert" className="m-0 text-sm text-error">더 불러오지 못했어요.</p>}
       <Button variant="secondary" size="sm" className="min-h-11 lg:min-h-9" disabled={more === "busy"} onClick={() => void loadMore()}>{more === "busy" ? "불러오는 중…" : more === "error" ? "다시 시도" : "더 보기"}</Button>

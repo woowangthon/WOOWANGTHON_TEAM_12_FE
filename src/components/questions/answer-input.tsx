@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckIcon, ClockCounterClockwiseIcon, CopyIcon } from "@phosphor-icons/react";
 import { RevisionDialog } from "@/components/revisions/revision-list";
+import { useRestoreListener } from "@/components/revisions/restore-bus";
+import type { RestoreResult } from "@/lib/api/revisions";
 import { cn } from "@/lib/utils";
 import { useConfirmedAnswer } from "./use-confirmed-answer";
 import { AnalysisCost } from "@/components/auth/analysis-cost";
@@ -76,14 +78,16 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
     const kept = restored ? readSavedBox(restored.state, draftKey) : null;
     const composed = ready ? composeDraft(question, ready, NONE, kept?.local ?? {}) : null;
     const text = restored ? restored.text : fresh && composed !== null ? composed : a.initialText;
+    // 다른 화면에 있을 때 끝난 초안이 지금 답칸에 들어왔나 — 서버엔 아직 없는 글이라 한 번 저장해 DRAFT_OVERWRITE 를 남긴다(FE#401 · S-80)
+    const placed = !restored && fresh && composed !== null && composed !== a.initialText ? composed : null;
     // 고친 글의 기준 — 다시 만들기 전 경고가 읽는다. 초안이 있으면 초안 글, 없으면 처음 글
-    return { text, kept, base: composed ?? text ?? "" };
+    return { text, kept, base: composed ?? text ?? "", placed };
   });
   const initialText = start.text;
   const g = useGroundingCheck(questionId, checks, initialText);
   const [box, setBox] = useState<Box>(() => ({ key: draftKey, local: start.kept?.local ?? {}, seen: start.kept?.seen ?? new Set(), sawDrafting: false }));
   const [editBase, setEditBase] = useState(start.base);
-  const [draftPlaced, setDraftPlaced] = useState<string | null>(null);
+  const [draftPlaced, setDraftPlaced] = useState<string | null>(start.placed);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [selected, setSelected] = useState<Selection>(null);
   const [ask, setAsk] = useState<"copy" | "confirm" | "ground" | "load" | null>(null);
@@ -121,7 +125,7 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
   useEffect(() => { setEditedAnswer(questionId, edited); }, [questionId, edited]);
   // 자동 저장(S-72) — 글과 이 화면의 표시 상태(답한 빈칸 · 맞아요 문장 글)를 같이
   const savedBox: SavedBox = { v: 1, draftKey, local: box.local, seen: [...box.seen] };
-  const autosave = useAnswerAutosave(questionId, { text, state: savedBox }, g.initialized, draft => onAnswerDraftChange(questionId, draft), draftPlaced);
+  const autosave = useAnswerAutosave(questionId, { text, state: savedBox }, g.initialized, draft => onAnswerDraftChange(questionId, draft), draftPlaced, start.placed !== null);
   // 아직 저장하지 못한 글이 있으면 새로고침 · 닫기 전에 브라우저가 묻는다
   useEffect(() => {
     if (!autosave.unsaved) return;
@@ -175,6 +179,17 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
     try { await navigator.clipboard.writeText(text); showToast("답칸의 글을 복사했어요. 표시는 복사하지 않아요."); }
     catch { showToast("복사하지 못했어요. 브라우저의 클립보드 권한을 확인해 주세요.", true); }
   };
+  // 되돌린 글을 답칸에 — 이 답칸의 「수정 이력」과 헤더 「최근 수정」(FE#401)이 같이 쓴다
+  const applyRestore = (result: RestoreResult) => {
+    if (!result.answerDraft) return;
+    g.setText(result.answerDraft.text); setEditBase(result.answerDraft.text); setSelected(null);
+    onAnswerDraftChange(questionId, result.answerDraft);
+  };
+  const isMine = (r: RestoreResult["revision"]) => r.targetType === "ANSWER" && r.targetId === questionId;
+  useRestoreListener({
+    before: r => isMine(r) ? autosave.retry() : undefined,
+    restored: result => { if (!isMine(result.revision) || !result.answerDraft) return false; applyRestore(result); return true; },
+  });
   // 「다 썼어요」 전에 기다리던 자동 저장을 버린다 — 늦게 도착하면 지운 임시 글이 되살아난다(계약)
   const confirmAnswer = async () => { setAsk(null); await autosave.settle(); void a.confirm(text, () => onAnswerDraftChange(questionId, null)); };
 
@@ -213,11 +228,7 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
         current={text}
         // 기다리던 자동 저장을 먼저 보낸다 — 늦게 도착해 되돌린 임시 글을 덮지 않게
         beforeRestore={() => autosave.retry()}
-        onRestored={(result) => {
-          if (!result.answerDraft) return;
-          g.setText(result.answerDraft.text); setEditBase(result.answerDraft.text); setSelected(null);
-          onAnswerDraftChange(questionId, result.answerDraft);
-        }} />
+        onRestored={applyRestore} />
     </div>
     {drafting && <p role="status" className="m-0 text-sm text-muted">차곡이가 초안을 만들고 있어요. 다 되면 답칸에 들어와요.</p>}
     {draft?.status === "FAILED" && !drafting && <p role="alert" className="m-0 text-sm text-error">{failureReason(draft.error)} 차곡이에서 다시 만들 수 있어요.</p>}

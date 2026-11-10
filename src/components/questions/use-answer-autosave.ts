@@ -15,16 +15,20 @@ export type AutosaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
  *  onSaved 는 받아 둔 문항에 임시 글을 옮긴다 — 탭을 돌아와도 새 글로 시작하게. 떠나기 전 기다리던 저장은 바로 보낸다 */
 export function useAnswerAutosave(questionId: number, body: Body, enabled: boolean, onSaved: (draft: AnswerDraft) => void,
   /** 초안을 답칸에 넣은 글 — 이 글을 처음 저장할 때 한 번 fromDraft 를 싣는다(수정 이력 DRAFT_OVERWRITE · S-80) */
-  fromDraftText: string | null = null) {
+  fromDraftText: string | null = null,
+  /** 처음 글이 서버에 아직 없다 — 열 때 들어온 초안(FE#401). 기준으로 삼지 않고 바로 저장한다 */
+  startUnsaved = false) {
   const fromDraft = useRef(fromDraftText), flagged = useRef<string | null>(null);
   const key = JSON.stringify(body);
   const [saved, setSaved] = useState<string | null>(null);
+  const [startKey, setStartKey] = useState<string | null>(null);
   const [status, setStatus] = useState<AutosaveStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const latest = useRef(key), savedRef = useRef<string | null>(null), inflight = useRef<Promise<void> | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null), mounted = useRef(true), onSavedRef = useRef(onSaved);
-  // 기준 글 — 서버에 이미 있거나(임시 글 · 확정 답 · 초안) 새로 보이는 글이라 저장하지 않는다
-  if (enabled && saved === null) setSaved(key);
+  // 기준 글 — 서버에 이미 있거나(임시 글 · 확정 답 · 초안) 새로 보이는 글이라 저장하지 않는다.
+  // 서버에 없는 처음 글이면 어느 글과도 다른 빈 기준을 두어 멈춘 뒤 저장되게 한다
+  if (enabled && saved === null) { setSaved(startUnsaved ? "" : key); setStartKey(key); }
   useEffect(() => { latest.current = key; onSavedRef.current = onSaved; fromDraft.current = fromDraftText; if (savedRef.current === null) savedRef.current = saved; });
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
@@ -68,5 +72,7 @@ export function useAnswerAutosave(questionId: number, body: Body, enabled: boole
   }, []);
 
   const dirty = saved !== null && key !== saved;
-  return { status: dirty && status !== "error" && status !== "saving" ? "pending" : status, error, unsaved: dirty || status === "saving", retry: send, settle };
+  // 손대지 않은 처음 글을 저장하는 중이면 떠나도 잃는 글이 없다 — 다음에 열면 같은 초안이 다시 들어온다. 떠나기 경고를 띄우지 않는다
+  const onlyStart = saved === "" && key === startKey;
+  return { status: dirty && status !== "error" && status !== "saving" ? "pending" : status, error, unsaved: !onlyStart && (dirty || status === "saving"), retry: send, settle };
 }

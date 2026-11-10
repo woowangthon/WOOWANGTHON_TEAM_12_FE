@@ -34,6 +34,7 @@ import { ActivityCategoriesProvider } from "./activity-categories";
 import { ApplicationStatusTag, ApplicationTypeFields, QuestionTypeField } from "./type-fields";
 import { OrganizationName } from "./organization-name";
 import { closeRevisionPanel, isRevisionPanelOpen } from "@/components/revisions/revision-list";
+import { useRestoreListener } from "@/components/revisions/restore-bus";
 import { Toast, useToast } from "@/components/ui/toast";
 import { ApplicationMenu, DeleteApplicationDialog, DeleteQuestionDialog, EditQuestionTextDialog, QuestionMenu } from "./question-menus";
 
@@ -58,6 +59,12 @@ export function ApplicationScreen() {
   const restoreRun = Number.isSafeInteger(rawRun) && rawRun > 0 ? rawRun : null;
   const matching = useApplications(params.get("new") === "1");
   const [groundingChecks] = useState(createGroundingChecks);
+  // 헤더 「최근 수정」에서 답을 되돌리면 받아 둔 문항에도 넣는다 — 다른 문항으로 갔다 와도 되돌린 글로 시작하게(FE#401). 연 답칸은 스스로 바꾼다
+  useRestoreListener({ restored: ({ revision, answerDraft }) => {
+    if (revision.targetType !== "ANSWER" || !answerDraft) return false;
+    matching.keepAnswerDraft(revision.targetId, answerDraft);
+    return true;
+  } });
   // 사이드바 「+ 추가」 → 새 지원서(FE#147). 새로고침하면 다시 뜨지 않게 주소에서 지운다
   const [composing, setComposing] = useState(useSearchParams().get("new") === "1");
   // 빠른 찾기의 「지원으로 만들기」(S-61)가 넘긴 글 — 지원 넣기 입력칸에 넣어 둔다
