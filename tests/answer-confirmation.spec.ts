@@ -43,7 +43,9 @@ async function setup(page: Page, initial: Answer | null = null) {
     if (state.decisionError) return route.fulfill({ status: 409, json: { error: { code: state.decisionError, message: "다른 탭에서 정한 후보예요" } } });
     if (path.endsWith("dismiss")) { c.status = "DISMISSED"; state.decisions.push("dismiss"); return route.fulfill({ status: 204 }); }
     const data = route.request().postDataJSON() as SaveNewFactRequest; state.decisions.push(data);
-    const experience: Experience = { id: 108, ...data, sourceStatus: "USER_ENTERED", competencies: [], competenciesBy: "USER", citations: [], supplements: [], origin: { type: "ANSWER", questionId: 41, applicationId: 22, organization: "OO 부트캠프", questionText: api.questions[0].detail.text } };
+    // 새 활동에 저장하면 BE 가 활동을 같이 만들어 그 id 를 붙인다(S-48 · ETC#260)
+    const { newActivity, activityId, ...rest } = data;
+    const experience: Experience = { id: 108, ...rest, activityId: newActivity ? 9 : activityId!, sourceStatus: "USER_ENTERED", competencies: [], competenciesBy: "USER", citations: [], supplements: [], origin: { type: "ANSWER", questionId: 41, applicationId: 22, organization: "OO 부트캠프", questionText: api.questions[0].detail.text } };
     c.status = "SAVED"; c.experienceId = 108; state.experiences.push(experience);
     return route.fulfill({ status: 201, json: experience });
   });
@@ -274,6 +276,57 @@ test("null activity requires explicit selection; failed save preserves edits for
   state.decisionError = ""; await save.click();
   await expect(card.getByText("경험으로 저장했어요")).toBeVisible();
   expect(state.decisions).toEqual([{ activityId: 7, content: "직접 고친 경험", actor: "TEAM" }]);
+});
+
+test("null activity opens a new activity form; failed save keeps every input; saved card names the new activity (S-48)", async ({ page }, info) => {
+  const { state } = await setup(page, answer(facts("COMPLETED")));
+  const activityReads: string[] = [];
+  page.on("request", r => { if (new URL(r.url()).pathname === "/api/activities") activityReads.push(r.method()); });
+  await closeSheet(page);
+  await showFacts(page);
+  const card = factsBox(page).getByRole("listitem").nth(1);
+  const save = card.getByRole("button", { name: "경험으로 저장" });
+  // AI 제안이 없으면 새 활동 만들기가 바로 열린다 — 이름이 비면 저장이 막힌다
+  await expect(card.getByText("맞는 활동이 없어 보여요", { exact: false })).toBeVisible();
+  await expect(card.getByRole("combobox", { name: "붙일 활동" })).toHaveText("+ 새 활동 만들기");
+  const name = card.getByRole("textbox", { name: "활동 이름" });
+  await expect(name).toHaveValue(""); await expect(save).toBeDisabled();
+  await card.scrollIntoViewIfNeeded();
+  await card.screenshot({ path: `docs/fe-414/empty-${info.project.name}.png` });
+  await name.fill("  알림 개편  ");
+  await pickOption(card.getByRole("combobox", { name: "시작 연도" }), "2025년");
+  await pickOption(card.getByRole("combobox", { name: "시작 월" }), "3월");
+  await card.getByRole("checkbox", { name: "진행 중" }).check();
+  await card.getByRole("textbox", { name: "경험 문장" }).fill("알림을 구독 방식으로 바꿨다");
+  await card.screenshot({ path: `docs/fe-414/form-${info.project.name}.png` });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  state.decisionError = "INTERNAL_ERROR";
+  await save.click(); await expect(card.getByRole("alert")).toBeVisible();
+  await expect(name).toHaveValue("  알림 개편  ");
+  await expect(card.getByRole("textbox", { name: "경험 문장" })).toHaveValue("알림을 구독 방식으로 바꿨다");
+  await expect(card.getByRole("checkbox", { name: "진행 중" })).toBeChecked();
+  const readsBefore = activityReads.length;
+  state.decisionError = ""; await save.click();
+  await expect(card.getByText("「알림 개편」에 경험으로 저장했어요")).toBeVisible();
+  expect(state.decisions).toEqual([{ newActivity: { name: "알림 개편", period: { start: "2025-03", end: null, ongoing: true } }, content: "알림을 구독 방식으로 바꿨다", actor: "UNKNOWN" }]);
+  // 다른 후보가 새 활동을 고를 수 있게 활동 목록을 다시 읽는다
+  await expect.poll(() => activityReads.length).toBeGreaterThan(readsBefore);
+  await card.screenshot({ path: `docs/fe-414/saved-${info.project.name}.png` });
+});
+
+test("picking 새 활동 만들기 from a suggested activity switches to the form; name is required", async ({ page }) => {
+  const { state } = await setup(page, answer(facts("COMPLETED")));
+  await closeSheet(page);
+  await showFacts(page);
+  const card = factsBox(page).getByRole("listitem").first();
+  await expect(card.getByRole("textbox", { name: "활동 이름" })).toHaveCount(0);
+  await pickOption(card.getByRole("combobox", { name: "붙일 활동" }), "+ 새 활동 만들기");
+  const save = card.getByRole("button", { name: "경험으로 저장" });
+  await expect(save).toBeDisabled();
+  await card.getByRole("textbox", { name: "활동 이름" }).fill("새 프로젝트");
+  await save.click();
+  await expect(card.getByText("「새 프로젝트」에 경험으로 저장했어요")).toBeVisible();
+  expect(state.decisions).toEqual([{ newActivity: { name: "새 프로젝트", period: { start: null, end: null, ongoing: false } }, content: "두 기기로 메시지를 보내 확인했다", actor: "ME" }]);
 });
 
 test("autosave: failure keeps text and retries; switching question tabs keeps the saved draft (S-72)", async ({ page }, info) => {
