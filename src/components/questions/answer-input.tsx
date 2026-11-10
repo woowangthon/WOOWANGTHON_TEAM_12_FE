@@ -138,7 +138,7 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
     if (!sentence) return;
     if (!mark.edited && mark.need === "marked" && sentence.id != null) { await confirmDraftSentence(sentence.id); await onRefresh(); }
     else setBox(b => ({ ...b, seen: new Set(b.seen).add(mark.text) }));
-    setSelected(null);
+    // 카드는 닫지 않는다 — 확인한 상태가 보이게(FE#325)
   };
 
   const loadConfirmed = () => {
@@ -207,7 +207,8 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
             「분석 1회」는 줄에 한 번, 「다 썼어요」 바로 앞에(S-15 · #217) — 「초안 부탁하기」는 분석을 쓰지 않아 그 옆에 두지 않는다(FE#249) */}
         <div className="flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-1 text-xs text-muted tabular-nums">{text.length.toLocaleString()}자 /{" "}
-            <TargetLengthField value={target} onSave={onTargetLength} /></span>
+            <TargetLengthField value={target} onSave={onTargetLength} />
+            {marked && target !== null && text.length < target && <InfoTip label="목표 글자 수" align="start">자료에 있는 내용으로만 써서 목표보다 짧을 수 있어요. 빈칸 · 빠진 사실에 답하면 다음 초안이 길어져요.</InfoTip>}</span>
           {/* 같은 글은 다시 점검하지 않는다 — 분석 1회를 아끼고 판정이 오락가락하지 않게(FE#317). 실패한 점검은 아래 「같은 글로 다시 시도」 */}
           <Button variant="ghost" className="min-h-11 lg:min-h-10" title={checkedSame ? "이미 점검한 글이에요 — 고치면 다시 점검할 수 있어요" : "분석 1회를 써요"}
             disabled={!valid || g.loading || g.busy || analyzing || !g.initialized || checkedSame} onClick={() => void g.submit(text)}>
@@ -222,9 +223,6 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
         </div>
       </div>
     </div>
-    {marked && target !== null && text.length < target && <p className="m-0 text-note leading-relaxed text-muted">
-      자료에 있는 내용으로만 써서 목표보다 짧을 수 있어요. 빈칸 · 빠진 사실에 답하면 다음 초안이 길어져요.
-    </p>}
     {removedList.length > 0 && <details className="grid gap-2 rounded-sm bg-surface-soft px-3.5 py-2.5 text-sm">
       <summary className="min-h-11 lg:min-h-10 cursor-pointer content-center font-medium text-body">뺀 문장 {removedList.length}개 — 다시 넣을 수 있어요</summary>
       <ul aria-label="뺀 문장" className="m-0 grid list-none gap-2 p-0 pt-1">
