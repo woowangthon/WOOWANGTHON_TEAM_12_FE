@@ -5,7 +5,8 @@ import { ApiError } from "@/lib/api/errors";
 import { confirmAnswer, dismissNewFact, fetchQuestion, findNewFacts, saveNewFact } from "@/lib/api/questions";
 import type { Answer, SaveNewFactRequest } from "@/lib/api/question-types";
 
-type Failure = { message: string; action: "read" | "confirm" | "find"; text?: string };
+/** limit — 오늘 분석 한도(DAILY_LIMIT_EXCEEDED)로 못 찾았다. 다시 찾아도 소용없어 다시 찾기를 두지 않는다(FE#391) */
+type Failure = { message: string; action: "read" | "confirm" | "find"; text?: string; limit?: boolean };
 const message = (e: unknown) => e instanceof Error ? e.message : "처리하지 못했어요. 다시 시도해 주세요.";
 
 /** 문항별로 마운트한다. 조회 재시도는 분석을 다시 시작하지 않는다.
@@ -63,9 +64,8 @@ export function useConfirmedAnswer(questionId: number, saved: Answer | null, onC
         try { await read(); } catch (error) { if (mounted.current) setFailure({ message: message(error), action: "read" }); }
         return;
       }
-      setFailure({ message: e instanceof ApiError && e.code === "DAILY_LIMIT_EXCEEDED"
-        ? "답은 저장했어요 · 오늘 분석 횟수를 다 썼어요."
-        : "답은 저장했어요 · " + message(e), action: "find" });
+      const limit = e instanceof ApiError && e.code === "DAILY_LIMIT_EXCEEDED";
+      setFailure({ message: limit ? "답은 저장했어요 · 오늘 분석 횟수를 다 썼어요." : "답은 저장했어요 · " + message(e), action: "find", ...(limit && { limit }) });
     }
   };
   /** 「다 썼어요」는 저장만 한다 — 후보 찾기는 사용자가 따로 누른다(ETC#250 · 분석 횟수를 쓰지 않는다).

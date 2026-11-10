@@ -140,9 +140,11 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
         : []
       : picks.flatMap(({ file }) => (file ? [{ kind: "FILE" as const, name: file.name, text: file.text, ...(file.sections && { sections: file.sections }) }] : []));
   const rejected = usingFiles ? picks.length - requests.length : 0;
+  // 자료 하나가 분석 1회 — 남은 횟수보다 많이(0회면 하나도) 보내지 않는다(S-15 · FE#391). 남은 횟수는 위에 이미 보인다. 못 읽었으면(null) 막지 않는다
+  const overLimit = left !== null && requests.length > left;
 
   const submit = async (allowDuplicate = false) => {
-    if (!requests.length || pending.current) return;
+    if (!requests.length || pending.current || overLimit) return;
     pending.current = true;
     setSubmitting(true);
     clearNotice();
@@ -335,7 +337,7 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
           <Button variant="link" onClick={() => changeOpen(false)} disabled={submitting}>
             취소
           </Button>
-          <Button onClick={() => void submit()} disabled={!requests.length || submitting || !!reading}>
+          <Button onClick={() => void submit()} disabled={!requests.length || submitting || !!reading || overLimit}>
             {submitting ? "보내는 중…" : github ? (gh.nothingMine ? "그대로 보내기" : "보내기") : requests.length > 1 ? `${requests.length}개 넣기` : "넣기"}
           </Button>
         </DialogFooter>

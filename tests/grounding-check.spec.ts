@@ -88,9 +88,9 @@ test("HTTP failure and AI failure retry the exact submitted text after editing",
   state.postError = "DAILY_LIMIT_EXCEEDED";
   await s.getByRole("button", { name: "근거 점검", exact: true }).click();
   await expect(s.getByRole("alert")).toContainText("오늘 분석 횟수를 다 썼어요");
-  await input.fill("다르게 고친 글");
+  await expect(s.getByRole("button", { name: "같은 글로 다시 시도" })).toHaveCount(0); // 한도 초과엔 다시 시도를 두지 않는다(FE#391)
   state.postError = ""; state.fail = true;
-  await s.getByRole("button", { name: "같은 글로 다시 시도" }).click();
+  await s.getByRole("button", { name: "근거 점검", exact: true }).click();
   await expect(s.getByRole("alert")).toContainText("AI 응답 시간이 초과됐어요");
   expect(state.posts[1].text).toBe(submitted);
   await input.fill("또 고친 글");
@@ -199,4 +199,31 @@ test("failed recommendation does not block answer checks, and late POST cannot o
   await expect(checkButton(page)).toHaveCount(0); // 다른 문항은 빈 글이라 점검 버튼이 없다
   await tabs.first().click();
   await expect(s.getByRole("textbox")).toHaveValue("내가 쓴 글");
+});
+
+// FE#391 — 남은 분석 0회면 근거 점검을 막는다. 처음 점검이 한도에 걸리면 「기존 점검은 그대로」라고 하지 않는다
+/** 오늘 남은 분석 0회(S-15) — 처음 화면을 그리기 전에 건다 */
+const noAnalysisLeft = (page: Page) => page.route("**/api/auth/me", route => route.fulfill({ json: { id: 1, loginId: "test", dailyAnalysis: { used: 200, limit: 200 } } }));
+
+test("0 analyses left blocks the grounding check (FE#391)", async ({ page }) => {
+  await noAnalysisLeft(page);
+  const { state } = await setup(page);
+  const s = screen(page), input = s.getByRole("textbox");
+  await expect(input).toBeEnabled();
+  await input.fill("직접 쓴 문장으로 근거를 확인해 보려고 합니다.");
+  await expect(checkButton(page)).toBeDisabled();
+  await expect(s).toContainText("분석 1회 · 오늘 0회 남음");
+  expect(state.posts).toHaveLength(0);
+});
+
+test("a first grounding check over the limit says nothing was checked and offers no retry (FE#391)", async ({ page }) => {
+  const { state } = await setup(page);
+  const s = screen(page), input = s.getByRole("textbox");
+  await expect(input).toBeEnabled();
+  await input.fill("직접 쓴 문장으로 근거를 확인해 보려고 합니다.");
+  state.postError = "DAILY_LIMIT_EXCEEDED";
+  await checkButton(page).click();
+  await expect(s.getByRole("alert")).toHaveText("오늘 분석 횟수를 다 썼어요. 근거 점검은 하지 않았어요.");
+  await expect(s.getByRole("button", { name: "같은 글로 다시 시도" })).toHaveCount(0);
+  await expect(input).toHaveValue("직접 쓴 문장으로 근거를 확인해 보려고 합니다.");
 });

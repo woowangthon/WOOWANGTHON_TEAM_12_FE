@@ -131,13 +131,14 @@ test("FAILED 는 이유와 다시 시도 — 같은 부탁으로 새 일", async
   expect([...chagok.runs.keys()]).toEqual([55, 56]);
 });
 
-test("429 는 이유와 다시 시도 · 쓴 글은 남는다", async ({ page }) => {
+test("429 는 이유만 — 다시 시도는 두지 않고 쓴 글은 남아 다시 보낼 수 있다(FE#391)", async ({ page }) => {
   const chagok = await open(page);
   chagok.startErrors = [{ status: 429, code: "DAILY_LIMIT_EXCEEDED" }];
   await ask(page, "찾아 줘");
   await expect(panel(page).getByText("오늘 쓸 수 있는 분석을 다 썼어요.")).toBeVisible();
   await expect(panel(page).getByLabel("차곡이에게 부탁하기")).toHaveValue("찾아 줘");
-  await panel(page).getByRole("button", { name: "다시 시도" }).click();
+  await expect(panel(page).getByRole("button", { name: "다시 시도" })).toHaveCount(0);
+  await panel(page).getByRole("button", { name: "보내기" }).click();
   await expect(panel(page).getByText("차곡이가 일하고 있어요")).toBeVisible();
   await expect(panel(page).getByLabel("차곡이에게 부탁하기")).toHaveValue("");
 });
@@ -178,4 +179,20 @@ test("진행 읽기가 계속 실패하면 멈추고 다시 불러온다", async
   chagok.script = [{ steps: [SAID], status: "DONE" }];
   await panel(page).getByRole("button", { name: "다시 불러오기" }).click();
   await expect(panel(page).getByText("「바꿔요」의 WebSocket 경험이 맞아요.")).toBeVisible();
+});
+
+// FE#391 — 남은 분석 0회면 부탁 · 칩을 보내지 않고 이유를 보인다
+/** 오늘 남은 분석 0회(S-15) — 처음 화면을 그리기 전에 건다 */
+const noAnalysisLeft = (page: Page) => page.route("**/api/auth/me", route => route.fulfill({ json: { id: 1, loginId: "test", dailyAnalysis: { used: 200, limit: 200 } } }));
+
+test("0 analyses left blocks chips and sending with the reason (FE#391)", async ({ page }) => {
+  await noAnalysisLeft(page);
+  const chagok = await open(page);
+  await expect(panel(page).getByRole("button", { name: "근거 찾기" })).toBeDisabled();
+  await expect(panel(page).getByRole("button", { name: "다른 경험으로" })).toBeDisabled();
+  await panel(page).getByLabel("차곡이에게 부탁하기").fill("찾아 줘");
+  await expect(panel(page).getByRole("button", { name: "보내기" })).toBeDisabled();
+  await expect(panel(page)).toContainText("오늘 분석 횟수를 다 썼어요. 한국 시간 자정에 다시 채워지면 보내 주세요.");
+  await panel(page).getByLabel("차곡이에게 부탁하기").press("Enter");
+  expect(chagok.calls.filter(c => c.call.startsWith("POST"))).toHaveLength(0);
 });

@@ -169,6 +169,15 @@ test("daily limit: remaining count in the dialog, and a 429 keeps the text with 
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("오늘 남은 분석 0회 — 한국 시간 자정에 다시 채워져요");
   await dialog.getByRole("textbox").fill("오늘 넣어 보는 자료");
+  // 0회면 넣기를 막는다 — 보내지 않는다(FE#391)
+  await expect(page.getByRole("button", { name: "넣기", exact: true })).toBeDisabled();
+  expect(state.posts.filter(p => p.path === "/api/sources")).toHaveLength(0);
+  // 남은 횟수가 낡았으면(다른 탭에서 썼다) 서버의 429 를 그대로 알린다 — 다시 열면 남은 횟수를 다시 읽는다
+  state.me = { ...ME, dailyAnalysis: { used: 199, limit: 200 } };
+  await dialog.getByRole("button", { name: "취소", exact: true }).click();
+  await openAddSource(page);
+  await expect(dialog).toContainText("오늘 남은 분석 1회");
+  await dialog.getByRole("textbox").fill("오늘 넣어 보는 자료");
   await page.getByRole("button", { name: "넣기", exact: true }).click();
   await expect(dialog.getByRole("alert")).toContainText("오늘 분석 횟수를 다 썼어요");
   await expect(dialog.getByRole("alert")).toContainText("저장하지 않았어요");

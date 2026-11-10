@@ -32,7 +32,7 @@ class GuidelineApi {
       if (method === 'GET') return this.listFails ? fail(503, 'NETWORK_ERROR') : json({ guidelines: this.items });
       if (req.url().endsWith('/extract')) {
         const status = this.extractFailures.shift();
-        return status ? fail(status, status === 504 ? 'AI_TIMEOUT' : 'AI_FAILED') : json({ source: body.source, candidates: this.candidates });
+        return status ? fail(status, status === 504 ? 'AI_TIMEOUT' : status === 429 ? 'DAILY_LIMIT_EXCEEDED' : 'AI_FAILED') : json({ source: body.source, candidates: this.candidates });
       }
       if (method === 'POST') {
         const created = body.guidelines.map((g: { text: string; source: string }) => {
@@ -281,4 +281,57 @@ test('list toggle does not show the composer processing notice; composer save do
   await expect(notice).toBeVisible();
   releasePost();
   await expect(notice).toHaveCount(0);
+});
+
+// FE#391 — 남은 분석 0회면 AI 정리를 막는다(한 줄 저장은 분석을 쓰지 않아 그대로). 한도 초과엔 「다시 시도」를 두지 않는다
+test('0 analyses left blocks AI organizing but not saving one line (FE#391)', async ({ page }) => {
+  const api = new GuidelineApi(); await api.install(page);
+  await page.route('**/api/auth/me', route => route.fulfill({ json: { id: 1, loginId: 'test', dailyAnalysis: { used: 200, limit: 200 } } }));
+  await page.goto('/guidelines');
+  const form = composeScreen(page);
+  await form.getByLabel(COMPOSE_LABEL).fill('첫 문장에 한 일을 먼저 쓴다');
+  await expect(form.getByRole('button', { name: 'AI로 정리', exact: true })).toBeDisabled();
+  await expect(form.getByRole('button', { name: '한 줄 저장', exact: true })).toBeEnabled();
+  await form.getByLabel(COMPOSE_LABEL).fill('영상 요점\n첫 문장에 한 일을 먼저 쓴다\n팀 일은 내 몫을 나눠 쓴다');
+  await expect(form.getByRole('button', { name: 'AI로 정리하기', exact: true })).toBeDisabled();
+  expect(api.calls.filter(c => c.method === 'POST')).toHaveLength(0);
+  // 한도 초과 오류 뒤의 「다시 시도」는 아래 시험(남은 횟수를 따른다)이 본다
+});
+
+// FE#391 — 「다시 시도」는 남은 횟수를 따른다: 0회면 어떤 실패든 숨기고, 횟수가 남아 있으면 다른 실패의 다시 시도는 그대로.
+// 한 줄 길도 요청 뒤 남은 횟수를 다시 읽어 한도에 걸린 뒤 「AI로 정리」가 눌리지 않는다. 횟수가 돌아오면 지난 오류가 막지 않는다
+test('guideline retry follows the remaining count, and organizing works again once the count is back (FE#391)', async ({ page }) => {
+  const api = new GuidelineApi(); await api.install(page);
+  let used = 199;
+  await page.route('**/api/auth/me', route => route.fulfill({ json: { id: 1, loginId: 'test', dailyAnalysis: { used, limit: 200 } } }));
+  await page.goto('/guidelines');
+  const form = composeScreen(page);
+  const retry = form.getByRole('button', { name: '다시 시도', exact: true });
+
+  // 한 줄 · 1회 남음 → 서버가 한도 초과(그 사이 다 씀) — 다시 시도 없음, 「AI로 정리」도 막힌다
+  await form.getByLabel(COMPOSE_LABEL).fill('첫 문장에 한 일을 먼저 쓴다');
+  api.extractFailures = [429]; used = 200;
+  await form.getByRole('button', { name: 'AI로 정리', exact: true }).click();
+  await expect(form.getByRole('alert')).toContainText('오늘 분석 횟수를 다 썼어요');
+  await expect(retry).toHaveCount(0);
+  await expect(form.getByRole('button', { name: 'AI로 정리', exact: true })).toBeDisabled();
+
+  // 횟수가 돌아오면(다시 읽음) 지난 오류와 상관없이 다시 정리할 수 있다
+  used = 199; await page.reload();
+  await form.getByLabel(COMPOSE_LABEL).fill('영상 요점\n첫 문장에 한 일을 먼저 쓴다');
+  await expect(form.getByRole('button', { name: 'AI로 정리하기', exact: true })).toBeEnabled();
+
+  // 다른 실패(502)는 횟수가 남아 있으면 다시 시도를 둔다
+  api.extractFailures = [502];
+  await form.getByRole('button', { name: 'AI로 정리하기', exact: true }).click();
+  await expect(form.getByRole('alert')).toContainText('정리하지 못했어요');
+  await expect(retry).toBeEnabled();
+
+  // 다른 실패라도 그 사이 0회가 되면 다시 시도를 숨긴다
+  api.extractFailures = [502]; used = 200;
+  await retry.click();
+  await expect(form.getByRole('alert')).toContainText('정리하지 못했어요');
+  await expect(form.getByRole('button', { name: 'AI로 정리하기', exact: true })).toBeDisabled();
+  await expect(retry).toHaveCount(0);
+  await expect(form.getByLabel(COMPOSE_LABEL)).toHaveValue('영상 요점\n첫 문장에 한 일을 먼저 쓴다');
 });

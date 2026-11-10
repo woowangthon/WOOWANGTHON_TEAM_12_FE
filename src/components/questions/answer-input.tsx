@@ -5,7 +5,7 @@ import { CheckIcon, ClockCounterClockwiseIcon, CopyIcon } from "@phosphor-icons/
 import { RevisionDialog } from "@/components/revisions/revision-list";
 import { cn } from "@/lib/utils";
 import { useConfirmedAnswer } from "./use-confirmed-answer";
-import { AnalysisCost } from "@/components/auth/analysis-cost";
+import { AnalysisCost, useAnalysisLeft } from "@/components/auth/analysis-cost";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { InfoTip } from "@/components/ui/info-tip";
@@ -81,6 +81,8 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
   });
   const initialText = start.text;
   const g = useGroundingCheck(questionId, checks, initialText);
+  // 오늘 남은 분석 0회면 근거 점검 · 새 경험 후보 찾기를 보내지 않는다(S-15 · FE#391). 못 읽었으면(null) 막지 않는다
+  const exhausted = useAnalysisLeft() === 0;
   const [box, setBox] = useState<Box>(() => ({ key: draftKey, local: start.kept?.local ?? {}, seen: start.kept?.seen ?? new Set(), sawDrafting: false }));
   const [editBase, setEditBase] = useState(start.base);
   const [draftPlaced, setDraftPlaced] = useState<string | null>(null);
@@ -269,7 +271,7 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
           <SaveState status={autosave.status} onRetry={() => void autosave.retry()} />
           {/* 같은 글은 다시 점검하지 않는다 — 분석 1회를 아끼고 판정이 오락가락하지 않게(FE#317). 실패한 점검은 아래 「같은 글로 다시 시도」 */}
           {showGround && <><Button variant="ghost" className="min-h-11 lg:min-h-10" title={checkedSame ? "이미 점검한 글이에요 — 고치면 다시 점검할 수 있어요" : "분석 1회를 써요"}
-            disabled={!valid || g.loading || g.busy || analyzing || !g.initialized || checkedSame} onClick={() => void g.submit(text)}>
+            disabled={!valid || g.loading || g.busy || analyzing || !g.initialized || checkedSame || exhausted} onClick={() => void g.submit(text)}>
             {g.busy || analyzing ? "근거 점검 중…" : checkedSame ? "점검했어요" : "근거 점검"}
           </Button>
           {!checkedSame && <AnalysisCost running={g.busy || analyzing} className="-ml-1.5" />}</>}
@@ -287,23 +289,25 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
     {confirmedNotDraft && !drafting && <Button variant="link" size="sm" className="min-h-11 lg:min-h-10 justify-self-start" onClick={loadDraft}>초안 글 다시 넣기</Button>}
     {a.failure && <div className="grid justify-items-start gap-2">
       <p role="alert" className="m-0 text-sm text-error">{a.failure.message}{a.pollFailures >= 3 && " 자동 확인을 멈췄어요."}</p>
-      <Button variant="secondary" className="min-h-11 lg:min-h-10" disabled={a.busy} onClick={() => void (a.failure?.action === "confirm" ? a.confirm(a.failure.text!) : a.failure?.action === "find" ? a.retryFind() : a.refresh())}>
+      {/* 한도 초과로 못 찾았으면 다시 찾기를 두지 않는다(FE#391) */}
+      {!a.failure.limit && <Button variant="secondary" className="min-h-11 lg:min-h-10" disabled={a.busy || (a.failure.action === "find" && exhausted)} onClick={() => void (a.failure?.action === "confirm" ? a.confirm(a.failure.text!) : a.failure?.action === "find" ? a.retryFind() : a.refresh())}>
         {a.failure.action === "confirm" ? "같은 답으로 다시 저장" : a.failure.action === "find" ? "다시 찾기" : "저장 상태 다시 확인"}
-      </Button>
+      </Button>}
     </div>}
-    {a.answer && (same ? <SavedLine answer={a.answer} onNewFacts={onNewFacts} />
+    {a.answer && (same ? <SavedLine answer={a.answer} onNewFacts={onNewFacts} exhausted={exhausted} />
       : <p role="status" className="m-0 text-sm text-muted">고친 내용이 있어요 · 「다 썼어요」를 다시 눌러 주세요</p>)}
     {g.loading && <p role="status" className="m-0 text-sm text-muted">마지막 근거 점검을 불러오고 있어요…</p>}
     {analyzing && <p role="status" className="m-0 text-sm text-muted">문장을 근거와 대조하고 있어요. 새로고침해도 점검한 글과 진행 상태를 이어서 확인해요.</p>}
     {g.failure && <div className="grid justify-items-start gap-2">
       <p role="alert" className="m-0 text-sm text-error">{g.failure.message}{g.pollFailures >= 3 && " 자동 확인을 멈췄어요."}</p>
-      <Button variant="secondary" className="min-h-11 lg:min-h-10" disabled={g.busy} onClick={() => void (g.failure?.retryText !== undefined ? g.submit(g.failure.retryText) : g.refresh())}>
+      {/* 한도 초과는 같은 글로 다시 해도 소용없다 — 다시 시도를 두지 않는다(FE#391) */}
+      {!g.failure.limit && <Button variant="secondary" className="min-h-11 lg:min-h-10" disabled={g.busy || (g.failure.retryText !== undefined && exhausted)} onClick={() => void (g.failure?.retryText !== undefined ? g.submit(g.failure.retryText) : g.refresh())}>
         {g.failure.retryText !== undefined ? "같은 글로 다시 시도" : "점검 상태 다시 확인"}
-      </Button>
+      </Button>}
     </div>}
     {g.check?.status === "FAILED" && g.failure?.retryText === undefined && <div className="grid justify-items-start gap-2">
       <p role="alert" className="m-0 text-sm text-error">{g.check.error?.message || "근거 점검을 마치지 못했어요."} 점검할 글은 저장돼 있어요.</p>
-      <Button variant="secondary" className="min-h-11 lg:min-h-10" disabled={g.busy} onClick={() => void g.submit(g.check!.text)}>같은 글로 다시 시도</Button>
+      <Button variant="secondary" className="min-h-11 lg:min-h-10" disabled={g.busy || exhausted} onClick={() => void g.submit(g.check!.text)}>같은 글로 다시 시도</Button>
     </div>}
     {/* 점검 결과는 답칸 문장 표시 · 카드에만 붙는다 — 답칸 아래 목록은 두지 않는다(FE#307 · FE#336). 근거 없음은 「확인할 곳」이 센다 */}
     <Dialog open={ask !== null} onOpenChange={o => { if (!o) setAsk(null); }}>
@@ -312,7 +316,7 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
           <DialogTitle>고친 사실 문장 {editedFacts}개가 있어요</DialogTitle>
           <DialogDescription>고친 내용이 근거와 맞는지는 「근거 점검」(분석 1회)으로 볼 수 있어요.</DialogDescription>
           <DialogFooter>
-            <Button className="min-h-11 lg:min-h-10" variant="secondary" onClick={() => { setAsk(null); void g.submit(text); }}>근거 점검하기</Button>
+            <Button className="min-h-11 lg:min-h-10" variant="secondary" disabled={exhausted} onClick={() => { setAsk(null); void g.submit(text); }}>근거 점검하기</Button>
             <Button className="min-h-11 lg:min-h-10" onClick={() => void confirmAnswer()}>그냥 다 썼어요</Button>
           </DialogFooter>
         </> : ask === "load" ? <>
@@ -348,7 +352,7 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
 }
 
 /** 다 쓴 답 저장 뒤 한 줄(S-48 · FE#270) — 저장된 걸 분명히 보이고, 바로 옆에서 새 경험 후보 찾기로 잇는다. 찾기 · 고르기는 차곡이 패널에서 */
-function SavedLine({ answer, onNewFacts }: { answer: Answer; onNewFacts: (find: boolean) => void }) {
+function SavedLine({ answer, onNewFacts, exhausted }: { answer: Answer; onNewFacts: (find: boolean) => void; exhausted: boolean }) {
   const facts = answer.newFacts;
   const pending = facts?.status === "COMPLETED" ? facts.candidates.filter(c => c.status === "PENDING").length : 0;
   const show = <Button variant="link" size="sm" className="min-h-11 lg:min-h-10" onClick={() => onNewFacts(false)}>차곡이에서 보기</Button>;
@@ -356,7 +360,7 @@ function SavedLine({ answer, onNewFacts }: { answer: Answer; onNewFacts: (find: 
     <span className="inline-flex items-center gap-1.5 font-medium text-positive"><CheckIcon aria-hidden="true" weight="bold" />다 쓴 답으로 저장했어요</span>
     <span aria-hidden="true" className="text-muted">·</span>
     {!facts ? <span className="inline-flex flex-wrap items-center gap-x-1.5">
-      <Button variant="link" size="sm" className="min-h-11 lg:min-h-10" onClick={() => onNewFacts(true)}>새 경험 후보 찾기</Button>
+      <Button variant="link" size="sm" className="min-h-11 lg:min-h-10" disabled={exhausted} onClick={() => onNewFacts(true)}>새 경험 후보 찾기</Button>
       <AnalysisCost />
     </span>
       : facts.status === "ANALYZING" ? <span className="inline-flex items-center gap-x-1.5">새 경험 후보를 찾고 있어요 {show}</span>

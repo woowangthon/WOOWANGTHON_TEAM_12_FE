@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { AnalysisCost } from "@/components/auth/analysis-cost";
+import { AnalysisCost, useAnalysisLeft } from "@/components/auth/analysis-cost";
 import { Button } from "@/components/ui/button";
 import { InfoTip } from "@/components/ui/info-tip";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
@@ -21,6 +21,8 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
   const suggested = suggestedFrame(question.questionType);
   const frame = chosenFrame ?? (draft ? draft.frame ?? 'NONE' : suggested);
   const [busy, setBusy] = useState(false);
+  // 「초안 상태 확인」은 조회만 한다 — 만드는 중(busy · analyzing)과 따로 둬 위 버튼이 「초안 만드는 중…」으로 바뀌지 않게(FE#391)
+  const [checking, setChecking] = useState(false);
   // 다시 만들기 전 경고 — 덮이는 것이 있을 때만(고친 글 · 답하지 않은 빠진 사실 질문 · 다 쓴 답)
   const [warning, setWarning] = useState<string[] | null>(null);
   const [error, setError] = useState<{ text: string; code?: string } | null>(null);
@@ -36,6 +38,8 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
   const pendingAnswers = scope.reduce((n, r) => n + r.experience.supplements.filter(s => s.mcpChange).length, 0);
   // 다시 만들기가 무료인지는 BE 가 정한다(freeRegenerate — 빠진 사실에 답함 · 주체를 정함, S-77)
   const free = !!draft?.freeRegenerate && !analyzing;
+  // 오늘 남은 분석 0회면 분석을 쓰는 요청은 보내지 않는다(S-15 · FE#391). 무료 다시 만들기는 그대로, 못 읽었으면(null) 막지 않는다
+  const exhausted = useAnalysisLeft() === 0 && !draft?.freeRegenerate;
   const losses = () => {
     if (!draft) return hasEditedAnswer(question.id) ? ["답칸에 쓴 글이 새 초안으로 바뀌어요."] : [];
     const open = draft.status === "COMPLETED" ? draft.omitted.filter(o => o.clarificationId !== null && o.supplementId === null).length : 0;
@@ -46,13 +50,13 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
     ];
   };
   const ask = () => {
-    if (pending.current || savingAnswer || analyzing || !allowed) return;
+    if (pending.current || savingAnswer || analyzing || !allowed || exhausted) return;
     const list = losses();
     if (list.length) setWarning(list); else void generate();
   };
   const generate = async () => {
     setWarning(null);
-    if (pending.current || savingAnswer || analyzing || !allowed) return;
+    if (pending.current || savingAnswer || analyzing || !allowed || exhausted) return;
     pending.current = true; setBusy(true); setError(null);
     try {
       // 실패 재시도는 저장된 experienceIds로 같은 POST. 새 선택은 완료 뒤 재생성에 사용한다.
@@ -60,15 +64,20 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
       await onGenerate(ids, frame, true);
       setChosenFrame(null);
       onResetPicks(question.id);
-    } catch (e) { setError({ text: requestError(e), code: e instanceof ApiError ? e.code : undefined }); }
+    } catch (e) {
+      const code = e instanceof ApiError ? e.code : undefined;
+      // 첫 초안이면 「기존 초안은 그대로예요」가 아니라 만들지 않았다고 알린다
+      setError({ text: code === "DAILY_LIMIT_EXCEEDED" && !draft ? "오늘 분석 횟수를 다 썼어요. 초안은 만들지 않았어요." : requestError(e), code });
+    }
     finally { pending.current = false; setBusy(false); }
   };
   const refresh = async () => {
     if (pending.current || savingAnswer) return;
-    pending.current = true; setBusy(true); setError(null);
-    try { await onRefresh(); }
+    // 확인하는 동안 오류와 버튼을 그대로 두고(「확인하는 중…」), 확인이 끝나면 지운다
+    pending.current = true; setChecking(true);
+    try { await onRefresh(); setError(null); }
     catch (e) { setError({ text: requestError(e) }); }
-    finally { pending.current = false; setBusy(false); }
+    finally { pending.current = false; setChecking(false); }
   };
 
   return <section aria-label="초안 설정" className="grid min-w-0 gap-3 rounded-md border border-hairline bg-canvas p-3.5">
@@ -85,12 +94,13 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
     </p>}
     <FramePicker frame={frame} suggested={suggested} disabled={analyzing || savingAnswer} proposed={!draft && chosenFrame === null} onChange={setChosenFrame} />
     <div className="flex flex-wrap items-center gap-3">
-      <Button data-draft-generate className="min-h-11 lg:min-h-10" onClick={ask} disabled={!allowed || analyzing || savingAnswer}>{analyzing ? "초안 만드는 중…" : draft ? "다시 만들기" : "초안 만들기"}</Button>
+      <Button data-draft-generate className="min-h-11 lg:min-h-10" onClick={ask} disabled={!allowed || analyzing || savingAnswer || exhausted}>{analyzing ? "초안 만드는 중…" : draft ? "다시 만들기" : "초안 만들기"}</Button>
       {free ? <span className="text-xs text-muted">이번 다시 만들기는 분석 횟수를 쓰지 않아요</span> : <AnalysisCost running={analyzing} />}
     </div>
     {error && (error.code !== "DRAFT_IN_PROGRESS" || analyzing) && <div className="grid justify-items-start gap-2">
       <p role="alert" className="m-0 text-sm text-error">{error.text}</p>
-      <Button variant="secondary" className="min-h-11 lg:min-h-10" disabled={busy || savingAnswer} onClick={() => void refresh()}>초안 상태 확인</Button>
+      {/* 한도 초과는 서버에 확인할 상태가 없다 — 다시 누를 것을 보이지 않는다 */}
+      {error.code !== "DAILY_LIMIT_EXCEEDED" && <Button variant="secondary" className="min-h-11 lg:min-h-10" disabled={busy || checking || savingAnswer} onClick={() => void refresh()}>{checking ? "확인하는 중…" : "초안 상태 확인"}</Button>}
     </div>}
     {draft?.status === "FAILED" && !analyzing && <p role="alert" className="m-0 text-sm text-error">{failureReason(draft.error)} 「다시 만들기」로 같은 경험을 다시 요청할 수 있어요.</p>}
     <Dialog open={warning !== null} onOpenChange={o => { if (!o) setWarning(null); }}>
@@ -99,7 +109,7 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
         <DialogDescription asChild><ul className="m-0 grid gap-1.5 pl-4">{warning?.map(w => <li key={w}>{w}</li>)}</ul></DialogDescription>
         <DialogFooter>
           <Button className="min-h-11 lg:min-h-10" variant="secondary" onClick={() => setWarning(null)}>취소</Button>
-          <Button className="min-h-11 lg:min-h-10" onClick={() => void generate()}>{draft ? "그래도 다시 만들기" : "그래도 만들기"}</Button>
+          <Button className="min-h-11 lg:min-h-10" disabled={exhausted} onClick={() => void generate()}>{draft ? "그래도 다시 만들기" : "그래도 만들기"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

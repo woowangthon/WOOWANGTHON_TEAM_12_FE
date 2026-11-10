@@ -146,11 +146,31 @@ test("PUT failure never shows saved; 429 on finding keeps the answer and retries
   state.findError = "DAILY_LIMIT_EXCEEDED";
   await findLine(page).click();
   await expect(factsBox(page).getByRole("alert")).toContainText("답은 저장했어요 · 오늘 분석 횟수를 다 썼어요");
+  await expect(factsBox(page).getByRole("button", { name: "다시 찾기", exact: true })).toHaveCount(0); // 한도 초과엔 다시 찾기를 두지 않는다(FE#391)
   state.findError = ""; state.empty = true;
-  await factsBox(page).getByRole("button", { name: "다시 찾기", exact: true }).click();
+  await closeSheet(page);
+  await findLine(page).click();
   await expect(factsBox(page).getByText("새로 쓴 사실이 없어요")).toBeVisible();
   await expect(s.getByText("새로 쓴 사실이 없어요")).toBeAttached();
   expect(state.puts).toHaveLength(2); expect(state.finds).toBe(2);
+});
+
+// FE#391 — 남은 분석 0회면 새 경험 후보 찾기를 막는다(다 썼어요 저장은 분석을 쓰지 않아 그대로)
+/** 오늘 남은 분석 0회(S-15) — 처음 화면을 그리기 전에 건다 */
+const noAnalysisLeft = (page: Page) => page.route("**/api/auth/me", route => route.fulfill({ json: { id: 1, loginId: "test", dailyAnalysis: { used: 200, limit: 200 } } }));
+
+test("0 analyses left saves the answer but blocks finding candidates in the line and the panel (FE#391)", async ({ page }) => {
+  await noAnalysisLeft(page);
+  const { state } = await setup(page);
+  const s = screen(page);
+  await closeSheet(page);
+  await s.getByRole("textbox", { name: "내가 쓴 답", exact: true }).fill(TEXT);
+  await s.getByRole("button", { name: "다 썼어요", exact: true }).click();
+  await expect(s.getByText("다 쓴 답으로 저장했어요", { exact: true })).toBeVisible();
+  await expect(findLine(page)).toBeDisabled();
+  if (page.viewportSize()!.width < 1280) await page.getByRole("button", { name: /^차곡이( ?질문 \d+)?$/ }).click();
+  await expect(factsBox(page).getByRole("button", { name: "새 경험 후보 찾기", exact: true })).toBeDisabled();
+  expect(state.puts).toEqual([TEXT]); expect(state.finds).toBe(0);
 });
 
 test("AI failure retries finding in the panel; decided conflicts refresh without another save or analysis", async ({ page }) => {

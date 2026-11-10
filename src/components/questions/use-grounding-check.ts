@@ -5,7 +5,8 @@ import { ApiError } from "@/lib/api/errors";
 import { createGroundingCheck, fetchGroundingCheck } from "@/lib/api/questions";
 import type { GroundingCheck } from "@/lib/api/question-types";
 
-type Failure = { message: string; retryText?: string };
+/** limit — 오늘 분석 한도(DAILY_LIMIT_EXCEEDED)로 못 했다. 같은 글로 다시 해도 소용없어 다시 시도를 두지 않는다(FE#391) */
+type Failure = { message: string; retryText?: string; limit?: boolean };
 function message(e: unknown) {
   const labels: Record<string, string> = {
     DAILY_LIMIT_EXCEEDED: "오늘 분석 횟수를 다 썼어요. 기존 점검은 그대로예요.",
@@ -99,6 +100,7 @@ export function useGroundingCheck(questionId: number, checks: GroundingChecks, i
   };
   const submit = async (submittedText: string) => {
     if (pending.current || loading || !initialized.current || check?.status === "ANALYZING") return;
+    const hadCheck = !!check;
     pending.current = true; ++version.current; setBusy(true); setFailure(null);
     // 응답 전에 떠났다 돌아와도 낡은 결과로 시작하지 않게 먼저 지운다. 실패하면 다시 읽어 맞춘다
     checks.forget(questionId);
@@ -112,6 +114,9 @@ export function useGroundingCheck(questionId: number, checks: GroundingChecks, i
       if (e instanceof ApiError && e.code === "GROUNDING_CHECK_IN_PROGRESS") {
         try { await read(); }
         catch (readError) { if (mounted.current) setFailure({ message: message(readError) }); }
+      } else if (e instanceof ApiError && e.code === "DAILY_LIMIT_EXCEEDED") {
+        // 처음 점검이면 「기존 점검은 그대로예요」가 아니다
+        setFailure({ message: hadCheck ? message(e) : "오늘 분석 횟수를 다 썼어요. 근거 점검은 하지 않았어요.", limit: true });
       } else setFailure({ message: message(e), retryText: submittedText });
     } finally { pending.current = false; if (mounted.current) setBusy(false); }
   };

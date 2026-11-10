@@ -5,6 +5,7 @@
 import { useState, type KeyboardEvent } from "react";
 import { ArrowUpIcon, CheckIcon, XIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { ANALYSIS_EXHAUSTED_NOTE, useAnalysisLeft } from "@/components/auth/analysis-cost";
 import { ExperienceMeta } from "@/components/experience/experience-item";
 import { foundExperiences, type ChagokConfirmStep, type ChagokRun, type ChagokToolCallStep, type FoundExperience } from "@/lib/api/chagok";
 import { JOB_ROLE_LABEL, ORGANIZATION_TYPE_LABEL, type JobRole, type OrganizationType } from "@/lib/api/question-types";
@@ -109,6 +110,8 @@ function ResultLink({ run }: { run: ChagokRun }) {
 
 export function ChagokRunFeed({ control, currentQuestionId }: { control: ChagokRunControl; currentQuestionId: number | null }) {
   const { run, pollState, acting, actionError, starting } = control;
+  // 다시 시도도 새 일이라 분석을 쓴다 — 0회면 막고, 한도 초과로 멈춘 일엔 보이지 않는다(S-15 · FE#391)
+  const exhausted = useAnalysisLeft() === 0;
   if (!run) return null;
   return <section aria-label="차곡이의 일" className="mt-2.5 grid gap-2.5 border-t border-hairline-soft pt-3">
     <div className="grid justify-items-end gap-1">
@@ -135,7 +138,7 @@ export function ChagokRunFeed({ control, currentQuestionId }: { control: ChagokR
     </div>}
     {run.status === "FAILED" && <div role="alert" className={notice}>
       <p className="m-0 text-error">{whyFailed(run.error)}</p>
-      <Button size="sm" variant="secondary" className="justify-self-start" disabled={starting} onClick={() => void control.retry()}>다시 시도</Button>
+      {run.error?.code !== "DAILY_LIMIT_EXCEEDED" && <Button size="sm" variant="secondary" className="justify-self-start" disabled={starting || exhausted} onClick={() => void control.retry()}>다시 시도</Button>}
     </div>}
     {run.status === "CANCELED" && <p className="m-0 text-note text-muted">그만뒀어요.</p>}
     {run.status === "DONE" && <ResultLink run={run} />}
@@ -145,7 +148,9 @@ export function ChagokRunFeed({ control, currentQuestionId }: { control: ChagokR
 export function ChagokComposer({ control, hasQuestion }: { control: ChagokRunControl; hasQuestion: boolean }) {
   const { run, draft, starting, failure, conflict, conflictError } = control;
   const waitingConfirm = run?.status === "WAITING_CONFIRM";
-  const blocked = starting || waitingConfirm || !!conflict;
+  // 부탁 · 칩 · 다시 시도 · 새로 시작은 차곡이 일을 시작해 분석을 쓴다 — 오늘 0회면 보내지 않는다(S-15 · FE#391). 못 읽었으면(null) 막지 않는다
+  const exhausted = useAnalysisLeft() === 0;
+  const blocked = starting || waitingConfirm || !!conflict || exhausted;
   const submit = () => { if (!blocked) void control.send(draft); };
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
@@ -157,14 +162,15 @@ export function ChagokComposer({ control, hasQuestion }: { control: ChagokRunCon
       <p className="m-0">차곡이가 다른 일을 하고 있어요. 어떻게 할까요?</p>
       {conflictError && <p className="m-0 text-error">{conflictError}</p>}
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" className={inlineAction} disabled={starting} onClick={() => void control.restart()}>그만두고 새로 시작</Button>
+        <Button size="sm" className={inlineAction} disabled={starting || exhausted} onClick={() => void control.restart()}>그만두고 새로 시작</Button>
         <Button size="sm" variant="secondary" disabled={starting} onClick={() => void control.wait()}>기다리기</Button>
       </div>
     </div>}
     {failure && <div role="alert" className={notice}>
       <p className="m-0 text-error">{whyFailed(failure.error)}</p>
-      {failure.error.code !== "TEXT_TOO_LONG" && <Button size="sm" variant="secondary" className="justify-self-start" disabled={starting} onClick={() => void control.retry()}>다시 시도</Button>}
+      {failure.error.code !== "TEXT_TOO_LONG" && failure.error.code !== "DAILY_LIMIT_EXCEEDED" && <Button size="sm" variant="secondary" className="justify-self-start" disabled={starting || exhausted} onClick={() => void control.retry()}>다시 시도</Button>}
     </div>}
+    {exhausted && !failure && <p role="status" className="m-0 text-note text-review">{ANALYSIS_EXHAUSTED_NOTE}</p>}
     {waitingConfirm && <p className="m-0 text-note text-muted">확인 카드에 답하면 새 부탁을 할 수 있어요.</p>}
     {hasQuestion && <div className="flex flex-wrap gap-1.5">
       {PRESETS.map(p => <button key={p.label} type="button" disabled={blocked} onClick={() => void control.send(p.text)}

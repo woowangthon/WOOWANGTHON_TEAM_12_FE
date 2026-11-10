@@ -226,7 +226,9 @@ for (const [status, code, text] of [
     api.draftError = { status, code };
     await regenerate(page, await openDraftComposer(page));
     await expect((await openDraftComposer(page)).getByRole("alert")).toContainText(text);
-    await expect((await openDraftComposer(page)).getByRole("button", { name: "초안 상태 확인", exact: true })).toBeEnabled();
+    // 한도 초과는 확인할 서버 상태가 없다 — 「초안 상태 확인」을 두지 않는다(FE#391)
+    const check = (await openDraftComposer(page)).getByRole("button", { name: "초안 상태 확인", exact: true });
+    if (code === "DAILY_LIMIT_EXCEEDED") await expect(check).toHaveCount(0); else await expect(check).toBeEnabled();
     await expect((await referenceChoices(page))).toBeChecked();
     await closeDraftPanel(page);
     await expect(draftSentences(page)).toHaveCount(2);
@@ -752,4 +754,47 @@ test("activity cards: group by activity in first-recommendation order, check act
   await expect(controls).toContainText("체크한 활동 2개로 만들어요");
   await controls.getByRole("button", { name: "초안 만들기", exact: true }).click();
   await expect.poll(() => api.calls.filter(c => c.call.endsWith("/draft")).map(c => c.body)).toMatchObject([{ experienceIds: [101, 103, 104, 105, 106, 102] }]);
+});
+
+// FE#391 — 남은 분석 0회면 초안 만들기를 막고(무료 다시 만들기는 그대로), 한도 초과엔 「초안 상태 확인」을 두지 않는다. 상태 확인은 만드는 중과 따로다
+/** 오늘 남은 분석 0회(S-15) — 처음 화면을 그리기 전에 건다 */
+const noAnalysisLeft = (page: Page) => page.route("**/api/auth/me", route => route.fulfill({ json: { id: 1, loginId: "test", dailyAnalysis: { used: 200, limit: 200 } } }));
+
+test("0 analyses left blocks making a draft and sends nothing (FE#391)", async ({ page }) => {
+  await noAnalysisLeft(page);
+  const api = await setup(page);
+  const composer = await openDraftComposer(page);
+  await expect(composer.getByRole("button", { name: "초안 만들기", exact: true })).toBeDisabled();
+  await expect(composer).toContainText("분석 1회 · 오늘 0회 남음");
+  expect(api.calls.filter(c => c.call.startsWith("POST") && c.call.endsWith("/draft"))).toHaveLength(0);
+});
+
+test("0 analyses left still allows a free regeneration (FE#391)", async ({ page }) => {
+  await noAnalysisLeft(page);
+  await setup(page, q => { q.draft = { ...structuredClone(DRAFT_EXAMPLE), freeRegenerate: true }; });
+  const composer = await openDraftComposer(page);
+  await expect(composer.getByRole("button", { name: "다시 만들기", exact: true })).toBeEnabled();
+  await expect(composer).toContainText("이번 다시 만들기는 분석 횟수를 쓰지 않아요");
+});
+
+test("a first draft over the limit says nothing was made and offers no status check; checking status never shows generating (FE#391)", async ({ page }) => {
+  const api = await setup(page);
+  api.draftError = { status: 429, code: "DAILY_LIMIT_EXCEEDED" };
+  let composer = await openDraftComposer(page);
+  await composer.getByRole("button", { name: "초안 만들기", exact: true }).click();
+  await expect(composer.getByRole("alert")).toHaveText("오늘 분석 횟수를 다 썼어요. 초안은 만들지 않았어요.");
+  await expect(composer.getByRole("button", { name: "초안 상태 확인", exact: true })).toHaveCount(0);
+
+  // 다른 실패는 「초안 상태 확인」 — 조회 중에도 위 버튼은 「초안 만들기」 그대로다
+  api.draftError = { status: 409, code: "QUESTION_NOT_COMPLETED" };
+  composer = await openDraftComposer(page);
+  await composer.getByRole("button", { name: "초안 만들기", exact: true }).click();
+  const check = composer.getByRole("button", { name: "초안 상태 확인", exact: true });
+  await expect(check).toBeEnabled();
+  await page.route("**/api/questions/41", async route => { await new Promise(r => setTimeout(r, 800)); await route.fallback(); });
+  await check.click();
+  await expect(composer.getByRole("button", { name: "확인하는 중…", exact: true })).toBeVisible();
+  await expect(composer.getByRole("button", { name: "초안 만드는 중…" })).toHaveCount(0);
+  await expect(composer.getByRole("button", { name: "초안 만들기", exact: true })).toBeVisible();
+  await expect(composer.getByRole("button", { name: "확인하는 중…", exact: true })).toHaveCount(0);
 });
