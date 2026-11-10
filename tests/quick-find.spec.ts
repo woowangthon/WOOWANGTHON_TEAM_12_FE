@@ -131,6 +131,35 @@ test("more results unfold inside the window, and past the limit it asks to narro
   await expect(dialog(page).getByRole("status").filter({ hasText: "340개 중 10개" })).toContainText("더 좁혀");
 });
 
+// FE#366 — 폰에선 「더 보기」를 눌러도 입력칸 초점을 붙잡지 않아 키보드가 다시 올라오지 않는다. PC 는 그대로 입력칸에 남는다
+test("more button does not pull the keyboard back on touch, and keeps the input focus with a mouse", async ({ page }, info) => {
+  const api = await setup(page);
+  api.search = { json: { total: 30, experiences: many(30) } };
+  await page.goto("/guidelines");
+  await openByButton(page);
+  const touch = info.project.name === "mobile";
+  const more = dialog(page).getByRole("option", { name: /더 보기/ });
+  if (touch) {
+    await page.evaluate(() => (document.activeElement as HTMLElement).blur()); // 화면 키보드를 내린 것과 같다
+    for (const shown of [16, 24]) {
+      await more.tap();
+      await expect(rows(page)).toHaveCount(shown + 1);
+      await expect(box(page)).not.toBeFocused();
+    }
+    await box(page).tap();
+    await expect(box(page)).toBeFocused();
+  } else {
+    for (const shown of [16, 24]) {
+      await more.click();
+      await expect(rows(page)).toHaveCount(shown + 1);
+      await expect(box(page)).toBeFocused();
+    }
+    await expect(rows(page).nth(16)).toHaveAttribute("aria-selected", "true"); // 마지막으로 누른 「더 보기」 자리 — 새로 펼친 첫 줄
+    await page.keyboard.press("ArrowDown"); // 눌러도 입력칸에 남아 있으니 키가 그대로 듣는다
+    await expect(rows(page).nth(17)).toHaveAttribute("aria-selected", "true");
+  }
+});
+
 test("an old search address opens this window with its word and chips", async ({ page }) => {
   const api = await setup(page);
   await page.goto("/experience?q=회고&competencies=COLLABORATION&year=2025&review=1&category=PROJECT");
