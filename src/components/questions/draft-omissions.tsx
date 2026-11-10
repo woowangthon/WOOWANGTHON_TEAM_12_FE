@@ -45,9 +45,7 @@ function OmissionItem({ item, question, onAnswer, onRefresh, disabled }: {
     note={<SupplementNote supplement={supplement} activityName={recommendation?.activity.name} />} />;
 
   return <li className={openItem}>
-    {where}
-    <p className="m-0 break-words text-sm font-semibold text-ink">{item.question}</p>
-    <AnswerForm label={item.question!} disabled={disabled} onSave={async text => {
+    <AnswerForm head={<span className="flex min-w-0 flex-wrap items-center gap-1.5">{where}</span>} question={<p className="m-0 break-words text-sm font-semibold text-ink">{item.question}</p>} label={item.question!} disabled={disabled} onSave={async text => {
       try { await onAnswer(item.clarificationId!, text); return null; }
       catch (e) { return answerError(e); }
     }} after={<Button variant="secondary" size="sm" className="min-h-11 lg:min-h-10" disabled={disabled} onClick={() => void onRefresh()}>초안 상태 확인</Button>} />
