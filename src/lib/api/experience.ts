@@ -196,19 +196,6 @@ export async function createExperience(activityId: number, data: CreateExperienc
   return checkCompetencies<Experience>(await request(`/activities/${activityId}/experiences`, data, "POST"));
 }
 
-/** POST /api/activities/{id}/actor — 그 활동의 UNKNOWN 경험만 ME · TEAM 으로 한 번에(S-76). 이미 정한 경험 · 출처 상태는 그대로, AI 안 부름 */
-export async function decideActivityActor(activityId: number, actor: Exclude<Actor, "UNKNOWN">): Promise<{ changed: number }> {
-  if (isMockMode()) {
-    const activity = allActivities().find((a) => a.id === activityId);
-    if (!activity) throw new ApiError("ACTIVITY_NOT_FOUND", `활동 ${activityId} 이 없습니다`);
-    // MOCK(timeline-activities): 정한 주체도 이 페이지 메모리에만 남는다
-    const changed = activity.experiences.filter((e) => e.actor === "UNKNOWN").length;
-    mockExperiences.set(activityId, activity.experiences.map((e) => e.actor === "UNKNOWN" ? { ...e, actor } : e));
-    return { changed };
-  }
-  return request(`/activities/${activityId}/actor`, { actor }, "POST");
-}
-
 /** PUT /api/experiences/{id}/saved — 내용을 고친 게 아니라 출처 상태는 그대로다 (S-71) */
 export async function setExperienceSaved(id: number, saved: boolean): Promise<Experience> {
   if (isMockMode()) {
