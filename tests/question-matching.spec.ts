@@ -909,6 +909,50 @@ test("write questions opens the fields at once, keeping a pasted link as the ori
   await expect(input).toHaveValue("");
 });
 
+// FE#245 — 지원서 0개 화면에서 펼친 칸을 되돌린다
+test("with no applications the opened fields can go back to the start; typed text is asked about first", async ({ page }) => {
+  await fake(page, { empty: true });
+  await page.goto("/questions");
+  const input = page.getByLabel("공고 · 문항 글이나 공고 링크");
+  const back = page.getByRole("button", { name: "처음으로", exact: true });
+  await expect(back).toHaveCount(0);
+
+  // 비어 있으면 묻지 않고 바로
+  await page.getByRole("button", { name: "문항 직접 쓰기", exact: true }).click();
+  await expect(page.getByLabel("문항 1", { exact: true })).toBeVisible();
+  await back.click();
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "문항 직접 쓰기", exact: true })).toBeVisible();
+  await expect(input).toBeFocused();
+
+  // 예시로 펼치면 한 번 묻고, 계속 쓰면 그대로
+  await page.getByRole("button", { name: "기술 문제 해결 예시", exact: true }).click();
+  await expect(page.getByLabel("지원처 이름 (선택)")).toHaveValue("OO 백엔드 부트캠프");
+  await back.click();
+  await expect(page.getByText("쓴 내용을 지우고 처음으로 돌아갈까요?")).toBeVisible();
+  await page.getByRole("button", { name: "계속 쓰기", exact: true }).click();
+  await expect(page.getByLabel("문항 1", { exact: true })).not.toHaveValue("");
+
+  // 지우고 처음으로 — 칸과 값이 비고 처음 상태
+  await back.click();
+  await page.getByRole("button", { name: "지우고 처음으로", exact: true }).click();
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveCount(0);
+  await expect(input).toHaveValue("");
+  await expect(page.getByRole("button", { name: "기술 문제 해결 예시", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "문항 직접 쓰기", exact: true }).click();
+  await expect(page.getByLabel("지원처 이름 (선택)")).toHaveValue("");
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("");
+});
+
+test("a new application on a screen with applications still closes with 취소, not 처음으로", async ({ page }) => {
+  await fake(page);
+  await page.goto("/questions");
+  await startApplication(page);
+  await page.getByRole("button", { name: "문항 직접 쓰기", exact: true }).click();
+  await expect(page.getByRole("button", { name: "취소", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "처음으로", exact: true })).toHaveCount(0);
+});
+
 // FE#95 — 공고 원문 링크(S-46)
 test("the posting link is sent with the application and opens in a new tab from the header; no link, no row", async ({ page }) => {
   const api = await fake(page);
