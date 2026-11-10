@@ -16,7 +16,6 @@ import { ActivityCategoryField } from "./activity-category";
 import { ActivityNameField, PeriodField, type InlineEditHandle } from "./inline-edit";
 import { ActivityNote } from "./activity-note";
 import { ActivityLinks } from "./activity-links";
-import { ActivityActorDecision } from "./activity-actor";
 import { ExperienceEditor } from "./experience-editor";
 import { SourceFileButton } from "./source-viewer";
 
@@ -149,8 +148,6 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
         )}
         {activity && <ExperienceList key={activity.id} activity={activity} readOnly={readOnly} onSaved={onExperienceSaved} onAdded={onExperienceAdded} onDelete={onExperienceDelete}
           onMove={onExperienceMove} onMerge={activity.experiences.length > 1 ? onExperienceMerge : undefined} onDragChange={onDragChange} draggingId={draggingId} />}
-        {/* 자주 쓰는 게 아니라 경험 목록 아래에 둔다 — 경험마다 하나씩 정하는 건 줄의 주체를 눌러서(FE#272) */}
-        {activity && !readOnly && <ActivityActorDecision key={`actor-${activity.id}`} activity={activity} onSaved={onExperienceSaved} />}
       </div>
 
       {/* 「그때의 나」는 경험보다 덜 중요해 경험 목록 아래(FE#293) */}
@@ -192,7 +189,13 @@ function ExperienceList({ activity, onSaved, onAdded, onDelete, onMove, onMerge,
 
   return (
     <>
-      <p className="m-0 pt-4 pb-1 text-note font-medium text-muted">이 활동에서 한 일 {experiences.length}</p>
+      {/* 안내는 접어 둔다 — 「확인 필요」 · 「누가 했나요?」 표시가 할 일을 보여 준다 */}
+      <div className="flex items-center gap-0.5 pt-4 pb-1">
+        <p className="m-0 text-note font-medium text-muted">이 활동에서 한 일 {experiences.length}</p>
+        {experiences.length > 0 && <InfoTip label="이 활동에서 한 일">
+          AI 가 자료에서 찾아 채운 기록이에요. 「확인 필요」는 원문과 맞는지 봐 주세요.{!readOnly && <> 다른 활동의 일이면 왼쪽 손잡이로 끌어 옮겨요.</>}
+        </InfoTip>}
+      </div>
       <ul className="m-0 list-none p-0">
         {visible.map((e) => (
           <ExperienceItem
@@ -233,11 +236,6 @@ function ExperienceList({ activity, onSaved, onAdded, onDelete, onMove, onMerge,
           <Button variant="ghost" className="w-full justify-start lg:h-9" onClick={() => { setShowAll(true); setAdding(true); }}><PlusIcon />경험 직접 추가</Button>
         )}
       </div>
-      {/* 경험이 0개면 빈 상태 안내가 같은 말을 하므로 숨긴다 (FE#22) */}
-      {experiences.length > 0 && <p className="m-0 mt-5 hidden text-note leading-relaxed text-muted lg:block">
-        AI 가 자료에서 찾아 채운 기록이에요. 「확인 필요」는 원문과 맞는지 한번 봐 주세요.
-        <InfoTip label="찾아 채운 기록" className="align-middle">자료에서 찾지 못했다고 경험이 없는 건 아니에요.{!readOnly && <> 다른 활동의 일이면 경험 왼쪽 손잡이를 끌어 타임라인의 그 활동에 놓아 주세요.</>}</InfoTip>
-      </p>}
 
       {/* 모바일 — 근거 하단 시트 */}
       <Sheet open={sheetExp != null} onOpenChange={(open) => !open && setSheetId(null)}>

@@ -237,7 +237,10 @@ export function ActorField({ experience: e, onSaved }: { experience: Experience;
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
         <button type="button" disabled={saving} aria-label={`수행 주체 고치기: ${ACTOR[e.actor]}`} title="눌러서 수행 주체 고치기" className={cn(MENU_HOVER, "group/edit -mx-1 inline-flex items-center gap-0.5 px-1 disabled:opacity-50")}>
-          <span className={EDITABLE}>{ACTOR[e.actor]}</span><CaretDownIcon className="size-[0.9em] text-muted group-hover/edit:text-ink" aria-hidden="true" />
+          {e.actor === "UNKNOWN"
+            // 정하지 않은 주체는 눈에 띄게 — 정하면 초안이 「제가」 · 「팀은」으로 쓴다(S-76 의 일괄 정하기 대신)
+            ? <span className="font-semibold text-review underline decoration-review-line decoration-dotted underline-offset-4">누가 했나요?</span>
+            : <span className={EDITABLE}>{ACTOR[e.actor]}</span>}<CaretDownIcon className={cn("size-[0.9em] group-hover/edit:text-ink", e.actor === "UNKNOWN" ? "text-review" : "text-muted")} aria-hidden="true" />
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
