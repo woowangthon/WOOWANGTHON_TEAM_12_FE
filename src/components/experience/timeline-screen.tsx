@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { ToastCard, toastStack, useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { dismissMergeSuggestion, fetchActivities, fetchActivity, isMockMode, mergeActivities, mergeExperiences, moveExperience, updateActivity, type MockAnalysis, type MockMode } from "@/lib/api/experience";
-import { ACTIVITY_CATEGORIES, type ActivityCategory, type ActivitySummary, type Experience, type Period } from "@/lib/api/types";
+import { ACTIVITY_CATEGORIES, type ActivityCategory, type ActivityDetail, type ActivitySummary, type Experience, type Period } from "@/lib/api/types";
 import { monthNumber, periodText, spanOf, yearsOf, type Span } from "@/lib/period";
 import { CATEGORY_KEYS, CategoryIcon, categoryOf } from "./activity-category";
 import { ActivityDetailView, type DetailState } from "./activity-detail";
@@ -137,40 +137,65 @@ export function TimelineScreen() {
     );
   };
 
-  // 지원 화면의 「타임라인에서 활동 보기」(?activity=7&fromQuestion=41) — 처음 불러온 뒤 그 활동을 연다
-  const linkedActivity = Number(params.get("activity"));
+  // 다른 화면의 활동 링크(?activity=7 · ?experience=12, 지원의 「타임라인에서 활동 보기」 등) — 사용자가 누른 것이니
+  // 이미 열어 둔 활동보다 우선해서 연다(FE#322). cacheComponents 로 숨겨진 채 남은 selectedRef 가 링크를 막지 않게 한다.
+  // 처리한 뒤엔 주소에서 지워 새로고침 · 뒤로 가기에 다시 강제로 열리지 않게 한다. fromQuestion 은 「지원 화면으로 돌아가기」 쪽지에만 쓰여 둔다
+  const linkedActivity = Number(params.get("activity")) || null;
   const linkedExperience = Number(params.get("experience")) || null;
   const fromQuestion = Number(params.get("fromQuestion")) || null;
+  const openLinked = (id: number, opened: ActivityDetail | null) => {
+    if (selectedRef.current == null) listScrollY.current = window.scrollY;
+    selectedRef.current = id;
+    setSelectedId(id);
+    if (opened) {
+      ++detailRequest.current;
+      setDetail({ status: "ready", activity: opened });
+    } else loadDetail(id);
+  };
+  const clearLink = () => {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("activity") && !url.searchParams.has("experience")) return;
+    url.searchParams.delete("activity");
+    url.searchParams.delete("experience");
+    window.history.replaceState(null, "", url);
+  };
+
+  // 목록은 링크가 없을 때만 여기서 읽는다 — 링크가 있으면 아래 효과가 읽고 연다. 숨겨졌다 다시 보일 때도 효과가 다시 돈다
   useEffect(() => {
+    if (!linkedActivity && !linkedExperience) loadList(mock);
+    // 링크 처리는 아래 효과가 맡는다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mock]);
+
+  useEffect(() => {
+    if (!linkedActivity && !linkedExperience) return;
     let disposed = false;
     loadList(mock).then(async (activities) => {
+      if (disposed) return;
       // 후보의 activityId는 AI 제안이다. 저장·이동한 실제 활동은 경험 ID로 찾는다.
       if (linkedExperience && activities) {
         try {
           for (const activity of activities) {
-            if (disposed || selectedRef.current != null) return;
+            if (disposed) return;
             const detail = await fetchActivity(activity.id);
+            if (disposed) return;
             if (detail.experiences.some(e => e.id === linkedExperience)) {
-              if (!disposed && selectedRef.current == null) {
-                selectedRef.current = detail.id; setSelectedId(detail.id); setDetail({ status: "ready", activity: detail });
-              }
+              openLinked(detail.id, detail);
+              clearLink();
               return;
             }
           }
-          if (!disposed) showToast("저장한 경험을 찾을 수 없어요. 내 경험 목록에서 다시 확인해 주세요.", true);
+          if (!disposed) { showToast("저장한 경험을 찾을 수 없어요. 내 경험 목록에서 다시 확인해 주세요.", true); clearLink(); }
         } catch (e) { if (!disposed) showToast(e instanceof Error ? e.message : "경험을 불러오지 못했어요. 다시 열어 주세요.", true); }
         return;
       }
-      if (!disposed && activities?.some((a) => a.id === linkedActivity) && selectedRef.current == null) {
-        selectedRef.current = linkedActivity;
-        setSelectedId(linkedActivity);
-        loadDetail(linkedActivity);
-      }
+      if (linkedActivity && activities?.some((a) => a.id === linkedActivity)) openLinked(linkedActivity, null);
+      if (activities) clearLink();
     });
     return () => { disposed = true; };
-    // 처음 한 번만 — 그 뒤엔 사용자가 고른 활동을 따른다
+    // 링크가 바뀔 때만 — 그 뒤엔 사용자가 고른 활동을 따른다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mock]);
+  }, [mock, linkedActivity, linkedExperience]);
 
   // 다른 화면(지원)의 「자료 넣기」(?add=1, FE#64) · 「직접 기록하기」(?add=line, FE#179) — 그 창을 연다. 새로고침에 다시 열리지 않게 주소에서 지운다.
   // 분석이 아직 돌고 있으면 이 화면의 「자료 넣기」처럼 막고 이유만 알린다
