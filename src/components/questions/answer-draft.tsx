@@ -662,7 +662,11 @@ function DraftCard({ question, draft, analysis, local, selected, onAnswer, onCon
           <InfoTip label="원래 문장의 근거">고친 내용이 이 근거와 맞는지는 근거 점검으로 볼 수 있어요.</InfoTip></p>}
         {evidence.map((e, j) => <AnswerEvidence key={`${e.type}-${e.id}-${j}`} evidence={e} questionId={question.id} question={question} />)}</div>
       : <p className="m-0 text-note text-muted">연결된 근거가 지금은 없어요. 문장은 만들었을 때 그대로예요.</p>)}
-    {s.kind !== "OPINION" && <ActorLine sentence={s} edited={mark.edited} onDecided={onActorDecided} />}
+    {/* AI 보탬의 「누가 했는지」는 근거 경험이 UNKNOWN 이라 「제가」로 쓴 것 — 내가 했어요가 곧 그 문장의 확인이다(FE#431).
+        고친 문장은 글이 달라 맞아요를 따로 받는다 */}
+    {s.kind !== "OPINION" && <ActorLine sentence={s} edited={mark.edited} onDecided={onActorDecided}
+      onConfirm={s.kind === "ELABORATED" && mark.need === "marked" && !mark.edited && !disabled
+        ? async () => { await onConfirm(mark); onFlash(`s-${mark.index}`); } : undefined} />}
     {mark.need && <div className="flex flex-wrap gap-2">
       <ConfirmButton onConfirm={async () => { await onConfirm(mark); onFlash(`s-${mark.index}`); }} disabled={disabled} />
     </div>}
@@ -808,8 +812,10 @@ function SupposedCard({ question, sentence, mark, pair, local, disabled, onSuppo
   </>;
 }
 
-/** 주체 줄(S-79) — 근거 경험의 지금 주체. 확인 안 된(UNKNOWN) 경험이 있으면 경험마다 정한다(ETC#249) */
-function ActorLine({ sentence, edited, onDecided }: { sentence: DraftSentence; edited: boolean; onDecided: () => Promise<void> }) {
+/** 주체 줄(S-79) — 근거 경험의 지금 주체. 확인 안 된(UNKNOWN) 경험이 있으면 경험마다 정한다(ETC#249).
+ *  onConfirm 이 있으면(고치지 않은 AI 보탬) 남은 경험을 모두 내가 한 일로 정한 순간 그 문장의 맞아요까지 한다(FE#431).
+ *  팀이 했어요는 「제가」 문장과 어긋나니 확인하지 않는다 — 고치거나 다시 만든다(S-78) */
+function ActorLine({ sentence, edited, onDecided, onConfirm }: { sentence: DraftSentence; edited: boolean; onDecided: () => Promise<void>; onConfirm?: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [decided, setDecided] = useState(false);
@@ -819,16 +825,24 @@ function ActorLine({ sentence, edited, onDecided }: { sentence: DraftSentence; e
   const unknown = [...new Map(sentence.evidence.filter(e => e.actor === "UNKNOWN").map(e => [e.experienceId, e] as const)).values()];
   if (!unknown.length) {
     // 정해진 주체는 늘 조용히 보인다(새로고침해도 서버 값). 「다시 만들면 바뀌어요」는 방금 정한 자리에서만 — 초안 이후에 정했는지 화면이 알 수 없다(FE#260)
-    return <p className="m-0 text-note text-body">주체 · {actors.includes("TEAM") ? "팀이 한 일" : "내가 한 일"}
-      {decided && <span className="block text-muted">다시 만들면 확인된 문장으로 바뀌어요(분석 횟수 안 씀).</span>}</p>;
+    return <>
+      <p className="m-0 text-note text-body">주체 · {actors.includes("TEAM") ? "팀이 한 일" : "내가 한 일"}
+        {decided && <span className="block text-muted">다시 만들면 확인된 문장으로 바뀌어요(분석 횟수 안 씀).</span>}</p>
+      {error && <p role="alert" className="m-0 text-note text-error">{error}</p>}
+    </>;
   }
   const decide = async (experienceId: number, actor: "ME" | "TEAM") => {
+    // 이 경험이 마지막 UNKNOWN 이고 모두 내가 한 일이면 문장도 확인한다 — 이미 팀으로 정한 경험이 있으면 「제가」가 틀렸다
+    const confirmToo = onConfirm && actor === "ME" && !actors.includes("TEAM") && unknown.every(e => e.experienceId === experienceId);
     setBusy(true); setError(null);
     try {
       await updateExperience(experienceId, { actor });
       setDecided(true);
       await onDecided();
-    } catch (e) { setError(e instanceof Error ? e.message : "주체를 정하지 못했어요. 다시 시도해 주세요."); }
+    } catch (e) { setError(e instanceof Error ? e.message : "주체를 정하지 못했어요. 다시 시도해 주세요."); setBusy(false); return; }
+    // 주체는 저장됐다 — 맞아요만 실패하면 카드에 남은 맞아요로 다시 누른다
+    try { if (confirmToo) await onConfirm(); }
+    catch (e) { setError(e instanceof Error ? e.message : "문장을 확인으로 저장하지 못했어요. 맞아요를 다시 눌러 주세요."); }
     finally { setBusy(false); }
   };
   const choose = (experienceId: number) => <div className="flex flex-wrap gap-2">
@@ -839,7 +853,7 @@ function ActorLine({ sentence, edited, onDecided }: { sentence: DraftSentence; e
     {/* AI 보탬은 확인 전 「제가」를 쓴 문장이라 확인을 묻고, 근거 문장은 누가 했는지 쓰지 않았으니 선택으로만 보인다(FE#258) */}
     <p className="m-0 flex items-center gap-1 text-note text-body">{edited ? "근거 경험을 누가 했나요?" : sentence.kind === "ELABORATED" ? "누가 했는지 확인 안 됨" : "누가 했나요? (선택)"}
       <InfoTip label="주체">{edited ? "고친 문장이 아니라 근거 경험을 누가 했는지 정해요 — 정하면 그 경험만 바뀌어요."
-        : sentence.kind === "ELABORATED" ? "정하면 이 문장의 근거 경험만 바뀌어요."
+        : sentence.kind === "ELABORATED" ? `정하면 이 문장의 근거 경험만 바뀌어요.${onConfirm ? " 내가 했어요면 이 문장도 확인한 것으로 봐요." : ""}`
           : "이 문장은 누가 했는지 쓰지 않았어요. 정해 두면 다음 초안이 「제가」 · 「팀은」으로 써요."}</InfoTip></p>
     {/* 근거 경험이 여럿이거나 고친 문장이면 경험 글을 같이 보인다 — 문장이 아니라 경험으로 판단한다 */}
     {unknown.length === 1 && !edited ? choose(unknown[0].experienceId) : <ul aria-label="근거 경험마다 주체 정하기" className="m-0 grid list-none gap-2.5 p-0">
