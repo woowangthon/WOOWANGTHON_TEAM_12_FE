@@ -278,19 +278,23 @@ export function TimelineScreen() {
   });
   const view = analysisView(analysis.tracked);
 
+  // 좁은 화면만 세부가 목록을 가리는 전체 화면이다 — 그때만 맨 위로 올렸다가 닫으면 목록 자리로. PC 는 목록이 옆에 그대로 있어 건드리지 않는다(FE#423)
+  const narrow = () => !matchMedia("(min-width: 64rem)").matches;
+
   const select = (id: number) => {
     selectedRef.current = id;
-    if (selectedId == null) listScrollY.current = window.scrollY;
+    const full = narrow();
+    if (selectedId == null && full) listScrollY.current = window.scrollY;
     setSelectedId(id);
     loadDetail(id);
-    window.scrollTo(0, 0); // 모바일 — 세부는 전체 화면이라 맨 위부터
+    if (full) window.scrollTo(0, 0);
   };
 
   const close = () => {
     selectedRef.current = null;
     ++detailRequest.current;
     setSelectedId(null);
-    requestAnimationFrame(() => window.scrollTo(0, listScrollY.current));
+    if (narrow()) requestAnimationFrame(() => window.scrollTo(0, listScrollY.current));
   };
 
   const activitySaved = (activity: ActivitySummary) => {
