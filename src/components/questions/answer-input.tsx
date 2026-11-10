@@ -103,7 +103,9 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
     // 초안을 답칸에 넣은 글 — 그 자동 저장 한 번에 fromDraft 를 실어 수정 이력에 남긴다(S-80 · question-api.md)
     if (take) { const next = composeDraft(question, ready, NONE, {}); g.setText(next); setEditBase(next); setDraftPlaced(next); }
   }
-  const settled = a.answer?.text ?? null;
+  // 다 쓴 답은 지금 초안보다 나중일 때만 기준이다(FE#370) — 새 초안 문장은 옛 다 쓴 답과 달라 전부 「다 쓴 뒤 고친 문장」이 되기 때문.
+  // 새 초안으로 다시 「다 썼어요」를 누르면 그때부터 기준
+  const settled = a.answer && !(ready && !later(a.answer.confirmedAt, ready.createdAt)) ? a.answer.text : null;
   const analysis = useMemo(() => analyze(question, ready, NONE, box.local, box.seen, settled, text, g.check), [question, ready, box.local, box.seen, settled, text, g.check]);
   const latest = useRef(analysis);
   useEffect(() => { latest.current = analysis; });

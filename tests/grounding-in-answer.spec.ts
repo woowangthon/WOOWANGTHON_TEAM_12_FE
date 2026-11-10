@@ -2,7 +2,7 @@
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import { FakeQuestionApi } from "./fake-question-api";
-import { clickMark, openMark } from "./draft-marks";
+import { openMark } from "./draft-marks";
 import { DRAFT_S79 } from "./fixtures/draft-s79";
 import { GROUNDING_EXAMPLE } from "./fixtures/grounding-example";
 import type { GroundingCheck } from "../src/lib/api/question-types";
@@ -69,7 +69,7 @@ test("근거 없음인 내 문장은 칠하고 확인할 곳에 세며, 맞아�
   await runCheck(page, `${COMPOSED} ${OWN}`);
   await expect(markOf(page, "g-5")).toHaveClass(/bg-review-soft/);
   await checks(page, 5);
-  await clickMark(page, "g-5");
+  await openMark(page, "g-5");
   const card = sentenceCard(page);
   if (!narrow(page)) await expect(card.getByText("내가 쓴 문장", { exact: true })).toBeVisible();
   await expect(card.getByText("점검 · 근거 없음", { exact: true })).toBeVisible();
@@ -139,7 +139,7 @@ test("초안이 없어도 직접 쓴 답을 점검하면 블록과 카드가 생
   await expect(markOf(page, "g-1")).toHaveClass(/bg-review-soft/);
   await expect(markOf(page, "g-0")).not.toHaveClass(/bg-review-soft/); // 근거 있는 문장은 칠하지 않는다
   await expect(markOf(page, "g-2")).not.toHaveClass(/bg-review-soft/);
-  await clickMark(page, "g-1");
+  await openMark(page, "g-1");
   await expect(sentenceCard(page).getByText("지우거나, 사실이면 근거를 더해 주세요", { exact: false })).toBeVisible();
   if (narrow(page)) { await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toHaveCount(0); }
   await openMark(page, "g-0"); // 좁은 폭은 말풍선 「근거 보기」를 거친다

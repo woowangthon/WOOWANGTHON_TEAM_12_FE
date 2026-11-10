@@ -68,13 +68,13 @@ test("확인한 근거 없음은 평소 칠하지 않고, 맞아요 직후 초�
   await runCheck(page, WITH_OWN);
   await expect(markOf(page, "g-5")).toHaveClass(/bg-review-soft/); // 할 일은 주황
   await checks(page, 5);
-  await clickMark(page, "g-5");
+  await openMark(page, "g-5");
   await expect(sentenceCard(page).getByText("점검 · 근거 없음", { exact: true })).toBeVisible();
   await sentenceCard(page).getByRole("button", { name: "맞아요", exact: true }).click();
   await checks(page, 4);
   // 카드는 닫히지 않고 바뀐 상태를 보인다
   await expect(sentenceCard(page)).toBeVisible();
-  await expect(sentenceCard(page).getByText("맞아요 눌렀어요 — 이대로 둘게요.")).toBeVisible();
+  await expect(sentenceCard(page).getByText("맞아요 눌렀어요", { exact: true })).toBeVisible();
   await expect(sentenceCard(page).getByText("✓ 확인함 · 근거 없음", { exact: true })).toBeVisible();
   await expect(sentenceCard(page).getByRole("button", { name: "맞아요", exact: true })).toHaveCount(0);
   await expect(markOf(page, "g-5")).toHaveClass(/bg-evidence-soft/);
@@ -92,8 +92,8 @@ test("다 쓴 답에 그대로 있는 근거 없음 문장은 칠하지 않고 �
   await expect(markOf(page, "g-5")).toHaveText(OWN);
   await expect(markOf(page, "g-5")).not.toHaveClass(/bg-review-soft/);
   await expect(markOf(page, "g-5")).not.toHaveClass(DOTTED); // 다 쓴 답 그대로 — 고친 게 아니다
-  await checks(page, 4);
-  await openMark(page, "g-5"); // 확인할 곳이 아니라 좁은 폭은 말풍선을 거친다
+  await checks(page, 1); // 다 쓴 답에 그대로면 빈칸만 남는다(FE#370)
+  await openMark(page, "g-5"); // 좁은 폭은 말풍선을 거친다
   await expect(sentenceCard(page).getByText("다 쓴 답에 넣은 문장이라 확인한 것으로 봤어요", { exact: false })).toBeVisible();
   await expect(sentenceCard(page).getByText("✓ 확인함 · 근거 없음", { exact: true })).toBeVisible();
   await expect(sentenceCard(page).getByRole("button", { name: "맞아요", exact: true })).toHaveCount(0);
@@ -135,7 +135,7 @@ test("다 쓴 적 없는 글에서 새로 쓴 문장에는 점선이 없다", as
 
 test("꼬리표 — 확인 필요(주황) → 맞아요 뒤 확인함(초록)", async ({ page }) => {
   const { api } = await setup(page, { draft: true, responses: [draftChecked()] });
-  await clickMark(page, "s-1");
+  await openMark(page, "s-1");
   await expect(sentenceCard(page).getByText("확인 필요", { exact: true })).toBeVisible();
   await sentenceCard(page).getByRole("button", { name: "맞아요", exact: true }).click();
   await expect.poll(() => api.calls.filter(c => c.call.includes("/confirm")).length).toBe(1);
@@ -146,7 +146,7 @@ test("꼬리표 — 확인 필요(주황) → 맞아요 뒤 확인함(초록)", 
 test("ⓘ — 점검 설명 · 주체 설명 · 목표 글자 수 설명에 부가 문구가 들어 있다", async ({ page }) => {
   await setup(page, { draft: true, responses: [draftChecked()] });
   await runCheck(page, `${COMPOSED.replace("자주", "종종")} ${OWN}`);
-  await clickMark(page, "s-1"); // 고친 문장 — 근거 점검 설명이 있다
+  await openMark(page, "s-1"); // 고친 문장 — 근거 점검 설명이 있다
   const card = sentenceCard(page);
   await expect(card.getByText("점검 판정은 AI 해석이에요.", { exact: true })).toHaveCount(0); // 떠 있던 바닥 줄은 없다
   await card.getByRole("button", { name: "근거 점검 설명" }).click();
@@ -154,7 +154,7 @@ test("ⓘ — 점검 설명 · 주체 설명 · 목표 글자 수 설명에 부�
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "근거 점검 설명" })).toHaveCount(0);
   if (narrow(page)) { await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toHaveCount(0); }
-  await clickMark(page, "s-3"); // 주체를 모르는 AI 보탬
+  await openMark(page, "s-3"); // 주체를 모르는 AI 보탬
   await sentenceCard(page).getByRole("button", { name: "주체 설명" }).click();
   await expect(page.getByRole("dialog", { name: "주체 설명" })).toBeVisible();
   await page.keyboard.press("Escape");

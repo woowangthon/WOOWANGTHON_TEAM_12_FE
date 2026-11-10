@@ -7,7 +7,7 @@ import { FakeQuestionApi } from "./fake-question-api";
 import { clickMark, openMark } from "./draft-marks";
 import { DRAFT_S79 } from "./fixtures/draft-s79";
 import type { QuestionDetail } from "../src/lib/api/question-types";
-import { matchSentences, sameNumbers, similarity, splitSentences } from "../src/components/questions/draft-match";
+import { keepsNumbers, matchSentences, similarity, splitSentences } from "../src/components/questions/draft-match";
 
 // ───────── 순수 함수 ─────────
 const ORIGINAL = "메시지가 늦게 오면 거래 약속을 잡는 대화가 자주 끊기는 문제였습니다.";
@@ -89,19 +89,27 @@ base.describe("draft-match — 짝 찾기", () => {
   });
 });
 
-base.describe("draft-match — 숫자 비교", () => {
-  base("순서와 상관없이 같은 숫자인가, 쉼표 자리 구분은 걷는다", () => {
-    expect(sameNumbers("3초에 5개", "5개를 3초에")).toBe(true);
-    expect(sameNumbers("1,000명", "1000명")).toBe(true);
-    expect(sameNumbers("3.5배", "3.5배 빨라졌다")).toBe(true);
-    expect(sameNumbers("숫자 없음", "숫자 없는 글")).toBe(true);
+base.describe("draft-match — 숫자 비교(FE#370 — 원래 숫자가 남아 있나)", () => {
+  base("순서와 상관없이 원래 숫자가 다 있으면 된다, 쉼표 자리 구분은 걷는다", () => {
+    expect(keepsNumbers("3초에 5개", "5개를 3초에")).toBe(true);
+    expect(keepsNumbers("1,000명", "1000명")).toBe(true);
+    expect(keepsNumbers("3.5배", "3.5배 빨라졌다")).toBe(true);
+    expect(keepsNumbers("숫자 없음", "숫자 없는 글")).toBe(true);
   });
 
-  base("숫자가 바뀌거나 늘거나 줄면 다르다", () => {
-    expect(sameNumbers("3초", "30초")).toBe(false);
-    expect(sameNumbers("3", "3.5")).toBe(false);
-    expect(sameNumbers("3초에 5개", "3초")).toBe(false);
-    expect(sameNumbers("3초", "세 초")).toBe(false);
+  base("새 내용을 덧붙여 숫자가 늘기만 하면 걸리지 않는다", () => {
+    expect(keepsNumbers("3초", "3초에서 1초로")).toBe(true);
+    expect(keepsNumbers("숫자 없음", "10000건도 숫자 없음")).toBe(true);
+    // 재현 — 마침표 없이 앞에 쓴 새 문장이 뒤 초안 문장과 한 문장으로 붙은 경우
+    expect(keepsNumbers("조회 응답을 0건 누락 없이 바꿨습니다.", "조회의 경우 10000건도 조회 응답을 0건 누락 없이 바꿨습니다.")).toBe(true);
+  });
+
+  base("원래 숫자를 바꾸거나 지우면 걸린다", () => {
+    expect(keepsNumbers("3초", "30초")).toBe(false);
+    expect(keepsNumbers("3", "3.5")).toBe(false);
+    expect(keepsNumbers("3초에 5개", "3초")).toBe(false);
+    expect(keepsNumbers("3초", "세 초")).toBe(false);
+    expect(keepsNumbers("3초 · 3번", "3초")).toBe(false); // 같은 숫자가 두 번이면 두 번 다 남아야 한다
   });
 });
 
@@ -141,7 +149,7 @@ test("조금 고친 문장은 표시 · 카드가 남고 원래 문장이 보인
   await change(page, "자주 끊기는", "종종 끊기는");
   await expect(markOf(page, "s-1")).toContainText("종종 끊기는");
   await checks(page, 4); // 맞아요 전이라 그대로 센다
-  await clickMark(page, "s-1");
+  await openMark(page, "s-1");
   const card = sentenceCard(page);
   await expect(card.getByText(`원래 문장 — ${S_802_TEXT}`)).toBeVisible();
   await expect(card.getByText("왜 확인이 필요한가요 — 대화가 끊긴 불편은 자료에 없어 AI 가 풀어 썼어요")).toBeVisible();
@@ -180,7 +188,7 @@ test("고친 문장에 맞아요를 누르면 요청 없이 이 화면에서만 
   const api = await open(page);
   await change(page, "자주 끊기는", "종종 끊기는");
   await expect(markOf(page, "s-1")).toContainText("종종 끊기는");
-  await clickMark(page, "s-1");
+  await openMark(page, "s-1");
   await sentenceCard(page).getByRole("button", { name: "맞아요", exact: true }).click();
   await checks(page, 3);
   await expect(markOf(page, "s-1")).not.toHaveClass(/decoration-review/); // 확인할 곳 밑줄이 없어진다(고친 문장 표시만 남는다)
@@ -194,7 +202,7 @@ test("사실 문장의 숫자를 바꾸면 확인할 곳이 늘고 숫자 안내
   await change(page, "3초", "5초");
   await expect(markOf(page, "s-2")).toContainText("5초");
   await checks(page, 5);
-  await clickMark(page, "s-2");
+  await openMark(page, "s-2");
   await expect(sentenceCard(page).getByText("숫자가 원래 근거와 달라요 — 근거 점검으로 확인해 주세요.")).toBeVisible();
   await sentenceCard(page).getByRole("button", { name: "맞아요", exact: true }).click();
   await checks(page, 4);
@@ -246,7 +254,7 @@ test("칩 옆으로 커서를 옮기면 칩 안에 멈추지 않고 건너뛴다
 
 test("빈칸 카드에서 답하면 글의 자리 표시가 답으로 바뀌고 답 끝 마침표는 걷는다", async ({ page }) => {
   const api = await open(page);
-  await clickMark(page, "b-0");
+  await openMark(page, "b-0");
   await blankCard(page).getByPlaceholder("짧게 답해 주세요").fill("절반 수준.");
   await blankCard(page).getByRole("button", { name: "답하기", exact: true }).click();
   await expect.poll(() => posts(api)).toEqual([{ call: "POST /api/clarifications/64/answer", body: { answer: "절반 수준." } }]);
@@ -315,4 +323,95 @@ test("좁은 폭 — 확인할 곳이 아닌 문장을 탭하면 근거 보기 �
   await expect(sentenceCard(page)).toBeVisible();
   await expect(peek).toHaveCount(0);
   await expect(sentenceCard(page).getByText("원문 · 바꿔요-회고.md")).toBeVisible();
+});
+
+// ───────── FE#370 — 답칸 후속 ─────────
+test("(버그) 초안 문장 앞에 마침표 없이 숫자 든 새 글을 써도 숫자 확인할 곳이 되지 않는다", async ({ page }) => {
+  await open(page);
+  await checks(page, 4);
+  await change(page, "서버에 STOMP", "조회의 경우 10000건도 서버에 STOMP");
+  await expect(markOf(page, "s-2")).toContainText("10000건도"); // 뒤 초안 문장과 한 문장으로 붙어 고친 문장이 된다
+  await checks(page, 4); // 원래 숫자(3)가 남아 있으니 늘지 않는다
+  await openMark(page, "s-2");
+  await expect(sentenceCard(page).getByText("숫자가 원래 근거와 달라요", { exact: false })).toHaveCount(0);
+});
+
+test("좁은 폭 — 확인할 곳은 「확인하기」, 빈칸은 「답하기」 말풍선을 거치고, 「다음 확인할 곳 →」만 시트를 바로 연다", async ({ page }) => {
+  test.skip(!narrow(page), "넓은 폭은 카드를 바로 연다");
+  await open(page);
+  await clickMark(page, "s-1"); // AI 보탬 — 확인할 곳
+  await expect(page.getByRole("button", { name: "확인하기", exact: true })).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await clickMark(page, "b-0");
+  await expect(page.getByRole("button", { name: "답하기", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "확인하기", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByRole("button", { name: "답하기", exact: true }).click();
+  await expect(blankCard(page)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByRole("button", { name: "다음 확인할 곳 →", exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+});
+
+test("좁은 폭 — 말풍선은 탭한 줄 바로 위 · 탭한 자리 근처에 뜬다", async ({ page }) => {
+  test.skip(!narrow(page), "말풍선은 좁은 폭만");
+  await open(page);
+  // 여러 줄인 첫 문장의 둘째 줄 가운데를 탭한다
+  const at = await markOf(page, "s-0").evaluate(el => {
+    el.scrollIntoView({ block: "center" });
+    const rects = [...el.getClientRects()];
+    const r = rects.find(x => x.top > rects[0].top + 4 && x.width > 40)!; // 한 줄에 조각이 여럿일 수 있다 — 아래 줄의 넓은 조각
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, top: r.top, first: rects[0].top };
+  });
+  await page.mouse.click(at.x, at.y);
+  const bubble = page.getByRole("button", { name: "근거 보기", exact: true });
+  await expect(bubble).toBeVisible();
+  const b = await bubble.evaluate(el => { const r = el.closest("div")!.getBoundingClientRect(); return { bottom: r.bottom, center: r.left + r.width / 2 }; });
+  expect(b.bottom).toBeLessThanOrEqual(at.top + 1); // 탭한 줄 위
+  expect(b.bottom).toBeGreaterThan(at.first); // 첫 줄 위가 아니다
+  expect(Math.abs(b.center - at.x)).toBeLessThan(40); // 탭한 자리 근처
+});
+
+test("문장 사이 공백 · 줄 끝 빈 곳을 누르면 그 문장으로 반응하고, 글 아래 빈 곳은 반응이 없다", async ({ page }) => {
+  await open(page);
+  const reacted = () => narrow(page) ? page.getByRole("button", { name: /^(확인하기|근거 보기)$/ }) : sentenceCard(page);
+  const settle = async () => {
+    if (narrow(page)) { await answerBox(page).pressSequentially("가"); await page.keyboard.press("Backspace"); } // 글을 고치면 말풍선이 숨는다
+    else { await page.keyboard.press("Escape"); await expect(sentenceCard(page)).toHaveCount(0); }
+  };
+  // 문장 사이 공백 — 표시 층에서 첫 문장 뒤 띄어쓰기 글자의 자리
+  const gap = await page.locator('div[aria-hidden="true"]').filter({ has: markOf(page, "s-0") }).evaluate((layer, end) => {
+    const walker = document.createTreeWalker(layer, NodeFilter.SHOW_TEXT);
+    let offset = 0;
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const length = node.textContent!.length;
+      if (end < offset + length) {
+        const range = document.createRange(); range.setStart(node, end - offset); range.setEnd(node, end - offset + 1);
+        const r = range.getClientRects()[0];
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      }
+      offset += length;
+    }
+    return null;
+  }, DRAFT_S79.sentences[0].text.length);
+  expect(gap).not.toBeNull();
+  await page.mouse.click(gap!.x, gap!.y);
+  await expect(reacted()).toBeVisible();
+  await settle();
+  // 줄 끝 빈 곳 — 마지막 문장 마지막 줄의 오른쪽 끝
+  const end = await markOf(page, "s-4").evaluate(el => {
+    el.scrollIntoView({ block: "center" });
+    const rects = [...el.getClientRects()], r = rects[rects.length - 1];
+    const box = el.closest("div.relative")!.querySelector("textarea")!.getBoundingClientRect();
+    return { x: box.right - 10, y: r.top + r.height / 2, bottom: box.bottom };
+  });
+  await page.mouse.click(end.x, end.y);
+  await expect(reacted()).toBeVisible();
+  if (!narrow(page)) await expect(sentenceCard(page)).toContainText("사실이 아니라 문항에 잇는 제안이에요");
+  await settle();
+  // 글 아래 빈 곳(입력칸 아래 여백) — 반응 없음
+  await page.mouse.click(end.x - 100, end.bottom - 4);
+  await page.waitForTimeout(300);
+  await expect(reacted()).toHaveCount(0);
 });
