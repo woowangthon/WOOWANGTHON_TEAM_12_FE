@@ -121,9 +121,11 @@ test("문항에서 찾은 경험 아래 「이 문항에서 경험 다시 찾기
 test("미리 정한 부탁은 정한 글을 그 문항으로 보낸다 · 안 함은 cancel", async ({ page }) => {
   const chagok = await open(page);
   chagok.script = [{ steps: [CONFIRM], status: "WAITING_CONFIRM" }];
-  await panel(page).getByRole("button", { name: "다른 경험으로" }).click();
-  await expect(panel(page).getByText("지금 고른 경험 말고")).toBeVisible();
-  expect(chagok.calls[0].body).toEqual({ text: "지금 고른 경험 말고 이 문항에 쓸 다른 경험을 찾아 줘", questionId: 41 });
+  // 「다른 경험으로」는 없다 — 「경험 다시 찾기」(S-90)가 대신한다(ETC#300)
+  await expect(panel(page).getByRole("button", { name: "다른 경험으로" })).toHaveCount(0);
+  await panel(page).getByRole("button", { name: "근거 찾기" }).click();
+  await expect(panel(page).getByText("이 문항에 쓸 경험의 근거를 찾아 줘")).toBeVisible();
+  expect(chagok.calls[0].body).toEqual({ text: "이 문항에 쓸 경험의 근거를 찾아 줘", questionId: 41 });
   await panel(page).getByRole("button", { name: "안 함" }).click();
   await expect(panel(page).getByText("그만뒀어요.")).toBeVisible();
   expect(chagok.calls.at(-1)?.call).toBe("POST /55/cancel");
