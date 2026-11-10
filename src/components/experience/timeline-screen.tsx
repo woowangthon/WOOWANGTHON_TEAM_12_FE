@@ -93,9 +93,11 @@ export function TimelineScreen() {
     return () => deactivate();
   }, [clearToast]);
 
+  // 가장 최근에 읽기 시작한 목록 — 주소로 들어온 활동 링크가 목록을 다시 읽지 않고 기다린다
+  const listLoad = useRef<Promise<ActivitySummary[] | null>>(Promise.resolve(null));
   const loadList = (mode: MockMode) => {
     const request = ++listRequest.current;
-    return fetchActivities(mode).then(
+    return listLoad.current = fetchActivities(mode).then(
       (activities) => {
         if (request !== listRequest.current) return null;
         setList({ status: "ready", activities: activities.map((a) => ({ ...a, period: periodSaves.current.get(a.id)?.latest ?? a.period })), now: monthNumber(new Date()) });
@@ -137,40 +139,68 @@ export function TimelineScreen() {
     );
   };
 
-  // 지원 화면의 「타임라인에서 활동 보기」(?activity=7&fromQuestion=41) — 처음 불러온 뒤 그 활동을 연다
-  const linkedActivity = Number(params.get("activity"));
+  useEffect(() => {
+    loadList(mock);
+    // 화면이 (다시) 보일 때 한 번 — 그 뒤엔 바뀐 곳에서 다시 읽는다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mock]);
+
+  // 다른 화면의 활동 링크(?activity=7 · 지원 화면은 &fromQuestion=41) · 새 경험 후보 「저장한 경험 보기」(?experience=12) — 그 활동을 연다.
+  // 사용자가 방금 누른 링크라 이미 열어 둔 활동보다 앞선다(FE#322 — 한 번 간 화면은 숨겨진 채 남아 전에 연 활동이 그대로 있었다).
+  // 연 뒤에는 새로고침 · 뒤로 가기에 다시 강제로 열리지 않게 주소에서 지운다. fromQuestion 은 「지원 화면으로 돌아가기」에 쓰여 남긴다
+  const linkedActivity = Number(params.get("activity")) || null;
   const linkedExperience = Number(params.get("experience")) || null;
   const fromQuestion = Number(params.get("fromQuestion")) || null;
   useEffect(() => {
+    if (linkedActivity == null && linkedExperience == null) return;
     let disposed = false;
-    loadList(mock).then(async (activities) => {
+    // 찾는 사이 사용자가 다른 활동을 고르거나 닫으면 그 선택을 따른다
+    const selectedAtStart = selectedRef.current;
+    const stale = () => disposed || selectedRef.current !== selectedAtStart;
+    const forgetLink = () => {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("activity");
+      url.searchParams.delete("experience");
+      window.history.replaceState(window.history.state, "", url);
+    };
+    const open = (id: number) => {
+      if (selectedRef.current == null) listScrollY.current = window.scrollY;
+      selectedRef.current = id;
+      setSelectedId(id);
+    };
+    listLoad.current.then(async (activities) => {
+      if (stale()) return;
       // 후보의 activityId는 AI 제안이다. 저장·이동한 실제 활동은 경험 ID로 찾는다.
-      if (linkedExperience && activities) {
+      if (linkedExperience != null) {
+        if (!activities) return;
         try {
           for (const activity of activities) {
-            if (disposed || selectedRef.current != null) return;
-            const detail = await fetchActivity(activity.id);
-            if (detail.experiences.some(e => e.id === linkedExperience)) {
-              if (!disposed && selectedRef.current == null) {
-                selectedRef.current = detail.id; setSelectedId(detail.id); setDetail({ status: "ready", activity: detail });
-              }
+            const found = await fetchActivity(activity.id);
+            if (stale()) return;
+            if (found.experiences.some((e) => e.id === linkedExperience)) {
+              open(found.id);
+              ++detailRequest.current;
+              setDetail({ status: "ready", activity: found });
+              forgetLink();
               return;
             }
           }
-          if (!disposed) showToast("저장한 경험을 찾을 수 없어요. 내 경험 목록에서 다시 확인해 주세요.", true);
-        } catch (e) { if (!disposed) showToast(e instanceof Error ? e.message : "경험을 불러오지 못했어요. 다시 열어 주세요.", true); }
+          showToast("저장한 경험을 찾을 수 없어요. 내 경험 목록에서 다시 확인해 주세요.", true);
+          forgetLink();
+        } catch (e) { if (!stale()) showToast(e instanceof Error ? e.message : "경험을 불러오지 못했어요. 다시 열어 주세요.", true); }
         return;
       }
-      if (!disposed && activities?.some((a) => a.id === linkedActivity) && selectedRef.current == null) {
-        selectedRef.current = linkedActivity;
-        setSelectedId(linkedActivity);
+      // 목록을 못 읽었으면(다시 읽는 중 · 오류) 일단 열어 본다 — 없는 활동이면 세부가 오류를 보인다
+      if (linkedActivity != null && (!activities || activities.some((a) => a.id === linkedActivity))) {
+        open(linkedActivity);
         loadDetail(linkedActivity);
+        forgetLink();
       }
     });
     return () => { disposed = true; };
-    // 처음 한 번만 — 그 뒤엔 사용자가 고른 활동을 따른다
+    // 링크가 바뀔 때마다(화면이 다시 보일 때 포함) — loadDetail · showToast 는 그때의 것을 쓴다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mock]);
+  }, [linkedActivity, linkedExperience, mock]);
 
   // 다른 화면(지원)의 「자료 넣기」(?add=1, FE#64) · 「직접 기록하기」(?add=line, FE#179) — 그 창을 연다. 새로고침에 다시 열리지 않게 주소에서 지운다.
   // 분석이 아직 돌고 있으면 이 화면의 「자료 넣기」처럼 막고 이유만 알린다

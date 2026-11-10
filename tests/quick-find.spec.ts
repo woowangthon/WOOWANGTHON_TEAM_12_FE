@@ -100,8 +100,47 @@ test("opens the detail from another screen", async ({ page }) => {
   await page.goto("/guidelines");
   await openByButton(page);
   await rows(page).first().click();
-  await expect(page).toHaveURL(/\/experience\?activity=7/);
+  await expect(page).toHaveURL(/\/experience$/); // 연 뒤 활동 링크는 주소에서 지운다(FE#322)
   await expect(page.getByRole("heading", { name: ACTIVITY.name })).toBeVisible();
+});
+
+// FE#322 — 한 번 간 화면은 숨겨진 채 남는다(cacheComponents). 활동 7 을 열어 둔 채 다른 화면에서 활동 8 링크로 오면 8 이 열려야 한다
+test("a link from another screen opens its activity even when another one was left open", async ({ page }) => {
+  const api = await setup(page);
+  const OTHER = { id: 8, name: "모아봄 — 캡스톤 디자인", period: PERIOD, category: "PROJECT" as const };
+  await page.route("**/api/activities**", async route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/activities") return route.fulfill({ json: { activities: [
+      { id: 7, name: ACTIVITY.name, period: PERIOD, note: null, experienceCount: 2, category: "PROJECT" },
+      { id: 8, name: OTHER.name, period: PERIOD, note: null, experienceCount: 1, category: "PROJECT" },
+    ] } });
+    if (path === "/api/activities/8") return route.fulfill({ json: { ...DETAIL, id: 8, name: OTHER.name } });
+    return route.fallback();
+  });
+  api.search = { json: { total: 1, experiences: [{ ...WEBSOCKET, activity: OTHER }] } };
+  const detail = page.getByRole("complementary", { name: "활동 세부" });
+
+  await page.goto("/experience?activity=7");
+  await expect(detail.getByRole("heading", { name: ACTIVITY.name })).toBeVisible();
+  await expect(page).toHaveURL(/\/experience$/); // 연 뒤 주소에서 지운다
+
+  // 다른 화면으로 — 화면 전환(새로 불러오기 아님)이라 내 경험 화면은 활동 7 을 연 채 숨겨진다
+  await openByButton(page);
+  await dialog(page).getByRole("button", { name: "바로가기", exact: true }).click();
+  await dialog(page).getByRole("option", { name: /^홈/ }).click();
+  await expect(page).toHaveURL(/\/$/);
+
+  await openByButton(page);
+  await expect(rows(page)).toHaveCount(1);
+  await rows(page).first().click();
+  await expect(detail.getByRole("heading", { name: OTHER.name })).toBeVisible();
+  await expect(detail.getByRole("heading", { name: ACTIVITY.name })).toHaveCount(0);
+  await expect(page).toHaveURL(/\/experience$/);
+
+  // 새로고침에 링크한 활동이 다시 강제로 열리지 않는다
+  await page.reload();
+  await expect(page.getByRole("button", { name: new RegExp(OTHER.name) }).first()).toBeVisible();
+  await expect(detail).toHaveCount(0);
 });
 
 // FE#274 — 경험 찾기 자리가 이 창 하나라 「검색에서 더 보기」 대신 창 안에서 더 본다
@@ -175,7 +214,7 @@ test("ask calls the API only when sent, once, and shows cards in the window", as
   await capture(page, `ask-${page.viewportSize()!.width}`);
   await dialog(page).getByRole("link", { name: "활동 세부 보기 →", exact: true }).click();
   await expect(dialog(page)).toBeHidden();
-  await expect(page).toHaveURL(/\/experience\?activity=7/);
+  await expect(page).toHaveURL(/\/experience$/); // 연 뒤 활동 링크는 주소에서 지운다(FE#322)
 });
 
 // FE#288 — 묻기 답은 분석 1회를 쓴 것이라 창을 닫았다 열어도(화면을 옮겨도) 그대로 보여야 한다
@@ -399,7 +438,7 @@ test("after a chip on PC the arrow keys and Enter still pick from the input", as
   await page.keyboard.press("ArrowDown");
   await expect(rows(page).nth(1)).toHaveAttribute("aria-selected", "true");
   await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(/\/experience\?activity=7/);
+  await expect(page).toHaveURL(/\/experience$/); // 연 뒤 활동 링크는 주소에서 지운다(FE#322)
 });
 
 // FE#248 — 응답을 늦춘 채 칩을 누르거나 낱말을 치면 그 순간부터 「찾는 중」이 보이고, 이전 결과는 지워지지 않는다

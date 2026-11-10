@@ -97,7 +97,8 @@ test("confirms before finding; edits, saves and dismisses; restores and opens ac
   await input.fill("수정한 답"); await expect(s.getByText(/고친 내용이 있어요/)).toBeVisible();
   await page.reload(); await expect(input).toHaveValue(TEXT);
   await s.getByRole("link", { name: "저장한 경험 보기" }).click();
-  await expect(page).toHaveURL(/experience[?]experience=108&fromQuestion=41/);
+  // 연 뒤 경험 링크는 주소에서 지운다(FE#322 — 새로고침에 다시 강제로 열리지 않게). 「지원 화면으로 돌아가기」용 fromQuestion 은 남는다
+  await expect(page).toHaveURL(/\/experience[?]fromQuestion=41(#|$)/);
   await expect(page.getByText("내가 쓴 지원서 · OO 부트캠프 ·", { exact: false }).first()).toBeVisible();
   await page.screenshot({ path: `docs/fe-108/origin-${info.project.name}.png`, fullPage: true });
 });

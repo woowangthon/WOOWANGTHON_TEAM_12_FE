@@ -88,7 +88,7 @@ test("checks text, distinguishes all statuses, opens non-recommended evidence, r
   await expect(screen(page).getByRole("list", { name: "문장별 근거", exact: true })).toBeVisible();
   await screen(page).getByRole("listitem").first().getByText("원문 · 연결된 발췌", { exact: true }).click();
   await screen(page).getByRole("listitem").first().getByRole("link").click();
-  await expect(page).toHaveURL(/experience\?activity=7&fromQuestion=41/);
+  await expect(page).toHaveURL(/\/experience\?fromQuestion=41$/); // 연 뒤 활동 링크는 주소에서 지운다(FE#322)
   await expect(page.getByRole("heading", { name: /바꿔요/ }).first()).toBeVisible();
 });
 
