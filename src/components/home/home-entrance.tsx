@@ -22,7 +22,7 @@ import { submitApplication } from "@/lib/api/questions";
 import { submitSource, type MockAnalysis } from "@/lib/api/experience";
 import { dailyLimitMessage } from "@/lib/api/auth";
 import { useAuth } from "@/components/auth/auth-gate";
-import { LowAnalysisNotice } from "@/components/auth/analysis-cost";
+import { ANALYSIS_EXHAUSTED_NOTE, LowAnalysisNotice, useAnalysisLeft } from "@/components/auth/analysis-cost";
 import { readSourceFile, SOURCE_FILE_ACCEPT, SourceFileError, type SourceFile } from "@/lib/source-file/read";
 import { MAX_TEXT_LENGTH, type SourceRequest } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
@@ -77,6 +77,8 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
   const fileVersion = useRef(0);
   const pending = useRef(false);
   const tooLong = text.length > MAX_TEXT_LENGTH;
+  // 꺼내기(묻기 · 지원) 는 분석 1회를 쓴다 — 0회면 보내기 전에 막는다. 쌓기는 중복 안내가 먼저라 그대로 둔다(S-15)
+  const exhausted = useAnalysisLeft() === 0 && mode === "out" && !file;
   const busy = routing || asking || parse.parsing || sourceSubmitting || readingFile;
 
   const pickFile = async (picked: File | undefined) => {
@@ -139,7 +141,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
   };
 
   const send = async () => {
-    if (pending.current || readingFile || (!file && (!text.trim() || tooLong))) return;
+    if (pending.current || readingFile || exhausted || (!file && (!text.trim() || tooLong))) return;
     if (mode === "in" || file) {
       // 다시 시도는 처음 넣기와 같다 — 안내에서 「그래도 넣기」를 고른 뒤 실패했으면 다시 견준다
       await sendSource();
@@ -171,14 +173,14 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     <section aria-label="홈 입력" className="mx-auto max-w-[760px]">
     <div role="group" aria-label="입력 모드" className="mx-auto mb-12 grid w-40 lg:mb-20 grid-cols-2 gap-0.5 rounded-full bg-surface-soft p-0.5">
       {([ ["out", "꺼내기"], ["in", "쌓기"] ] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={mode === value} disabled={busy || (!!file && value === "out")} onClick={() => { setMode(value); setChoosing(false); setError(null); setDuplicate(null); }}
-        className={cn("relative inline-flex min-h-7.5 items-center justify-center gap-1.5 rounded-full text-sm leading-none whitespace-nowrap transition-colors after:absolute after:inset-x-0 after:-inset-y-2 disabled:opacity-50 lg:min-h-6 lg:text-note lg:after:hidden", mode === value ? "bg-canvas font-bold text-ink shadow-mode" : "font-normal text-muted hover:text-ink")}>
+        className={cn("relative inline-flex min-h-7.5 items-center justify-center gap-1.5 rounded-full text-sm leading-none whitespace-nowrap transition-colors after:absolute after:inset-x-0 after:-inset-y-2 disabled:opacity-50 lg:text-note lg:after:hidden", mode === value ? "bg-canvas font-bold text-ink shadow-mode" : "font-normal text-muted hover:text-ink")}>
         <span aria-hidden="true" className={cn("size-1.75 rounded-full", value === "out" ? "bg-mark" : "bg-record-green", mode !== value && "opacity-55")} />{label}
       </button>)}
     </div>
     <div className="grid justify-items-center gap-2.5 text-center"><HomeMascot overview={overview} onRefresh={onRefresh} mode={mode} /></div>
     <form aria-label="글 보내기" aria-busy={busy} onSubmit={e => { e.preventDefault(); void send(); }}>
       <div className="mt-5 rounded-lg border border-hairline bg-canvas pt-3 pr-3 pb-2.5 pl-4.5 shadow-home-input focus-within:border-ink">
-        {file && <span className="mb-2 inline-flex max-w-full items-center gap-2 rounded-full bg-surface-soft px-3 py-1 text-xs text-body"><span className="min-w-0 break-all">{file.name} · {file.text.length.toLocaleString("ko-KR")}자</span><button type="button" aria-label="첨부 파일 빼기" disabled={busy} className="flex size-11 shrink-0 items-center justify-center" onClick={() => { ++fileVersion.current; setFile(null); setError(null); setDuplicate(null); }}><XIcon aria-hidden="true" /></button></span>}
+        {file && <span className="mb-2 inline-flex max-w-full items-center gap-2 rounded-full bg-surface-soft px-3 py-1 text-xs text-body"><span className="min-w-0 break-all">{file.name} · {file.text.length.toLocaleString("ko-KR")}자</span><button type="button" aria-label="첨부 파일 빼기" disabled={busy} className="flex size-11 lg:size-10 shrink-0 items-center justify-center" onClick={() => { ++fileVersion.current; setFile(null); setError(null); setDuplicate(null); }}><XIcon aria-hidden="true" /></button></span>}
         <textarea aria-label="홈에 넣을 글" aria-describedby={mode === "in" ? "entrance-note entrance-length" : "entrance-length"} aria-invalid={tooLong}
           id="home-text" rows={2} value={text} disabled={busy || !!file} onChange={e => { setText(e.target.value); setChoosing(false); setError(null); setDuplicate(null); parse.clear(); }}
           placeholder={mode === "out" ? "한 줄로 물어보거나, 지원 문항 · 공고(링크도 돼요)를 그대로 붙여 넣어 보세요" : "오늘 한 일 한 줄이나, README · 회고를 붙여 넣어 보세요"}
@@ -188,7 +190,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
           <Button type="button" variant="ghost" size="icon" className="size-11 bg-surface-soft lg:size-9" aria-label="파일 올리기" disabled={busy || sourceBusy} onClick={() => fileInput.current?.click()}><PlusIcon aria-hidden="true" /></Button>
           <span id="entrance-length" className={cn("text-xs tabular-nums", tooLong ? "text-error" : "text-muted")}>{text.length > 0 && `${text.length.toLocaleString("ko-KR")} / 50,000`}</span>
           <ModelMenu />
-          <Button type="submit" size="icon" className="size-11 lg:size-9" aria-label="보내기" title={mode === "in" ? "자료 분석 시작" : "보내기"} disabled={busy || (!file && (!text.trim() || tooLong)) || ((mode === "in" || !!file) && sourceBusy)}><ArrowUpIcon aria-hidden="true" /></Button>
+          <Button type="submit" size="icon" className="size-11 lg:size-9" aria-label="보내기" title={mode === "in" ? "자료 분석 시작" : "보내기"} disabled={busy || exhausted || (!file && (!text.trim() || tooLong)) || ((mode === "in" || !!file) && sourceBusy)}><ArrowUpIcon aria-hidden="true" /></Button>
         </div>
       </div>
     </form>
@@ -201,6 +203,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     {/* S-16 — 자료를 넣는 쌓기 모드에서, 분석을 시작하기 전에 보인다 */}
     {mode === "in" && <p id="entrance-note" className="mt-3 mb-0 flex items-center justify-center gap-1.5 text-center text-note leading-relaxed text-muted"><LockSimpleIcon className="size-[13px] shrink-0" aria-hidden="true" />넣은 자료는 분석을 위해 외부 AI 제공사(OpenAI)로 보내져요 · 학습엔 안 쓰여요</p>}
     <LowAnalysisNotice running={busy} className="mt-2 text-center" />
+    {exhausted && <p id="entrance-exhausted" role="status" className="mt-1 mb-0 text-center text-sm text-review">{ANALYSIS_EXHAUSTED_NOTE}</p>}
     {readingFile && <p role="status" className="mt-4 text-center text-sm text-muted">파일을 읽고 있어요…</p>}
     {fileError && <p role="alert" className="mt-4 text-sm text-error">{fileError}</p>}
     {readingFile && <p role="status" className="mt-3 text-sm text-muted">파일에서 글자를 읽는 중…</p>}
@@ -232,7 +235,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     {duplicate && <div className="mt-4"><DuplicateSourceNotice source={duplicate} busy={sourceSubmitting} onInsert={() => void sendSource(true)} onCancel={() => setDuplicate(null)} /></div>}
     {choosing && <div className="mt-5 rounded-md border border-hairline p-4" aria-label="사용자가 종류 고르기">
       <p className="mt-0 mb-3 font-medium">자료로 쌓을까요, 지원으로 만들까요?</p>
-      <div className="flex flex-wrap gap-2"><Button variant="secondary" className="min-h-11" disabled={sourceBusy} onClick={() => openDestination("source")}>자료로 쌓기</Button><Button className="min-h-11" onClick={() => openDestination("application")}>지원으로 만들기</Button></div>
+      <div className="flex flex-wrap gap-2"><Button variant="secondary" className="min-h-11 lg:min-h-10" disabled={sourceBusy} onClick={() => openDestination("source")}>자료로 쌓기</Button><Button className="min-h-11 lg:min-h-10" onClick={() => openDestination("application")}>지원으로 만들기</Button></div>
     </div>}
     {destination?.kind === "source" && <AddSourceDialog open onOpenChange={open => { if (!open) setDestination(null); }} mock={mockAnalysis}
       initialText={destination.text}

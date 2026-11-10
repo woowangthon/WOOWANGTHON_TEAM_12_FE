@@ -8,7 +8,7 @@
     { "name": "입력 상자", "design": ".ask-box", "app": "form[aria-label='글 보내기'] > div:has(> textarea)" },
     { "name": "입력칸", "design": ".ask-box textarea", "app": "#home-text" },
     { "name": "보내기", "design": ".ask-box__send", "app": "form[aria-label='글 보내기'] button[type=submit]" },
-    { "name": "모드 버튼", "design": ".modes button", "app": "[aria-label='입력 모드'] button", "intent": { "높이": "홈 부피 줄이기 — 시안의 2/3(FE#275)" } },
+    { "name": "모드 버튼", "design": ".modes button", "app": "[aria-label='입력 모드'] button", "intent": { "높이": "홈 부피 줄이기 — 디자인 담당이 PC · 모바일 30 으로 정함(FE#275 · FE#320)" } },
     { "name": "예시 칩", "design": ".sg", "app": "[aria-label='입력 예시'] button" },
     { "name": "사이드바 항목", "design": ".drawer a", "app": "aside[aria-label='사이드바'] nav a" }
   ]

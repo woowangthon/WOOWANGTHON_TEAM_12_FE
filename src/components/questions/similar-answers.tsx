@@ -13,7 +13,7 @@ export function SimilarAnswers({ question, application }: { question: QuestionDe
   const { answers, error, retrying, retry } = useSimilarAnswers(question.id, basis);
   if (error) return <div role="alert" className="mb-8 grid justify-items-start gap-2">
     <p className="m-0 text-sm text-error">예전에 쓴 답을 불러오지 못했어요 — {error}</p>
-    <Button variant="secondary" className="min-h-11" disabled={retrying} onClick={retry}>{retrying ? "다시 불러오는 중…" : "다시 시도"}</Button>
+    <Button variant="secondary" className="min-h-11 lg:min-h-10" disabled={retrying} onClick={retry}>{retrying ? "다시 불러오는 중…" : "다시 시도"}</Button>
   </div>;
   if (!answers.length) return null;
   return <section aria-labelledby={`similar-title-${question.id}`} className="mb-8 min-w-0">

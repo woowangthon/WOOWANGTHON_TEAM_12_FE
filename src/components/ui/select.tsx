@@ -32,8 +32,8 @@ export function Select<T extends string>({ value, options, onChange, placeholder
   return <SelectPrimitive.Root value={selected ? selected.value || EMPTY : ""} disabled={disabled}
     onValueChange={next => onChange((next === EMPTY ? "" : next) as T | "")}>
     <SelectPrimitive.Trigger {...trigger} className={cn("group cursor-pointer disabled:cursor-default disabled:opacity-60",
-      variant === "chip" ? "inline-flex min-h-11 max-w-full shrink-0 items-center rounded-full"
-        : "flex min-h-11 w-full min-w-0 items-center justify-between gap-2 rounded-sm border border-hairline bg-canvas px-3 text-left text-sm font-normal text-ink data-placeholder:text-muted", className)}>
+      variant === "chip" ? "inline-flex min-h-11 lg:min-h-10 max-w-full shrink-0 items-center rounded-full"
+        : "flex min-h-11 lg:min-h-10 w-full min-w-0 items-center justify-between gap-2 rounded-sm border border-hairline bg-canvas px-3 text-left text-sm font-normal text-ink data-placeholder:text-muted", className)}>
       {variant === "chip" ? <span className="inline-flex h-6 max-w-full items-center gap-0.5 rounded-full bg-surface-soft pr-1.5 pl-2.5 text-xs font-medium whitespace-nowrap text-body group-data-placeholder:text-muted">{label}{caret}</span>
         : <><span className="min-w-0 truncate">{label}</span>{caret}</>}
     </SelectPrimitive.Trigger>

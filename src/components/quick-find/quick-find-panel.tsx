@@ -7,7 +7,7 @@ import { ExperienceFilterBar, isFiltered, type ExperienceFilters } from "@/compo
 import { ActivityTag, categoryOf } from "@/components/experience/activity-category";
 import { ExperienceProperties, SourceStatusMark } from "@/components/experience/experience-item";
 import { useExperienceSearch } from "@/components/experience/use-experience-search";
-import { AnalysisCost } from "@/components/auth/analysis-cost";
+import { ANALYSIS_EXHAUSTED_NOTE, AnalysisCost, useAnalysisLeft } from "@/components/auth/analysis-cost";
 import { AskAnswer, AskFailureNotice } from "@/components/home/ask-answer";
 import type { useAsk } from "@/components/home/use-ask";
 import { Mascot } from "@/components/questions/chagok-panel";
@@ -104,7 +104,8 @@ export function QuickFindPanel({ asked, addSourceBusy, initial, onGo }: { asked:
     if (row) onGo({ kind: "activity", id: row.activity.id });
     else if (more) setRows(n => n + PAGE_ROWS); // 고른 자리가 새로 펼친 첫 줄이 된다
   };
-  const send = () => { if (query) void asked.ask(query); };
+  const exhausted = useAnalysisLeft() === 0;
+  const send = () => { if (query && !exhausted) void asked.ask(query); };
   const makeApplication = (text: string) => { handOffApplicationText(text); onGo({ kind: "application" }); };
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -126,7 +127,7 @@ export function QuickFindPanel({ asked, addSourceBusy, initial, onGo }: { asked:
         aria-autocomplete={hasList ? "list" : undefined} aria-activedescendant={hasList && count ? optionId(current) : undefined}
         className="min-h-11 min-w-0 flex-1 bg-transparent lg:h-5.5 lg:min-h-0 text-title-md text-ellipsis text-ink outline-none placeholder:text-muted" />
       {tab === "ask" && <AnalysisCost className="shrink-0" />}
-      {tab === "ask" && <Button type="button" size="icon" className="size-11 shrink-0 lg:size-8" aria-label="보내기" disabled={!query || asked.asking} onClick={send}><ArrowUpIcon aria-hidden="true" /></Button>}
+      {tab === "ask" && <Button type="button" size="icon" className="size-11 shrink-0 lg:size-8" aria-label="보내기" aria-describedby={exhausted ? "quick-find-exhausted" : undefined} disabled={!query || asked.asking || exhausted} onClick={send}><ArrowUpIcon aria-hidden="true" /></Button>}
     </div>
     <div role="group" aria-label="빠른 찾기 탭" className={cn("flex gap-1.5 px-3.5 lg:px-4.5", tab === "find" ? "pb-1.5" : "border-b border-hairline-soft pb-2.5")}>
       {TABS.map(t => <button key={t.value} type="button" aria-pressed={tab === t.value} onClick={() => moveTo(t.value)}
@@ -143,6 +144,7 @@ export function QuickFindPanel({ asked, addSourceBusy, initial, onGo }: { asked:
           <p className="m-0 break-words text-body">{query ? `「${query}」 — 쌓인 경험에서 찾아 근거와 함께 답할게요.` : "무엇이든 물어보세요. 예: 리더십을 보여 준 경험 있어?"}</p>
         </div>
       </div>}
+      {exhausted && <p id="quick-find-exhausted" role="status" className="mb-3 mt-0 rounded-sm bg-surface-soft px-3 py-2 text-sm text-review">{ANALYSIS_EXHAUSTED_NOTE}</p>}
       {asked.asking && <p role="status" className="py-8 text-center text-sm text-muted">쌓인 경험에서 찾고 있어요…</p>}
       {asked.answer && <AskAnswer answer={asked.answer} busy={asked.asking} onMakeApplication={() => makeApplication(asked.answer!.text)} onOpenActivity={id => onGo({ kind: "activity", id })} />}
       {asked.failure && <AskFailureNotice failure={asked.failure} busy={asked.asking} onRetry={() => void asked.ask(asked.failure!.text)} onMakeApplication={() => makeApplication(asked.failure!.text)} />}
@@ -161,13 +163,13 @@ export function QuickFindPanel({ asked, addSourceBusy, initial, onGo }: { asked:
         {state.status === "loading" && <p role="status" className="p-3 text-sm text-muted">경험을 찾고 있어요…</p>}
         {state.status === "error" && <div role="alert" className="grid justify-items-start gap-2 p-3">
           <p className="m-0 text-sm text-error">경험을 찾지 못했어요. {state.message}</p>
-          <Button type="button" variant="secondary" className="min-h-11" onClick={retry}><ArrowsClockwiseIcon aria-hidden="true" />다시 시도</Button>
+          <Button type="button" variant="secondary" className="min-h-11 lg:min-h-10" onClick={retry}><ArrowsClockwiseIcon aria-hidden="true" />다시 시도</Button>
         </div>}
         {refreshing && found.length === 0 && <p role="status" className="p-3 text-sm text-muted">경험을 찾고 있어요…</p>}
         {state.status === "ready" && !refreshing && found.length === 0 && <div role="status" className="grid gap-1 p-3 text-sm">
           <p className="m-0 font-medium text-ink">쌓인 자료에서 찾지 못했어요</p>
           <p className="m-0 text-muted">{filtered ? "거르기를 줄이거나, " : ""}뜻으로 찾고 싶다면 「차곡이에게」로 물어보세요.</p>
-          {filtered && <Button type="button" variant="secondary" className="mt-1 min-h-11 justify-self-start" onClick={() => changeFilters({})}>거르기 지우기</Button>}
+          {filtered && <Button type="button" variant="secondary" className="mt-1 min-h-11 lg:min-h-10 justify-self-start" onClick={() => changeFilters({})}>거르기 지우기</Button>}
         </div>}
         {found.length > 0 && <>
           <p role="status" className="m-0 px-2.5 pt-2 pb-1 text-xs font-semibold text-muted tabular-nums">{refreshing ? "찾고 있어요…" : query || filtered ? `찾은 경험 ${state.status === "ready" ? state.total : found.length}개` : `쌓인 경험 ${state.status === "ready" ? state.total : found.length}개`}</p>
@@ -211,7 +213,7 @@ function OptionList({ label, children }: { label: string; children: ReactNode })
 function Option({ index, active, disabled, onPick, onHover, children }: { index: number; active: boolean; disabled?: boolean; onPick: (index: number) => void; onHover: (index: number) => void; children: ReactNode }) {
   // mouseenter 가 아니라 move — 키보드로 줄이 스크롤될 때 포인터 아래 줄이 고른 줄을 빼앗지 않게
   return <li id={optionId(index)} role="option" aria-selected={active} aria-disabled={disabled || undefined} onClick={() => onPick(index)} onMouseMove={() => { if (!active) onHover(index); }}
-    className={cn("grid min-h-11 cursor-pointer content-center rounded-sm px-2.5 py-2", active && "bg-surface-soft", disabled && "cursor-default opacity-60")}>
+    className={cn("grid min-h-11 lg:min-h-10 cursor-pointer content-center rounded-sm px-2.5 py-2", active && "bg-surface-soft", disabled && "cursor-default opacity-60")}>
     {children}
   </li>;
 }

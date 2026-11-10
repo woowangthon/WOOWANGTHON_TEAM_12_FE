@@ -45,8 +45,8 @@ export function ActivityActorDecision({ activity, onSaved }: { activity: Activit
       누가 했는지 확인 안 된 경험 {unknown.length}개 — 정해 두면 초안이 「제가」 · 「팀은」으로 써요.
     </p>
     <div className="flex flex-wrap gap-2">
-      <Button size="sm" className="min-h-11" disabled={!!busy} onClick={() => void decide("ME")}>{busy === "ME" ? "정하고 있어요…" : "이 활동의 일은 내가 했어요"}</Button>
-      <Button size="sm" variant="secondary" className="min-h-11" disabled={!!busy} onClick={() => void decide("TEAM")}>{busy === "TEAM" ? "정하고 있어요…" : "팀이 했어요"}</Button>
+      <Button size="sm" className="min-h-11 lg:min-h-10" disabled={!!busy} onClick={() => void decide("ME")}>{busy === "ME" ? "정하고 있어요…" : "이 활동의 일은 내가 했어요"}</Button>
+      <Button size="sm" variant="secondary" className="min-h-11 lg:min-h-10" disabled={!!busy} onClick={() => void decide("TEAM")}>{busy === "TEAM" ? "정하고 있어요…" : "팀이 했어요"}</Button>
     </div>
     {error && <p role="alert" className="m-0 text-note text-error">{error}</p>}
   </section>;

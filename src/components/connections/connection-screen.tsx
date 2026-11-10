@@ -165,7 +165,7 @@ export function ConnectionScreen() {
 
         {error && <div role="alert" className="space-y-3">
           <p className="text-sm leading-relaxed text-error">{error}</p>
-          <Button className="min-h-11" disabled={busy} onClick={() => { setBusy(true); setError(null); void load(); }}>연결 상태 다시 확인</Button>
+          <Button className="min-h-11 lg:min-h-10" disabled={busy} onClick={() => { setBusy(true); setError(null); void load(); }}>연결 상태 다시 확인</Button>
         </div>}
         {busy && <p role="status" className="text-sm text-muted">연결 요청을 처리하고 있어요…</p>}
         {connection && <p className="flex flex-wrap gap-x-1.5 text-sm leading-relaxed">
@@ -180,7 +180,7 @@ export function ConnectionScreen() {
           <label htmlFor="mcp-url" className="text-sm font-semibold">{mock ? "임시 연결 주소 (목)" : "연결 주소"}</label>
           <div className="flex flex-wrap items-start gap-2">
             <textarea id="mcp-url" readOnly value={url} rows={2} spellCheck={false} autoComplete="off" className="min-w-0 flex-1 basis-60 resize-none break-all rounded-sm border border-hairline bg-surface-soft p-3 text-sm" />
-            <Button className="min-h-11" onClick={() => void copy()}>주소 복사</Button>
+            <Button className="min-h-11 lg:min-h-10" onClick={() => void copy()}>주소 복사</Button>
           </div>
           <p className="text-sm leading-relaxed text-muted">지금 복사해 두세요. 화면을 떠나거나 새로고침하면 다시 볼 수 없어요.</p>
         </div> : connection?.connected && <p className="inline-flex items-center gap-0.5 text-sm text-muted">주소는 만들 때 한 번만 보여요<InfoTip label="연결 주소">잃어버렸다면 「다시 만들기」로 새 주소를 받으세요.</InfoTip></p>}
@@ -188,10 +188,10 @@ export function ConnectionScreen() {
 
         {connection && (connection.connected
           ? <div className="flex flex-wrap gap-2">
-            <Button className="min-h-11" variant="secondary" disabled={busy} onClick={() => setConfirm("replace")}>다시 만들기</Button>
-            <Button className="min-h-11 text-error" variant="ghost" disabled={busy} onClick={() => setConfirm("disconnect")}>연결 끊기</Button>
+            <Button className="min-h-11 lg:min-h-10" variant="secondary" disabled={busy} onClick={() => setConfirm("replace")}>다시 만들기</Button>
+            <Button className="min-h-11 lg:min-h-10 text-error" variant="ghost" disabled={busy} onClick={() => setConfirm("disconnect")}>연결 끊기</Button>
           </div>
-          : <Button className="min-h-11 justify-self-start" disabled={busy} onClick={() => void mutate("create")}>연결 주소 만들기</Button>)}
+          : <Button className="min-h-11 lg:min-h-10 justify-self-start" disabled={busy} onClick={() => void mutate("create")}>연결 주소 만들기</Button>)}
 
         {connection?.connected && <div className="flex items-center justify-between gap-4 border-t border-hairline-soft pt-4">
           <div className="min-w-0">
@@ -200,7 +200,7 @@ export function ConnectionScreen() {
           </div>
           <button type="button" role="switch" aria-checked={connection.writeEnabled} aria-labelledby="mcp-write" aria-describedby="mcp-write-hint" disabled={busy}
             onClick={() => { if (connection.writeEnabled) void setWrite(false); else setConfirm("write"); }}
-            className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-sm text-sm font-medium disabled:opacity-50">
+            className="inline-flex min-h-11 lg:min-h-10 shrink-0 items-center gap-2 rounded-sm text-sm font-medium disabled:opacity-50">
             <span aria-hidden="true">{connection.writeEnabled ? "켜짐" : "꺼짐"}</span>
             <span aria-hidden="true" className={cn("flex h-7 w-12 items-center rounded-full p-0.5 transition-colors", connection.writeEnabled ? "justify-end bg-primary" : "justify-start bg-surface-strong")}>
               <span className="size-6 rounded-full bg-canvas" />
@@ -210,7 +210,7 @@ export function ConnectionScreen() {
 
         <ChatExample />
         <details className="group">
-          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+          <summary className="flex min-h-11 lg:min-h-10 cursor-pointer list-none items-center gap-2 text-sm font-semibold [&::-webkit-details-marker]:hidden">
             <CaretRightIcon aria-hidden="true" className="size-4 text-muted transition-transform group-open:rotate-90" />Claude 에 넣는 법
           </summary>
           <div className="pt-1 pb-1">
@@ -235,8 +235,8 @@ export function ConnectionScreen() {
         <DialogTitle>{confirm && CONFIRM[confirm].title}</DialogTitle>
         <DialogDescription>{confirm && CONFIRM[confirm].body}</DialogDescription>
         <DialogFooter>
-          <Button className="min-h-11" variant="secondary" onClick={() => setConfirm(null)}>취소</Button>
-          <Button className="min-h-11" disabled={busy} onClick={() => { if (confirm === "write") void setWrite(true); else if (confirm) void mutate(confirm); }}>{confirm && CONFIRM[confirm].action}</Button>
+          <Button className="min-h-11 lg:min-h-10" variant="secondary" onClick={() => setConfirm(null)}>취소</Button>
+          <Button className="min-h-11 lg:min-h-10" disabled={busy} onClick={() => { if (confirm === "write") void setWrite(true); else if (confirm) void mutate(confirm); }}>{confirm && CONFIRM[confirm].action}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

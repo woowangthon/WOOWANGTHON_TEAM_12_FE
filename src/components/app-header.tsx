@@ -46,7 +46,7 @@ const sideLinks = [
 const PAGE_NAME: Record<Page, string> = { home: "홈", timeline: "내 경험", questions: "지원서", connections: "연결 · 내보내기", guidelines: "작성 지침" };
 const BUSY = "지금 넣은 자료의 분석이 끝나면 더 넣을 수 있어요";
 // 왼쪽 여백·아이콘 칸·줄 간격은 접어도 유지한다. 글자는 남겨 서랍의 폭으로 잘라 낸다(시안 6).
-const navItem = "flex h-11 w-full shrink-0 items-center gap-2.5 overflow-hidden rounded-full px-3 text-sm font-medium whitespace-nowrap text-ink transition-colors";
+const navItem = "flex h-11 lg:h-10 w-full shrink-0 items-center gap-2.5 overflow-hidden rounded-full px-3 text-sm font-medium whitespace-nowrap text-ink transition-colors";
 
 export function AppHeader({ hideTabBar, panelToggle, addSource, applicationList, onNewApplication, experienceCount, activePage, quickFind }: HeaderProps) {
   const { wide, desktop } = useSidebar();
@@ -91,12 +91,12 @@ function DesktopSidebar(props: SidebarProps) {
     <aside data-collapsed={collapsed} className="sidebar-drawer fixed inset-y-0 left-0 z-30 hidden flex-col gap-3 overflow-clip px-3.5 pt-6.5 pb-4.5 lg:flex" aria-label="사이드바">
       <SidebarBackground />
       {/* 시안 6: 레일은 같은 로고 자리에서 펼침 아이콘으로 바뀐다. 높이를 고정해 메뉴가 밀리지 않게 한다. */}
-      <div data-slot="sidebar-brand" className={cn("group/brand relative flex h-11 shrink-0 items-center", collapsed ? "w-11 justify-center" : "justify-between pl-2")}>
+      <div data-slot="sidebar-brand" className={cn("group/brand relative flex h-11 lg:h-10 shrink-0 items-center", collapsed ? "w-11 justify-center" : "justify-between pl-2")}>
         <Brand collapsed={collapsed} />
         <RailTip label={toggleLabel} enabled={collapsed}>
           <button ref={trigger} type="button" aria-label={toggleLabel} aria-expanded={wide ? !collapsed : overlayOpen} aria-controls={wide ? "sidebar-navigation" : "sidebar-overlay"}
             onClick={() => wide ? toggle() : setOverlayOpen(true)}
-            className={cn("flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-canvas/60", collapsed && "absolute inset-0")}>
+            className={cn("flex size-11 lg:size-10 shrink-0 items-center justify-center rounded-full hover:bg-canvas/60", collapsed && "absolute inset-0")}>
             <SidebarSimpleIcon className={cn("size-5", collapsed && "opacity-0 group-hover/brand:opacity-100 group-focus-within/brand:opacity-100")} aria-hidden="true" />
           </button>
         </RailTip>
@@ -115,9 +115,9 @@ function DesktopSidebar(props: SidebarProps) {
         className="sidebar-overlay w-62! gap-3 overflow-clip bg-page px-3.5 pt-6.5 pb-4.5">
         <SheetTitle className="sr-only">사이드바</SheetTitle>
         <SidebarBackground />
-        <div className="relative flex h-11 shrink-0 items-center justify-between pl-2">
+        <div className="relative flex h-11 lg:h-10 shrink-0 items-center justify-between pl-2">
           <Brand onNavigate={() => setOverlayOpen(false)} />
-          <button type="button" aria-label="사이드바 접기" onClick={() => setOverlayOpen(false)} className="flex size-11 items-center justify-center rounded-full hover:bg-canvas/60">
+          <button type="button" aria-label="사이드바 접기" onClick={() => setOverlayOpen(false)} className="flex size-11 lg:size-10 items-center justify-center rounded-full hover:bg-canvas/60">
             <SidebarSimpleIcon className="size-5" aria-hidden="true" />
           </button>
         </div>
@@ -254,7 +254,7 @@ export function RailTip({ label, enabled, children }: { label: string; enabled: 
 
 function Brand({ collapsed, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {
   return <Link href="/" onClick={onNavigate} aria-hidden={collapsed || undefined} tabIndex={collapsed ? -1 : undefined}
-    className={cn("relative flex h-11 items-center", collapsed && "pointer-events-none w-11 justify-center group-hover/brand:invisible group-focus-within/brand:invisible")} aria-label="차곡 — 홈">
+    className={cn("relative flex h-11 lg:h-10 items-center", collapsed && "pointer-events-none w-11 justify-center group-hover/brand:invisible group-focus-within/brand:invisible")} aria-label="차곡 — 홈">
     {collapsed ? <Image src="/brand/mascot.svg" alt="" width={32} height={32} priority /> : <Logo className="h-6.5 w-auto" />}
   </Link>;
 }

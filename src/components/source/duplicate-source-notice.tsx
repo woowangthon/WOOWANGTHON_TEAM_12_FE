@@ -20,8 +20,8 @@ export function DuplicateSourceNotice({ source, busy, onInsert, onCancel }: {
       </p>
       <p className="m-0 text-note text-muted">그래도 넣으면 새 자료로 다시 분석해요(분석 1회). 이미 만든 경험과 합치지는 않아요.</p>
       <div className="flex flex-wrap gap-2">
-        <Button type="button" size="sm" className="min-h-11" disabled={busy} onClick={onInsert}>{busy ? "넣는 중…" : "그래도 넣기"}</Button>
-        <Button type="button" variant="ghost" size="sm" className="min-h-11" disabled={busy} onClick={onCancel}>그만</Button>
+        <Button type="button" size="sm" className="min-h-11 lg:min-h-10" disabled={busy} onClick={onInsert}>{busy ? "넣는 중…" : "그래도 넣기"}</Button>
+        <Button type="button" variant="ghost" size="sm" className="min-h-11 lg:min-h-10" disabled={busy} onClick={onCancel}>그만</Button>
       </div>
     </div>
   );

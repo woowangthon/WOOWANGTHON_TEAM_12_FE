@@ -144,8 +144,8 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
             onChange={e => { setPaste(e.target.value); parse.clear(); }} className={`${field} resize-y`}
             placeholder={askingLink ? "https://… 공고 페이지 주소를 붙여 넣어 주세요" : "예: [OO 부트캠프 백엔드 과정] 1. 기술적인 문제를 해결한 경험을 적어 주세요 (700자) 2. 지원 동기 … 글에 적힌 문항만 찾아요."} />
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="secondary" size="sm" className="min-h-11" disabled={room === 0} title={room === 0 ? `문항은 한 번에 ${MAX_QUESTIONS_PER_SUBMIT}개까지 넣을 수 있어요` : undefined} onClick={() => setPicking(true)}><ListChecksIcon />넣었던 · 자주 나오는 문항에서 고르기</Button>
-            <Button type="button" variant="secondary" size="sm" className="min-h-11" onClick={() => { setAskingLink(true); pasteBox.current?.focus(); }}><LinkIcon />공고 링크로 가져오기</Button>
+            <Button type="button" variant="secondary" size="sm" className="min-h-11 lg:min-h-10" disabled={room === 0} title={room === 0 ? `문항은 한 번에 ${MAX_QUESTIONS_PER_SUBMIT}개까지 넣을 수 있어요` : undefined} onClick={() => setPicking(true)}><ListChecksIcon />넣었던 · 자주 나오는 문항에서 고르기</Button>
+            <Button type="button" variant="secondary" size="sm" className="min-h-11 lg:min-h-10" onClick={() => { setAskingLink(true); pasteBox.current?.focus(); }}><LinkIcon />공고 링크로 가져오기</Button>
             <span className={`ml-auto text-xs tabular-nums ${paste.length > MAX_PARSE_TEXT_LENGTH ? "text-error" : "text-muted"}`}>{paste.length > 0 && `${paste.length.toLocaleString("ko-KR")} / 20,000`}</span>
           </div>
           {(pastedLink || askingLink) && !urlShown && <p className="m-0 text-note text-muted">{LINK_NOTE}</p>}
@@ -160,7 +160,7 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
           <span className="text-note font-medium text-muted">예시 문항으로 시작하기</span>
           <div className="flex flex-wrap gap-2">
             {EXAMPLES.map(sample => (
-              <Button key={sample.label} type="button" variant="secondary" size="sm" className="min-h-11" disabled={saving} onClick={() => {
+              <Button key={sample.label} type="button" variant="secondary" size="sm" className="min-h-11 lg:min-h-10" disabled={saving} onClick={() => {
                 setOrganization(prev => prev || sample.organization);
                 // 비어 있는 첫 칸에, 없으면 새 칸에
                 setTexts(prev => { const at = prev.findIndex(t => !t.trim()); if (at >= 0) return prev.map((t, j) => (j === at ? sample.text : t)); return prev.length < MAX_QUESTIONS_PER_SUBMIT ? [...prev, sample.text] : prev; });
@@ -173,13 +173,13 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
         {urlShown && <div className="grid gap-1.5">
           <label htmlFor="application-url" className="text-sm font-medium">원문 링크 (선택)</label>
           <input id="application-url" type="url" inputMode="url" autoComplete="url" maxLength={MAX_POSTING_URL_LENGTH} value={postingUrl} aria-invalid={urlInvalid}
-            aria-describedby="application-url-note" onChange={e => setPostingUrl(e.target.value)} className={`${field} min-h-11 py-0`} placeholder="https://… 공고 페이지 주소" />
+            aria-describedby="application-url-note" onChange={e => setPostingUrl(e.target.value)} className={`${field} min-h-11 lg:min-h-10 py-0`} placeholder="https://… 공고 페이지 주소" />
           <p id="application-url-note" className={`m-0 text-note ${urlInvalid ? "text-error" : "text-muted"}`}>{urlInvalid ? "http:// 나 https:// 로 시작하는 주소 하나를 넣어 주세요." : LINK_NOTE}</p>
         </div>}
         {open && <>
           <label className="grid gap-1.5 text-sm font-medium">
             <span className="flex flex-wrap items-center gap-2">지원처 이름 (선택){filled?.organization && organization === filled.organization && <FilledTag />}</span>
-            <input aria-label="지원처 이름 (선택)" autoComplete="organization" maxLength={MAX_ORGANIZATION_LENGTH} value={organization} onChange={e => setOrganization(e.target.value)} className={`${field} min-h-11 py-0`} placeholder="동아리 · 부트캠프 · 대외활동 · 회사 이름" />
+            <input aria-label="지원처 이름 (선택)" autoComplete="organization" maxLength={MAX_ORGANIZATION_LENGTH} value={organization} onChange={e => setOrganization(e.target.value)} className={`${field} min-h-11 lg:min-h-10 py-0`} placeholder="동아리 · 부트캠프 · 대외활동 · 회사 이름" />
             <span className="text-right text-xs font-normal text-muted tabular-nums">{organization.length} / 100</span>
           </label>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -218,11 +218,11 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
       {error && <p role="alert" className="m-0 text-sm text-error">{error}</p>}
       <div className="flex flex-wrap items-center justify-end gap-2">
         {open && <p className="m-0 mr-auto min-w-0 flex-1 basis-60 text-note text-muted">넣은 뒤엔 문항을 고치지 않아요 — 잘못 넣었으면 그 지원에 새로 더해 주세요.</p>}
-        {!open && <Button type="button" variant="link" className="mr-auto min-h-11" disabled={saving} onClick={writeQuestions}>문항 직접 쓰기</Button>}
+        {!open && <Button type="button" variant="link" className="mr-auto min-h-11 lg:min-h-10" disabled={saving} onClick={writeQuestions}>문항 직접 쓰기</Button>}
         {onCancel && <Button type="button" variant="ghost" disabled={saving} onClick={onCancel}>취소</Button>}
         {onMoveToSource && <Button type="button" variant="secondary" disabled={saving || moveToSourceDisabled} onClick={() => onMoveToSource(paste.trim() ? paste : texts.join("\n\n"))}>자료로 쌓기</Button>}
-        {(!open || !!paste.trim()) && <Button type="button" className="min-h-11" variant={open ? "secondary" : "default"} disabled={saving || parse.parsing || !paste.trim()} onClick={split}>{parse.parsing ? (reading === "url" ? "읽는 중…" : "나누는 중…") : "AI 로 나누기"}</Button>}
-        {open && <Button type="submit" className="min-h-11" disabled={saving || parse.parsing}>{saving ? "지원을 넣고 있어요…" : texts.length > 1 ? `문항 ${texts.length}개 넣고 경험 찾기` : "지원 넣고 경험 찾기"}</Button>}
+        {(!open || !!paste.trim()) && <Button type="button" className="min-h-11 lg:min-h-10" variant={open ? "secondary" : "default"} disabled={saving || parse.parsing || !paste.trim()} onClick={split}>{parse.parsing ? (reading === "url" ? "읽는 중…" : "나누는 중…") : "AI 로 나누기"}</Button>}
+        {open && <Button type="submit" className="min-h-11 lg:min-h-10" disabled={saving || parse.parsing}>{saving ? "지원을 넣고 있어요…" : texts.length > 1 ? `문항 ${texts.length}개 넣고 경험 찾기` : "지원 넣고 경험 찾기"}</Button>}
       </div>
     </form>
   );
@@ -249,7 +249,7 @@ export function AddQuestionForm({ onSubmit, onCancel }: { onSubmit: (text: strin
       <span className="text-right text-xs text-muted tabular-nums">{text.length.toLocaleString("ko-KR")} / 5,000</span>
       {error && <p role="alert" className="m-0 text-sm text-error">{error}</p>}
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" className="min-h-11" disabled={saving}>{saving ? "문항을 넣고 있어요…" : "문항 더하고 경험 찾기"}</Button>
+        <Button type="submit" className="min-h-11 lg:min-h-10" disabled={saving}>{saving ? "문항을 넣고 있어요…" : "문항 더하고 경험 찾기"}</Button>
         <Button type="button" variant="ghost" disabled={saving} onClick={onCancel}>취소</Button>
       </div>
     </form>

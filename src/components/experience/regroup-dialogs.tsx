@@ -33,7 +33,7 @@ export function MoveExperienceDialog({ experience, activities, onClose, onPick }
                 <button
                   type="button"
                   onClick={() => experience && onPick(experience, a.id)}
-                  className="grid min-h-11 w-full gap-0.5 rounded-sm px-3 py-2.5 text-left hover:bg-surface-soft focus-visible:bg-surface-soft focus-visible:outline-none"
+                  className="grid min-h-11 lg:min-h-10 w-full gap-0.5 rounded-sm px-3 py-2.5 text-left hover:bg-surface-soft focus-visible:bg-surface-soft focus-visible:outline-none"
                 >
                   <span className="text-ui font-semibold text-ink">{a.name}</span>
                   <span className="text-note text-muted tabular-nums">{periodText(a.period)} · 경험 {a.experienceCount}</span>
@@ -227,7 +227,7 @@ export function MergeExperienceDialog({ experience, experiences, onClose, onMerg
 
 function Choice({ name, checked, onChange, title, sub }: { name: string; checked: boolean; onChange: () => void; title: string; sub: string }) {
   return (
-    <label className={cn("flex min-h-11 cursor-pointer items-start gap-3 rounded-sm px-3 py-2.5 hover:bg-surface-soft", checked && "bg-surface-soft")}>
+    <label className={cn("flex min-h-11 lg:min-h-10 cursor-pointer items-start gap-3 rounded-sm px-3 py-2.5 hover:bg-surface-soft", checked && "bg-surface-soft")}>
       <input type="radio" name={name} checked={checked} onChange={onChange} className="mt-1 size-4 shrink-0 accent-[var(--ink)]" />
       <span className="grid min-w-0 gap-0.5">
         <span className="line-clamp-3 break-words text-ui font-semibold text-ink">{title}</span>

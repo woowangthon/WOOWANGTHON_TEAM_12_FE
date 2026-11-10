@@ -8,7 +8,7 @@ import { CheckIcon, MinusCircleIcon, WarningCircleIcon, XIcon } from "@phosphor-
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { QuestionDetail, RequirementStatus, Supplement } from "@/lib/api/question-types";
-import { bubble, ClarificationItem, ClarifyBlock, type AnswerHandler } from "./clarifications";
+import { bubble, ClarificationItem, ClarifyBlock, clarifyList, type AnswerHandler } from "./clarifications";
 import { DraftFollowUp, type DraftPanelActions } from "./draft-omissions";
 import { shortName } from "./question-result";
 import { ChagokComposer, ChagokRunFeed } from "./chagok-run";
@@ -110,7 +110,7 @@ function Feed({ question: q, originOf, onAnswer, draftActions }: { question: Que
     </div>)}
     {asks.length > 0 && <ClarifyBlock title="문항에 대한 되묻기" total={asks.length} answered={asks.filter(({ c }) => c.supplementId !== null).length}
       attention={asks.some(({ c, experience }) => experience.supplements.find(s => s.id === c.supplementId)?.mcpChange)}>
-      <ul aria-label="차곡이의 질문" className="m-0 grid list-none gap-1 p-0">{asks.map(({ c, experience }) =>
+      <ul aria-label="차곡이의 질문" className={clarifyList}>{asks.map(({ c, experience }) =>
         <ClarificationItem key={c.id} activityName={activityOf(c.experienceId)} clarification={c} experience={experience} onAnswer={onAnswer} />)}</ul>
     </ClarifyBlock>}
     <DraftFollowUp question={q} onAnswer={onAnswer} {...draftActions} />

@@ -79,7 +79,7 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
         <button
           type="button"
           onClick={onClose}
-          className="inline-flex h-11 items-center gap-0.5 pr-2 text-ui font-medium text-ink"
+          className="inline-flex h-11 lg:h-10 items-center gap-0.5 pr-2 text-ui font-medium text-ink"
         >
           <CaretLeftIcon className="size-[1.15em]" aria-hidden="true" />
           타임라인
@@ -96,8 +96,8 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
               </DropdownMenu.Trigger>
               <DropdownMenu.Portal>
                 <DropdownMenu.Content align="end" sideOffset={4} onCloseAutoFocus={(e) => { if (!editFromMenu.current) return; e.preventDefault(); editFromMenu.current = false; nameEdit.current?.open(); }} className="z-50 min-w-40 rounded-md border border-hairline bg-canvas p-1 shadow-float">
-                  <DropdownMenu.Item onSelect={() => { editFromMenu.current = true; }} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">이름 고치기</DropdownMenu.Item>
-                  <DropdownMenu.Item onSelect={onMergeRequest} className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">다른 활동과 합치기</DropdownMenu.Item>
+                  <DropdownMenu.Item onSelect={() => { editFromMenu.current = true; }} className="flex min-h-11 lg:min-h-10 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">이름 고치기</DropdownMenu.Item>
+                  <DropdownMenu.Item onSelect={onMergeRequest} className="flex min-h-11 lg:min-h-10 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">다른 활동과 합치기</DropdownMenu.Item>
                 </DropdownMenu.Content>
               </DropdownMenu.Portal>
             </DropdownMenu.Root>

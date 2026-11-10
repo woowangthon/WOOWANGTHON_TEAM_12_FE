@@ -92,7 +92,7 @@ export function PublicProfileSection() {
 
     {error && <div role="alert" className="mt-5 space-y-3">
       <p className="text-sm leading-relaxed text-error">{error}</p>
-      {!settings && <Button className="min-h-11" disabled={busy} onClick={() => { setBusy(true); setError(null); void load(); }}>공개 설정 다시 확인</Button>}
+      {!settings && <Button className="min-h-11 lg:min-h-10" disabled={busy} onClick={() => { setBusy(true); setError(null); void load(); }}>공개 설정 다시 확인</Button>}
     </div>}
     {busy && !settings && !error && <p role="status" className="mt-5 text-sm text-muted">공개 설정을 불러오고 있어요…</p>}
 
@@ -108,22 +108,22 @@ export function PublicProfileSection() {
         <label htmlFor="public-profile-title-input" className="text-sm font-semibold">제목 한 줄 (선택)</label>
         <div className="flex flex-wrap gap-2">
           <input id="public-profile-title-input" value={title} maxLength={PUBLIC_TITLE_MAX} autoComplete="off" onChange={(event) => setTitle(event.target.value)}
-            placeholder="공개 페이지 맨 위에 보여요" className="h-11 min-w-0 flex-1 basis-60 rounded-sm border border-hairline bg-canvas px-3 text-sm" />
-          <Button type="submit" variant="secondary" className="min-h-11" disabled={busy || title.trim() === (settings.title ?? "")}>제목 저장</Button>
+            placeholder="공개 페이지 맨 위에 보여요" className="h-11 lg:h-10 min-w-0 flex-1 basis-60 rounded-sm border border-hairline bg-canvas px-3 text-sm" />
+          <Button type="submit" variant="secondary" className="min-h-11 lg:min-h-10" disabled={busy || title.trim() === (settings.title ?? "")}>제목 저장</Button>
         </div>
       </form>
 
       {settings.linkEnabled && settings.token ? <div className="space-y-3">
         <label htmlFor="public-profile-url" className="block text-sm font-semibold">공개 주소</label>
-        <input id="public-profile-url" readOnly value={publicProfileUrl(settings.token)} spellCheck={false} className="h-11 w-full rounded-sm border border-hairline bg-surface-soft px-3 text-sm" />
+        <input id="public-profile-url" readOnly value={publicProfileUrl(settings.token)} spellCheck={false} className="h-11 lg:h-10 w-full rounded-sm border border-hairline bg-surface-soft px-3 text-sm" />
         {blocked && <p className="text-sm text-muted">지금은 실린 경험이 없어요. 주소를 열면 빈 페이지가 보이고, 새 주소도 만들 수 없어요.</p>}
         <div className="flex flex-wrap gap-2">
-          <Button className="min-h-11" onClick={() => void copy()}>공개 주소 복사</Button>
-          <Button asChild variant="secondary" className="min-h-11"><a href={publicProfileUrl(settings.token)} target="_blank" rel="noreferrer">공개 페이지 보기</a></Button>
-          <Button className="min-h-11" variant="secondary" disabled={busy || blocked} onClick={() => setConfirm("renew")}>새 주소 만들기</Button>
-          <Button className="min-h-11 text-error" variant="ghost" disabled={busy} onClick={() => setConfirm("off")}>링크 끄기</Button>
+          <Button className="min-h-11 lg:min-h-10" onClick={() => void copy()}>공개 주소 복사</Button>
+          <Button asChild variant="secondary" className="min-h-11 lg:min-h-10"><a href={publicProfileUrl(settings.token)} target="_blank" rel="noreferrer">공개 페이지 보기</a></Button>
+          <Button className="min-h-11 lg:min-h-10" variant="secondary" disabled={busy || blocked} onClick={() => setConfirm("renew")}>새 주소 만들기</Button>
+          <Button className="min-h-11 lg:min-h-10 text-error" variant="ghost" disabled={busy} onClick={() => setConfirm("off")}>링크 끄기</Button>
         </div>
-      </div> : <Button className="min-h-11" disabled={busy || blocked} onClick={() => setConfirm("on")}>링크 켜기</Button>}
+      </div> : <Button className="min-h-11 lg:min-h-10" disabled={busy || blocked} onClick={() => setConfirm("on")}>링크 켜기</Button>}
     </div>}
 
     <Dialog open={confirm !== null} onOpenChange={(open) => { if (!open) setConfirm(null); }}>
@@ -131,8 +131,8 @@ export function PublicProfileSection() {
         <DialogTitle>{confirm && CONFIRM[confirm].title}</DialogTitle>
         <DialogDescription>{confirm && CONFIRM[confirm].body}</DialogDescription>
         <DialogFooter>
-          <Button className="min-h-11" variant="secondary" onClick={() => setConfirm(null)}>취소</Button>
-          <Button className="min-h-11" disabled={busy} onClick={() => { if (confirm) void changeLink(confirm); }}>{confirm && CONFIRM[confirm].action}</Button>
+          <Button className="min-h-11 lg:min-h-10" variant="secondary" onClick={() => setConfirm(null)}>취소</Button>
+          <Button className="min-h-11 lg:min-h-10" disabled={busy} onClick={() => { if (confirm) void changeLink(confirm); }}>{confirm && CONFIRM[confirm].action}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

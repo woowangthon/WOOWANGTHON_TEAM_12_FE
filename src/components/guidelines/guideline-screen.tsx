@@ -75,7 +75,7 @@ export function GuidelineScreen() {
     <main className="w-full min-w-0 flex-1 px-4 py-7 sm:px-8 lg:px-10">
       <div className="mx-auto grid max-w-4xl min-w-0 gap-6">
         <header className="grid gap-3">
-          <Link href="/questions" className="inline-flex min-h-11 items-center justify-self-start text-sm text-muted hover:underline">← 지원으로 돌아가기</Link>
+          <Link href="/questions" className="inline-flex min-h-11 lg:min-h-10 items-center justify-self-start text-sm text-muted hover:underline">← 지원으로 돌아가기</Link>
           <div className="flex items-center gap-1"><h1 className="m-0 text-2xl font-bold">작성 지침</h1><InfoTip label="작성 지침">켠 지침은 모든 답변 초안의 문체 · 구성 · 강조에 써요. 근거에 없는 사실은 만들지 않아요.</InfoTip></div>
           <p className="m-0 text-sm leading-relaxed text-muted">들었던 작성법을 내 지침으로 쌓아 두세요.</p>
         </header>
@@ -91,14 +91,14 @@ export function GuidelineScreen() {
               <textarea id="guideline-compose" maxLength={20000} rows={3} placeholder="예: 첫 문장에 무엇을 했고 어떻게 됐는지 먼저 쓴다" className={inputClass + ' max-h-96 min-h-24 resize-y leading-relaxed [field-sizing:content]'} value={raw.text} onChange={e => setRaw({ ...raw, text: e.target.value })} />
               {showSource && <label className="grid min-w-0 gap-1.5 text-sm font-medium">출처<input autoFocus maxLength={100} className={inputClass} placeholder="어느 영상 · 누구의 피드백 · 내 생각" value={raw.source} onChange={e => setRaw({ ...raw, source: e.target.value })} /></label>}
               <div className="flex flex-wrap items-center justify-between gap-3">
-                {showSource ? <Button type="button" variant="ghost" className="min-h-11" onClick={() => { setShowSource(false); setRaw({ ...raw, source: '' }); }}>출처 빼기</Button> : <Button type="button" variant="ghost" className="min-h-11" onClick={() => setShowSource(true)}>+ 출처 달기</Button>}
+                {showSource ? <Button type="button" variant="ghost" className="min-h-11 lg:min-h-10" onClick={() => { setShowSource(false); setRaw({ ...raw, source: '' }); }}>출처 빼기</Button> : <Button type="button" variant="ghost" className="min-h-11 lg:min-h-10" onClick={() => setShowSource(true)}>+ 출처 달기</Button>}
                 <div className="flex flex-wrap items-center gap-3">
                   {!text || isLine ? <>
-                    <Button type="button" variant="ghost" className="min-h-11" disabled={!text} onClick={() => void extract()}>AI로 정리</Button>
-                    <Button type="submit" className="min-h-11" disabled={!text || loading || !!loadError}>한 줄 저장</Button>
+                    <Button type="button" variant="ghost" className="min-h-11 lg:min-h-10" disabled={!text} onClick={() => void extract()}>AI로 정리</Button>
+                    <Button type="submit" className="min-h-11 lg:min-h-10" disabled={!text || loading || !!loadError}>한 줄 저장</Button>
                   </> : <>
                     <AnalysisCost running={busy} />
-                    <Button type="submit" className="min-h-11" disabled={!text}>AI로 정리하기</Button>
+                    <Button type="submit" className="min-h-11 lg:min-h-10" disabled={!text}>AI로 정리하기</Button>
                   </>}
                 </div>
               </div>
@@ -112,8 +112,8 @@ export function GuidelineScreen() {
           <p className="m-0 text-sm text-muted">AI 해석이에요. 줄을 고치거나 빼고 저장해 주세요. 아직 저장하지 않았어요.</p>
           {candidates.length === 0 ? <p className="m-0 text-sm">지침으로 정리할 만한 게 없어요 — 직접 써 주세요.</p> : <form className="grid gap-4" onSubmit={e => { e.preventDefault(); void save(candidates.map(({ text, source }) => ({ text, source })), () => { setCandidates(null); resetComposer(); }); }}>
             <fieldset disabled={busy || loading || !!loadError} className="m-0 grid min-w-0 gap-5 border-0 p-0">
-              {candidates.map(c => <div key={c.key} role="group" aria-label={'지침 후보 ' + (c.key + 1)} className="grid min-w-0 gap-3 border-t border-hairline pt-4"><LineFields value={c} onChange={value => setCandidates(previous => previous!.map(item => item.key === c.key ? { ...value, key: c.key } : item))} /><Button type="button" variant="ghost" className="min-h-11 justify-self-start" onClick={() => setCandidates(previous => previous!.filter(item => item.key !== c.key))}>빼기</Button></div>)}
-              <Button type="submit" className="min-h-11 justify-self-start">후보 저장</Button>
+              {candidates.map(c => <div key={c.key} role="group" aria-label={'지침 후보 ' + (c.key + 1)} className="grid min-w-0 gap-3 border-t border-hairline pt-4"><LineFields value={c} onChange={value => setCandidates(previous => previous!.map(item => item.key === c.key ? { ...value, key: c.key } : item))} /><Button type="button" variant="ghost" className="min-h-11 lg:min-h-10 justify-self-start" onClick={() => setCandidates(previous => previous!.filter(item => item.key !== c.key))}>빼기</Button></div>)}
+              <Button type="submit" className="min-h-11 lg:min-h-10 justify-self-start">후보 저장</Button>
             </fieldset>
           </form>}
         </section>}
@@ -123,13 +123,13 @@ export function GuidelineScreen() {
             {!items.length && <p className="m-0 py-6 text-sm text-muted">아직 작성 지침이 없어요. 위 「지침 더하기」에 한 줄 쓰거나 들었던 작성법을 붙여 넣어 주세요.</p>}
             <ul className="m-0 grid list-none gap-4 p-0">{items.map(g => <li key={g.id} aria-label={'작성 지침 ' + g.id} className="grid min-w-0 gap-3 border-t border-hairline pt-4">
               {editing === g.id ? <form className="grid gap-3" onSubmit={e => { e.preventDefault(); void act(async () => { const updated = await updateGuideline(g.id, edit); setItems(previous => previous.map(item => item.id === g.id ? updated : item)); setEditing(null); showToast('지침을 고쳤어요. 다음에 만드는 초안부터 써요.'); }); }}>
-                <fieldset disabled={busy} className="m-0 grid min-w-0 gap-3 border-0 p-0"><LineFields value={edit} onChange={setEdit} /><div className="flex gap-2"><Button type="submit" className="min-h-11">저장</Button><Button type="button" variant="ghost" className="min-h-11" onClick={() => setEditing(null)}>취소</Button></div></fieldset>
+                <fieldset disabled={busy} className="m-0 grid min-w-0 gap-3 border-0 p-0"><LineFields value={edit} onChange={setEdit} /><div className="flex gap-2"><Button type="submit" className="min-h-11 lg:min-h-10">저장</Button><Button type="button" variant="ghost" className="min-h-11 lg:min-h-10" onClick={() => setEditing(null)}>취소</Button></div></fieldset>
               </form> : <>
                 <p className="m-0 break-words text-sm leading-relaxed">{g.text}</p>{g.source && <p className="m-0 break-words text-xs text-muted">출처 · {g.source}</p>}
                 <div className="flex flex-wrap items-center gap-3">
-                  <label className="inline-flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" role="switch" className="size-5 accent-primary" checked={g.enabled} disabled={busy} aria-label={'지침 켜기: ' + g.text} onChange={() => void act(async () => { const updated = await updateGuideline(g.id, { enabled: !g.enabled }); setItems(previous => previous.map(item => item.id === g.id ? updated : item)); })} />{g.enabled ? '켬' : '끔'}</label>
-                  <Button variant="ghost" className="min-h-11" disabled={busy} onClick={() => { setEditing(g.id); setEdit({ text: g.text, source: g.source ?? '' }); setError(null); }}>고치기</Button>
-                  <Button variant="ghost" className="min-h-11" disabled={busy} onClick={() => void act(async () => { await deleteGuideline(g.id); setItems(previous => previous.filter(item => item.id !== g.id)); showToast('지침을 지웠어요. 이미 만든 초안에는 만들 때의 지침이 남아 있어요.'); })}>지우기</Button>
+                  <label className="inline-flex min-h-11 lg:min-h-10 items-center gap-2 text-sm"><input type="checkbox" role="switch" className="size-5 accent-primary" checked={g.enabled} disabled={busy} aria-label={'지침 켜기: ' + g.text} onChange={() => void act(async () => { const updated = await updateGuideline(g.id, { enabled: !g.enabled }); setItems(previous => previous.map(item => item.id === g.id ? updated : item)); })} />{g.enabled ? '켬' : '끔'}</label>
+                  <Button variant="ghost" className="min-h-11 lg:min-h-10" disabled={busy} onClick={() => { setEditing(g.id); setEdit({ text: g.text, source: g.source ?? '' }); setError(null); }}>고치기</Button>
+                  <Button variant="ghost" className="min-h-11 lg:min-h-10" disabled={busy} onClick={() => void act(async () => { await deleteGuideline(g.id); setItems(previous => previous.filter(item => item.id !== g.id)); showToast('지침을 지웠어요. 이미 만든 초안에는 만들 때의 지침이 남아 있어요.'); })}>지우기</Button>
                 </div>
               </>}
             </li>)}</ul>

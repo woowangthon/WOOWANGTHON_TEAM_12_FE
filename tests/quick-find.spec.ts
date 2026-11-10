@@ -232,6 +232,18 @@ test("a failed ask stays after reopening, and a new question replaces it", async
   expect(api.asks).toHaveLength(2);
 });
 
+test("the home ask input is blocked the same way when no analyses are left (FE#289)", async ({ page }) => {
+  const api = await setup(page);
+  await page.route("**/api/auth/me", route => route.fulfill({ json: { id: 1, loginId: "test", dailyAnalysis: { used: 200, limit: 200 } } }));
+  await page.goto("/");
+  await page.getByRole("textbox", { name: "홈에 넣을 글", exact: true }).fill("동아리에서 의견 모은 적");
+  const home = page.getByRole("form", { name: "글 보내기" });
+  await expect(home.getByRole("button", { name: "보내기", exact: true })).toBeDisabled();
+  await expect(page.getByRole("region", { name: "홈 입력" })).toContainText("오늘 분석 횟수를 다 썼어요. 한국 시간 자정에 다시 채워지면 보내 주세요.");
+  expect(api.asks).toEqual([]);
+  await capture(page, `home-exhausted-${page.viewportSize()!.width}`, "fe-289");
+});
+
 test("Enter that finishes Hangul composition does not send", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop");
   const api = await setup(page);
@@ -262,11 +274,32 @@ test("ask failures and the daily limit are not filled with an answer, and the te
   await box(page).press("Enter");
   await expect(dialog(page).getByRole("alert")).toContainText("오늘 분석 횟수를 다 썼어요");
   await expect(dialog(page).getByRole("button", { name: "다시 시도", exact: true })).toHaveCount(0);
+  // FE#289 — 한도 초과엔 경고만. 「지원으로 만들기」는 붙이지 않는다
+  await expect(dialog(page).getByRole("button", { name: "지원으로 만들기", exact: true })).toHaveCount(0);
 
+  api.ask = { status: 502, json: { error: { code: "AI_ERROR", message: "AI 실패" } } };
+  await box(page).press("Enter");
+  await expect(dialog(page).getByRole("alert")).toContainText("잠시 뒤 다시 시도해 주세요");
   await dialog(page).getByRole("button", { name: "지원으로 만들기", exact: true }).click();
   await expect(page).toHaveURL(/\/questions/);
   await expect(page.getByRole("textbox", { name: "공고 · 문항 글이나 공고 링크", exact: true })).toHaveValue("동아리에서 의견 모은 적");
-  expect(api.asks).toHaveLength(3);
+  expect(api.asks).toHaveLength(4);
+});
+
+test("with no analyses left the ask send button is blocked with the reason, and nothing is sent (FE#289)", async ({ page }) => {
+  const api = await setup(page);
+  await page.route("**/api/auth/me", route => route.fulfill({ json: { id: 1, loginId: "test", dailyAnalysis: { used: 200, limit: 200 } } }));
+  await page.goto("/guidelines");
+  await openByButton(page);
+  await dialog(page).getByRole("button", { name: "차곡이에게", exact: true }).click();
+  await box(page).pressSequentially("동아리에서 의견 모은 적");
+  await expect(dialog(page)).toContainText("분석 1회 · 오늘 0회 남음");
+  await expect(dialog(page).getByRole("button", { name: "보내기", exact: true })).toBeDisabled();
+  await expect(dialog(page)).toContainText("오늘 분석 횟수를 다 썼어요. 한국 시간 자정에 다시 채워지면 보내 주세요.");
+  await page.keyboard.press("Enter");
+  await expect(dialog(page).getByRole("alert")).toHaveCount(0);
+  expect(api.asks).toEqual([]);
+  await capture(page, `ask-exhausted-${page.viewportSize()!.width}`, "fe-289");
 });
 
 test("> lists shortcuts that only move between screens", async ({ page }) => {
