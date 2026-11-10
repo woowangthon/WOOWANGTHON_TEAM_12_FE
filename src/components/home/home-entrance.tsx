@@ -77,8 +77,9 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
   const fileVersion = useRef(0);
   const pending = useRef(false);
   const tooLong = text.length > MAX_TEXT_LENGTH;
-  // 꺼내기(묻기 · 지원) 는 분석 1회를 쓴다 — 0회면 보내기 전에 막는다. 쌓기는 중복 안내가 먼저라 그대로 둔다(S-15)
-  const exhausted = useAnalysisLeft() === 0 && mode === "out" && !file;
+  // 0회 이유(S-15)는 두 모드가 같이 보인다. 막는 건 꺼내기(묻기 · 지원)만 — 쌓기는 같은 자료 알아보기(S-69)가 분석을 쓰지 않아 먼저 돌 수 있다
+  const exhausted = useAnalysisLeft() === 0;
+  const blocked = exhausted && mode === "out" && !file;
   const busy = routing || asking || parse.parsing || sourceSubmitting || readingFile;
 
   const pickFile = async (picked: File | undefined) => {
@@ -141,7 +142,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
   };
 
   const send = async () => {
-    if (pending.current || readingFile || exhausted || (!file && (!text.trim() || tooLong))) return;
+    if (pending.current || readingFile || blocked || (!file && (!text.trim() || tooLong))) return;
     if (mode === "in" || file) {
       // 다시 시도는 처음 넣기와 같다 — 안내에서 「그래도 넣기」를 고른 뒤 실패했으면 다시 견준다
       await sendSource();
@@ -181,7 +182,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     <form aria-label="글 보내기" aria-busy={busy} onSubmit={e => { e.preventDefault(); void send(); }}>
       <div className="mt-5 rounded-lg border border-hairline bg-canvas pt-3 pr-3 pb-2.5 pl-4.5 shadow-home-input focus-within:border-ink">
         {file && <span className="mb-2 inline-flex max-w-full items-center gap-2 rounded-full bg-surface-soft px-3 py-1 text-xs text-body"><span className="min-w-0 break-all">{file.name} · {file.text.length.toLocaleString("ko-KR")}자</span><button type="button" aria-label="첨부 파일 빼기" disabled={busy} className="flex size-11 lg:size-10 shrink-0 items-center justify-center" onClick={() => { ++fileVersion.current; setFile(null); setError(null); setDuplicate(null); }}><XIcon aria-hidden="true" /></button></span>}
-        <textarea aria-label="홈에 넣을 글" aria-describedby={mode === "in" ? "entrance-note entrance-length" : "entrance-length"} aria-invalid={tooLong}
+        <textarea aria-label="홈에 넣을 글" aria-describedby="entrance-note entrance-length" aria-invalid={tooLong}
           id="home-text" rows={2} value={text} disabled={busy || !!file} onChange={e => { setText(e.target.value); setChoosing(false); setError(null); setDuplicate(null); parse.clear(); }}
           placeholder={mode === "out" ? "한 줄로 물어보거나, 지원 문항 · 공고(링크도 돼요)를 그대로 붙여 넣어 보세요" : "오늘 한 일 한 줄이나, README · 회고를 붙여 넣어 보세요"}
           className="min-h-12 w-full resize-none border-0 bg-transparent text-base leading-relaxed outline-none placeholder:text-muted focus-visible:outline-none" />
@@ -190,7 +191,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
           <Button type="button" variant="ghost" size="icon" className="size-11 bg-surface-soft lg:size-9" aria-label="파일 올리기" disabled={busy || sourceBusy} onClick={() => fileInput.current?.click()}><PlusIcon aria-hidden="true" /></Button>
           <span id="entrance-length" className={cn("text-xs tabular-nums", tooLong ? "text-error" : "text-muted")}>{text.length > 0 && `${text.length.toLocaleString("ko-KR")} / 50,000`}</span>
           <ModelMenu />
-          <Button type="submit" size="icon" className="size-11 lg:size-9" aria-label="보내기" title={mode === "in" ? "자료 분석 시작" : "보내기"} disabled={busy || exhausted || (!file && (!text.trim() || tooLong)) || ((mode === "in" || !!file) && sourceBusy)}><ArrowUpIcon aria-hidden="true" /></Button>
+          <Button type="submit" size="icon" className="size-11 lg:size-9" aria-label="보내기" title={mode === "in" ? "자료 분석 시작" : "보내기"} disabled={busy || blocked || (!file && (!text.trim() || tooLong)) || ((mode === "in" || !!file) && sourceBusy)}><ArrowUpIcon aria-hidden="true" /></Button>
         </div>
       </div>
     </form>
@@ -200,8 +201,8 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     <div role="group" aria-label="입력 예시" className="mt-3 flex flex-wrap justify-center gap-2">
       {EXAMPLES[mode].map(([label, value]) => <button key={label} type="button" disabled={busy || !!file} onClick={() => { setText(value); setError(null); setChoosing(false); document.getElementById("home-text")?.focus(); }} className="inline-flex min-h-11 items-center rounded-full border border-hairline bg-canvas px-3 text-xs text-body lg:min-h-8 hover:border-muted-soft disabled:opacity-50">{label}</button>)}
     </div>
-    {/* S-16 — 자료를 넣는 쌓기 모드에서, 분석을 시작하기 전에 보인다 */}
-    {mode === "in" && <p id="entrance-note" className="mt-3 mb-0 flex items-center justify-center gap-1.5 text-center text-note leading-relaxed text-muted"><LockSimpleIcon className="size-[13px] shrink-0" aria-hidden="true" />넣은 자료는 분석을 위해 외부 AI 제공사(OpenAI)로 보내져요 · 학습엔 안 쓰여요</p>}
+    {/* S-16 — 꺼내기도 글을 외부 AI 로 보내므로 두 모드 모두 분석을 시작하기 전에 보인다(FE#403) */}
+    <p id="entrance-note" className="mt-3 mb-0 flex items-center justify-center gap-1.5 text-center text-note leading-relaxed text-muted"><LockSimpleIcon className="size-[13px] shrink-0" aria-hidden="true" />입력한 글과 자료는 분석을 위해 외부 AI 제공사(OpenAI)로 보내져요 · 학습엔 안 쓰여요</p>
     <LowAnalysisNotice running={busy} className="mt-2 text-center" />
     {exhausted && <p id="entrance-exhausted" role="status" className="mt-1 mb-0 text-center text-sm text-review">{ANALYSIS_EXHAUSTED_NOTE}</p>}
     {readingFile && <p role="status" className="mt-4 text-center text-sm text-muted">파일을 읽고 있어요…</p>}

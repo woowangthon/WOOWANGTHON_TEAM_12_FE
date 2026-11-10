@@ -273,6 +273,16 @@ test("the home ask input is blocked the same way when no analyses are left (FE#2
   await capture(page, `home-exhausted-${page.viewportSize()!.width}`, "fe-289");
 });
 
+test("the home note shows the same 0-left reason in the stack mode (FE#403)", async ({ page }) => {
+  await setup(page);
+  await page.route("**/api/auth/me", route => route.fulfill({ json: { id: 1, loginId: "test", dailyAnalysis: { used: 200, limit: 200 } } }));
+  await page.goto("/");
+  const home = page.getByRole("region", { name: "홈 입력" });
+  await page.getByRole("button", { name: "쌓기", exact: true }).click();
+  await expect(home).toContainText("오늘 남은 분석 0회");
+  await expect(home).toContainText("오늘 분석 횟수를 다 썼어요. 한국 시간 자정에 다시 채워지면 보내 주세요.");
+});
+
 test("Enter that finishes Hangul composition does not send", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop");
   const api = await setup(page);
