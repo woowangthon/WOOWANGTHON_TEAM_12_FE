@@ -108,12 +108,16 @@ export function ApplicationScreen() {
     if (!linkedArea || !selectedQuestionId || selectedQuestionId !== linkedQuestion) return;
     const answerId = `answer-title-${selectedQuestionId}`;
     const id = linkedArea === "draft" ? `draft-title-${selectedQuestionId}` : linkedArea === "answer" ? answerId : "question-panel";
-    const timer = setTimeout(() => {
-      // 초안 카드는 문장이 있는 초안일 때만 그려진다 — 없으면 초안이 들어올 답칸으로 간다
-      const target = document.getElementById(id) ?? (linkedArea === "draft" ? document.getElementById(answerId) : null);
+    let tries = 0;
+    const go = () => {
+      const wanted = document.getElementById(id);
+      // 초안 한 줄은 초안이 답칸 글에 들어온 뒤에야 그려진다 — 잠깐(최대 1초) 기다리고, 그래도 없으면(초안 없음) 답칸으로 간다
+      if (!wanted && linkedArea === "draft" && tries++ < 20) { timer = setTimeout(go, 50); return; }
+      const target = wanted ?? (linkedArea === "draft" ? document.getElementById(answerId) : null);
       target?.scrollIntoView({ block: "start" });
       target?.setAttribute("tabindex", "-1"); target?.focus({ preventScroll: true });
-    }, 0);
+    };
+    let timer = setTimeout(go, 0);
     return () => clearTimeout(timer);
   }, [linkedArea, linkedQuestion, selectedQuestionId]);
   // 패널의 「차곡이가 물어볼 것」과 같은 질문을 센다(FE#383)

@@ -407,10 +407,12 @@ test("복원 후 문항 Feed가 늦게 붙어도 확인 버튼은 화면 안에 
     runId: 55, questionId: 41, text: "FE106 복원 확인", status: "WAITING_CONFIRM", error: null, result: null,
     steps: [{ seq: 1, type: "CONFIRM", label: "테스트 지원을 만들까요?", tool: "create_application", arguments: { organization: "FE106", questions: [{ text: "해결한 경험은?" }] }, at: FINISHED }],
   } }));
+  // 되묻기 묶음은 접힌 채 시작한다(FE#336) — 늦게 붙은 질문은 머리줄 「답할 것 3개」 한 줄만 더하고, 긴 질문 글은 펼치기 전엔 자리를 쓰지 않는다
+  const feedAttached = () => page.getByText("답할 것 3개", { exact: true }).waitFor();
   await page.goto("/questions?question=41&run=55");
-  await page.getByText(`1. ${text}`, { exact: true }).waitFor();
+  await feedAttached();
   await expect(page.getByRole("listitem", { name: "차곡이의 확인 요청", exact: true }).getByRole("button", { name: "만들기", exact: true })).toBeInViewport();
   await page.reload();
-  await page.getByText(`1. ${text}`, { exact: true }).waitFor();
+  await feedAttached();
   await expect(page.getByRole("listitem", { name: "차곡이의 확인 요청", exact: true }).getByRole("button", { name: "만들기", exact: true })).toBeInViewport();
 });

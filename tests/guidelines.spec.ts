@@ -1,5 +1,5 @@
 // 시험 전용 HTTP 응답 — 실제 BE/AI 품질 검증과 구분한다. 제품 코드는 사용하지 않는다.
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import { test, expect } from './signed-in';
 import { FakeQuestionApi } from './fake-question-api';
 import { DRAFT_EXAMPLE } from './fixtures/draft-example';
@@ -56,9 +56,15 @@ class GuidelineApi {
 }
 // FE#235 — 초안은 답칸(내가 쓴 답) 안의 읽기 상태다. 틀과 지침 요약도 그 아래에 붙는다
 const answerBox = (page: Page) => page.getByRole('region', { name: '내가 쓴 답', exact: true });
-const draftBody = (page: Page) => page.locator('p[aria-label^="초안 —"]');
-const extractScreen = (page: Page) => page.getByRole('region', { name: '붙여 넣고 정리하기', exact: true });
-const manualScreen = (page: Page) => page.getByRole('region', { name: '직접 한 줄 쓰기', exact: true });
+// FE#283 — 초안은 답칸에 글로 들어오고, 문장 표시(data-mark)가 붙는다
+const draftBody = (page: Page) => page.locator('[data-mark]').first();
+// FE#304 — 한 줄 쓰기와 붙여 넣어 정리하기는 「지침 더하기」 상자 하나다. 출처는 「+ 출처 달기」를 눌러야 입력칸이 나온다
+const composeScreen = (page: Page) => page.getByRole('region', { name: '지침 더하기', exact: true });
+const COMPOSE_LABEL = '지침 한 줄 또는 요점 · 자막';
+async function addSource(form: Locator, source: string) {
+  await form.getByRole('button', { name: '+ 출처 달기', exact: true }).click();
+  await form.getByLabel('출처', { exact: true }).fill(source);
+}
 async function shot(page: Page, name: string, fullPage = true) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   if (process.env.UPDATE_GUIDELINE_SCREENSHOTS === '1') {
@@ -70,23 +76,24 @@ test('empty start, 502/504 preserve input, candidates edited/removed and saved o
   const api = new GuidelineApi(); await api.install(page);
   await page.goto('/guidelines');
   await expect(page.getByText('아직 작성 지침이 없어요.', { exact: false })).toBeVisible();
-  const form = extractScreen(page);
-  await form.getByLabel('요점 · 자막').fill('형용사 대신 한 행동을 쓰고 팀 프로젝트에서는 내 몫을 쓴다.');
-  await form.getByLabel('출처', { exact: true }).fill('멘토 피드백');
+  const form = composeScreen(page);
+  await form.getByLabel(COMPOSE_LABEL).fill('형용사 대신 한 행동을 쓰고 팀 프로젝트에서는 내 몫을 쓴다.');
+  await addSource(form, '멘토 피드백');
   api.extractFailures = [502, 504];
-  await form.getByRole('button', { name: '정리하기', exact: true }).click();
+  // 한 줄로 보이는 글도 「AI로 정리」를 누르면 정리한다 — 「한 줄 저장」과 다른 길이다
+  await form.getByRole('button', { name: 'AI로 정리', exact: true }).click();
   await expect(form.getByRole('alert')).toContainText('정리하지 못했어요');
   await form.getByRole('button', { name: '다시 시도', exact: true }).click();
   await expect(form.getByRole('alert')).toContainText('오래 걸려');
-  await expect(form.getByLabel('요점 · 자막')).toHaveValue('형용사 대신 한 행동을 쓰고 팀 프로젝트에서는 내 몫을 쓴다.');
+  await expect(form.getByLabel(COMPOSE_LABEL)).toHaveValue('형용사 대신 한 행동을 쓰고 팀 프로젝트에서는 내 몫을 쓴다.');
   await expect(page.getByRole('region', { name: '정리한 후보', exact: true })).toHaveCount(0);
   await form.getByRole('button', { name: '다시 시도', exact: true }).click();
   const candidates = page.getByRole('region', { name: '정리한 후보', exact: true });
   await expect(candidates.getByText('아직 저장하지 않았어요.', { exact: false })).toBeVisible();
   expect(api.items).toHaveLength(0);
   const first = candidates.getByRole('group', { name: '지침 후보 1', exact: true });
-  await first.getByLabel('지침 한 줄').fill('꾸미는 말 대신 내가 한 행동을 쓴다');
-  await first.getByLabel('출처', { exact: true }).fill('멘토 상담');
+  await first.getByLabel('지침 한 줄', { exact: true }).fill('꾸미는 말 대신 내가 한 행동을 쓴다');
+  await first.getByLabel('출처 (선택)', { exact: true }).fill('멘토 상담');
   await candidates.getByRole('group', { name: '지침 후보 2', exact: true }).getByRole('button', { name: '빼기', exact: true }).click();
   await shot(page, 'guideline-candidates');
   await candidates.getByRole('button', { name: '후보 저장', exact: true }).click();
@@ -100,8 +107,8 @@ test('manual entry, save disabled at enabled limit, edit/toggle/delete failure k
   const api = new GuidelineApi();
   api.items = Array.from({ length: 10 }, (_, i) => ({ id: 901 + i, text: '기존 지침 ' + i, source: '내 생각', enabled: true, createdAt: '', updatedAt: '' }));
   await api.install(page); await page.goto('/guidelines');
-  const manual = manualScreen(page);
-  await manual.getByLabel('지침 한 줄').fill('결론을 먼저 쓴다'); await manual.getByLabel('출처', { exact: true }).fill('내 생각');
+  const manual = composeScreen(page);
+  await manual.getByLabel(COMPOSE_LABEL).fill('결론을 먼저 쓴다'); await addSource(manual, '내 생각');
   await manual.getByRole('button', { name: '한 줄 저장', exact: true }).click();
   await expect(page.getByRole('alert').filter({ hasText: '꺼진 채 저장' })).toBeVisible();
   const item = page.getByRole('listitem', { name: '작성 지침 911', exact: true });
@@ -113,9 +120,9 @@ test('manual entry, save disabled at enabled limit, edit/toggle/delete failure k
   await page.getByRole('listitem', { name: '작성 지침 901', exact: true }).getByRole('switch').click();
   await item.getByRole('switch').click(); await expect(item.getByRole('switch')).toBeChecked();
   await item.getByRole('button', { name: '고치기', exact: true }).click();
-  await item.getByLabel('지침 한 줄').fill('첫 문장에 결론을 쓴다');
+  await item.getByLabel('지침 한 줄', { exact: true }).fill('첫 문장에 결론을 쓴다');
   api.patchCode = 'NETWORK_ERROR'; await item.getByRole('button', { name: '저장', exact: true }).click();
-  await expect(page.getByRole('main').getByRole('alert')).toBeVisible(); await expect(item.getByLabel('지침 한 줄')).toHaveValue('첫 문장에 결론을 쓴다');
+  await expect(page.getByRole('main').getByRole('alert')).toBeVisible(); await expect(item.getByLabel('지침 한 줄', { exact: true })).toHaveValue('첫 문장에 결론을 쓴다');
   api.patchCode = ''; await item.getByRole('button', { name: '저장', exact: true }).click();
   await expect(item.getByText('첫 문장에 결론을 쓴다', { exact: true })).toBeVisible();
   api.deleteFails = true; await item.getByRole('button', { name: '지우기', exact: true }).click();
@@ -128,9 +135,10 @@ test('load error retry, zero candidates invite manual entry and account menu ope
   await page.goto('/guidelines'); await expect(page.getByRole('main').getByRole('alert')).toBeVisible();
   api.listFails = false; await page.getByRole('button', { name: '다시 불러오기', exact: true }).click();
   await expect(page.getByText('아직 작성 지침이 없어요.', { exact: false })).toBeVisible();
-  await extractScreen(page).getByLabel('요점 · 자막').fill('별다른 작성법이 없는 글');
-  await extractScreen(page).getByLabel('출처', { exact: true }).fill('내 메모');
-  await extractScreen(page).getByRole('button', { name: '정리하기', exact: true }).click();
+  const form = composeScreen(page);
+  await form.getByLabel(COMPOSE_LABEL).fill('별다른 작성법이 없는 글');
+  await addSource(form, '내 메모');
+  await form.getByRole('button', { name: 'AI로 정리', exact: true }).click();
   await expect(page.getByText('지침으로 정리할 만한 게 없어요 — 직접 써 주세요.', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: '계정 메뉴: test', exact: true }).filter({ visible: true }).click();
   await page.getByRole('menuitem', { name: '작성 지침', exact: true }).click();
