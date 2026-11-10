@@ -15,6 +15,8 @@ export const MAX_QUESTIONS_PER_SUBMIT = 10;
 export const MAX_QUESTIONS_PER_APPLICATION = 20;
 /** 되묻기 답 최대 길이(자) — POST /api/clarifications/{id}/answer */
 export const MAX_ANSWER_LENGTH = 2000;
+/** 초안 요청 experienceIds 상한 — 추천이 문항당 0 ~ 8개(S-84 · question-api.md) */
+export const MAX_DRAFT_EXPERIENCES = 8;
 
 export type QuestionExperience = Experience & { supplements: Supplement[] };
 export type RequirementStatus = "SUPPORTED" | "PARTIAL" | "NOT_FOUND";

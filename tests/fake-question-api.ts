@@ -251,7 +251,7 @@ export class FakeQuestionApi {
       const q = this.find(+m[1]);
       if (!q) return error(route, 404, "QUESTION_NOT_FOUND");
       const ids = body?.experienceIds;
-      if (!Array.isArray(ids) || ids.length < 1 || ids.length > 3 || new Set(ids).size !== ids.length || ids.some(id => !q.detail.recommendations.some(r => r.experience.id === id))) return error(route, 400, "INVALID_REQUEST");
+      if (!Array.isArray(ids) || ids.length < 1 || ids.length > 8 || new Set(ids).size !== ids.length || ids.some(id => !q.detail.recommendations.some(r => r.experience.id === id))) return error(route, 400, "INVALID_REQUEST");
       if (q.detail.status !== "COMPLETED") return error(route, 409, "QUESTION_NOT_COMPLETED");
       if (q.detail.draft?.status === "ANALYZING") return error(route, 409, "DRAFT_IN_PROGRESS");
       const now = new Date().toISOString();

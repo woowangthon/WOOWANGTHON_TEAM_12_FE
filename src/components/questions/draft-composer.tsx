@@ -7,7 +7,8 @@ import { InfoTip } from "@/components/ui/info-tip";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { ApiError } from "@/lib/api/errors";
 import { suggestedFrame, type DraftFrame } from "@/lib/draft-frames";
-import type { QuestionDetail } from "@/lib/api/question-types";
+import { MAX_DRAFT_EXPERIENCES, type QuestionDetail } from "@/lib/api/question-types";
+import { groupByActivity } from "./use-draft-picks";
 import { FramePicker } from "./draft-guidance";
 import { requestError, failureReason } from "./draft-errors";
 import type { DraftActions } from "./answer-draft";
@@ -28,7 +29,8 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
   const analyzing = busy || requestingDraft || draft?.status === "ANALYZING";
   const ids = picks;
   const count = ids.filter(id => question.recommendations.some(r => r.experience.id === id)).length;
-  const allowed = ids.length >= 1 && ids.length <= 3 && new Set(ids).size === ids.length && ids.every(id => question.recommendations.some(r => r.experience.id === id));
+  const activities = groupByActivity(question.recommendations.filter(r => ids.includes(r.experience.id))).length;
+  const allowed = ids.length >= 1 && ids.length <= MAX_DRAFT_EXPERIENCES && new Set(ids).size === ids.length && ids.every(id => question.recommendations.some(r => r.experience.id === id));
   // 확인 전인 외부 AI 답은 BE 가 초안 근거에서 뺀다(S-56) — 고른 경험(안 골랐으면 추천 전체)에 있으면 미리 알린다
   const scope = count ? question.recommendations.filter(r => ids.includes(r.experience.id)) : question.recommendations;
   const pendingAnswers = scope.reduce((n, r) => n + r.experience.supplements.filter(s => s.mcpChange).length, 0);
@@ -74,10 +76,10 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
     <div className="flex items-center gap-0.5">
       <h4 className="m-0 text-sm font-semibold">{draft ? "초안 다시 만들기" : "초안 만들기"}</h4>
       <InfoTip label={draft ? "초안 다시 만들기" : "초안 만들기"}>
-        고른 경험{draft ? "과 최신 보완" : ""}을 뼈대로, 같은 활동의 기록으로 맥락을 채워요. 자료에 없는 장면은 회색 「AI 가정」으로 써서 확인을 받아요.
+        체크한 활동의 추천 줄{draft ? "과 최신 보완" : ""}을 뼈대로, 같은 활동의 기록으로 맥락을 채워요. 자료에 없는 장면은 회색 「AI 가정」으로 써서 확인을 받아요.
       </InfoTip>
     </div>
-    <p className="m-0 text-sm text-body">{!question.recommendations.length ? "추천된 경험이 있으면 초안을 만들 수 있어요." : count ? `체크한 경험 ${count}개로 만들어요` : "참고 카드에서 경험을 1 ~ 3개 골라 주세요."}</p>
+    <p className="m-0 text-sm text-body">{!question.recommendations.length ? "추천된 경험이 있으면 초안을 만들 수 있어요." : count ? `체크한 활동 ${activities}개로 만들어요` : "참고 카드에서 활동을 하나 이상 체크해 주세요."}</p>
     {pendingAnswers > 0 && <p className="m-0 text-note leading-relaxed text-muted">
       외부 AI 를 거친 답 {pendingAnswers}개는 아직 확인 전이라 초안 근거로 쓰이지 않아요. 활동 세부에서 맞아요를 눌러야 근거로 쓰여요.
     </p>}
