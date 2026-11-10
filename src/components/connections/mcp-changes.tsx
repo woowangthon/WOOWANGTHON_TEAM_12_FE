@@ -217,7 +217,7 @@ export function McpChangeLog({ writeEnabled }: { writeEnabled: boolean }) {
     </summary>
     <div className="pb-4">
       <div className="flex flex-wrap items-center justify-between gap-x-3">
-        <p className="inline-flex items-center gap-0.5 text-sm text-muted">외부 AI가 바꾼 것을 되돌려요<InfoTip label="변경 기록">건별로 확인하고 되돌려요. 웹에서 고친 것은 남지 않아요.</InfoTip></p>
+        <p className="inline-flex items-center gap-0.5 text-sm text-muted">외부 AI가 바꾼 것을 되돌려요<InfoTip label="변경 기록">외부 AI 가 한 일을 건별로 확인하고 되돌려요. 웹에서 고친 것까지 모두 보려면 위 「최근 수정」이나 경험 메뉴의 「수정 이력」을 열어요 — 외부 AI 가 고친 경험도 거기 같이 보여요.</InfoTip></p>
         {state.status === "ready" && <Button className="min-h-11 lg:min-h-10" variant="ghost" size="sm" onClick={() => void load()}>새로고침</Button>}
       </div>
       {state.status === "loading" && <p role="status" className="mt-4 text-sm text-muted">변경 기록을 불러오고 있어요…</p>}

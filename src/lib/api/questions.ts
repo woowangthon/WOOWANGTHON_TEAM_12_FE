@@ -137,8 +137,9 @@ export async function fetchGroundingCheck(questionId: number): Promise<Grounding
   return (await request<{ groundingCheck: GroundingCheck | null }>(`/questions/${questionId}/grounding-check`)).groundingCheck;
 }
 
-/** PUT /api/questions/{id}/answer-draft — 쓰는 중인 답 자동 저장(S-72). AI 를 부르지 않는다. 빈 글도 저장한다 */
-export async function saveAnswerDraft(questionId: number, req: { text: string; state: Record<string, unknown> | null }): Promise<AnswerDraft> {
+/** PUT /api/questions/{id}/answer-draft — 쓰는 중인 답 자동 저장(S-72). AI 를 부르지 않는다. 빈 글도 저장한다.
+ *  fromDraft 는 초안을 답칸에 넣은 저장일 때만 true — 수정 이력에 DRAFT_OVERWRITE 로 남는다(S-80) */
+export async function saveAnswerDraft(questionId: number, req: { text: string; state: Record<string, unknown> | null; fromDraft?: boolean }): Promise<AnswerDraft> {
   if (req.text.length > MAX_GROUNDING_TEXT_LENGTH) throw new ApiError("TEXT_TOO_LONG", "답이 5,000자를 넘어 저장하지 못했어요.");
   return (await request<{ answerDraft: AnswerDraft }>(`/questions/${questionId}/answer-draft`, req, "PUT")).answerDraft;
 }

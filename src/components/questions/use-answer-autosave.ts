@@ -13,7 +13,10 @@ export type AutosaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
 /** 답칸 글 자동 저장(S-72 · FE#213) — 임시 글은 확정 답이 아니다. AI 를 부르지 않는다.
  *  enabled 가 처음 참이 될 때의 글을 기준으로 삼고, 그 뒤 바뀌면 멈춘 뒤 저장한다. 실패해도 글은 그대로 두고 오류 · 다시 시도를 보인다.
  *  onSaved 는 받아 둔 문항에 임시 글을 옮긴다 — 탭을 돌아와도 새 글로 시작하게. 떠나기 전 기다리던 저장은 바로 보낸다 */
-export function useAnswerAutosave(questionId: number, body: Body, enabled: boolean, onSaved: (draft: AnswerDraft) => void) {
+export function useAnswerAutosave(questionId: number, body: Body, enabled: boolean, onSaved: (draft: AnswerDraft) => void,
+  /** 초안을 답칸에 넣은 글 — 이 글을 처음 저장할 때 한 번 fromDraft 를 싣는다(수정 이력 DRAFT_OVERWRITE · S-80) */
+  fromDraftText: string | null = null) {
+  const fromDraft = useRef(fromDraftText), flagged = useRef<string | null>(null);
   const key = JSON.stringify(body);
   const [saved, setSaved] = useState<string | null>(null);
   const [status, setStatus] = useState<AutosaveStatus>("idle");
@@ -22,7 +25,7 @@ export function useAnswerAutosave(questionId: number, body: Body, enabled: boole
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null), mounted = useRef(true), onSavedRef = useRef(onSaved);
   // 기준 글 — 서버에 이미 있거나(임시 글 · 확정 답 · 초안) 새로 보이는 글이라 저장하지 않는다
   if (enabled && saved === null) setSaved(key);
-  useEffect(() => { latest.current = key; onSavedRef.current = onSaved; if (savedRef.current === null) savedRef.current = saved; });
+  useEffect(() => { latest.current = key; onSavedRef.current = onSaved; fromDraft.current = fromDraftText; if (savedRef.current === null) savedRef.current = saved; });
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   const send = useCallback(async () => {
@@ -33,7 +36,10 @@ export function useAnswerAutosave(questionId: number, body: Body, enabled: boole
     if (mounted.current) { setStatus("saving"); setError(null); }
     inflight.current = (async () => {
       try {
-        const draft = await saveAnswerDraft(questionId, JSON.parse(next) as Body);
+        const req = JSON.parse(next) as Body;
+        const placed = fromDraft.current !== null && req.text === fromDraft.current && flagged.current !== req.text;
+        const draft = await saveAnswerDraft(questionId, placed ? { ...req, fromDraft: true } : req);
+        if (placed) flagged.current = req.text;
         savedRef.current = next;
         onSavedRef.current(draft);
         if (mounted.current) { setSaved(next); setStatus(latest.current === next ? "saved" : "pending"); }

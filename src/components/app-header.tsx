@@ -14,6 +14,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { WorkStatus } from "@/components/work/work-provider";
+import { RecentRevisionsButton } from "@/components/revisions/revision-list";
 
 type Page = "home" | "timeline" | "applications" | "questions" | "connections" | "guidelines";
 type HeaderProps = {
@@ -68,6 +69,7 @@ export function AppHeader({ hideTabBar, panelToggle, addSource, applicationList,
     <header className="sticky top-0 z-40 flex h-11.25 items-center gap-1 border-b border-hairline bg-canvas pr-2 pl-4 lg:hidden">
       <Link href="/" aria-label="차곡 — 홈" className="shrink-0"><Logo className="h-5 w-auto" /></Link>
       {!desktop && <WorkStatus className="min-w-0 flex-1 shrink justify-end">{panelToggle}<QuickFindButton /></WorkStatus>}
+      {!desktop && <RecentRevisionsButton compact />}
       <AccountMenu />
     </header>
     <header className="hidden h-14 items-center gap-4 border-b border-hairline bg-canvas px-6 lg:sticky lg:top-0 lg:z-20 lg:flex">
@@ -77,7 +79,12 @@ export function AppHeader({ hideTabBar, panelToggle, addSource, applicationList,
         <strong aria-current="page" className="truncate font-medium text-ink">{PAGE_NAME[page]}</strong>
       </nav>
       {/* 기능이 없는 버튼은 두지 않는다 */}
-      <div data-slot="header-actions" className="ml-auto flex min-w-0 items-center gap-2">{desktop && <WorkStatus>{panelToggle}<QuickFindButton /></WorkStatus>}</div>
+      <div data-slot="header-actions" className="ml-auto flex min-w-0 items-center gap-2">{desktop && <>
+        <WorkStatus>{panelToggle}<QuickFindButton /></WorkStatus>
+        {/* 시안 6: 구분선 뒤 저장 상태 자리 — 누르면 최근 수정(S-80) */}
+        <span aria-hidden="true" className="h-4.5 w-px bg-hairline" />
+        <RecentRevisionsButton />
+      </>}</div>
     </header>
     <DesktopSidebar key={wide ? "wide" : desktop ? "rail" : "mobile"} activePage={page} experienceCount={experienceCount === undefined ? ownCount : experienceCount}
       applicationCount={applications.loading || applications.error ? null : applications.applications.length}

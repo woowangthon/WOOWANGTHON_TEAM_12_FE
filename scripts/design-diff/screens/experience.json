@@ -2,7 +2,28 @@
   "design": "experience.html",
   "app": "/experience",
   "pairs": [
-    { "name": "보기 전환", "design": ".vt", "app": "[data-slot=view-switch]" },
-    { "name": "보기 전환 버튼", "design": ".vt button", "app": "[data-slot=view-switch] button" }
+    {
+      "name": "보기 전환",
+      "design": ".vt",
+      "app": "[data-slot=view-switch]"
+    },
+    {
+      "name": "보기 전환 버튼",
+      "design": ".vt button",
+      "app": "[data-slot=view-switch] button"
+    },
+    {
+      "name": "저장 상태 · 최근 수정",
+      "design": ".save-state",
+      "app": "[data-slot=recent-revisions]",
+      "intent": {
+        "높이": "시안은 글자뿐인 표시, 앱은 누르는 버튼(최근 수정)이라 누를 자리 · 둥근 hover 면을 둔다",
+        "안쪽 여백": "시안은 글자뿐인 표시, 앱은 누르는 버튼(최근 수정)이라 누를 자리 · 둥근 hover 면을 둔다",
+        "모서리": "시안은 글자뿐인 표시, 앱은 누르는 버튼(최근 수정)이라 누를 자리 · 둥근 hover 면을 둔다",
+        "너비": "글자가 「모두 저장됨」 → 「최근 수정」 + 좌우 여백",
+        "글자 크기": "11px 토큰이 없다 — 가장 작은 text-xs(12px)",
+        "줄 높이": "text-xs 줄 높이"
+      }
+    }
   ]
 }
