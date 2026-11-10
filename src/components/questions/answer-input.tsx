@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckIcon, CopyIcon } from "@phosphor-icons/react";
+import { CheckIcon, ClockCounterClockwiseIcon, CopyIcon } from "@phosphor-icons/react";
+import { RevisionDialog } from "@/components/revisions/revision-list";
 import { cn } from "@/lib/utils";
 import { useConfirmedAnswer } from "./use-confirmed-answer";
 import { AnalysisCost } from "@/components/auth/analysis-cost";
@@ -82,6 +83,8 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
   const g = useGroundingCheck(questionId, checks, initialText);
   const [box, setBox] = useState<Box>(() => ({ key: draftKey, local: start.kept?.local ?? {}, seen: start.kept?.seen ?? new Set(), sawDrafting: false }));
   const [editBase, setEditBase] = useState(start.base);
+  const [draftPlaced, setDraftPlaced] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [selected, setSelected] = useState<Selection>(null);
   const [ask, setAsk] = useState<"copy" | "confirm" | "ground" | "load" | null>(null);
   const { toast, showToast } = useToast();
@@ -97,7 +100,8 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
     const take = !!ready && fresh && (box.sawDrafting || !edited);
     setBox({ key: draftKey, local: {}, seen: new Set(), sawDrafting: false });
     setSelected(null);
-    if (take) { const next = composeDraft(question, ready, NONE, {}); g.setText(next); setEditBase(next); }
+    // 초안을 답칸에 넣은 글 — 그 자동 저장 한 번에 fromDraft 를 실어 수정 이력에 남긴다(S-80 · question-api.md)
+    if (take) { const next = composeDraft(question, ready, NONE, {}); g.setText(next); setEditBase(next); setDraftPlaced(next); }
   }
   const settled = a.answer?.text ?? null;
   const analysis = useMemo(() => analyze(question, ready, NONE, box.local, box.seen, settled, text, g.check), [question, ready, box.local, box.seen, settled, text, g.check]);
@@ -116,7 +120,7 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
   useEffect(() => { setEditedAnswer(questionId, edited); }, [questionId, edited]);
   // 자동 저장(S-72) — 글과 이 화면의 표시 상태(답한 빈칸 · 맞아요 문장 글)를 같이
   const savedBox: SavedBox = { v: 1, draftKey, local: box.local, seen: [...box.seen] };
-  const autosave = useAnswerAutosave(questionId, { text, state: savedBox }, g.initialized, draft => onAnswerDraftChange(questionId, draft));
+  const autosave = useAnswerAutosave(questionId, { text, state: savedBox }, g.initialized, draft => onAnswerDraftChange(questionId, draft), draftPlaced);
   // 아직 저장하지 못한 글이 있으면 새로고침 · 닫기 전에 브라우저가 묻는다
   useEffect(() => {
     if (!autosave.unsaved) return;
@@ -197,7 +201,17 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
           <TargetLengthField value={target} onSave={onTargetLength} />
           {marked && target !== null && text.length < target && <InfoTip label="목표 글자 수" align="end">자료에 있는 내용으로만 써서 목표보다 짧을 수 있어요. 빈칸 · 빠진 사실에 답하면 다음 초안이 길어져요.</InfoTip>}</span>
         <Button variant="ghost" size="icon" className="size-11 lg:size-9" aria-label="답 복사" title="답 복사" disabled={!text.trim()} onClick={copyAnswer}><CopyIcon aria-hidden="true" /></Button>
+        <Button variant="ghost" size="icon" className="size-11 lg:size-9" aria-label="수정 이력" title="수정 이력" aria-haspopup="dialog" onClick={() => setHistoryOpen(true)}><ClockCounterClockwiseIcon aria-hidden="true" /></Button>
       </div>
+      <RevisionDialog open={historyOpen} onOpenChange={setHistoryOpen} target={{ type: "ANSWER", id: questionId }} title="수정 이력"
+        description="이 문항의 답을 「다 썼어요」 · 초안 넣기 · 되돌리기 때 남긴 기록이에요. 쓰는 중 자동 저장은 남지 않아요."
+        // 기다리던 자동 저장을 먼저 보낸다 — 늦게 도착해 되돌린 임시 글을 덮지 않게
+        beforeRestore={() => autosave.retry()}
+        onRestored={(result) => {
+          if (!result.answerDraft) return;
+          g.setText(result.answerDraft.text); setEditBase(result.answerDraft.text); setSelected(null);
+          onAnswerDraftChange(questionId, result.answerDraft);
+        }} />
     </div>
     {drafting && <p role="status" className="m-0 text-sm text-muted">차곡이가 초안을 만들고 있어요. 다 되면 답칸에 들어와요.</p>}
     {draft?.status === "FAILED" && !drafting && <p role="alert" className="m-0 text-sm text-error">{failureReason(draft.error)} 차곡이에서 다시 만들 수 있어요.</p>}

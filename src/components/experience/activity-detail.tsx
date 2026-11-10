@@ -18,6 +18,7 @@ import { ActivityNote } from "./activity-note";
 import { ActivityLinks } from "./activity-links";
 import { ExperienceEditor } from "./experience-editor";
 import { SourceFileButton } from "./source-viewer";
+import { RevisionDialog } from "@/components/revisions/revision-list";
 
 const FIRST_COUNT = 3;
 
@@ -62,6 +63,7 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
   const nameEdit = useRef<InlineEditHandle>(null);
   // 메뉴가 닫힌 뒤에 칸을 연다 — 열린 메뉴가 포커스를 붙잡고 있어서
   const editFromMenu = useRef(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const activity = state.status === "ready" ? state.activity : null;
   const current = activity ?? summary;
   const period = current.period;
@@ -87,7 +89,8 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
       <header className="grid gap-2.5 border-b border-hairline px-4.5 pt-5 pb-4 lg:px-7 lg:pt-7 lg:pb-5">
         <div className="flex items-start gap-2">
           <ActivityNameField key={current.id} activity={{ ...summary, name: current.name, period }} readOnly={readOnly || !activity} onSaved={onActivitySaved} editRef={nameEdit} />
-          {activity && onMergeRequest && !readOnly && (
+          {/* 활동이 하나여도 메뉴는 있다 — 수정 이력(S-80). 합치기만 둘 이상일 때 */}
+          {activity && !readOnly && (
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild>
                 <Button variant="ghost" size="icon" className="size-11 lg:size-9" aria-label="활동 메뉴"><DotsThreeIcon /></Button>
@@ -95,11 +98,15 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
               <DropdownMenu.Portal>
                 <DropdownMenu.Content align="end" sideOffset={4} onCloseAutoFocus={(e) => { if (!editFromMenu.current) return; e.preventDefault(); editFromMenu.current = false; nameEdit.current?.open(); }} className="z-50 min-w-40 rounded-md border border-hairline bg-canvas p-1 shadow-float">
                   <DropdownMenu.Item onSelect={() => { editFromMenu.current = true; }} className="flex min-h-11 lg:min-h-10 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">이름 고치기</DropdownMenu.Item>
-                  <DropdownMenu.Item onSelect={onMergeRequest} className="flex min-h-11 lg:min-h-10 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">다른 활동과 합치기</DropdownMenu.Item>
+                  <DropdownMenu.Item onSelect={() => setHistoryOpen(true)} className="flex min-h-11 lg:min-h-10 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">수정 이력</DropdownMenu.Item>
+                  {onMergeRequest && <DropdownMenu.Item onSelect={onMergeRequest} className="flex min-h-11 lg:min-h-10 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">다른 활동과 합치기</DropdownMenu.Item>}
                 </DropdownMenu.Content>
               </DropdownMenu.Portal>
             </DropdownMenu.Root>
           )}
+          {activity && !readOnly && <RevisionDialog open={historyOpen} onOpenChange={setHistoryOpen} target={{ type: "ACTIVITY", id: activity.id }} title="수정 이력"
+            description={`이 활동의 이름 · 기간을 고친 기록이에요. 경험의 기록은 경험 메뉴에 있어요.`}
+            onRestored={(result) => { if (result.activity) onActivitySaved({ ...summary, name: result.activity.name, period: result.activity.period }); }} />}
           <Button variant="ghost" size="icon" className="hidden lg:inline-flex" onClick={onClose} aria-label="세부 닫기">
             <XIcon />
           </Button>
