@@ -13,6 +13,7 @@
   --surface-soft: #f5f5f5;
   --surface-faint: #fafafa; /* 시안 6 .tg — 추천 카드 */
   --surface-strong: #ededed;
+  --supposed-strong: #dedede; /* AI 가정 중 구체 값(specific)의 바탕 — surface-strong 보다 한 단계 진하게(S-79 · ADR-014) */
   --ink: #000000;
   --body: #2b2b2b;
   --muted: #707070; /* 시안은 #7d7d7d — 작은 한글이 흐려서 흰 바탕 4.95 · surface-soft 4.54 로 어둡게(FE#182) */
@@ -98,6 +99,7 @@
   --color-surface-soft: var(--surface-soft);
   --color-surface-faint: var(--surface-faint);
   --color-surface-strong: var(--surface-strong);
+  --color-supposed-strong: var(--supposed-strong);
   --color-ink: var(--ink);
   --color-body: var(--body);
   --color-muted: var(--muted);
