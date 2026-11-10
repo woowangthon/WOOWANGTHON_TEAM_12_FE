@@ -13,10 +13,10 @@ import { ActivityChip, RecommendationEvidence } from "./question-result";
 import { RematchButton, type Rematch } from "./rematch-button";
 import { whyFailed, type ChagokRunControl } from "./use-chagok-run";
 
-/** 시안의 부탁 칩 중 도구가 있는 둘 — 근거 점검 · 초안은 그 도구가 생긴 뒤(S-45 · S-27) */
+/** 시안의 부탁 칩 중 도구가 있는 것 — 근거 점검 · 초안은 그 도구가 생긴 뒤(S-45 · S-27).
+ *  「다른 경험으로」는 두지 않는다 — 문항에 맞는 다른 경험은 「경험 다시 찾기」(S-90)가 /match 로 찾는다(ETC#300) */
 const PRESETS = [
   { label: "근거 찾기", text: "이 문항에 쓸 경험의 근거를 찾아 줘" },
-  { label: "다른 경험으로", text: "지금 고른 경험 말고 이 문항에 쓸 다른 경험을 찾아 줘" },
 ];
 const CARDS_AT_FIRST = 3;
 const card = "m-0 grid gap-3 rounded-[4px_16px_16px_16px] border border-hairline bg-canvas p-3.5 text-sm leading-relaxed";
