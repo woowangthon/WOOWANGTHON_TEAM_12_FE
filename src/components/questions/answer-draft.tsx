@@ -172,13 +172,27 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
   const marks = analysis?.marks ?? [];
   const own = analysis?.own ?? [];
 
-  // 글 길이에 맞춰 늘어난다 — 스크롤이 없어야 표시 층과 줄이 어긋나지 않는다
-  useLayoutEffect(() => {
+  // 글 길이에 맞춰 늘어난다 — 스크롤이 없어야 표시 층과 줄이 어긋나지 않는다.
+  // 폭이 바뀌어도(창 크기 · 차곡이 패널 · 화면 회전 · 웹폰트) 줄 수가 바뀌니 다시 잰다(FE#326)
+  const fit = () => {
     const el = area.current;
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
-  }, [text]);
+    el.scrollTop = 0;
+    if (layer.current) layer.current.scrollTop = 0;
+  };
+  useLayoutEffect(fit, [text]);
+  useEffect(() => {
+    const el = area.current;
+    if (!el) return;
+    let width = el.clientWidth;
+    // 높이만 바뀐 알림(fit 이 바꾼 것)은 건너뛴다 — 폭이 바뀔 때만 다시 잰다
+    const observer = new ResizeObserver(() => { if (el.clientWidth !== width) { width = el.clientWidth; fit(); } });
+    observer.observe(el);
+    void document.fonts?.ready.then(fit);
+    return () => observer.disconnect();
+  }, []);
 
   const titleOf = (sel: NonNullable<Selection>) => sel.kind === "blank" ? "빈칸"
     : sel.kind === "own" ? "내가 쓴 문장"
@@ -355,6 +369,8 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
         onCompositionStart={() => { composing.current = text; }}
         onCompositionEnd={e => compositionEnd(e.currentTarget.value)}
         onSelect={snap} onKeyDown={keyDown} onClick={click} onPointerMove={move} onPointerLeave={() => setHover(null)}
+        // 안전장치 — 그래도 입력칸 안에서 스크롤되면 표시 층도 같이 옮긴다
+        onScroll={e => { if (layer.current) layer.current.scrollTop = e.currentTarget.scrollTop; }}
         className="relative block w-full min-w-0 resize-none overflow-hidden border-0 bg-transparent p-5 text-ui leading-[1.9] break-words whitespace-pre-wrap outline-none focus-visible:outline-none disabled:bg-surface-soft/60" />
     </div>
     {peek !== null && !sheet && <div className="flex justify-end border-t border-hairline-soft px-3.5 py-1.5 lg:hidden">
