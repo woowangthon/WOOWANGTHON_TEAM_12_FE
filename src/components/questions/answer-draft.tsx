@@ -16,7 +16,7 @@ import type { DraftFrame } from "@/lib/draft-frames";
 import { cn } from "@/lib/utils";
 import { AnswerEvidence } from "./answer-evidence";
 import { inlineAction } from "./clarifications";
-import { diff, matchSentences, sameNumbers, splitSentences } from "./draft-match";
+import { diff, MATCH_THRESHOLD, matchSentences, sameNumbers, similarity, splitSentences } from "./draft-match";
 
 export type DraftActions = { onGenerate: (experienceIds: number[], frame?: DraftFrame, useContext?: boolean) => Promise<void>; onRefresh: () => Promise<void>; onOpenOmissions: () => void; picks: number[]; onResetPicks: (questionId: number) => void; savingAnswer: boolean; requestingDraft: boolean };
 
@@ -24,9 +24,9 @@ export type DraftActions = { onGenerate: (experienceIds: number[], frame?: Draft
 export type Blank = { omission: DraftOmission; at: number };
 
 /** 고른 표시 — 초안 문장 · 빈칸 · 내가 쓴 문장(근거 점검 문장 번호) */
-export type Selection = { kind: "sentence"; index: number } | { kind: "blank"; at: number } | { kind: "own"; index: number } | null;
+export type Selection = { kind: "sentence"; index: number } | { kind: "blank"; at: number } | { kind: "own"; index: number } | { kind: "title" } | null;
 
-const keyOf = (s: NonNullable<Selection>) => s.kind === "blank" ? `b-${s.at}` : s.kind === "own" ? `g-${s.index}` : `s-${s.index}`;
+const keyOf = (s: NonNullable<Selection>) => s.kind === "title" ? "t" : s.kind === "blank" ? `b-${s.at}` : s.kind === "own" ? `g-${s.index}` : `s-${s.index}`;
 
 const marked = (s: DraftSentence) => (s.kind === "ELABORATED" || s.kind === "OPINION") && !s.confirmed;
 
@@ -70,9 +70,20 @@ function sentenceText(question: QuestionDetail, draft: Draft, index: number, loc
   return text;
 }
 
-/** 처음 답칸에 넣는 초안 글 — 뺀 문장은 빼고, 답한 빈칸은 답으로 */
+/** 처음 답칸에 넣는 초안 글 — 소제목이 있으면 첫 줄(S-86), 뺀 문장은 빼고, 답한 빈칸은 답으로 */
 export function composeDraft(question: QuestionDetail, draft: Draft, removed: Set<number>, local: Record<number, string>) {
-  return draft.sentences.flatMap((_, i) => removed.has(i) ? [] : [sentenceText(question, draft, i, local)]).join(" ");
+  const body = draft.sentences.flatMap((_, i) => removed.has(i) ? [] : [sentenceText(question, draft, i, local)]).join(" ");
+  return draft.title?.trim() ? `${draft.title.trim()}\n${body}` : body;
+}
+
+/** 글 첫 줄이 초안 소제목(또는 그걸 고친 것)인가 — 절반 이상 닮으면 소제목 자리. 지웠으면 null */
+function titleIn(draft: Draft | null, text: string): TitleMark | null {
+  const title = draft?.title?.trim();
+  if (!title) return null;
+  const line = text.split("\n")[0];
+  const start = line.length - line.trimStart().length, end = line.trimEnd().length;
+  if (end <= start || similarity(title, line) < MATCH_THRESHOLD) return null;
+  return { start, end, original: title, edited: line.trim() !== title };
 }
 
 export const GROUND_LABEL: Record<GroundingStatus, string> = { SOURCE: "원문", USER_INPUT: "내가 입력", UNSUPPORTED: "근거 없음", OPINION: "생각" };
@@ -97,7 +108,9 @@ export type Own = { index: number; start: number; end: number; text: string; gro
 /** 지금 글에 남은 답 안 한 빈칸 — [start, end) 는 자리 표시 */
 export type Chip = { at: number; omission: DraftOmission; index: number; start: number; end: number; linked: boolean };
 /** drift 는 다 쓴 뒤 고친 그 밖의 문장(점검 전 내가 쓴 문장) — 점선만, 카드는 없다 */
-export type Analysis = { marks: Mark[]; chips: Chip[]; own: Own[]; drift: { start: number; end: number }[]; checks: { start: number; selection: NonNullable<Selection> }[] };
+/** 첫 줄 소제목(S-86) — 확인할 곳은 아니다(세지 않음). 생각 문장처럼 점선으로 AI 제안임을 보인다 */
+export type TitleMark = { start: number; end: number; original: string; edited: boolean };
+export type Analysis = { marks: Mark[]; chips: Chip[]; own: Own[]; title: TitleMark | null; drift: { start: number; end: number }[]; checks: { start: number; selection: NonNullable<Selection> }[] };
 
 /**
  * 글을 초안 문장 · 근거 점검 문장과 맞춰 본다(FE#317).
@@ -149,12 +162,17 @@ export function analyze(question: QuestionDetail, draft: Draft | null, removed: 
     const done: Done = by ?? (supposedDone || (s.confirmed && s.kind !== "FACT") ? "server" : null);
     marks.push({ ...m, original, need, filled: need === "filled" ? filled : null, ground, done, changed: changedSince(m.text, ground) });
   }
-  const own: Own[] = grounds.filter(g => !marks.some(m => m.start < g.end && g.start < m.end))
+  let own: Own[] = grounds.filter(g => !marks.some(m => m.start < g.end && g.start < m.end))
     .map(g => {
       const by = unsupported(g.ground) ? doneBy(g.text) : null;
       return { index: g.index, start: g.start, end: g.end, text: g.text, ground: g.ground, need: unsupported(g.ground) && !by ? "unsupported" as const : null, done: by, changed: changedSince(g.text, g.ground) };
     });
-  const taken = [...marks, ...own];
+  // 소제목 줄 — 초안 문장과 짝이 됐거나 근거 점검이 확인할 곳으로 잡았으면 그쪽 표시를 둔다
+  const found = titleIn(draft, text);
+  const overlaps = (b: { start: number; end: number }) => !!found && b.start < found.end && found.start < b.end;
+  const title = found && !marks.some(overlaps) && !own.some(o => o.need && overlaps(o)) ? found : null;
+  if (title) own = own.filter(o => !overlaps(o));
+  const taken = [...marks, ...own, ...(title ? [title] : [])];
   const drift = settled === null ? [] : splitSentences(text)
     .filter(p => !taken.some(b => b.start < p.end && p.start < b.end) && !settled.includes(p.text)).map(p => ({ start: p.start, end: p.end }));
   const checks = [
@@ -162,11 +180,12 @@ export function analyze(question: QuestionDetail, draft: Draft | null, removed: 
     ...own.filter(o => o.need).map(o => ({ start: o.start, selection: { kind: "own", index: o.index } as const })),
     ...chips.map(c => ({ start: c.start, selection: { kind: "blank", at: c.at } as const })),
   ].sort((a, b) => a.start - b.start);
-  return { marks, chips, own, drift, checks };
+  return { marks, chips, own, title, drift, checks };
 }
 
 // 카드 머리줄 왼쪽 — 누가 쓴 문장 · 무슨 종류인가. 초안 생각과 근거 점검의 생각은 같은 범주라 같은 이름이다
 const LABEL: Record<DraftSentence["kind"], string> = { FACT: "AI 초안 · 근거", ELABORATED: "AI 초안 · 보탬", OPINION: "AI 초안 · 생각", SUPPOSED: "AI 가정" };
+const TITLE_LABEL = "AI 초안 · 소제목";
 const wide = () => matchMedia("(min-width: 64rem)").matches;
 
 type EditorProps = {
@@ -235,7 +254,7 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
     return () => observer.disconnect();
   }, []);
 
-  const titleOf = (sel: NonNullable<Selection>) => sel.kind === "blank" ? "빈칸"
+  const titleOf = (sel: NonNullable<Selection>) => sel.kind === "title" ? TITLE_LABEL : sel.kind === "blank" ? "빈칸"
     : sel.kind === "own" ? "내가 쓴 문장"
       : LABEL[draft?.sentences[sel.index]?.kind ?? "FACT"];
   const open = (next: Selection, tapped: boolean) => {
@@ -344,6 +363,10 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
       if (chip) { open({ kind: "blank", at: chip.at }, true); select(chip.end, chip.end); }
       return;
     }
+    if (key === "t") {
+      if (wide()) open({ kind: "title" }, true); else setPeek({ kind: "title" });
+      return;
+    }
     const index = Number(key.slice(2));
     const target = key.startsWith("g-") ? own.find(o => o.index === index) : marks.find(m => m.index === index);
     const sel: Selection = key.startsWith("g-") ? { kind: "own", index } : { kind: "sentence", index };
@@ -367,8 +390,17 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
     let at = 0;
     const dotted = "underline decoration-dotted decoration-hairline decoration-2 underline-offset-[5px]";
     const blocks = [...marks.map(m => ({ start: m.start, m, o: null, d: null })), ...own.map(o => ({ start: o.start, m: null, o, d: null })),
-      ...(analysis?.drift ?? []).map(d => ({ start: d.start, m: null, o: null, d }))].sort((x, y) => x.start - y.start);
+      ...(analysis?.drift ?? []).map(d => ({ start: d.start, m: null, o: null, d })),
+      ...(analysis?.title ? [{ start: analysis.title.start, m: null, o: null, d: null }] : [])].sort((x, y) => x.start - y.start);
     for (const { m, o, d } of blocks) {
+      if (!m && !o && !d && analysis?.title) {
+        // 첫 줄 소제목 — 생각 문장처럼 점선 밑줄(회색 — 확인할 곳은 아니다)
+        const t = analysis.title;
+        out.push(text.slice(at, t.start), <span key="t" data-mark="t" className={cn("rounded-sm underline decoration-dashed decoration-muted-soft decoration-2 underline-offset-[5px]",
+          tint("t", false, false))}>{text.slice(t.start, t.end)}</span>);
+        at = t.end;
+        continue;
+      }
       if (d) {
         // 다 쓴 뒤 고친 그 밖의 문장 — 점선만
         out.push(text.slice(at, d.start), <span key={`d-${d.start}`} className={dotted}>{text.slice(d.start, d.end)}</span>);
@@ -504,7 +536,7 @@ function PeekBubble({ layer, target, onOpen }: { layer: RefObject<HTMLDivElement
     return () => { window.removeEventListener("scroll", place, true); view?.removeEventListener("resize", place); view?.removeEventListener("scroll", place); };
   }, [layer, key]);
   return createPortal(<div ref={bubble} style={{ top: -9999, left: 0 }} className="fixed z-40 rounded-full border border-hairline bg-canvas shadow-float lg:hidden">
-    <Button size="sm" variant="ghost" className="min-h-11 rounded-full px-4" onMouseDown={e => e.preventDefault()} onClick={onOpen}>근거 보기</Button>
+    <Button size="sm" variant="ghost" className="min-h-11 rounded-full px-4" onMouseDown={e => e.preventDefault()} onClick={onOpen}>{target.kind === "title" ? "소제목 보기" : "근거 보기"}</Button>
   </div>, document.body);
 }
 
@@ -512,6 +544,15 @@ function PeekBubble({ layer, target, onOpen }: { layer: RefObject<HTMLDivElement
 function DraftCard({ question, draft, analysis, local, selected, onAnswer, onConfirm, onConfirmOwn, onFilledFixed, onActorDecided, onSupposed, onRemove, cardsDisabled: disabled, prefill, onWrite, onClose, onFlash }: CardProps) {
   const close = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
   if (!analysis) return null;
+  if (selected?.kind === "title") {
+    const t = analysis.title;
+    if (!t) return null;
+    return <div role="group" aria-label="소제목 카드" onKeyDown={close} className="grid gap-3 p-4 lg:px-5">
+      <CardHead title={`${TITLE_LABEL}${t.edited ? " · 고친 소제목" : ""}`} ground={null} done={null} need={false} />
+      <p className="m-0 text-note leading-relaxed text-body">이 답이 보여 주는 것을 한 줄로 줄인 제안이에요. 자료의 사실이 아니니 고치거나 지워도 돼요 — 복사하면 첫 줄로 들어가요.</p>
+      {t.edited && <p className="m-0 text-note leading-relaxed break-words text-muted">원래 소제목 — {t.original}</p>}
+    </div>;
+  }
   if (selected?.kind === "own") {
     const o = analysis.own.find(x => x.index === selected.index);
     if (!o) return null;
