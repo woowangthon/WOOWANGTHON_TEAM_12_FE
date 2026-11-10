@@ -3,7 +3,8 @@
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import { FakeQuestionApi } from "./fake-question-api";
-import { clickMark } from "./draft-marks";
+import { openMark } from "./draft-marks";
+import type { QuestionDetail } from "../src/lib/api/question-types";
 import { DRAFT_SUPPOSED, SUPPOSED_LINKED, SUPPOSED_SPECIFIC } from "./fixtures/draft-supposed";
 
 const SHOTS = process.env.FE348_SHOTS === "1";
@@ -30,9 +31,9 @@ const supposed = (page: Page, n: number) => expect(page.getByText(`AI 가정 ${n
 const posts = (api: FakeQuestionApi) => api.calls.filter(c => c.call.startsWith("POST"));
 const copied = (page: Page) => page.evaluate(() => (window as unknown as { copied?: string }).copied);
 
-async function open(page: Page) {
+async function open(page: Page, edit?: (q: QuestionDetail) => void) {
   const api = new FakeQuestionApi({ sameApplication: true });
-  api.edit(41, q => { q.draft = structuredClone(DRAFT_SUPPOSED); });
+  api.edit(41, q => { q.draft = structuredClone(DRAFT_SUPPOSED); edit?.(q); });
   await api.install(page);
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (text: string) => { (window as unknown as { copied: string }).copied = text; } } });
@@ -54,7 +55,7 @@ test("AI 가정은 회색 · 구체 값은 한 단계 진하게, 「확인할 �
   await expect(markOf(page, "s-5")).toHaveClass(/bg-supposed-strong/);
   // 짝 되묻기는 「차곡이가 더 물어본 것」에 섞지 않는다 — 배운 점(65)만
   await expect(page.getByRole("status").filter({ hasText: "차곡이가 더 물어본 게 1개" })).toBeVisible();
-  await clickMark(page, "s-4");
+  await openMark(page, "s-4");
   await expect(card(page)).toContainText("폴링과 WebSocket 을 바꾸기 전에 어떻게 비교했나요?");
   await expect(card(page).getByRole("button", { name: "비슷했어요" })).toBeVisible();
   await shot(page, "card-linked");
@@ -62,7 +63,7 @@ test("AI 가정은 회색 · 구체 값은 한 단계 진하게, 「확인할 �
 
 test("경험에 붙은 가정 — 비슷했어요는 문장 그대로 보완으로 쌓고 표시가 조용해진다", async ({ page }) => {
   const api = await open(page);
-  await clickMark(page, "s-4");
+  await openMark(page, "s-4");
   await card(page).getByRole("button", { name: "비슷했어요" }).click();
   await expect.poll(() => posts(api)).toEqual([{ call: "POST /api/clarifications/66/answer", body: { answer: SUPPOSED_LINKED } }]);
   await expect(card(page)).toContainText("경험에 보완으로 쌓였어요");
@@ -75,7 +76,7 @@ test("경험에 붙은 가정 — 비슷했어요는 문장 그대로 보완으�
 test("경험에 붙은 가정 — 고치기는 고친 글을 보완으로 쌓고 글도 바꾼다", async ({ page }) => {
   const api = await open(page);
   const fixed = "바꾸기 전에 두 방식을 시험 화면에서 비교해 봤습니다.";
-  await clickMark(page, "s-4");
+  await openMark(page, "s-4");
   await card(page).getByRole("button", { name: "고치기", exact: true }).click();
   await card(page).getByRole("textbox").fill(fixed);
   await shot(page, "card-edit");
@@ -88,7 +89,7 @@ test("경험에 붙은 가정 — 고치기는 고친 글을 보완으로 쌓고
 
 test("경험에 안 붙은 가정 — 비슷했어요는 맞아요로만 저장한다", async ({ page }) => {
   const api = await open(page);
-  await clickMark(page, "s-5");
+  await openMark(page, "s-5");
   await expect(card(page)).toContainText("구체 값이 들어 있어요");
   await expect(card(page)).toContainText("보완으로 저장하지 않아요");
   await card(page).getByRole("button", { name: "비슷했어요" }).click();
@@ -99,7 +100,7 @@ test("경험에 안 붙은 가정 — 비슷했어요는 맞아요로만 저장�
 
 test("빼기는 글에서 그 문장을 지운다", async ({ page }) => {
   const api = await open(page);
-  await clickMark(page, "s-5");
+  await openMark(page, "s-5");
   await card(page).getByRole("button", { name: "빼기", exact: true }).click();
   await expect(answerBox(page)).toHaveValue(COMPOSED.replace(`${SUPPOSED_SPECIFIC} `, ""));
   await supposed(page, 1);
@@ -125,4 +126,10 @@ test("다 썼어요도 같은 알림을 띄운다", async ({ page }) => {
   await open(page);
   await page.getByRole("button", { name: "다 썼어요", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "AI 가정 2곳 · 구체 값 1곳이 확인 전이에요" })).toContainText("그대로 저장하면");
+});
+
+test("다 쓴 답에 그대로 있어도 AI 가정은 확인 전으로 남고, 다른 표시는 확인 끝이다 (FE#370)", async ({ page }) => {
+  await open(page, q => { q.answer = { questionId: 41, text: COMPOSED, confirmedAt: "2026-11-20T10:00:00+09:00", newFacts: null }; });
+  await supposed(page, 2); // 가정 확인은 경험의 보완으로 쌓는 일이라 「다 썼어요」로 대신하지 않는다
+  await expect(page.getByText("확인할 곳 1군데", { exact: true })).toBeVisible(); // AI 보탬 · 생각은 끝, 빈칸만
 });

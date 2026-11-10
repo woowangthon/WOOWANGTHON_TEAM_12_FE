@@ -14,13 +14,16 @@ export async function clickMark(page: Page, key: string) {
   await page.mouse.click(at.x, at.y);
 }
 
-/** 문장 표시를 눌러 카드를 연다 — 좁은 폭에서 확인할 곳이 아닌 문장은 말풍선 「근거 보기」를 눌러야 시트가 열린다 */
+/** 좁은 폭에서 탭하면 뜨는 말풍선(FE#370) — 확인할 곳 「확인하기」 · 빈칸 「답하기」 · 그 밖 「근거 보기」 · 소제목 「소제목 보기」 */
+export const peekButton = (page: Page) => page.getByRole("button", { name: /^(확인하기|답하기|근거 보기|소제목 보기)$/ });
+
+/** 표시를 눌러 카드를 연다 — 좁은 폭은 무엇을 탭하든 말풍선을 눌러야 시트가 열린다(FE#370) */
 export async function openMark(page: Page, key: string) {
   await clickMark(page, key);
   if ((page.viewportSize()?.width ?? 1440) >= 1024) return;
-  const peek = page.getByRole("button", { name: "근거 보기", exact: true });
-  await expect(peek.or(page.getByRole("dialog"))).toBeVisible();
-  if (await peek.isVisible()) await peek.click();
+  await expect(peekButton(page)).toBeVisible();
+  await peekButton(page).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
 }
 
 /** 마우스를 표시 위에 올린다(넓은 폭) — 클릭과 같은 자리 */

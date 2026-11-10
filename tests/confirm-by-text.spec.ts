@@ -3,7 +3,7 @@
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import { FakeQuestionApi } from "./fake-question-api";
-import { clickMark, hoverMark } from "./draft-marks";
+import { hoverMark, openMark } from "./draft-marks";
 import { DRAFT_S79 } from "./fixtures/draft-s79";
 import { GROUNDING_EXAMPLE } from "./fixtures/grounding-example";
 import type { GroundingCheck, QuestionDetail } from "../src/lib/api/question-types";
@@ -25,6 +25,7 @@ const draftChecked = (replace?: [string, string]): Sentence[] => DRAFT_S79.sente
 const own = (text = OWN): Sentence => ({ text, status: "UNSUPPORTED", evidence: [], note: "문장의 숫자(100)가 받치는 근거가 없어요" });
 const NEW_FIRST: Sentence = { text: "새로 끼어든 문장입니다.", status: "SOURCE", evidence: [], note: null };
 const UNCHANGED_NEEDS = 4; // 802 · 804 · 805 · 빈칸
+const SETTLED_NEEDS = 1; // 다 쓴 답에 그대로면 빈칸만 남는다(FE#370)
 
 type Options = { draft?: boolean; freshDraft?: boolean; answer?: string; responses: Sentence[][]; saved?: Sentence[]; savedText?: string };
 /** responses 는 점검을 누를 때마다 차례로 돌려줄 결과(마지막은 되풀이). 점검한 글은 그때 입력칸 글 */
@@ -69,7 +70,7 @@ async function runCheck(page: Page, text: string) {
   await expect(page.getByRole("button", { name: "점검했어요", exact: true })).toBeVisible(); // 결과는 답칸 표시 · 카드에만 붙는다(FE#336)
 }
 async function confirmOwn(page: Page, key: string) {
-  await clickMark(page, key);
+  await openMark(page, key);
   await sentenceCard(page).getByRole("button", { name: "맞아요", exact: true }).click();
   if (narrow(page)) { await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toHaveCount(0); } // 맞아요 뒤에도 카드는 남는다(FE#325)
 }
@@ -103,21 +104,46 @@ test("확인한 문장을 고치면 맞아요가 풀려 다시 점검하면 다�
   await checks(page, UNCHANGED_NEEDS + 1); // 글이 달라졌으니 새로 센다
 });
 
-test("다 쓴 답에 그대로 있는 근거 없음 문장은 칠하지만 세지 않고, 고치지 않은 AI 보탬은 센다", async ({ page }) => {
-  await setup(page, { draft: true, answer: WITH_OWN, saved: [...draftChecked(), own()], responses: [] });
+test("다 쓴 답에 그대로 있는 문장은 종류 상관없이 확인 끝 — 답 안 한 빈칸만 남는다 (FE#370)", async ({ page }) => {
+  const { api } = await setup(page, { draft: true, answer: WITH_OWN, saved: [...draftChecked(), own()], responses: [] });
   await expect(answerBox(page)).toHaveValue(WITH_OWN);
   await expect(markOf(page, "g-5")).toHaveText(OWN);
-  await checks(page, UNCHANGED_NEEDS); // 근거 없음은 안 세고, AI 보탬 · 생각 · 빈칸은 센다
-  await clickMark(page, "s-1");
-  await expect(sentenceCard(page).getByRole("button", { name: "맞아요", exact: true })).toBeVisible(); // 서버에 저장할 수 있다
+  await checks(page, SETTLED_NEEDS); // 근거 없음 · 고치지 않은 AI 보탬 · 생각도 끝, 빈칸만
+  await openMark(page, "s-1"); // 고치지 않은 AI 보탬
+  await expect(sentenceCard(page).getByText("다 쓴 답에 넣은 문장이라 확인한 것으로 봤어요", { exact: false })).toBeVisible();
+  await expect(sentenceCard(page).getByRole("button", { name: "맞아요", exact: true })).toHaveCount(0);
+  expect(api.calls.filter(c => c.call.includes("/confirm"))).toEqual([]); // 서버에 맞아요는 보내지 않는다
+});
+
+test("다 쓴 뒤 고친 문장만 원래 규칙으로 돌아가고 다른 문장은 그대로 확인 끝이다 (FE#370)", async ({ page }) => {
+  await setup(page, { draft: true, answer: WITH_OWN, saved: [...draftChecked(), own()], responses: [] });
+  await checks(page, SETTLED_NEEDS);
+  await answerBox(page).fill(WITH_OWN.replace("자주 끊기는", "종종 끊기는")); // AI 보탬(802)만 고친다
+  await expect(markOf(page, "s-1")).toContainText("종종 끊기는");
+  await checks(page, SETTLED_NEEDS + 1);
+  await expect(markOf(page, "s-1")).toHaveClass(/decoration-review/);
+});
+
+test("(버그) 다 쓴 답보다 새 초안이 나중이면 다 쓴 답을 기준으로 쓰지 않는다 — 점선 · 확인 끝 둘 다 (FE#370)", async ({ page }) => {
+  // 옛 다 쓴 답이 새 초안과 글자까지 같아도 기준이 아니다 — 새 초안으로 다시 다 썼어요를 눌러야 기준
+  await setup(page, { draft: true, freshDraft: true, answer: COMPOSED, responses: [] });
+  await expect(answerBox(page)).toHaveValue(COMPOSED);
+  await checks(page, UNCHANGED_NEEDS);
+});
+
+test("(버그) 다 쓴 뒤 새 초안을 만들면 새 초안 문장에 회색 점선이 붙지 않는다 (FE#370)", async ({ page }) => {
+  await setup(page, { draft: true, freshDraft: true, answer: "예전에 다 쓴 답입니다.", responses: [] });
+  await expect(answerBox(page)).toHaveValue(COMPOSED);
+  for (const key of ["s-0", "s-1", "s-2", "s-3", "s-4"]) await expect(markOf(page, key)).not.toHaveClass(/decoration-dotted/);
+  await checks(page, UNCHANGED_NEEDS);
 });
 
 test("새로고침 뒤 다른 문장을 고쳐도 다 쓴 답에 있는 문장은 계속 세지 않는다", async ({ page }) => {
   await setup(page, { draft: true, answer: WITH_OWN, saved: [...draftChecked(), own()], responses: [] });
-  await checks(page, UNCHANGED_NEEDS);
+  await checks(page, SETTLED_NEEDS);
   await answerBox(page).fill(WITH_OWN.replace("프로젝트에서", "프로젝트에서도"));
   await expect(markOf(page, "s-0")).toContainText("프로젝트에서도");
-  await checks(page, UNCHANGED_NEEDS);
+  await checks(page, SETTLED_NEEDS);
   await expect(markOf(page, "g-5")).toHaveText(OWN);
 });
 

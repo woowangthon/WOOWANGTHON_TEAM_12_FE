@@ -2,7 +2,7 @@
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import { FakeQuestionApi } from "./fake-question-api";
-import { clickMark } from "./draft-marks";
+import { openMark } from "./draft-marks";
 import { DRAFT_S79 } from "./fixtures/draft-s79";
 
 const SHOTS = process.env.FE235_SHOTS === "1";
@@ -37,18 +37,18 @@ test("초안이 답칸에 표시와 함께 들어오고, 표시를 누르면 카
   await expect(page.getByText("확인할 곳 4군데")).toBeVisible();
   await page.getByText("확인할 곳 4군데").scrollIntoViewIfNeeded();
   await shot(page, "view");
-  await clickMark(page, "s-1");
+  await openMark(page, "s-1");
   await expect(page.getByText("왜 확인이 필요한가요 — 대화가 끊긴 불편은 자료에 없어 AI 가 풀어 썼어요").filter({ visible: true })).toBeVisible();
   await shot(page, "card-elaborated");
 });
 
 test("빈칸 카드와 주체 확인 카드", async ({ page }) => {
   await open(page);
-  await clickMark(page, "b-0");
+  await openMark(page, "b-0");
   await expect(page.getByRole("group", { name: "빈칸 카드" }).filter({ visible: true }).getByText("WebSocket 으로 바꾼 뒤 메시지 지연이 얼마나 줄었나요?")).toBeVisible();
   await shot(page, "card-blank");
   if (page.viewportSize()!.width < 1024) { await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toHaveCount(0); } // 좁은 폭은 시트가 뒤 화면을 덮는다
-  await clickMark(page, "s-3");
+  await openMark(page, "s-3");
   await expect(page.getByText("누가 했는지 확인 안 됨", { exact: false }).filter({ visible: true })).toBeVisible();
   await shot(page, "card-actor");
 });

@@ -91,11 +91,18 @@ export function matchSentences(text: string, originals: (string | null)[]): Matc
   return matches.sort((a, b) => a.start - b.start);
 }
 
-/** 문장 속 숫자 — 순서와 상관없이 같은 숫자들인가(쉼표 자리 구분은 걷는다) */
-export function sameNumbers(a: string, b: string) {
-  const numbers = (s: string) => (s.match(/\d+(?:[.,]\d+)*/g) ?? []).map(n => n.replace(/,/g, "")).sort();
-  const x = numbers(a), y = numbers(b);
-  return x.length === y.length && x.every((n, i) => n === y[i]);
+const numbersIn = (s: string) => (s.match(/\d+(?:[.,]\d+)*/g) ?? []).map(n => n.replace(/,/g, ""));
+
+/** 원래 문장의 숫자가 지금 글에 다 남아 있나(FE#370) — 순서 상관없이, 같은 숫자가 두 번이면 두 번. 쉼표 자리 구분은 걷는다.
+ *  근거에 있던 값을 바꾸거나 지우면 false, 새 내용을 덧붙이며 숫자가 늘기만 하면 true(새 내용은 근거 점검의 몫) */
+export function keepsNumbers(original: string, now: string) {
+  const left = numbersIn(now);
+  return numbersIn(original).every(n => {
+    const at = left.indexOf(n);
+    if (at < 0) return false;
+    left.splice(at, 1);
+    return true;
+  });
 }
 
 /** 바뀐 곳 — 앞 · 뒤 같은 부분을 걷어 낸 [start, end)(바뀌기 전 글 기준)와 들어간 글 */

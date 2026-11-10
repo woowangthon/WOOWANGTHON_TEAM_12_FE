@@ -2,7 +2,7 @@
 
 // 답칸 한 화면 편집(S-79 · FE#283). 글은 늘 입력칸에서 고치고, 뒤에 같은 글을 그린 표시 층이 밑줄 · 칩을 칠한다.
 // 근거 문장은 조용히 · AI 보탬은 밑줄 · 생각은 점선 밑줄 · 빈칸은 칩 · AI 가정은 회색 바탕 물결 밑줄(구체 값은 진하게 — ADR-014). 고친 문장도 원래와 절반 이상 닮으면 표시 · 카드가 남는다(draft-match).
-// 표시를 누르면 카드(넓은 폭은 글 아래, 좁은 폭은 하단 시트)에 근거 · 이유 · 주체와 맞아요가 보인다. 빈칸은 눌러서만 답한다.
+// 표시를 누르면 카드(넓은 폭은 글 아래, 좁은 폭은 탭한 자리 말풍선을 거쳐 하단 시트 — FE#370)에 근거 · 이유 · 주체와 맞아요가 보인다. 빈칸은 눌러서만 답한다.
 // 문장을 빼려면 글에서 지운다(Ctrl+Z 로 되돌린다 — 글은 자동 저장 S-72). 카드는 바깥을 누르거나 Esc 로 닫는다(FE#337)
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode, type RefObject } from "react";
 import { CheckIcon, WarningCircleIcon } from "@phosphor-icons/react";
@@ -16,7 +16,7 @@ import type { DraftFrame } from "@/lib/draft-frames";
 import { cn } from "@/lib/utils";
 import { AnswerEvidence } from "./answer-evidence";
 import { inlineAction } from "./clarifications";
-import { diff, MATCH_THRESHOLD, matchSentences, sameNumbers, similarity, splitSentences } from "./draft-match";
+import { diff, keepsNumbers, MATCH_THRESHOLD, matchSentences, similarity, splitSentences } from "./draft-match";
 
 export type DraftActions = { onGenerate: (experienceIds: number[], frame?: DraftFrame, useContext?: boolean) => Promise<void>; onRefresh: () => Promise<void>; onOpenOmissions: () => void; picks: number[]; onResetPicks: (questionId: number) => void; savingAnswer: boolean; requestingDraft: boolean };
 
@@ -115,8 +115,8 @@ export type Analysis = { marks: Mark[]; chips: Chip[]; own: Own[]; title: TitleM
 /**
  * 글을 초안 문장 · 근거 점검 문장과 맞춰 본다(FE#317).
  * seen 은 이 화면에서만 누른 맞아요 — 문장 글로 기억해 다시 점검해 순서가 바뀌어도 남는다(번호로 기억하면 풀린다).
- * settled 는 다 쓴 답 — 그 안에 글자 그대로 있는 문장은 화면에서만 세는 확인할 곳(채운 빈칸 · 숫자 · 근거 없음 · 고친 AI 보탬)에서 뺀다.
- * 고치지 않은 AI 보탬 · 생각은 맞아요를 서버에 저장할 수 있어 다 쓴 답에 있어도 센다
+ * settled 는 다 쓴 답(초안보다 나중일 때만 — 부르는 쪽이 거른다) — 그 안에 글자 그대로 있는 문장은 종류 상관없이 확인할 곳에서 뺀다(FE#370).
+ * 예외는 AI 가정(확인이 보완으로 쌓인다)과 답 안 한 빈칸(글에 자리 표시가 남은 미완성 — 칩은 따로 센다)
  */
 export function analyze(question: QuestionDetail, draft: Draft | null, removed: Set<number>, local: Record<number, string>, seen: Set<string>, settled: string | null, text: string, check: GroundingCheck | null): Analysis {
   const originals = draft ? draft.sentences.map((_, i) => removed.has(i) ? null : sentenceText(question, draft, i, local)) : [];
@@ -131,8 +131,8 @@ export function analyze(question: QuestionDetail, draft: Draft | null, removed: 
     return inside.find(g => g.ground.status === "UNSUPPORTED")?.ground ?? inside[0]?.ground ?? null;
   };
   const unsupported = (g: Ground | null) => g?.status === "UNSUPPORTED" && !g.stale;
-  // 화면에서만 세는 확인은 이 화면 맞아요 → 다 쓴 답 순으로 끝난다
-  const doneBy = (t: string): Done => seen.has(t) ? "seen" : settled?.includes(t) ? "settled" : null;
+  // 다 쓴 답에 그대로 있으면 그쪽이 먼저(FE#370) → 이 화면 맞아요
+  const doneBy = (t: string): Done => settled?.includes(t) ? "settled" : seen.has(t) ? "seen" : null;
   // 기준(근거 점검 · 다 쓴 답) 뒤에 고쳤나
   const changedSince = (t: string, g: Ground | null) => !!g?.stale || (settled !== null && !settled.includes(t));
   for (const m of draft ? matchSentences(text, originals) : []) {
@@ -155,11 +155,15 @@ export function analyze(question: QuestionDetail, draft: Draft | null, removed: 
     // AI 가정은 짝에 보완으로 답했거나(비슷했어요 · 고치기) 서버 맞아요(짝이 경험에 안 붙음)면 확인 끝 — 표시가 근거처럼 조용해진다(S-79)
     const pair = pairOf(draft!, m.index);
     const supposedDone = s.kind === "SUPPOSED" && (!!s.confirmed || (!!pair && answered(pair, local)));
-    // 확인할 곳은 한 번만 — 채운 빈칸 → AI 가정 → AI 보탬 · 생각 → 숫자 → 근거 없음. 고치지 않은 AI 보탬 · 가정은 다 쓴 답(settled)으로 끝나지 않는다
-    const candidate = filled ? "filled" : s.kind === "SUPPOSED" ? (supposedDone ? null : "supposed") : marked(s) ? "marked" : m.edited && !sameNumbers(original, m.text) ? "numbers" : unsupported(ground) ? "unsupported" : null;
-    const by = candidate === "marked" || candidate === "supposed" ? (seen.has(m.text) ? "seen" : m.edited ? doneBy(m.text) : null) : candidate ? doneBy(m.text) : null;
+    // 확인할 곳은 한 번만 — 채운 빈칸 → AI 가정 → AI 보탬 · 생각 → 숫자(원래 숫자가 바뀌거나 빠졌을 때만 — FE#370) → 근거 없음
+    const candidate = filled ? "filled" : s.kind === "SUPPOSED" ? (supposedDone ? null : "supposed") : marked(s) ? "marked" : m.edited && !keepsNumbers(original, m.text) ? "numbers" : unsupported(ground) ? "unsupported" : null;
+    // 다 쓴 답에 그대로 있으면 종류 상관없이 확인 끝(FE#370 — 서버에 맞아요는 보내지 않는다).
+    // AI 가정만 예외 — 확인이 경험의 보완으로 쌓이는 일이라 「다 썼어요」로 대신하지 않는다(ADR-014 — 다 썼어요 때 남은 가정을 알린다)
+    const by = candidate === "supposed" ? (seen.has(m.text) ? "seen" : null) : candidate ? doneBy(m.text) : null;
     const need = by ? null : candidate;
-    const done: Done = by ?? (supposedDone || (s.confirmed && s.kind !== "FACT") ? "server" : null);
+    const server = supposedDone || (s.confirmed && s.kind !== "FACT");
+    // 카드 문구는 다 쓴 답이 먼저 — 그 밖의 맞아요(이 화면 · 서버)는 「맞아요 눌렀어요」 하나로
+    const done: Done = by ?? (server ? (s.kind !== "SUPPOSED" && settled?.includes(m.text) ? "settled" : "server") : null);
     marks.push({ ...m, original, need, filled: need === "filled" ? filled : null, ground, done, changed: changedSince(m.text, ground) });
   }
   let own: Own[] = grounds.filter(g => !marks.some(m => m.start < g.end && g.start < m.end))
@@ -214,8 +218,9 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
   const layer = useRef<HTMLDivElement>(null);
   const [sheet, setSheet] = useState(false);
   const [hover, setHover] = useState<string | null>(null);
-  // 좁은 폭에서 확인할 곳이 아닌 문장을 탭하면 시트 대신 「근거 보기」 버튼만 — 고치려고 탭할 때마다 시트가 키보드를 덮지 않게
-  const [peek, setPeek] = useState<Selection>(null);
+  // 좁은 폭은 무엇을 탭하든 시트 대신 말풍선 먼저(FE#370) — 고치려고 탭할 때마다 시트가 키보드 · 글을 덮지 않게.
+  // at 은 탭한 자리의 커서, y 는 탭한 높이(말풍선을 그 줄에 붙인다)
+  const [peek, setPeek] = useState<{ sel: NonNullable<Selection>; at: number; y: number } | null>(null);
   // 맞아요 누른 순간 그 문장을 잠깐 초록으로(FE#325)
   const [flash, setFlash] = useState<string | null>(null);
   useEffect(() => {
@@ -354,26 +359,41 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
     }
     return null;
   };
-  const click = (e: MouseEvent) => {
-    const key = markAt(e.clientX, e.clientY);
-    setPeek(null);
-    if (!key) { if (selected) open(null, false); return; }
-    if (key.startsWith("b-")) {
-      const chip = chips.find(c => c.at === Number(key.slice(2)));
-      if (chip) { open({ kind: "blank", at: chip.at }, true); select(chip.end, chip.end); }
-      return;
+  // 누른 자리에 표시가 없으면(문장 사이 공백 · 줄 끝 빈 곳) 커서로 찾는다(FE#370) — 커서가 문장 시작 ~ 끝(끝 포함)에 있고
+  // 누른 높이가 그 문장의 줄 안일 때만. 글 아래 빈 곳은 커서가 글 끝에 가도 높이가 줄 밖이라 반응하지 않는다
+  const markNear = (y: number) => {
+    const el = area.current;
+    if (!el || el.selectionStart !== el.selectionEnd || !layer.current) return null;
+    const c = el.selectionStart;
+    const lineHeight = parseFloat(getComputedStyle(layer.current).lineHeight) || 0;
+    const ranges = [...marks.map(m => ({ ...m, key: `s-${m.index}` })), ...own.map(o => ({ ...o, key: `g-${o.index}` })),
+      ...(analysis?.title ? [{ ...analysis.title, key: "t" }] : [])];
+    for (const r of ranges) {
+      if (c < r.start || c > r.end) continue;
+      // 글자 칸은 줄 높이보다 낮다 — 줄 사이 여백까지 그 줄로 본다
+      const rects = [...(layer.current.querySelector(`[data-mark="${r.key}"]`)?.getClientRects() ?? [])];
+      if (rects.some(b => { const pad = Math.max(0, (lineHeight - b.height) / 2); return y >= b.top - pad && y <= b.bottom + pad; })) return r.key;
     }
-    if (key === "t") {
-      if (wide()) open({ kind: "title" }, true); else setPeek({ kind: "title" });
-      return;
-    }
+    return null;
+  };
+  const selectionOf = (key: string): NonNullable<Selection> | null => {
+    if (key.startsWith("b-")) { const at = Number(key.slice(2)); return chips.some(c => c.at === at) ? { kind: "blank", at } : null; }
+    if (key === "t") return analysis?.title ? { kind: "title" } : null;
     const index = Number(key.slice(2));
-    const target = key.startsWith("g-") ? own.find(o => o.index === index) : marks.find(m => m.index === index);
-    const sel: Selection = key.startsWith("g-") ? { kind: "own", index } : { kind: "sentence", index };
-    // 좁은 폭은 확인할 곳만 시트로 바로 연다 — 그 밖의 문장은 「근거 보기」 버튼을 거친다
-    if (!target) return;
-    if (wide() || target.need) open(sel, true);
-    else setPeek(sel);
+    if (key.startsWith("g-")) return own.some(o => o.index === index) ? { kind: "own", index } : null;
+    return marks.some(m => m.index === index) ? { kind: "sentence", index } : null;
+  };
+  const click = (e: MouseEvent) => {
+    setPeek(null);
+    const key = markAt(e.clientX, e.clientY) ?? markNear(e.clientY);
+    if (!key) { if (selected) open(null, false); return; }
+    const sel = selectionOf(key);
+    if (!sel) return;
+    // 빈칸은 한 덩어리 — 커서를 칩 뒤에 둔다
+    if (sel.kind === "blank") { const chip = chips.find(c => c.at === sel.at)!; select(chip.end, chip.end); }
+    // 넓은 폭은 카드를 바로, 좁은 폭은 무엇이든 말풍선을 거친다(「다음 확인할 곳 →」만 시트 바로)
+    if (wide()) open(sel, true);
+    else setPeek({ sel, at: area.current?.selectionEnd ?? 0, y: e.clientY });
   };
   const move = (e: PointerEvent) => {
     if (e.pointerType !== "mouse") return;
@@ -381,7 +401,7 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
     setHover(key && !key.startsWith("b-") ? key : null);
   };
 
-  const lit = (key: string) => hover === key || flash === key || (!!selected && keyOf(selected) === key) || (!!peek && keyOf(peek) === key);
+  const lit = (key: string) => hover === key || flash === key || (!!selected && keyOf(selected) === key) || (!!peek && keyOf(peek.sel) === key);
   // 평소엔 할 일(주황)만, 기준 뒤 고친 문장은 회색 점선. 마우스 올림 · 고름 · 맞아요 순간엔 꼬리표 색 배경(FE#325)
   const tint = (key: string, need: boolean, ok: boolean) => !lit(key) ? null : flash === key || (!need && ok) ? "bg-evidence-soft" : need ? "bg-review-soft" : "bg-surface-soft";
   const passed = (g: Ground | null) => !!g && !g.stale && (g.status === "SOURCE" || g.status === "USER_INPUT");
@@ -470,6 +490,9 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
     return () => { document.removeEventListener("click", click); document.removeEventListener("keydown", key); };
   }, [cardOpen]);
 
+  // 말풍선 문구(FE#370) — 확인할 곳 「확인하기」 · 빈칸 「답하기」 · 그 밖 「근거 보기」
+  const peekLabel = (sel: NonNullable<Selection>) => sel.kind === "blank" ? "답하기" : sel.kind === "title" ? "소제목 보기"
+    : (sel.kind === "own" ? own.find(o => o.index === sel.index)?.need : marks.find(m => m.index === sel.index)?.need) ? "확인하기" : "근거 보기";
   const card = selected && <DraftCard {...props} onFlash={key => { setFlash(key); setAnnounce("확인했어요"); }} prefill={prefill} onWrite={chip => { open(null, false); select(chip.start, chip.end); }}
     onClose={() => { onSelect(null); setSheet(false); setPrefill(null); }} />;
   return <>
@@ -489,7 +512,7 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
         onScroll={e => { if (layer.current) layer.current.scrollTop = e.currentTarget.scrollTop; }}
         className="relative block w-full min-w-0 resize-none overflow-hidden border-0 bg-transparent p-5 text-ui leading-[1.9] break-words whitespace-pre-wrap outline-none focus-visible:outline-none disabled:bg-surface-soft/60" />
     </div>
-    {peek !== null && !sheet && <PeekBubble layer={layer} target={peek} onOpen={() => { const sel = peek; setPeek(null); open(sel, true); }} />}
+    {peek !== null && !sheet && <PeekBubble layer={layer} peek={peek} label={peekLabel(peek.sel)} onOpen={() => { const sel = peek.sel; setPeek(null); open(sel, true); }} />}
     <p aria-live="polite" className="sr-only">{announce}</p>
     {/* 카드는 한 곳에만 그린다 — 넓은 폭은 글 아래, 좁은 폭은 하단 시트(두 곳에 그리면 입력칸 id 가 겹친다) */}
     {card && !sheet && <div className="border-t border-hairline-soft">{card}</div>}
@@ -509,24 +532,57 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
 
 type CardProps = EditorProps & { prefill: { at: number; text: string } | null; onWrite: (chip: Chip) => void; onClose: () => void; onFlash: (key: string) => void };
 
-/** 좁은 폭 — 확인할 곳이 아닌 문장을 탭하면 그 문장 첫 줄 바로 위에 「근거 보기」 말풍선. 가상 키보드는 아래에서 올라와 위쪽은 가리지 않는다(FE#325).
+/** 표시 층에서 글 at 번째 글자 하나의 칸 — 표시 층의 글은 입력칸 글과 같아(+ 끝 줄바꿈) 글자 자리로 바로 찾는다 */
+function charRect(layer: HTMLElement, at: number) {
+  const walker = document.createTreeWalker(layer, NodeFilter.SHOW_TEXT);
+  let offset = 0;
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const length = node.textContent?.length ?? 0;
+    if (at < offset + length) {
+      if (node.textContent![at - offset] === "\n") return null;
+      const range = document.createRange();
+      range.setStart(node, at - offset); range.setEnd(node, at - offset + 1);
+      return range.getClientRects()[0] ?? null;
+    }
+    offset += length;
+  }
+  return null;
+}
+
+/** 좁은 폭 — 탭한 자리(커서가 든 줄) 바로 위 · 커서 근처에 말풍선(FE#325 · FE#370). 가상 키보드는 아래에서 올라와 위쪽은 가리지 않는다.
+ *  커서 자리는 표시 층에서 커서 앞 · 뒤 글자 칸으로 잰다 — 줄이 꺾이는 자리는 앞 · 뒤 글자가 다른 줄이라 탭한 높이에 가까운 쪽을 쓴다.
  *  보이는 영역(visualViewport) 안에서만, 위에 자리가 없으면 아래로 뒤집는다. 스크롤 · 키보드 오르내림에 다시 잰다 */
-function PeekBubble({ layer, target, onOpen }: { layer: RefObject<HTMLDivElement | null>; target: NonNullable<Selection>; onOpen: () => void }) {
+function PeekBubble({ layer, peek, label, onOpen }: { layer: RefObject<HTMLDivElement | null>; peek: { sel: NonNullable<Selection>; at: number; y: number }; label: string; onOpen: () => void }) {
   const bubble = useRef<HTMLDivElement>(null);
-  const key = keyOf(target);
+  const key = keyOf(peek.sel);
+  const { at, y } = peek;
   // 위치는 화면을 다시 그리지 않고 스타일로만 옮긴다(스크롤 · 키보드마다 불린다)
   useLayoutEffect(() => {
+    let side: "before" | "after" | null = null;
+    const caret = () => {
+      const root = layer.current;
+      if (!root) return null;
+      const before = at > 0 ? charRect(root, at - 1) : null, after = charRect(root, at);
+      // 처음 잴 때 탭한 높이에 가까운 쪽을 고르고, 스크롤 · 키보드로 다시 잴 땐 같은 쪽을 쓴다
+      if (!side) {
+        const off = (r: DOMRect | null) => !r ? Infinity : y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
+        side = off(before) <= off(after) ? "before" : "after";
+      }
+      const r = side === "before" ? before ?? after : after ?? before;
+      return r && { top: r.top, bottom: r.bottom, x: r === before ? r.right : r.left };
+    };
     const place = () => {
       const el = bubble.current;
-      const line = layer.current?.querySelector(`[data-mark="${key}"]`)?.getClientRects()[0];
       if (!el) return;
-      if (!line) { el.style.top = "-9999px"; return; }
+      const mark = layer.current?.querySelector(`[data-mark="${key}"]`)?.getClientRects()[0];
+      const spot = caret() ?? (mark && { top: mark.top, bottom: mark.bottom, x: mark.left });
+      if (!mark || !spot) { el.style.top = "-9999px"; return; }
       const view = window.visualViewport;
       const top0 = view?.offsetTop ?? 0, height = view?.height ?? window.innerHeight, width = view?.width ?? window.innerWidth;
       const { height: h, width: w } = el.getBoundingClientRect();
-      const gap = 8, above = line.top - h - gap;
-      el.style.top = `${above >= top0 + gap ? above : Math.min(line.bottom + gap, top0 + height - h - gap)}px`;
-      el.style.left = `${Math.max(gap, Math.min(line.left, width - w - gap)) + (view?.offsetLeft ?? 0)}px`;
+      const gap = 8, above = spot.top - h - gap;
+      el.style.top = `${above >= top0 + gap ? above : Math.min(spot.bottom + gap, top0 + height - h - gap)}px`;
+      el.style.left = `${Math.max(gap, Math.min(spot.x - w / 2, width - w - gap)) + (view?.offsetLeft ?? 0)}px`;
     };
     place();
     const view = window.visualViewport;
@@ -534,9 +590,9 @@ function PeekBubble({ layer, target, onOpen }: { layer: RefObject<HTMLDivElement
     view?.addEventListener("resize", place);
     view?.addEventListener("scroll", place);
     return () => { window.removeEventListener("scroll", place, true); view?.removeEventListener("resize", place); view?.removeEventListener("scroll", place); };
-  }, [layer, key]);
+  }, [layer, key, at, y]);
   return createPortal(<div ref={bubble} style={{ top: -9999, left: 0 }} className="fixed z-40 rounded-full border border-hairline bg-canvas shadow-float lg:hidden">
-    <Button size="sm" variant="ghost" className="min-h-11 rounded-full px-4" onMouseDown={e => e.preventDefault()} onClick={onOpen}>{target.kind === "title" ? "소제목 보기" : "근거 보기"}</Button>
+    <Button size="sm" variant="ghost" className="min-h-11 rounded-full px-4" onMouseDown={e => e.preventDefault()} onClick={onOpen}>{label}</Button>
   </div>, document.body);
 }
 
@@ -586,13 +642,13 @@ function DraftCard({ question, draft, analysis, local, selected, onAnswer, onCon
     <SupposedCard key={`${mark.index}-${mark.text}`} question={question} sentence={s} mark={mark} pair={pairOf(draft, mark.index)} local={local} disabled={disabled}
       onSupposed={async value => { await onSupposed(mark, value); onFlash(`s-${mark.index}`); }} onRemove={() => { onRemove(mark); onClose(); }} />
   </div>;
-  const title =s.confirmed && s.kind !== "FACT" && !mark.need ? `${LABEL[s.kind]} · 맞아요 눌렀어요` : LABEL[s.kind];
+  const title = LABEL[s.kind];
   // 근거는 한 목록 — 초안 근거에 근거 점검이 더 찾은 것을 붙인다(같은 근거는 한 번). 고친 뒤의 점검 근거는 붙이지 않는다
   const evidence = [...s.evidence, ...(mark.ground && !mark.ground.stale ? mark.ground.evidence : [])]
     .filter((e, i, all) => all.findIndex(x => x.type === e.type && x.id === e.id) === i);
   return <div role="group" aria-label="문장 카드" onKeyDown={close} className="grid gap-3 p-4 lg:px-5">
     <CardHead title={`${title}${mark.edited ? " · 고친 문장" : ""}`} ground={mark.ground} done={mark.done} need={!!mark.need} />
-    {mark.done && mark.done !== "server" && <DoneLine done={mark.done} />}
+    {mark.done && <DoneLine done={mark.done} />}
     {mark.edited && <p className="m-0 text-note leading-relaxed break-words text-muted">원래 문장 — {mark.original}</p>}
     {mark.need === "filled" && mark.filled && <FilledLine filled={mark.filled} onFixed={onFilledFixed} disabled={disabled} />}
     {mark.need === "numbers" && <p className="m-0 flex items-start gap-1.5 text-note leading-relaxed text-review">
@@ -637,11 +693,11 @@ function Tag({ ground, done, need }: { ground: Ground | null; done: Done; need: 
     tone === "orange" ? "bg-review-soft text-review" : tone === "green" ? "bg-evidence-soft text-evidence" : "bg-surface-soft text-muted")}>{text}</span>;
 }
 
-/** 확인 끝 한 줄 — 맞아요(seen · server) · 다 쓴 답(settled) */
+/** 확인 끝 한 줄 두 가지(FE#370) — 다 쓴 답(settled) · 맞아요(이 화면 seen · 서버 server 를 하나로) */
 function DoneLine({ done }: { done: NonNullable<Done> }) {
   return <p className="m-0 flex items-start gap-1.5 text-note leading-relaxed text-evidence">
     <CheckIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-    {done === "settled" ? "다 쓴 답에 넣은 문장이라 확인한 것으로 봤어요. 실제 있었던 일이면 아래 새 경험 후보에서 경험으로 저장할 수 있어요." : "맞아요 눌렀어요 — 이대로 둘게요."}
+    {done === "settled" ? "다 쓴 답에 넣은 문장이라 확인한 것으로 봤어요. 실제 있었던 일이면 아래 새 경험 후보에서 경험으로 저장할 수 있어요." : "맞아요 눌렀어요"}
   </p>;
 }
 

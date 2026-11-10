@@ -3,7 +3,7 @@
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import { FakeQuestionApi } from "./fake-question-api";
-import { clickMark, openMark } from "./draft-marks";
+import { openMark } from "./draft-marks";
 import { DRAFT_S79 } from "./fixtures/draft-s79";
 import type { QuestionDetail } from "../src/lib/api/question-types";
 
@@ -49,7 +49,7 @@ test("맞아요 — 확인한 문장은 밑줄이 없어지고 확인할 곳이 
   const api = await open(page);
   await expect(page.getByText("확인할 곳 4군데", { exact: true })).toBeVisible();
   await expect(markOf(page, S_802)).toHaveClass(UNDERLINED);
-  await clickMark(page, S_802);
+  await openMark(page, S_802);
   await sentenceCard(page).getByRole("button", { name: "맞아요", exact: true }).click(); // 고치지 않은 문장 — 서버에 저장
   await expect.poll(() => posts(api)).toEqual([{ call: "POST /api/draft-sentences/802/confirm", body: undefined }]);
   await expect(page.getByText("확인할 곳 3군데", { exact: true })).toBeVisible();
@@ -65,7 +65,7 @@ const OPINION_805_TEXT = "앞으로도 문제의 원인을 끝까지 살피는 �
 // FE#337 — 빼기 · 닫기 버튼과 뺀 문장 목록은 없다. 문장은 글에서 지우고(Ctrl+Z 로 되돌린다), 글은 자동 저장(S-72)으로 남는다
 test("카드에 빼기 · 닫기가 없고, 글에서 지운 문장은 확인할 곳에서 빠지며 새로고침해도 지운 채다", async ({ page }, info) => {
   const api = await open(page);
-  await clickMark(page, S_805);
+  await openMark(page, S_805);
   await expect(sentenceCard(page)).toBeVisible();
   await expect(sentenceCard(page).getByRole("button", { name: "빼기", exact: true })).toHaveCount(0);
   await expect(sentenceCard(page).getByRole("button", { name: "닫기", exact: true })).toHaveCount(0);
@@ -85,7 +85,7 @@ test("카드에 빼기 · 닫기가 없고, 글에서 지운 문장은 확인할
 test("넓은 폭 카드는 「내가 쓴 답」 칸 밖을 누르면 닫힌다", async ({ page }) => {
   test.skip(narrow(page), "좁은 폭은 시트가 스스로 닫는다");
   await open(page);
-  await clickMark(page, S_805);
+  await openMark(page, S_805);
   await expect(sentenceCard(page)).toBeVisible();
   await page.locator("#question-panel header h3").click();
   await expect(sentenceCard(page)).toHaveCount(0);
@@ -106,7 +106,7 @@ test("확인할 곳 알약 — 군데 수가 줄고, 다 확인하면 모두 확
   await open(page);
   const pill = page.getByRole("status").filter({ hasText: /확인할 곳|모두 확인했어요/ });
   await expect(pill).toHaveText("확인할 곳 4군데");
-  await clickMark(page, BLANK_64);
+  await openMark(page, BLANK_64);
   await blankCard(page).getByRole("textbox").fill("절반");
   await blankCard(page).getByRole("button", { name: "답하기", exact: true }).click();
   await closeCard(page);
@@ -185,7 +185,7 @@ test("떠나기 경고 — 고친 글이 있을 때만 beforeunload 를 막는�
 
 test("빈칸 카드에서 답하면 자리 표시가 답으로 바뀌고 확인할 곳이 줄어든다", async ({ page }) => {
   const api = await open(page);
-  await clickMark(page, BLANK_64);
+  await openMark(page, BLANK_64);
   const card = blankCard(page);
   await expect(card.getByText("WebSocket 으로 바꾼 뒤 메시지 지연이 얼마나 줄었나요?")).toBeVisible();
   await card.getByPlaceholder("짧게 답해 주세요").fill("평균 3초에서 0.3초로");
@@ -199,7 +199,7 @@ test("빈칸 카드에서 답하면 자리 표시가 답으로 바뀌고 확인�
 
 test("주체 줄 — 내가 했어요를 누르면 그 문장 근거 경험의 주체만 정해지고 다시 만들면 확인된 문장이 된다고 알린다", async ({ page }) => {
   const api = await open(page);
-  await clickMark(page, S_804);
+  await openMark(page, S_804);
   const card = sentenceCard(page);
   await expect(card.getByText("누가 했는지 확인 안 됨", { exact: false })).toBeVisible();
   await card.getByRole("button", { name: "내가 했어요", exact: true }).click();
@@ -223,7 +223,7 @@ test("복사 — 빈칸이 남았으면 먼저 알리고, 그래도 복사하면
 
 test("복사 — 빈칸에 답하면 알림 없이 답이 들어간 글을 복사한다", async ({ page }) => {
   await open(page);
-  await clickMark(page, BLANK_64);
+  await openMark(page, BLANK_64);
   await blankCard(page).getByRole("textbox").fill("절반");
   await blankCard(page).getByRole("button", { name: "답하기", exact: true }).click();
   await closeCard(page);
@@ -272,7 +272,7 @@ test("다음 확인할 곳 → — 글 순서로 확인할 곳의 카드를 차�
 test("확인할 곳이 없으면 다음 확인할 곳 버튼이 없고, 글은 입력칸 그대로다", async ({ page }) => {
   await open(page, q => { q.draft!.sentences = q.draft!.sentences.slice(0, 2); q.draft!.omitted = []; });
   await expect(page.getByRole("button", { name: "다음 확인할 곳 →", exact: true })).toBeVisible();
-  await clickMark(page, S_802);
+  await openMark(page, S_802);
   await sentenceCard(page).getByRole("button", { name: "맞아요", exact: true }).click();
   await expect(page.getByText("모두 확인했어요 ✓", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "다음 확인할 곳 →", exact: true })).toHaveCount(0);
@@ -301,7 +301,7 @@ const TWO_UNKNOWN = (q: QuestionDetail) => {
 
 test("주체 줄 — 근거 경험이 둘 다 모르면 경험마다 고르고, 고른 경험만 PATCH 한다", async ({ page }) => {
   const api = await open(page, TWO_UNKNOWN);
-  await clickMark(page, S_804);
+  await openMark(page, S_804);
   const card = sentenceCard(page);
   const list = card.getByRole("list", { name: "근거 경험마다 주체 정하기" });
   await expect(list.getByRole("listitem")).toHaveCount(2);
