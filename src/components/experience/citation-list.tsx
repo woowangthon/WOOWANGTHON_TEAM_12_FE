@@ -23,7 +23,7 @@ export function SourceFile({ name }: { name: string }) {
 }
 
 /** PDF · PPTX 면 쪽 · 슬라이드(S-39) — 뽑은 글자의 줄 번호는 원본에서 찾을 수 없어 보이지 않는다 */
-function lineText({ startLine, endLine, section }: NonNullable<Citation["location"]>) {
+export function lineText({ startLine, endLine, section }: NonNullable<Citation["location"]>) {
   if (section) return sectionLabel(section);
   return startLine === endLine ? `${startLine}번째 줄` : `${startLine}–${endLine}번째 줄`;
 }
