@@ -4,10 +4,9 @@ import Link from "next/link";
 import type { DraftFrame } from "@/lib/draft-frames";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { InfoTip } from "@/components/ui/info-tip";
 import { ApiError } from "@/lib/api/errors";
 import type { DraftOmission, QuestionDetail } from "@/lib/api/question-types";
-import { AnsweredItem, AnswerForm, bubble, ClarifyBlock, clarifyList, openItem, SupplementNote, type AnswerHandler } from "./clarifications";
+import { AnsweredItem, AnswerForm, bubble, openItem, SupplementNote, type AnswerHandler } from "./clarifications";
 import { DraftComposer } from "./draft-composer";
 import { isSupposedPair } from "./answer-draft";
 import { ActivityChip } from "./question-result";
@@ -27,7 +26,14 @@ function answerError(e: unknown) {
 /** 답할 수 있는 빠진 사실 — 경험 · 질문 · 되묻기 id 가 다 있어야 보완으로 쌓인다 */
 const answerable = (item: DraftOmission) => item.question !== null && item.experienceId !== null && item.clarificationId !== null;
 
-function OmissionItem({ item, question, onAnswer, onRefresh, disabled }: {
+/** 차곡이 패널의 되묻기 블록에 넣을 초안 빈칸 질문 — 다 된 초안만. AI 가정의 짝은 답칸 카드에서 확인하니 뺀다(S-79 · ADR-014) */
+export function draftAsks(question: QuestionDetail): DraftOmission[] {
+  const draft = question.draft;
+  if (draft?.status !== "COMPLETED") return [];
+  return draft.omitted.filter(item => !isSupposedPair(draft, item) && answerable(item));
+}
+
+export function OmissionItem({ item, question, onAnswer, onRefresh, disabled }: {
   item: DraftOmission; question: QuestionDetail; onAnswer: AnswerHandler;
   onRefresh: () => Promise<void>; disabled: boolean;
 }) {
@@ -60,8 +66,8 @@ export type DraftPanelActions = {
 };
 
 /** 시안 6 mateFeed: 빠진 사실 질문 → 내 답 → 보완 저장 안내 → 초안 다시 만들기. */
-export function DraftFollowUp({ question, onAnswer, onGenerate, onRefresh, savingAnswer, requestingDraft, focusRequest, picks, onResetPicks }: {
-  question: QuestionDetail; onAnswer: AnswerHandler;
+export function DraftFollowUp({ question, onGenerate, onRefresh, savingAnswer, requestingDraft, focusRequest, picks, onResetPicks }: {
+  question: QuestionDetail;
 } & DraftPanelActions) {
   const target = useRef<HTMLElement>(null);
   const pending = useRef(false);
@@ -86,7 +92,6 @@ export function DraftFollowUp({ question, onAnswer, onGenerate, onRefresh, savin
   const listed = draft?.omitted.filter(item => !isSupposedPair(draft, item)) ?? [];
   const asks = listed.filter(answerable);
   const unlinked = listed.filter(item => !answerable(item));
-  const supplementOf = (item: DraftOmission) => question.recommendations.find(r => r.experience.id === item.experienceId)?.experience.supplements.find(s => s.id === item.supplementId);
   const analyzing = requestingDraft || draft?.status === "ANALYZING";
   const disabled = savingAnswer || analyzing || refreshing;
   const refresh = async () => {
@@ -103,14 +108,8 @@ export function DraftFollowUp({ question, onAnswer, onGenerate, onRefresh, savin
     <h3 className="m-0 text-xs font-semibold text-muted">{draft ? "초안 보완" : "초안 준비"}</h3>
     {analyzing ? <p role="status" className={bubble}>고른 경험과 보완을 읽고 초안을 만드는 중이에요…</p> : draft ? <>
       {draft?.status === "FAILED" ? <p className={bubble}>초안을 완성하지 못했어요. 아래 설정에서 다시 요청해 주세요.</p> : <>
-        <p className={bubble}>{!draft?.sentences.length ? "고른 기록에서 받칠 내용을 찾지 못해 문장을 쓰지 않았어요. 경험이 없다는 뜻은 아니에요." : listed.length ? "초안을 답칸에 넣었어요. 아래 내용은 자료에서 확인하지 못해 쓰지 않았어요." : "초안을 답칸에 넣었어요. 밑줄 · 빈칸 · 회색 문장을 눌러 근거와 이유를 확인해 주세요."}</p>
-        {asks.length > 0 && <ClarifyBlock title="초안에 대한 되묻기" total={asks.length} answered={asks.filter(item => item.supplementId !== null).length}
-          attention={asks.some(item => supplementOf(item)?.mcpChange)}>
-          <p className="m-0 text-note leading-relaxed text-muted"><b className="font-semibold text-body">자료에 없어 쓰지 않았어요 · AI 해석</b><InfoTip label="초안에 대한 되묻기" className="align-middle">기억나는 것만 알려 주세요. 답은 선택이고, 건너뛰어도 초안을 복사할 수 있어요.</InfoTip></p>
-          <ul aria-label="초안의 빠진 사실" className={clarifyList}>
-            {asks.map(item => <OmissionItem key={item.clarificationId} item={item} question={question} onAnswer={onAnswer} onRefresh={refresh} disabled={disabled} />)}
-          </ul>
-        </ClarifyBlock>}
+        {/* 초안 빈칸 질문은 문항 되묻기와 한 블록(「차곡이가 물어볼 것」)에서 묻는다(FE#336) */}
+        <p className={bubble}>{!draft?.sentences.length ? "고른 기록에서 받칠 내용을 찾지 못해 문장을 쓰지 않았어요. 경험이 없다는 뜻은 아니에요." : asks.length ? "초안을 답칸에 넣었어요. 자료에 없어 쓰지 않은 건 위 「차곡이가 물어볼 것」에서 물어봐요." : unlinked.length ? "초안을 답칸에 넣었어요. 아래 내용은 자료에서 확인하지 못해 쓰지 않았어요." : "초안을 답칸에 넣었어요. 밑줄 · 빈칸 · 회색 문장을 눌러 근거와 이유를 확인해 주세요."}</p>
         {/* 경험에 붙지 않는 빈칸(지원 동기 등)은 묻지 않고 직접 쓸 거리로만 — 보완으로 저장하지 않는다 */}
         {unlinked.length > 0 && <div className="grid min-w-0 gap-1 px-1">
           <p className="m-0 text-xs font-semibold text-muted">직접 쓸 거리 · 보완으로 저장하지 않아요</p>

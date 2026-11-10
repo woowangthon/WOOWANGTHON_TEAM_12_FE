@@ -11,7 +11,12 @@ const ANSWERS: SimilarAnswer[] = [
   { questionId: 45, questionText: "개발 중 겪은 어려움과 해결 과정을 적어 주세요.", questionType: "PROBLEM_SOLVING", applicationId: 24, organization: "OO 소프트웨어 교육 과정", organizationType: "BOOTCAMP", jobRole: "BACKEND", text: LONG, confirmedAt: "2026-10-20T21:00:00+09:00" },
   { questionId: 47, questionText: "기술 문제를 해결한 경험을 적어 주세요.", questionType: "PROBLEM_SOLVING", applicationId: 25, organization: null, organizationType: null, jobRole: null, text: "짧은 답입니다.", confirmedAt: "2026-10-28T20:00:00+09:00" },
 ];
-const similar = (page: Page) => page.getByRole("region", { name: "예전에 쓴 답", exact: true });
+// 문항 제목 아래 접힌 한 줄(FE#336) — 펼치면 카드 목록
+const similar = (page: Page) => page.getByRole("group", { name: /^비슷한 문항에 쓴 답 \d+개 · 참고$/ });
+async function openSimilar(page: Page) {
+  await expect(similar(page)).toBeVisible();
+  if (!(await similar(page).evaluate(el => (el as HTMLDetailsElement).open))) await similar(page).locator("summary").first().click();
+}
 
 async function setup(page: Page, answers: SimilarAnswer[] = ANSWERS) {
   const api = new FakeQuestionApi();
@@ -26,6 +31,8 @@ const open = (page: Page) => page.goto("/questions?question=41");
 test("지원처 · 문항 · 답을 응답 순서대로 보이고, 긴 글은 접어 두었다 펼친다", async ({ page }) => {
   await setup(page);
   await open(page);
+  await expect(similar(page)).toHaveAccessibleName("비슷한 문항에 쓴 답 2개 · 참고");
+  await openSimilar(page);
   const cards = similar(page).getByRole("listitem");
   await expect(cards).toHaveCount(2);
   await expect(cards.first()).toContainText("OO 소프트웨어 교육 과정");
@@ -41,8 +48,9 @@ test("지원처 · 문항 · 답을 응답 순서대로 보이고, 긴 글은 �
 test("참고로만 보인다 — 근거 표시가 없고, 내가 쓴 답 칸에 들어가지 않는다", async ({ page }) => {
   const { api } = await setup(page);
   await open(page);
-  await expect(similar(page).getByText("참고 — 근거 아님")).toBeVisible();
-  await similar(page).locator("summary").first().click();
+  await openSimilar(page);
+  await expect(similar(page)).toContainText("근거가 아니고");
+  await similar(page).getByRole("listitem").first().locator("summary").click();
   await expect(similar(page).getByText("원문에서 확인")).toHaveCount(0);
   await expect(similar(page).getByRole("button")).toHaveCount(0);
   await expect(page.getByRole("textbox", { name: "내가 쓴 답" })).toHaveValue("");
@@ -55,7 +63,7 @@ test("없으면 자리를 만들지 않는다", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "내가 쓴 답" })).toBeVisible();
   await expect.poll(() => reads.count).toBeGreaterThan(0);
   await page.waitForTimeout(300); // 응답이 화면에 닿을 시간을 준 뒤 없음을 본다
-  await expect(page.getByText("예전에 쓴 답")).toHaveCount(0);
+  await expect(page.getByText(/비슷한 문항에 쓴 답|예전에 쓴 답/)).toHaveCount(0);
 });
 
 test("불러오기가 실패하면 오류 · 다시 시도를 보인다", async ({ page }) => {
@@ -67,6 +75,7 @@ test("불러오기가 실패하면 오류 · 다시 시도를 보인다", async 
   await expect(similar(page)).toHaveCount(0);
   api.similarDown = false;
   await alert.getByRole("button", { name: "다시 시도" }).click();
+  await openSimilar(page);
   await expect(similar(page).getByRole("listitem")).toHaveCount(2);
   await expect(alert).toHaveCount(0);
 });

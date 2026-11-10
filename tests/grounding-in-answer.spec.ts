@@ -17,7 +17,6 @@ const sentenceCard = (page: Page) => page.getByRole("group", { name: "문장 카
 const checks = (page: Page, n: number) => expect(page.getByText(`확인할 곳 ${n}군데`, { exact: true })).toBeVisible();
 const posts = (api: FakeQuestionApi) => api.calls.filter(c => c.call.startsWith("POST") || c.call.startsWith("PUT"));
 const check = (page: Page) => page.getByRole("button", { name: "근거 점검", exact: true });
-const summary = (page: Page, text: string) => page.locator("details > summary").filter({ hasText: text });
 const ev = (text: string): Sentence["evidence"] => [{ type: "CITATION", id: 901, experienceId: 101, activityId: 7, text, sourceName: "바꿔요-회고.md", question: null, actor: "ME" }];
 const draftChecked = (): Sentence[] => DRAFT_S79.sentences.map((s, i) => ({ text: s.text, status: i === 1 ? "USER_INPUT" : i === 4 ? "OPINION" : "SOURCE", evidence: i === 1 || i === 4 ? [] : ev("원문 발췌입니다."), note: i === 1 ? "점검 메모 — 보완에 있어요" : null }));
 const unsupportedOwn = (): Sentence => ({ text: OWN, status: "UNSUPPORTED", evidence: [], note: "문장의 숫자(100)가 받치는 근거가 없어요" });
@@ -51,7 +50,7 @@ async function setup(page: Page, opts: { draft?: boolean; sentences: Sentence[] 
 async function runCheck(page: Page, text: string) {
   await answerBox(page).fill(text);
   await check(page).click();
-  await expect(summary(page, "근거 점검")).toBeVisible();
+  await expect(page.getByRole("button", { name: "점검했어요", exact: true })).toBeVisible(); // 결과는 답칸 표시 · 카드에만 붙는다(FE#336)
 }
 
 test("내가 쓴 문장은 점검 전엔 표시가 없고, 점검 뒤에야 블록이 된다", async ({ page }) => {
@@ -89,7 +88,7 @@ test("근거 없음인 내 문장은 칠하고 확인할 곳에 세며, 맞아�
 
 test("초안 문장 카드에는 근거 점검 판정 · 이유가 더해진다", async ({ page }) => {
   await setup(page, { draft: true, sentences: draftChecked() });
-  await runCheck(page, COMPOSED);
+  await runCheck(page, `${COMPOSED} ${OWN}`); // 손대지 않은 초안은 점검 버튼이 없다(FE#336)
   await checks(page, 4); // 점검 결과가 모두 근거 없음이 아니면 확인할 곳은 그대로
   await openMark(page, "s-1");
   await expect(sentenceCard(page).getByText("확인 필요", { exact: true })).toBeVisible(); // 맞아요 전 AI 보탬은 주황 꼬리표
@@ -158,30 +157,22 @@ test("초안 문장 카드의 근거는 초안 근거와 점검 근거를 합쳐
   const dup = { type: "CITATION" as const, id: 201, experienceId: 101, activityId: 7, text: "채팅 메시지가 늦게 도착하는 문제가 있었다. 내가 폴링을 WebSocket 으로 바꿔 해결했다.", sourceName: "바꿔요-회고.md", question: null, actor: "ME" as const };
   sentences[0].evidence = [dup, { ...dup, id: 777, sourceName: "다른-기록.md", text: "점검에서 더 찾은 발췌입니다." }];
   await setup(page, { draft: true, sentences });
-  await runCheck(page, COMPOSED);
+  await runCheck(page, `${COMPOSED} ${OWN}`); // 손대지 않은 초안은 점검 버튼이 없다(FE#336)
   await openMark(page, "s-0");
   const card = sentenceCard(page);
   await expect(card.getByText("원문 · 바꿔요-회고.md", { exact: true })).toHaveCount(1); // 같은 CITATION 은 한 번
   await expect(card.getByText("원문 · 다른-기록.md", { exact: true })).toHaveCount(1); // 점검에서 더 찾은 근거는 더해진다
 });
 
-test("접힌 점검 목록의 요약 — 근거 없음 N문장 · 근거 없음 없어요 · 고치기 전", async ({ page }) => {
-  const { state } = await setup(page, { sentences: [{ text: "채팅 지연을 해결했습니다.", status: "SOURCE", evidence: [], note: null }, unsupportedOwn()] });
-  const text = `채팅 지연을 해결했습니다. ${OWN}`;
-  await runCheck(page, text);
-  const details = page.locator("details").filter({ hasText: "근거 점검 —" });
-  await expect(summary(page, "근거 점검 — 근거 없음 1문장 · 답칸에 칠했어요")).toBeVisible();
-  await expect(details).not.toHaveAttribute("open", ""); // 접혀 있다
-  await summary(page, "근거 점검").click();
-  const list = page.getByRole("list", { name: "문장별 근거", exact: true });
-  await expect(list.getByRole("listitem")).toHaveCount(2);
-  await expect(list.getByRole("listitem").nth(1)).toContainText("지우거나, 사실이면 근거를 더해 주세요");
-  // 글을 고치면 고치기 전 결과
-  await answerBox(page).fill(`${text} 한 줄 더.`);
-  await expect(summary(page, "고치기 전 근거 점검 — 다시 점검해 주세요")).toBeVisible();
-  // 근거 없음이 없는 점검
-  state.sentences = state.sentences.map(s => ({ ...s, status: "SOURCE" as const }));
-  await answerBox(page).fill(`${text} 끝.`); // 같은 글은 다시 점검하지 못한다(FE#317)
+test("근거 점검은 필요할 때만 — 손대지 않은 초안엔 버튼이 없고, 점검 결과 목록 · 요약 줄도 없다 (FE#336)", async ({ page }) => {
+  await setup(page, { draft: true, sentences: [...draftChecked(), unsupportedOwn()] });
+  await expect(check(page)).toHaveCount(0); // 손대지 않은 초안은 문장마다 근거가 이미 붙어 있다
+  await answerBox(page).fill(`${COMPOSED} ${OWN}`); // 직접 쓴 문장이 생기면 보인다
   await check(page).click();
-  await expect(summary(page, "근거 점검 — 근거 없음 없어요")).toBeVisible();
+  await expect(page.getByRole("button", { name: "점검했어요", exact: true })).toBeDisabled();
+  await checks(page, 5); // 근거 없음은 「확인할 곳」이 센다
+  await expect(page.getByRole("list", { name: "문장별 근거", exact: true })).toHaveCount(0);
+  await expect(page.locator("summary").filter({ hasText: "근거 점검" })).toHaveCount(0);
+  await answerBox(page).fill(COMPOSED); // 직접 쓴 문장을 지우면 다시 숨는다
+  await expect(page.getByRole("button", { name: /근거 점검|점검했어요/ })).toHaveCount(0);
 });

@@ -5,12 +5,11 @@ import { FakeQuestionApi } from "./fake-question-api";
 import { GROUNDING_EXAMPLE } from "./fixtures/grounding-example";
 import type { GroundingCheck } from "../src/lib/api/question-types";
 
-// 점검 결과 목록은 접힌 <details> 안에 있다(FE#307) — 요약을 찾고, 필요하면 펼친다
-const summary = (page: Page, text: string | RegExp = /근거 점검 —/) => screen(page).locator("summary").filter({ hasText: text });
-async function openList(page: Page) {
-  const details = screen(page).locator("details").filter({ hasText: /근거 점검 —/ });
-  if (!(await details.evaluate(el => (el as HTMLDetailsElement).open))) await summary(page).click();
-}
+// 점검 결과는 답칸 문장 표시 · 카드에만 붙는다 — 답칸 아래 목록은 없다(FE#307 · FE#336).
+// 지금 글을 점검했으면 버튼이 「점검했어요」, 고친 글이면 다시 「근거 점검」이다
+const checked = (page: Page) => screen(page).getByRole("button", { name: "점검했어요", exact: true });
+const checkButton = (page: Page) => screen(page).getByRole("button", { name: "근거 점검", exact: true });
+const ownMarks = (page: Page) => screen(page).locator('[data-mark^="g-"]');
 const screen = (page: Page) => page.getByRole("region", { name: "내가 쓴 답", exact: true });
 async function setup(page: Page, initial: GroundingCheck | null = null) {
   const api = new FakeQuestionApi({ sameApplication: true });
@@ -48,34 +47,24 @@ test("checks text, distinguishes all statuses, opens non-recommended evidence, r
   const s = screen(page), input = s.getByRole("textbox", { name: "내가 쓴 답", exact: true });
   await expect(input).toBeEnabled();
   await expect(input).toHaveAttribute("maxlength", "5000");
-  await expect(s.getByRole("button", { name: "근거 점검", exact: true })).toBeDisabled();
+  await expect(checkButton(page)).toHaveCount(0); // 쓴 글이 없으면 점검할 것도 없다(FE#336)
   await input.fill("  ");
-  await expect(s.getByRole("button", { name: "근거 점검", exact: true })).toBeDisabled();
+  await expect(checkButton(page)).toHaveCount(0);
   await input.fill(GROUNDING_EXAMPLE.text);
   await s.getByRole("button", { name: "근거 점검", exact: true }).click();
   await expect(s.getByRole("button", { name: "근거 점검 중…" })).toBeDisabled();
-  await expect(summary(page)).toBeVisible();
-  await openList(page);
+  await expect(checked(page)).toBeDisabled();
   expect(state.posts).toEqual([{ text: GROUNDING_EXAMPLE.text }]);
-  const items = s.getByRole("list", { name: "문장별 근거", exact: true }).getByRole("listitem");
-  await expect(items).toHaveCount(6);
-  await expect(items.nth(3)).toContainText("지우거나, 사실이면 근거를 더해 주세요");
-  await expect(items.nth(3)).toContainText("AI 해석 — 문장의 숫자(80)");
-  await expect(items.nth(3).locator("p").first().locator("span")).toHaveClass(/bg-review-soft/);
-  await expect(items.nth(4)).toContainText("생각");
-  await expect(items.nth(4).locator("p").first().locator("span")).not.toHaveClass(/bg-/);
-  await expect(items.last()).toContainText("연결된 근거가 지금은 없어요");
-  await items.first().getByText("원문 · 연결된 발췌", { exact: true }).click();
-  await expect(items.first().getByRole("blockquote")).toHaveText(GROUNDING_EXAMPLE.sentences[0].evidence[0].text);
-  await expect(items.first().getByRole("link")).toHaveAttribute("href", "/experience?activity=7&fromQuestion=41");
-  await items.nth(1).getByText("내가 입력 · 보완", { exact: true }).click();
-  await items.nth(2).getByText("내가 입력 · 직접 넣거나 고친 경험", { exact: true }).click();
-  await expect(items.nth(2).getByRole("blockquote")).toContainText("직접 문서를 정리했다");
+  // 문장마다 답칸 표시로 붙는다 — 근거 없음만 칠한다
+  await expect(ownMarks(page)).toHaveCount(6);
+  await expect(screen(page).locator('[data-mark="g-3"]')).toHaveClass(/bg-review-soft/);
+  await expect(screen(page).locator('[data-mark="g-4"]')).not.toHaveClass(/bg-review-soft/);
+  await expect(s.getByRole("list", { name: "문장별 근거", exact: true })).toHaveCount(0);
   await s.scrollIntoViewIfNeeded();
   await s.screenshot({ path: `docs/fe-85/grounding-${info.project.name}.png` });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await input.fill("내가 고친 글");
-  await expect(summary(page, "고치기 전 근거 점검 — 다시 점검해 주세요")).toBeVisible();
+  await expect(checkButton(page)).toBeEnabled(); // 고친 글은 다시 점검할 수 있다
   const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab");
   await tabs.nth(1).click();
   await expect(input).toHaveValue("");
@@ -86,13 +75,8 @@ test("checks text, distinguishes all statuses, opens non-recommended evidence, r
   await expect(s.getByText("저장됨", { exact: true })).toBeVisible();
   await page.reload();
   await expect(input).toHaveValue(GROUNDING_EXAMPLE.text);
-  await expect(summary(page)).toBeVisible();
-  await openList(page);
-  await expect(screen(page).getByRole("list", { name: "문장별 근거", exact: true })).toBeVisible();
-  await screen(page).getByRole("listitem").first().getByText("원문 · 연결된 발췌", { exact: true }).click();
-  await screen(page).getByRole("listitem").first().getByRole("link").click();
-  await expect(page).toHaveURL(/experience\?activity=7&fromQuestion=41/);
-  await expect(page.getByRole("heading", { name: /바꿔요/ }).first()).toBeVisible();
+  await expect(checked(page)).toBeVisible();
+  await expect(ownMarks(page)).toHaveCount(6);
 });
 
 test("HTTP failure and AI failure retry the exact submitted text after editing", async ({ page }) => {
@@ -104,7 +88,6 @@ test("HTTP failure and AI failure retry the exact submitted text after editing",
   state.postError = "DAILY_LIMIT_EXCEEDED";
   await s.getByRole("button", { name: "근거 점검", exact: true }).click();
   await expect(s.getByRole("alert")).toContainText("오늘 분석 횟수를 다 썼어요");
-  await expect(summary(page)).toBeVisible();
   await input.fill("다르게 고친 글");
   state.postError = ""; state.fail = true;
   await s.getByRole("button", { name: "같은 글로 다시 시도" }).click();
@@ -113,7 +96,7 @@ test("HTTP failure and AI failure retry the exact submitted text after editing",
   await input.fill("또 고친 글");
   state.fail = false;
   await s.getByRole("button", { name: "같은 글로 다시 시도" }).click();
-  await expect(summary(page, "고치기 전 근거 점검 — 다시 점검해 주세요")).toBeVisible();
+  await expect(checkButton(page)).toBeEnabled(); // 점검은 끝났고, 지금 글은 그 뒤에 고친 글이다
   expect(state.posts[2].text).toBe(submitted);
   await expect(input).toHaveValue("또 고친 글");
 });
@@ -134,7 +117,7 @@ test("initial GET error and stopped polling recover with GET, without spending a
   await page.clock.resume();
   state.readError = false; state.hold = false;
   await s.getByRole("button", { name: "점검 상태 다시 확인" }).click();
-  await expect(summary(page)).toBeVisible();
+  await expect(checked(page)).toBeVisible();
   expect(state.posts).toHaveLength(1);
   state.readError = true;
   await page.reload();
@@ -157,7 +140,7 @@ test("409 reads the in-progress check and never reposts automatically; refresh c
   await page.reload();
   await expect(input).toHaveValue(GROUNDING_EXAMPLE.text);
   state.hold = false;
-  await expect(summary(page)).toBeVisible();
+  await expect(checked(page)).toBeVisible();
   expect(state.posts).toHaveLength(1);
 });
 
@@ -171,7 +154,7 @@ test("settled checks are not read again on tab return; analyzing checks are, and
   await expect(input).toHaveValue("");
   await tabs.first().click();
   await expect(input).toBeEnabled();
-  await expect(summary(page)).toBeVisible();
+  await expect(checked(page)).toBeVisible();
   expect(state.gets).toBe(gets);
 
   // 점검 중에 떠났다 돌아오면 GET 으로 이어 가고, 끝난 결과는 다시 받지 않는다
@@ -184,7 +167,7 @@ test("settled checks are not read again on tab return; analyzing checks are, and
   state.hold = false;
   await tabs.first().click();
   await expect(input).toHaveValue("떠났다 돌아올 글");
-  await expect(summary(page)).toBeVisible();
+  await expect(checked(page)).toBeVisible();
   expect(state.posts).toHaveLength(1);
   const settled = state.gets;
   await tabs.nth(1).click();
@@ -213,7 +196,7 @@ test("failed recommendation does not block answer checks, and late POST cannot o
   release();
   await expect.poll(() => state.posts.length).toBe(1);
   await expect(s.getByRole("textbox")).toHaveValue("");
-  await expect(s.getByRole("button", { name: "근거 점검", exact: true })).toBeDisabled();
+  await expect(checkButton(page)).toHaveCount(0); // 다른 문항은 빈 글이라 점검 버튼이 없다
   await tabs.first().click();
   await expect(s.getByRole("textbox")).toHaveValue("내가 쓴 글");
 });

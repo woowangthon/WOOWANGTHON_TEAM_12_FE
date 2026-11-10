@@ -569,6 +569,12 @@ test("daily limit (429) keeps the draft and says nothing was saved", async ({ pa
   await expect(list(page).getByRole("button", { name: /지원처 이름 없음|OO/ })).toHaveCount(2);
 });
 
+/** 「차곡이가 물어볼 것」 — 문항 · 초안 되묻기 한 블록, 기본은 접혀 있다(FE#336) */
+async function openAsks(page: Page) {
+  const block = chagokPanel(page).locator("details").filter({ has: page.locator(":scope > summary", { hasText: "차곡이가 물어볼 것" }) });
+  if (!(await block.evaluate(el => (el as HTMLDetailsElement).open))) await block.locator(":scope > summary").click();
+}
+
 // FE#31 — 되묻기에 답하기(비워 두면 보내지 않음, FE#320) · 활동 세부의 「내가 입력」 보완(S-22 · S-23 · S-25)
 const shot = (name: string, project: string) => process.env.UPDATE_QUESTION_SCREENSHOTS === "1" ? { path: `docs/fe-32/${name}-${project}.png`, style: "nextjs-portal { display: none !important; }" } : null;
 
@@ -577,6 +583,7 @@ test("answering a clarification posts it and shows it on the experience as user-
   await page.goto("/questions");
   // 문항 42 — 답은 선택이다. 건너뛰기 버튼 없이, 비워 두면 보내기도 없고 서버에 아무것도 보내지 않는다(FE#320)
   await openChagok(page);
+  await openAsks(page);
   const asks = () => chagokPanel(page).getByRole("list", { name: "차곡이의 질문", exact: true });
   await expect(asks()).toContainText("매주 회고에서 직접 맡은 일이 있었다면 무엇이었나요?");
   await expect(asks().getByText("바꿔요", { exact: true })).toBeVisible();
@@ -595,6 +602,7 @@ test("answering a clarification posts it and shows it on the experience as user-
   await list(page).getByRole("button", { name: /OO 백엔드 부트캠프/ }).click();
   await expect(result(page).getByRole("heading", { name: QUESTION_EXAMPLES[0].text, exact: true })).toBeVisible();
   await openChagok(page);
+  await openAsks(page);
   const stacked = "「바꿔요」 경험에 보완으로 쌓았어요. 다른 지원서에서도 이 답을 근거로 같이 써요.";
   await expect(asks().getByText(stacked, { exact: true })).toHaveCount(1);
   await expect(asks()).toContainText("서버에 STOMP 엔드포인트를 만들고");
@@ -607,9 +615,9 @@ test("answering a clarification posts it and shows it on the experience as user-
   expect(posts(api)).toEqual([{ call: "POST /api/clarifications/62/answer", body: { answer: "두 기기로 동시에 보내 보며 지연이 사라졌는지 확인했다" } }]);
   await page.reload();
   await openChagok(page);
-  // 다 답한 묶음은 접힌 채 열린다 — 머리에 몇 개 · 답한 수, 펼치면 질문과 답이 한 덩어리(FE#268)
-  const block = chagokPanel(page).getByText("문항에 대한 되묻기", { exact: true });
-  await expect(chagokPanel(page)).toContainText("2개 · 답 2");
+  // 묶음은 접힌 채 열린다 — 다 답했으면 머리에 「모두 답했어요」, 펼치면 질문과 답이 한 덩어리(FE#268 · FE#336)
+  const block = chagokPanel(page).getByText("차곡이가 물어볼 것 2개", { exact: true });
+  await expect(chagokPanel(page)).toContainText("모두 답했어요");
   await expect(asks()).toHaveCount(0);
   await block.click();
   await expect(asks().getByText(stacked, { exact: true })).toHaveCount(2);
@@ -662,6 +670,7 @@ test("answering a clarification marks that recommendation as answered without re
   await expect(card).toContainText("매주 금요일");
   await expect(card.getByText("답함", { exact: true })).toHaveCount(0);
   await openChagok(page);
+  await openAsks(page);
   const asks = chagokPanel(page).getByRole("list", { name: "차곡이의 질문", exact: true });
   await asks.getByRole("textbox", { name: /^답: / }).fill("회고 진행표를 만들고 매주 진행을 맡았다");
   await asks.getByRole("button", { name: "답하기", exact: true }).click();

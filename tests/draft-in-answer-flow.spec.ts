@@ -124,7 +124,6 @@ const ASKED_LINE = (n: number) => `차곡이가 더 물어본 게 ${n}개 있어
 const EXTRA_OMISSION = { text: "맡은 역할 · 기간", question: "이 일을 얼마 동안 맡았나요?", experienceId: 101, clarificationId: 66, supplementId: null, placeholder: null, sentenceIndex: null };
 const withExtraQuestion = (q: QuestionDetail) => { q.draft!.omitted.push(structuredClone(EXTRA_OMISSION)); };
 const askedLine = (page: Page) => page.getByRole("status").filter({ hasText: "차곡이가 더 물어본 게" });
-const draftPanel = (page: Page) => page.locator('section[aria-label="차곡이의 초안"]');
 
 test("더 물어본 질문 줄 — 빈칸이 아닌 질문만 세고, 질문 보기가 차곡이 패널의 초안 질문으로 데려간다", async ({ page }) => {
   await open(page, withExtraQuestion); // 빈칸 1(64) + 빈칸 아닌 질문 2(65 · 66)
@@ -132,7 +131,7 @@ test("더 물어본 질문 줄 — 빈칸이 아닌 질문만 세고, 질문 보
   await expect(page.getByText("확인할 곳 4군데", { exact: true })).toBeVisible(); // 빈칸은 확인할 곳이 센다
   await askedLine(page).getByRole("button", { name: "질문 보기", exact: true }).click();
   await expect(page.locator('section[aria-label="차곡이의 초안"]:focus-within')).toBeVisible();
-  await expect(draftPanel(page).getByRole("list", { name: "초안의 빠진 사실" })).toBeVisible();
+  await expect(page.getByRole("list", { name: "초안의 빠진 사실" })).toBeVisible();
   if (page.viewportSize()!.width < 1024) await expect(page.getByRole("dialog", { name: "차곡이" })).toBeVisible(); // 좁은 폭은 시트
 });
 
@@ -140,14 +139,14 @@ test("더 물어본 질문 줄 — 답하면 수가 줄고 0 이 되면 사라�
   await open(page, withExtraQuestion);
   await expect(askedLine(page)).toHaveText(new RegExp(ASKED_LINE(2)));
   await askedLine(page).getByRole("button", { name: "질문 보기", exact: true }).click();
-  const panel = draftPanel(page);
+  const panel = page.getByRole("list", { name: "초안의 빠진 사실" });
   await panel.getByRole("textbox", { name: "답: 채팅 방식을 바꾸며 배운 점이나 느낀 점이 있나요?" }).fill("협업이 중요하다는 점");
   await panel.getByRole("textbox", { name: "답: 채팅 방식을 바꾸며 배운 점이나 느낀 점이 있나요?" }).locator("xpath=ancestor::form[1]").getByRole("button", { name: "답하기", exact: true }).click();
   if (page.viewportSize()!.width < 1024) { await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toHaveCount(0); }
   await expect(askedLine(page)).toHaveText(new RegExp(ASKED_LINE(1)));
   await askedLine(page).getByRole("button", { name: "질문 보기", exact: true }).click();
-  await draftPanel(page).getByRole("textbox", { name: "답: 이 일을 얼마 동안 맡았나요?" }).fill("두 달");
-  await draftPanel(page).getByRole("textbox", { name: "답: 이 일을 얼마 동안 맡았나요?" }).locator("xpath=ancestor::form[1]").getByRole("button", { name: "답하기", exact: true }).click();
+  await page.getByRole("list", { name: "초안의 빠진 사실" }).getByRole("textbox", { name: "답: 이 일을 얼마 동안 맡았나요?" }).fill("두 달");
+  await page.getByRole("list", { name: "초안의 빠진 사실" }).getByRole("textbox", { name: "답: 이 일을 얼마 동안 맡았나요?" }).locator("xpath=ancestor::form[1]").getByRole("button", { name: "답하기", exact: true }).click();
   if (page.viewportSize()!.width < 1024) { await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toHaveCount(0); }
   await expect(page.getByText("차곡이가 더 물어본 게")).toHaveCount(0);
 });
@@ -169,7 +168,7 @@ test("더 물어본 질문 줄 — 칩을 지우면 확인할 곳에서 빠지�
   await expect(page.getByText("초안의 빠진 사실 — 답은 글과 따로")).toHaveCount(0);
   await askedLine(page).getByRole("button", { name: "질문 보기", exact: true }).click();
   await expect(page.locator('section[aria-label="차곡이의 초안"]:focus-within')).toBeVisible();
-  await expect(draftPanel(page).getByRole("list", { name: "초안의 빠진 사실" })).toBeVisible();
+  await expect(page.getByRole("list", { name: "초안의 빠진 사실" })).toBeVisible();
   if (page.viewportSize()!.width < 1024) await expect(page.getByRole("dialog", { name: "차곡이" })).toBeVisible();
 });
 
@@ -212,7 +211,7 @@ test("주체 줄 — 내가 했어요를 누르면 그 문장 근거 경험의 �
 
 test("복사 — 빈칸이 남았으면 먼저 알리고, 그래도 복사하면 자리 표시가 글에 남는다", async ({ page }) => {
   await open(page);
-  await page.getByRole("button", { name: "복사", exact: true }).click();
+  await page.getByRole("button", { name: "답 복사", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "빈칸 1개가 남았어요" });
   await expect(dialog).toBeVisible();
   expect(await copied(page)).toBeUndefined();
@@ -229,7 +228,7 @@ test("복사 — 빈칸에 답하면 알림 없이 답이 들어간 글을 복�
   await blankCard(page).getByRole("button", { name: "답하기", exact: true }).click();
   await closeCard(page);
   await expect(answerBox(page)).toHaveValue(COMPOSED.replace("[줄어든 정도]", "절반"));
-  await page.getByRole("button", { name: "복사", exact: true }).click();
+  await page.getByRole("button", { name: "답 복사", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(await copied(page)).toBe(COMPOSED.replace("[줄어든 정도]", "절반"));
 });

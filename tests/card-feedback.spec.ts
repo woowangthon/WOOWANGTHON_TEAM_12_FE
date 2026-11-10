@@ -59,7 +59,7 @@ async function setup(page: Page, opts: Options) {
 async function runCheck(page: Page, text: string) {
   await answerBox(page).fill(text);
   await checkButton(page).click();
-  await expect(page.locator("summary").filter({ hasText: "근거 점검 —" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "점검했어요", exact: true })).toBeVisible(); // 결과는 답칸 표시 · 카드에만 붙는다(FE#336)
 }
 const withOwnCheck = { draft: true, responses: [[...draftChecked(), own()]] };
 
@@ -107,9 +107,10 @@ test("회색 점선은 기준(근거 점검 · 다 쓴 답)이 있을 때 고친
   await expect(markOf(page, "s-2")).toContainText("엔드포인트도");
   await expect(markOf(page, "s-2")).not.toHaveClass(DOTTED);
   // 근거 점검 뒤에 고치면 점선
-  await runCheck(page, COMPOSED);
+  // 손대지 않은 초안은 점검 버튼이 없다(FE#336) — 직접 쓴 문장을 더해 점검한다
+  await runCheck(page, WITH_OWN);
   await expect(markOf(page, "s-2")).not.toHaveClass(DOTTED);
-  await answerBox(page).fill(EDIT_S2(COMPOSED));
+  await answerBox(page).fill(EDIT_S2(WITH_OWN));
   await expect(markOf(page, "s-2")).toHaveClass(DOTTED);
   await expect(markOf(page, "s-2")).not.toHaveClass(/decoration-review/);
 });
@@ -144,7 +145,7 @@ test("꼬리표 — 확인 필요(주황) → 맞아요 뒤 확인함(초록)", 
 
 test("ⓘ — 점검 설명 · 주체 설명 · 목표 글자 수 설명에 부가 문구가 들어 있다", async ({ page }) => {
   await setup(page, { draft: true, responses: [draftChecked()] });
-  await runCheck(page, COMPOSED.replace("자주", "종종"));
+  await runCheck(page, `${COMPOSED.replace("자주", "종종")} ${OWN}`);
   await clickMark(page, "s-1"); // 고친 문장 — 근거 점검 설명이 있다
   const card = sentenceCard(page);
   await expect(card.getByText("점검 판정은 AI 해석이에요.", { exact: true })).toHaveCount(0); // 떠 있던 바닥 줄은 없다
