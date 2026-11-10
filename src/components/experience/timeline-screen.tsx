@@ -36,6 +36,7 @@ import { rememberActivity } from "@/lib/home-overview";
 import { SourceWorkDetail } from "@/components/work/source-work-detail";
 import { useWorkRefresh } from "@/components/work/work-provider";
 import { SameActivityDialog, SuggestionLines, suggestionPairs } from "./merge-suggestion";
+import { closeRevisionPanel } from "@/components/revisions/revision-list";
 
 type ListState =
   | { status: "loading" }
@@ -278,12 +279,17 @@ export function TimelineScreen() {
   });
   const view = analysisView(analysis.tracked);
 
+  // 좁은 화면만 세부가 목록을 가리는 전체 화면이다 — 그때만 맨 위로 올렸다가 닫으면 목록 자리로. PC 는 목록이 옆에 그대로 있어 건드리지 않는다(FE#423)
+  const narrow = () => !matchMedia("(min-width: 64rem)").matches;
+
   const select = (id: number) => {
+    closeRevisionPanel(); // 오른쪽 자리를 활동 세부에 돌려준다(FE#424)
     selectedRef.current = id;
-    if (selectedId == null) listScrollY.current = window.scrollY;
+    const full = narrow();
+    if (selectedId == null && full) listScrollY.current = window.scrollY;
     setSelectedId(id);
     loadDetail(id);
-    window.scrollTo(0, 0); // 모바일 — 세부는 전체 화면이라 맨 위부터
+    if (full) window.scrollTo(0, 0);
   };
 
   // 소식에서 온 「자료 분석」 카드 닫기 — 주소에서 지워 화면을 새로 읽지 않는다
@@ -298,7 +304,7 @@ export function TimelineScreen() {
     selectedRef.current = null;
     ++detailRequest.current;
     setSelectedId(null);
-    requestAnimationFrame(() => window.scrollTo(0, listScrollY.current));
+    if (narrow()) requestAnimationFrame(() => window.scrollTo(0, listScrollY.current));
   };
 
   const activitySaved = (activity: ActivitySummary) => {

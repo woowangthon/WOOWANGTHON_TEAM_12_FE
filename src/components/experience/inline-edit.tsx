@@ -3,7 +3,7 @@
 // 세부에서 바로 고친다 (SPEC S-10 · FE#232). 글자는 누르면 그 모양 그대로 입력칸이 되고,
 // 밖을 누르거나 Enter 면 저장, Esc 면 취소. 기간 · 수행 주체 · 역량은 눌러 작은 메뉴로 고친다.
 // 저장이 실패하면 고치던 글을 그대로 두고 오류를 보인다 — Enter(또는 밖을 누르기)로 다시 저장한다
-import { useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { CaretDownIcon, CheckIcon, PencilSimpleIcon } from "@phosphor-icons/react";
 import { DropdownMenu, Popover } from "radix-ui";
 import { Button } from "@/components/ui/button";
@@ -27,9 +27,6 @@ function UserEnteredNote({ experience }: { experience: Pick<Experience, "sourceS
   if (experience.sourceStatus === "USER_ENTERED") return null;
   return <>고치면 「내가 입력」이 돼요 · 원래 근거는 남아요</>;
 }
-
-/** 메뉴의 「고치기」가 칸을 연다 */
-export type InlineEditHandle = { open: () => void };
 
 /** 글자를 그 자리에서 고치는 칸 하나 — 활동 이름 · 경험 본문이 같이 쓴다 */
 function useInlineText(saved: string, save: (next: string) => Promise<void>, validate: (next: string) => string | null, onOpenChange?: (open: boolean) => void) {
@@ -61,17 +58,14 @@ function useInlineText(saved: string, save: (next: string) => Promise<void>, val
 }
 
 /** 활동 이름 — 제목 글자 그대로 입력칸이 된다 */
-export function ActivityNameField({ activity, readOnly, onSaved, editRef }: {
+export function ActivityNameField({ activity, readOnly, onSaved }: {
   activity: ActivitySummary;
   readOnly: boolean;
   onSaved: (activity: ActivitySummary) => void;
-  /** 메뉴 「활동 고치기」가 부른다 */
-  editRef?: Ref<InlineEditHandle>;
 }) {
   const [f, act, displayRef] = useInlineText(activity.name,
     async (next) => onSaved(await updateActivity(activity.id, { name: next.trim(), period: activity.period })),
     (next) => activityError(next, activity.period));
-  useImperativeHandle(editRef, () => ({ open: act.open }));
   const TEXT = "m-0 flex-1 text-title-lg leading-snug font-[650] tracking-[-0.3px]";
 
   if (readOnly) return <h2 className={cn(TEXT, "text-balance")}>{activity.name}</h2>;
@@ -95,10 +89,9 @@ export function ActivityNameField({ activity, readOnly, onSaved, editRef }: {
 }
 
 /** 경험 본문 — 같은 글꼴의 입력칸. Enter 저장 · Shift+Enter 줄 바꿈 · Esc 취소 */
-export function ExperienceContentField({ experience: e, readOnly, editRef, onEditingChange, onSaved }: {
+export function ExperienceContentField({ experience: e, readOnly, onEditingChange, onSaved }: {
   experience: Experience;
   readOnly: boolean;
-  editRef?: Ref<InlineEditHandle>;
   /** 고치는 동안 끌기 손잡이를 숨긴다 */
   onEditingChange: (editing: boolean) => void;
   onSaved: (experience: Experience) => void;
@@ -106,7 +99,6 @@ export function ExperienceContentField({ experience: e, readOnly, editRef, onEdi
   const [f, act, displayRef] = useInlineText(e.content,
     async (content) => onSaved(await updateExperience(e.id, { content })),
     (next) => next.trim() ? null : "경험 내용을 입력해 주세요.", onEditingChange);
-  useImperativeHandle(editRef, () => ({ open: act.open }));
   const TEXT = "m-0 flex-1 whitespace-pre-wrap text-base leading-relaxed text-ink";
   if (readOnly) return <p className={TEXT}>{e.content}</p>;
   // 글을 끌어 고르던 중이면 칸을 열지 않는다 — 복사하려는 것이다
