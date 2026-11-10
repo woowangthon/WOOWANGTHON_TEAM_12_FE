@@ -242,7 +242,7 @@ test("a finished question finds experiences again: zero results offer it, result
   await expect(result(page).getByText("현재 자료에서 연결된 경험을 찾지 못했어요.", { exact: true })).toBeVisible({ timeout: 10000 });
   const again = result(page).getByRole("button", { name: "경험 다시 찾기", exact: true });
   await expect(again).toBeVisible();
-  await expect(result(page).getByText("분석 1회", { exact: false }).first()).toBeVisible();
+  await expect(again).toHaveAttribute("title", "분석 1회"); // ✦ 버튼(FE#434)
   // 그새 경험을 넣었다 — 같은 문항으로 추천이 다시 돈다
   api.options.noMatch = false;
   await again.click();

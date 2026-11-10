@@ -134,7 +134,7 @@ test("다 썼어요 saves only; the line under it finds in the panel; same text 
   await expect(page.getByText("내가 쓴 지원서 · OO 부트캠프 ·", { exact: false }).first()).toBeVisible();
 });
 
-test("PUT failure never shows saved; 429 on finding keeps the answer and retries only finding", async ({ page }) => {
+test("PUT failure never shows saved; 429 on finding keeps the answer and offers no retry (FE#391)", async ({ page }) => {
   const { state } = await setup(page); const s = screen(page);
   await closeSheet(page);
   state.putError = "INTERNAL_ERROR";
@@ -148,11 +148,9 @@ test("PUT failure never shows saved; 429 on finding keeps the answer and retries
   state.findError = "DAILY_LIMIT_EXCEEDED";
   await findLine(page).click();
   await expect(factsBox(page).getByRole("alert")).toContainText("답은 저장했어요 · 오늘 분석 횟수를 다 썼어요");
-  state.findError = ""; state.empty = true;
-  await factsBox(page).getByRole("button", { name: "다시 찾기", exact: true }).click();
-  await expect(factsBox(page).getByText("새로 쓴 사실이 없어요")).toBeVisible();
-  await expect(s.getByText("새로 쓴 사실이 없어요")).toBeAttached();
-  expect(state.puts).toHaveLength(2); expect(state.finds).toBe(2);
+  // 한도를 다 썼으면 다시 찾아도 같은 실패다 — 다시 찾기를 보이지 않는다
+  await expect(factsBox(page).getByRole("button", { name: "다시 찾기", exact: true })).toHaveCount(0);
+  expect(state.puts).toHaveLength(2); expect(state.finds).toBe(1);
 });
 
 test("AI failure retries finding in the panel; decided conflicts refresh without another save or analysis", async ({ page }) => {

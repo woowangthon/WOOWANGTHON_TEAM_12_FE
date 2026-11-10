@@ -4,7 +4,8 @@ import { InfoTip } from "@/components/ui/info-tip";
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AppHeader } from '@/components/app-header';
-import { AnalysisCost } from '@/components/auth/analysis-cost';
+import { ApiError } from '@/lib/api/errors';
+import { AnalysisButton, AnalysisCost, useAnalysisExhausted } from '@/components/auth/analysis-cost';
 import { Button } from '@/components/ui/button';
 import { Toast, useToast } from '@/components/ui/toast';
 import { deleteGuideline, extractGuidelines, fetchGuidelines, guidelineError, saveGuidelines, updateGuideline, type Guideline, type GuidelineInput } from '@/lib/api/guidelines';
@@ -32,7 +33,9 @@ export function GuidelineScreen() {
   const [raw, setRaw] = useState<GuidelineInput>({ text: '', source: '' });
   const [showSource, setShowSource] = useState(false);
   const [candidates, setCandidates] = useState<(GuidelineInput & { key: number })[] | null>(null);
-  const [extractError, setExtractError] = useState<string | null>(null);
+  // limit — 오늘 한도를 다 써서 실패했다. 다시 시도를 보이지 않는다(FE#391)
+  const [extractError, setExtractError] = useState<{ text: string; limit: boolean } | null>(null);
+  const exhausted = useAnalysisExhausted(1, composing);
   const [editing, setEditing] = useState<number | null>(null);
   const [edit, setEdit] = useState<GuidelineInput>({ text: '', source: '' });
   const enabled = items.filter(g => g.enabled).length;
@@ -60,7 +63,7 @@ export function GuidelineScreen() {
       try {
         const result = await extractGuidelines(raw);
         setCandidates(result.candidates.map((c, key) => ({ key, text: c.text, source: result.source ?? '' })));
-      } catch (e) { setExtractError(guidelineError(e)); }
+      } catch (e) { setExtractError({ text: guidelineError(e), limit: e instanceof ApiError && e.code === 'DAILY_LIMIT_EXCEEDED' }); }
     }, true);
   }
   async function save(lines: GuidelineInput[], after: () => void, fromComposer = false) {
@@ -95,18 +98,18 @@ export function GuidelineScreen() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 {showSource ? <Button type="button" variant="ghost" className="min-h-11 lg:min-h-10" onClick={() => { setShowSource(false); setRaw({ ...raw, source: '' }); }}>출처 빼기</Button> : <Button type="button" variant="ghost" className="min-h-11 lg:min-h-10" onClick={() => setShowSource(true)}>+ 출처 달기</Button>}
                 <div className="flex flex-wrap items-center gap-3">
+                  <AnalysisCost running={composing} />
                   {!text || isLine ? <>
-                    <Button type="button" variant="ghost" className="min-h-11 lg:min-h-10" disabled={!text} onClick={() => void extract()}>AI로 정리</Button>
+                    <AnalysisButton type="button" variant="ghost" className="min-h-11 lg:min-h-10" running={composing} disabled={!text} onClick={() => void extract()}>AI로 정리</AnalysisButton>
                     <Button type="submit" className="min-h-11 lg:min-h-10" disabled={!text || loading || !!loadError}>한 줄 저장</Button>
                   </> : <>
-                    <AnalysisCost running={composing} />
-                    <Button type="submit" className="min-h-11 lg:min-h-10" disabled={!text}>AI로 정리하기</Button>
+                    <AnalysisButton type="submit" className="min-h-11 lg:min-h-10" running={composing} disabled={!text}>AI로 정리하기</AnalysisButton>
                   </>}
                 </div>
               </div>
             </fieldset>
           </form>
-          {extractError && <div className="grid justify-items-start gap-2"><p role="alert" className="m-0 text-sm text-error">{extractError}</p><Button variant="secondary" disabled={busy} onClick={() => void extract()}>다시 시도</Button></div>}
+          {extractError && <div className="grid justify-items-start gap-2"><p role="alert" className="m-0 text-sm text-error">{extractError.text}</p>{!extractError.limit && <Button variant="secondary" title="분석 1회" disabled={busy || exhausted} onClick={() => void extract()}>다시 시도</Button>}</div>}
           {composing && <p role="status" className="m-0 text-sm text-muted">요청을 처리하고 있어요…</p>}
         </section>
         {candidates !== null && <section aria-labelledby="candidates-title" className={card}>

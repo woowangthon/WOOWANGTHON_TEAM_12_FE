@@ -4,9 +4,7 @@
 // 실패한 추천의 「다시 시도」와 같은 호출(POST /api/questions/{id}/retry)이고 분석 1회를 쓴다. 초안 · 근거 점검 · 다 쓴 답은 그대로 남는다.
 // 문항 화면(참고 경험)과 차곡이의 경험 결과 아래, 두 자리에서 쓴다. 시안 없음 — DESIGN.md 「상태」 기준
 import { useRef, useState } from "react";
-import { ArrowsClockwiseIcon } from "@phosphor-icons/react";
-import { ANALYSIS_EXHAUSTED_NOTE, AnalysisCost, useAnalysisLeft } from "@/components/auth/analysis-cost";
-import { Button } from "@/components/ui/button";
+import { ANALYSIS_EXHAUSTED_NOTE, AnalysisButton, AnalysisCost, useAnalysisLeft } from "@/components/auth/analysis-cost";
 import { ApiError } from "@/lib/api/errors";
 import { cn } from "@/lib/utils";
 
@@ -38,10 +36,10 @@ export function RematchButton({ questionId, onRematch, busy = false, label = "�
   };
   return <div className={cn("grid justify-items-start gap-1.5", className)}>
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-      <Button variant={prominent ? "default" : "secondary"} size={prominent ? "default" : "sm"} className={prominent ? "min-h-11 lg:min-h-10" : undefined}
-        disabled={starting || busy || exhausted} onClick={() => void start()}>
-        <ArrowsClockwiseIcon aria-hidden="true" />{starting ? "다시 찾기 시작하는 중…" : label}
-      </Button>
+      <AnalysisButton variant={prominent ? "default" : "secondary"} size={prominent ? "default" : "sm"} className={prominent ? "min-h-11 lg:min-h-10" : undefined}
+        running={starting} disabled={starting || busy} onClick={() => void start()}>
+        {starting ? "다시 찾기 시작하는 중…" : label}
+      </AnalysisButton>
       <AnalysisCost running={starting} />
     </div>
     {exhausted && <p className="m-0 text-xs text-muted">{ANALYSIS_EXHAUSTED_NOTE}</p>}

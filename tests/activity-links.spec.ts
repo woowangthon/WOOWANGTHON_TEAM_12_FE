@@ -114,22 +114,25 @@ test("아니에요 removes the suggestion and it does not come back on reopen", 
   await expect(region(page).getByText("AI 제안", { exact: true })).toHaveCount(0);
 });
 
-test("empty result, 429 and 502 show messages; failures retry without fake suggestions", async ({ page }) => {
+test("empty result, 502 and 429 show messages; failures retry without fake suggestions, a 429 has no retry (FE#391)", async ({ page }) => {
   const state = await setup(page);
   await open(page, "알고리즘");
+  const find = region(page).getByRole("button", { name: "이어진 활동 찾아보기" });
+  await expect(find).toHaveAttribute("title", "분석 1회"); // ✦ 버튼(FE#434)
+  await expect(find.locator("[data-analysis-mark]")).toHaveCount(1);
   state.suggestResponse = { status: 200, json: { links: [] } };
-  await region(page).getByRole("button", { name: "이어진 활동 찾아보기" }).click();
+  await find.click();
   await expect(region(page)).toContainText("찾지 못했어요");
-  state.suggestResponse = { status: 429, json: { error: { code: "DAILY_LIMIT_EXCEEDED", message: "한도" } } };
-  await region(page).getByRole("button", { name: "이어진 활동 찾아보기" }).click();
-  await expect(region(page).getByRole("alert")).toContainText("오늘 분석 횟수를 다 써서");
-  await expect(region(page).getByText("AI 제안", { exact: true })).toHaveCount(0);
   state.suggestResponse = { status: 502, json: { error: { code: "AI_FAILED", message: "AI 오류" } } };
-  await region(page).getByRole("button", { name: "다시 시도" }).click();
+  await find.click();
   await expect(region(page).getByRole("alert")).toContainText("AI 오류");
   await expect(region(page).getByText("AI 제안", { exact: true })).toHaveCount(0);
   state.suggestResponse = { status: 200, json: { links: [SUGGESTION] } };
   await region(page).getByRole("button", { name: "다시 시도" }).click();
   await expect(region(page).getByText("AI 제안", { exact: true })).toBeVisible();
+  state.suggestResponse = { status: 429, json: { error: { code: "DAILY_LIMIT_EXCEEDED", message: "한도" } } };
+  await find.click();
+  await expect(region(page).getByRole("alert")).toContainText("오늘 분석 횟수를 다 써서");
+  await expect(region(page).getByRole("button", { name: "다시 시도" })).toHaveCount(0);
   expect(state.suggest).toEqual([8, 8, 8, 8]);
 });

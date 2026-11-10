@@ -10,6 +10,7 @@ import { ActivityTag, categoryHint, categoryOf } from "@/components/experience/a
 import { ArrowsClockwiseIcon, CheckIcon, FileTextIcon, MagnifyingGlassIcon, WarningCircleIcon, XIcon } from "@phosphor-icons/react";
 import { CenterState } from "@/components/center-state";
 import { Button } from "@/components/ui/button";
+import { useAnalysisExhausted } from "@/components/auth/analysis-cost";
 import { dailyLimitMessage, isDailyLimit } from "@/lib/api/auth";
 import { cn } from "@/lib/utils";
 import { isWaiting, type TrackedJob } from "./use-analysis-job";
@@ -107,7 +108,9 @@ function useRetry(onRetry: () => Promise<void>) {
       setBusy(false);
     }
   };
-  return { busy, error, run };
+  // 다시 시도도 분석 1회를 쓴다(S-15) — 0회면 막는다(FE#391)
+  const exhausted = useAnalysisExhausted(1, busy);
+  return { busy, blocked: busy || exhausted, error, run };
 }
 
 /** 첫 사용 — 타임라인 자리에 가운데 덩어리 */
@@ -137,7 +140,7 @@ export function AnalysisCenter({ view, tracked, ...a }: { view: Exclude<Analysis
         <p className="m-0 text-ui text-body">넣은 자료는 저장돼 있어요. 다시 시도하면 같은 자료로 다시 분석해요.</p>
         {retry.error && <p role="alert" className="m-0 text-sm text-error">{retry.error}</p>}
         <div className="flex flex-wrap justify-center gap-2">
-          <Button onClick={retry.run} disabled={retry.busy}>
+          <Button title="분석 1회" onClick={retry.run} disabled={retry.blocked}>
             <ArrowsClockwiseIcon />
             다시 시도
           </Button>
@@ -210,7 +213,7 @@ export function AnalysisBanner({ view, tracked, ...a }: { view: Exclude<Analysis
             있어요.
             {retry.error && <span role="alert"> {retry.error}</span>}
           </span>
-          <Button variant="secondary" size="sm" onClick={retry.run} disabled={retry.busy}>
+          <Button variant="secondary" size="sm" title="분석 1회" onClick={retry.run} disabled={retry.blocked}>
             <ArrowsClockwiseIcon />
             다시 시도
           </Button>
@@ -345,7 +348,7 @@ function BatchRow({ tracked, activities, onRetry, onRecheck, onOpenActivity, onT
         {retry.error && <span role="alert" className="text-note text-error">{retry.error}</span>}
       </>,
       <>
-        <Button variant="secondary" size="sm" onClick={retry.run} disabled={retry.busy}><ArrowsClockwiseIcon />다시 시도</Button>
+        <Button variant="secondary" size="sm" title="분석 1회" onClick={retry.run} disabled={retry.blocked}><ArrowsClockwiseIcon />다시 시도</Button>
         {retry.error && <Button variant="ghost" size="sm" onClick={onRecheck}>상태 다시 확인</Button>}
       </>,
     );

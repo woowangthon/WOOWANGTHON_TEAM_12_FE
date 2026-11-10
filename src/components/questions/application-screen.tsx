@@ -13,6 +13,7 @@ import { SidebarApplicationText, dateText, monthText, progressText, recentApplic
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { CenterState } from "@/components/center-state";
 import { Button } from "@/components/ui/button";
+import { AnalysisCost, useAnalysisExhausted } from "@/components/auth/analysis-cost";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { MAX_QUESTIONS_PER_APPLICATION, type Answer, type AnswerDraft, type Application, type QuestionDetail, type QuestionSummary, type QuestionType, type UpdateApplicationRequest } from "@/lib/api/question-types";
@@ -414,6 +415,8 @@ function SelectedQuestion({ summary, question, application, index, loadError, on
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
   const retryPending = useRef(false);
+  // 다시 시도도 분석 1회를 쓴다(S-15) — 0회면 막는다(FE#391)
+  const exhausted = useAnalysisExhausted(1, retrying);
   useTargetLengthPrefill(question ?? summary, onTargetLengthChange);
   if (!summary) return null;
   const status = question?.status ?? summary.status;
@@ -437,13 +440,14 @@ function SelectedQuestion({ summary, question, application, index, loadError, on
       <AnswerSkeleton />
     </div>
       : question.status === "FAILED" ? <CenterState icon={<WarningCircleIcon className="text-error" />} title="문항을 분석하지 못했어요" body={failureText(question.error)}>
-        <Button className="min-h-11 lg:min-h-10" disabled={retrying} onClick={async () => {
+        <Button className="min-h-11 lg:min-h-10" title="분석 1회" disabled={retrying || exhausted} onClick={async () => {
           if (retryPending.current) return;
           retryPending.current = true; setRetrying(true); setRetryError(null);
           try { await onRetry(question.id); }
           catch (e) { setRetryError(e instanceof Error ? e.message : "다시 시도하지 못했어요."); }
           finally { retryPending.current = false; setRetrying(false); }
         }}><ArrowsClockwiseIcon aria-hidden="true" />{retrying ? "다시 시작하고 있어요…" : "다시 시도"}</Button>
+        <AnalysisCost running={retrying} />
         {retryError && <p role="alert" className="m-0 text-sm text-error">{retryError}</p>}
       </CenterState> : <QuestionResult key={question.id} question={question} elsewhere={id => sameExperienceElsewhere(overlaps, question.id, id)} onOpenOmissions={onOpenOmissions} savingAnswer={savingAnswer} requestingDraft={requestingDraft} picks={picks} onPick={onPick} onRematch={onRetry} />}
     {overlaps.length > 0 && <OverlapPanel overlaps={overlaps} onPick={onPickOverlap} />}

@@ -99,15 +99,19 @@ test("재료가 모자라도 경고하지 않고(ADR-014), 무료 다시 만들�
   await expect(composer).not.toContainText("절반이 안 돼요");
   await expect(composer.getByRole("button", { name: "다시 만들기", exact: true })).toBeEnabled();
   await expect(composer).toContainText("이번 다시 만들기는 분석 횟수를 쓰지 않아요");
-  await expect(composer).not.toContainText("분석 1회");
+  await expect(composer.locator("[data-analysis-mark]")).toHaveCount(0);
   await composer.scrollIntoViewIfNeeded(); // 넓은 폭은 패널 아래쪽 — 「초안 설정 열기」를 누르면 여기로 내려온다(FE#249)
   await shot(page, "composer-free-thin", async () => (await openDraftComposer(page)).scrollIntoViewIfNeeded());
 });
 
-test("무료가 아니면 「분석 1회」를 그대로 보인다", async ({ page }) => {
+test("무료가 아니면 ✦ 와 「분석 1회」 알림을 보인다", async ({ page }) => {
   await openQuestion(page, q => { q.targetLength = 100; q.draft = draft({ freeRegenerate: false }); });
   const composer = await openDraftComposer(page);
-  await expect(composer).toContainText("분석 1회");
+  const regenerate = composer.getByRole("button", { name: "다시 만들기", exact: true });
+  await expect(regenerate.locator("[data-analysis-mark]")).toHaveCount(1);
+  await expect(regenerate).toHaveAttribute("title", "분석 1회");
+  await composer.scrollIntoViewIfNeeded();
+  await shot(page, "fe434-composer-paid", async () => (await openDraftComposer(page)).scrollIntoViewIfNeeded());
   await expect(composer).not.toContainText("절반이 안 돼요");
 });
 

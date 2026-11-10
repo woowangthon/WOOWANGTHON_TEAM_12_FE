@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { ArrowDownIcon, ArrowUpIcon, ArticleIcon, LinkIcon, ListChecksIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { AnalysisButton, AnalysisCost } from "@/components/auth/analysis-cost";
 import { CommonQuestionPicker } from "./common-question-picker";
 import { ParseFailureNotice, useApplicationParse, type ParseFailure, type ParseInput } from "./application-parse";
 import { Mascot } from "./chagok-panel";
@@ -240,7 +241,9 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
           : <Button type="button" variant="ghost" className="min-h-11 lg:min-h-10" disabled={saving || parse.parsing} onClick={() => (dirty ? setConfirmingReset(true) : reset())}>처음으로</Button>)}
         {onMoveToSource && <Button type="button" variant="secondary" disabled={saving || moveToSourceDisabled} onClick={() => onMoveToSource(paste.trim() ? paste : texts.join("\n\n"))}>자료로 쌓기</Button>}
         {(!open || !!paste.trim()) && <Button type="button" className="min-h-11 lg:min-h-10" variant={open ? "secondary" : "default"} disabled={saving || parse.parsing || !paste.trim()} onClick={split}>{parse.parsing ? (reading === "url" ? "읽는 중…" : "나누는 중…") : "AI 로 나누기"}</Button>}
-        {open && <Button type="submit" className="min-h-11 lg:min-h-10" disabled={saving || parse.parsing}>{saving ? "지원을 넣고 있어요…" : texts.length > 1 ? `문항 ${texts.length}개 넣고 경험 찾기` : "지원 넣고 경험 찾기"}</Button>}
+        {/* 문항마다 분석 1회(S-15) — 한 번에 여러 회를 쓰는 곳이라 횟수를 글자로도 보인다(FE#434) */}
+        {open && <AnalysisCost count={texts.length} running={saving} />}
+        {open && <AnalysisButton type="submit" className="min-h-11 lg:min-h-10" cost={texts.length} running={saving} disabled={saving || parse.parsing}>{saving ? "지원을 넣고 있어요…" : texts.length > 1 ? `문항 ${texts.length}개 넣고 경험 찾기` : "지원 넣고 경험 찾기"}</AnalysisButton>}
       </div>
     </form>
   );
@@ -266,9 +269,10 @@ export function AddQuestionForm({ onSubmit, onCancel }: { onSubmit: (text: strin
       <textarea id="add-question" autoFocus rows={4} maxLength={MAX_QUESTION_LENGTH} value={text} disabled={saving} onChange={e => setText(e.target.value)} className={`${field} resize-y`} placeholder="더할 문항을 붙여 넣어 주세요." />
       <span className="text-right text-xs text-muted tabular-nums">{text.length.toLocaleString("ko-KR")} / 5,000</span>
       {error && <p role="alert" className="m-0 text-sm text-error">{error}</p>}
-      <div className="flex flex-wrap gap-2">
-        <Button type="submit" className="min-h-11 lg:min-h-10" disabled={saving}>{saving ? "문항을 넣고 있어요…" : "문항 더하고 경험 찾기"}</Button>
+      <div className="flex flex-wrap items-center gap-2">
+        <AnalysisButton type="submit" className="min-h-11 lg:min-h-10" running={saving} disabled={saving}>{saving ? "문항을 넣고 있어요…" : "문항 더하고 경험 찾기"}</AnalysisButton>
         <Button type="button" variant="ghost" disabled={saving} onClick={onCancel}>취소</Button>
+        <AnalysisCost running={saving} />
       </div>
     </form>
   );

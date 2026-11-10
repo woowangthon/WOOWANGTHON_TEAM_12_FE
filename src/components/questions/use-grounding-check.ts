@@ -5,10 +5,11 @@ import { ApiError } from "@/lib/api/errors";
 import { createGroundingCheck, fetchGroundingCheck } from "@/lib/api/questions";
 import type { GroundingCheck } from "@/lib/api/question-types";
 
-type Failure = { message: string; retryText?: string };
+/** limit — 오늘 한도를 다 써서 실패했다. 다시 시도를 보이지 않는다(FE#391) */
+type Failure = { message: string; retryText?: string; limit?: boolean };
 function message(e: unknown) {
   const labels: Record<string, string> = {
-    DAILY_LIMIT_EXCEEDED: "오늘 분석 횟수를 다 썼어요. 기존 점검은 그대로예요.",
+    DAILY_LIMIT_EXCEEDED: "오늘 분석 횟수를 다 썼어요. 한국 시간 자정에 다시 채워져요.",
     GROUNDING_CHECK_IN_PROGRESS: "이미 근거를 점검하고 있어요. 서버의 상태를 다시 확인해 주세요.",
     QUESTION_NOT_FOUND: "이 문항을 찾을 수 없어요. 지원 목록에서 다시 확인해 주세요.",
   };
@@ -112,7 +113,7 @@ export function useGroundingCheck(questionId: number, checks: GroundingChecks, i
       if (e instanceof ApiError && e.code === "GROUNDING_CHECK_IN_PROGRESS") {
         try { await read(); }
         catch (readError) { if (mounted.current) setFailure({ message: message(readError) }); }
-      } else setFailure({ message: message(e), retryText: submittedText });
+      } else setFailure({ message: message(e), retryText: submittedText, limit: e instanceof ApiError && e.code === "DAILY_LIMIT_EXCEEDED" });
     } finally { pending.current = false; if (mounted.current) setBusy(false); }
   };
   return { text, setText, check, loading, busy, failure, pollFailures, initialized: ready, submit, refresh };

@@ -13,6 +13,7 @@ import { InfoTip } from "@/components/ui/info-tip";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-gate";
+import { AnalysisMark } from "@/components/auth/analysis-cost";
 import { dailyLimitMessage } from "@/lib/api/auth";
 import { ApiError, submitSource, submitSources, type MockAnalysis } from "@/lib/api/experience";
 import type { DuplicateSource } from "@/lib/api/errors";
@@ -310,6 +311,8 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
         {left !== null && (
           <p className="m-0 text-note text-muted tabular-nums">
             오늘 남은 분석 {left}회{left === 0 ? " — 한국 시간 자정에 다시 채워져요" : requests.length > left && ` — 파일 ${requests.length}개를 넣기엔 모자라요`}
+            {/* ✦ 의 뜻을 처음 배우는 자리 — 남은 횟수가 늘 보이는 곳은 여기뿐이다(FE#434) */}
+            <span className="block"><AnalysisMark className="inline size-[1.1em] align-[-0.15em]" /> 표시가 있는 버튼은 누를 때마다 분석 횟수를 써요.</span>
           </p>
         )}
 
@@ -335,7 +338,9 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
           <Button variant="link" onClick={() => changeOpen(false)} disabled={submitting}>
             취소
           </Button>
-          <Button onClick={() => void submit()} disabled={!requests.length || submitting || !!reading}>
+          {/* 자료마다 분석 1회(S-15) — 남은 횟수보다 많으면 하나도 넣지 않는다(S-59 · FE#391) */}
+          <Button onClick={() => void submit()} title={`분석 ${Math.max(1, requests.length)}회`} disabled={!requests.length || submitting || !!reading || (left !== null && requests.length > left)}>
+            <AnalysisMark />
             {submitting ? "보내는 중…" : github ? (gh.nothingMine ? "그대로 보내기" : "보내기") : requests.length > 1 ? `${requests.length}개 넣기` : "넣기"}
           </Button>
         </DialogFooter>

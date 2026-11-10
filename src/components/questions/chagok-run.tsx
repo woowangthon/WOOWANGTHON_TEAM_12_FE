@@ -5,6 +5,7 @@
 import { useState, type KeyboardEvent } from "react";
 import { ArrowUpIcon, CheckIcon, XIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { ANALYSIS_EXHAUSTED_NOTE, LowAnalysisNotice, useAnalysisExhausted } from "@/components/auth/analysis-cost";
 import { ExperienceMeta } from "@/components/experience/experience-item";
 import { foundExperiences, type ChagokConfirmStep, type ChagokRun, type ChagokToolCallStep, type FoundExperience } from "@/lib/api/chagok";
 import { JOB_ROLE_LABEL, ORGANIZATION_TYPE_LABEL, type JobRole, type OrganizationType } from "@/lib/api/question-types";
@@ -114,6 +115,7 @@ export function ChagokRunFeed({ control, currentQuestionId, rematch }: {
   rematch: { onRematch: Rematch; busy: boolean } | null;
 }) {
   const { run, pollState, acting, actionError, starting } = control;
+  const exhausted = useAnalysisExhausted(1, starting);
   if (!run) return null;
   // 이 문항에서 한 부탁이 끝났고 찾은 경험이 보일 때만. 차곡이가 스스로 시작하지 않는다 — 사용자가 누른다
   const foundHere = currentQuestionId !== null && run.questionId === currentQuestionId && run.status !== "RUNNING" && run.status !== "WAITING_CONFIRM"
@@ -147,7 +149,7 @@ export function ChagokRunFeed({ control, currentQuestionId, rematch }: {
     </div>}
     {run.status === "FAILED" && <div role="alert" className={notice}>
       <p className="m-0 text-error">{whyFailed(run.error)}</p>
-      <Button size="sm" variant="secondary" className="justify-self-start" disabled={starting} onClick={() => void control.retry()}>다시 시도</Button>
+      <Button size="sm" variant="secondary" className="justify-self-start" title="분석 1회" disabled={starting || exhausted} onClick={() => void control.retry()}>다시 시도</Button>
     </div>}
     {run.status === "CANCELED" && <p className="m-0 text-note text-muted">그만뒀어요.</p>}
     {run.status === "DONE" && <ResultLink run={run} />}
@@ -157,7 +159,9 @@ export function ChagokRunFeed({ control, currentQuestionId, rematch }: {
 export function ChagokComposer({ control, hasQuestion }: { control: ChagokRunControl; hasQuestion: boolean }) {
   const { run, draft, starting, failure, conflict, conflictError } = control;
   const waitingConfirm = run?.status === "WAITING_CONFIRM";
-  const blocked = starting || waitingConfirm || !!conflict;
+  // 0회면 보내기 · 칩을 막는다(S-15 · FE#391). 채팅처럼 연달아 쓰는 곳이라 「분석 1회」는 늘 보이지 않고 3회 이하일 때만 경고한다(FE#434)
+  const exhausted = useAnalysisExhausted(1, starting);
+  const blocked = starting || waitingConfirm || !!conflict || exhausted;
   const submit = () => { if (!blocked) void control.send(draft); };
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
@@ -175,11 +179,11 @@ export function ChagokComposer({ control, hasQuestion }: { control: ChagokRunCon
     </div>}
     {failure && <div role="alert" className={notice}>
       <p className="m-0 text-error">{whyFailed(failure.error)}</p>
-      {failure.error.code !== "TEXT_TOO_LONG" && <Button size="sm" variant="secondary" className="justify-self-start" disabled={starting} onClick={() => void control.retry()}>다시 시도</Button>}
+      {failure.error.code !== "TEXT_TOO_LONG" && failure.error.code !== "DAILY_LIMIT_EXCEEDED" && <Button size="sm" variant="secondary" className="justify-self-start" title="분석 1회" disabled={starting || exhausted} onClick={() => void control.retry()}>다시 시도</Button>}
     </div>}
     {waitingConfirm && <p className="m-0 text-note text-muted">확인 카드에 답하면 새 부탁을 할 수 있어요.</p>}
     {hasQuestion && <div className="flex flex-wrap gap-1.5">
-      {PRESETS.map(p => <button key={p.label} type="button" disabled={blocked} onClick={() => void control.send(p.text)}
+      {PRESETS.map(p => <button key={p.label} type="button" title="분석 1회" disabled={blocked} onClick={() => void control.send(p.text)}
         className="rounded-full border border-hairline-soft bg-surface-soft px-2.5 py-1 text-xs text-ink transition-colors hover:bg-surface-strong disabled:opacity-50">{p.label}</button>)}
     </div>}
     <form className="flex items-end gap-1.5 rounded-[20px] border border-hairline py-1 pr-1 pl-3.5" onSubmit={e => { e.preventDefault(); submit(); }}>
@@ -187,7 +191,8 @@ export function ChagokComposer({ control, hasQuestion }: { control: ChagokRunCon
       <textarea rows={1} value={draft} onChange={e => control.setDraft(e.target.value)} onKeyDown={onKeyDown} aria-label="차곡이에게 부탁하기"
         placeholder="차곡이에게 부탁하기 — 예: WebSocket 경험 찾아 줘"
         className="field-sizing-content max-h-32 min-h-[34px] w-0 min-w-0 flex-1 resize-none border-0 [overflow-wrap:anywhere] bg-transparent py-1.5 text-note leading-[22px] outline-0 placeholder:text-muted" />
-      <Button size="icon" className="size-[34px] shrink-0 rounded-full" type="submit" disabled={blocked || !draft.trim()} aria-label="보내기"><ArrowUpIcon aria-hidden="true" /></Button>
+      <Button size="icon" className="size-[34px] shrink-0 rounded-full" type="submit" title="분석 1회" disabled={blocked || !draft.trim()} aria-label="보내기"><ArrowUpIcon aria-hidden="true" /></Button>
     </form>
+    {exhausted ? failure?.error.code !== "DAILY_LIMIT_EXCEEDED" && <p role="status" className="m-0 text-xs text-review">{ANALYSIS_EXHAUSTED_NOTE}</p> : <LowAnalysisNotice running={starting} />}
   </div>;
 }
