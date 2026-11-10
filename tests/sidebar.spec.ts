@@ -40,7 +40,7 @@ test("icons stay in place throughout collapse and expansion while width and labe
   }, label);
   for (const label of ["사이드바 접기", "사이드바 펼치기"]) {
     const { before, frames } = await measure(label);
-    expect(before.icons).toHaveLength(5);
+    expect(before.icons).toHaveLength(6); // 추가 · 홈 · 내 경험 · 내 지원서(FE#347) · 연결 · 계정
     expect(frames.some(f => f.width > 72.5 && f.width < 247.5)).toBe(true);
     expect(frames.some(f => f.labels.some(l => l.opacity > 0 && l.opacity < 1))).toBe(true);
     for (const frame of frames) {

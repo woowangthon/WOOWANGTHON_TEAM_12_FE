@@ -41,7 +41,7 @@ test("sidebar shows the applications anywhere and a row opens that application",
   await expect(sidebar(page).getByRole("link", { name: "연결 · 내보내기", exact: true })).toBeVisible();
   const row = applications(page).getByRole("link", { name: /OO 연합 동아리/ });
   await expect(row).toBeVisible();
-  await expect(applications(page).getByRole("link", { name: "모든 지원서", exact: true })).toHaveAttribute("href", "/questions");
+  await expect(applications(page).getByRole("link", { name: "모든 지원서", exact: true })).toHaveAttribute("href", "/applications"); // 모든 지원서 → 내 지원서(FE#347)
   await capture(page, "experience-1440");
   await row.click();
   await expect(page).toHaveURL(/\/questions\?question=\d+/);

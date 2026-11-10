@@ -1,6 +1,7 @@
 "use client";
 
 import { InfoTip } from "@/components/ui/info-tip";
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { peekApplicationText, takeApplicationText } from "@/lib/application-handoff";
@@ -258,7 +259,10 @@ function ApplicationList({ applications, activeId, onPick, onSave, sidebar = fal
   return <>
     {!sidebar && <div className="mb-3 flex items-baseline justify-between">
       <h2 className="m-0 text-title-md font-semibold">넣었던 지원</h2>
-      <span className="text-note text-muted tabular-nums">{applications.length}곳</span>
+      {/* 사이드바가 없는 폭(레일 · 모바일)에서 내 지원서로 가는 길(FE#347) */}
+      <span className="flex items-baseline gap-2.5 text-note text-muted tabular-nums">{applications.length}곳
+        <Link href="/applications" className="inline-flex min-h-11 items-center text-ink underline-offset-3 hover:underline lg:min-h-0">전체 보기</Link>
+      </span>
     </div>}
     <ul className={cn("m-0 grid list-none content-start gap-1 overflow-y-auto p-0", sidebar ? "min-h-0" : "max-h-72 lg:max-h-[calc(100dvh-240px)] xl:max-h-72")}>{applications.map(a => {
       const active = activeId === a.id;

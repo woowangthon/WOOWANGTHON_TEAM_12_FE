@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArchiveIcon, FileTextIcon, HouseIcon, PaperclipIcon, PencilSimpleIcon, PlusIcon, StackIcon, PlugsConnectedIcon, SidebarSimpleIcon } from "@phosphor-icons/react";
+import { ArchiveIcon, FileTextIcon, FolderSimpleIcon, HouseIcon, PaperclipIcon, PencilSimpleIcon, PlusIcon, StackIcon, PlugsConnectedIcon, SidebarSimpleIcon } from "@phosphor-icons/react";
 import { DropdownMenu, Tooltip } from "radix-ui";
 import { AccountMenu } from "@/components/auth/account-menu";
 import { QuickFindButton, useQuickFindActions, type QuickFindActions } from "@/components/quick-find/quick-find";
@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { WorkStatus } from "@/components/work/work-provider";
 
-type Page = "home" | "timeline" | "questions" | "connections" | "guidelines";
+type Page = "home" | "timeline" | "applications" | "questions" | "connections" | "guidelines";
 type HeaderProps = {
   /** 1024 미만에서 세부를 전체 화면으로 열면 아래 탭바를 숨긴다 */
   hideTabBar?: boolean; addSource?: AddSourceProps; activePage?: Page;
@@ -42,8 +42,10 @@ const tabs: { page: Page; href: string; label: string; icon: React.ReactNode }[]
 const sideLinks = [
   { page: "home", href: "/", label: "홈", icon: <HouseIcon /> },
   { page: "timeline", href: "/experience", label: "내 경험", icon: <StackIcon /> },
+  // 넣은 지원서를 모두 모아 보고 폴더로 나눈다(FE#347)
+  { page: "applications", href: "/applications", label: "내 지원서", icon: <FolderSimpleIcon /> },
 ];
-const PAGE_NAME: Record<Page, string> = { home: "홈", timeline: "내 경험", questions: "지원서", connections: "연결 · 내보내기", guidelines: "작성 지침" };
+const PAGE_NAME: Record<Page, string> = { home: "홈", timeline: "내 경험", applications: "내 지원서", questions: "지원서", connections: "연결 · 내보내기", guidelines: "작성 지침" };
 const BUSY = "지금 넣은 자료의 분석이 끝나면 더 넣을 수 있어요";
 // 왼쪽 여백·아이콘 칸·줄 간격은 접어도 유지한다. 글자는 남겨 서랍의 폭으로 잘라 낸다(시안 6).
 const navItem = "flex h-11 lg:h-10 w-full shrink-0 items-center gap-2.5 overflow-hidden rounded-full px-3 text-sm font-medium whitespace-nowrap text-ink transition-colors";
@@ -196,8 +198,10 @@ function AddMenu({ side, align, busy, onAddSource, onRecord, onNewApplication, c
 function TabBar({ page, busy, onAddSource, onRecord, onNewApplication }: { page: Page; busy?: boolean; onAddSource: () => void; onRecord: () => void; onNewApplication: () => void }) {
   const hidden = useHideOnScrollDown();
   const tab = "flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 text-xs font-medium";
-  const link = ({ page: target, href, label, icon }: (typeof tabs)[number]) => <Link key={target} href={href} aria-current={page === target ? "page" : undefined}
-    className={cn(tab, page === target ? "font-bold text-ink" : "text-muted")}>
+  // 탭바엔 「내 지원서」 칸이 없다 — 지원 묶음이라 「지원」 탭을 켠다(FE#347)
+  const tabPage = page === "applications" ? "questions" : page;
+  const link = ({ page: target, href, label, icon }: (typeof tabs)[number]) => <Link key={target} href={href} aria-current={tabPage === target ? "page" : undefined}
+    className={cn(tab, tabPage === target ? "font-bold text-ink" : "text-muted")}>
     <span className="text-heading leading-none" aria-hidden="true">{icon}</span>{label}
   </Link>;
   // 화면 키보드가 떠 있는 동안은 숨긴다. 입력칸에서 버튼을 누르는 순간 초점이 빠져도 그 자리에 탭바가
