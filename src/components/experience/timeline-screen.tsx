@@ -592,22 +592,25 @@ export function TimelineScreen() {
                 <AnalysisBanner view={view} tracked={analysis.tracked} {...analysisActions} />
               )}
               {batchStatus}
-              {listView === "stats" && (
-                <ExperienceStats activities={ready.activities} version={statsVersion} hiddenIds={hiddenIds} addSource={addSource} onOpenActivity={select} />
+              {/* 분류 칩은 타임라인 · 통계 둘 다 — 통계는 고른 분류의 활동만 센다(FE#368) */}
+              <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                <CategoryChips value={categoryFilter} onChange={setCategoryFilter} />
+                {listView === "timeline" && <>
+                  <span className="mx-1 hidden h-4 w-px bg-hairline sm:block" aria-hidden="true" />
+                  <ApplicationsToggle shown={applications.shown} onChange={applications.setShown} state={applications.state} onRetry={applications.retry} />
+                </>}
+              </div>
+              {categoryFilter && timeline.activities.length === 0 && (
+                <div role="status" className="mt-6 grid justify-items-start gap-2 rounded-md bg-surface-soft px-4.5 py-5">
+                  <p className="m-0 text-sm text-body">「{ACTIVITY_CATEGORIES[categoryFilter]}」로 정리된 활동이 아직 없어요. 분류는 활동 세부에서 고를 수 있어요.</p>
+                  <Button variant="secondary" className="min-h-11 lg:min-h-10" onClick={() => setCategoryFilter(null)}>전체 보기</Button>
+                </div>
+              )}
+              {listView === "stats" && timeline.activities.length > 0 && (
+                <ExperienceStats activities={timeline.activities} version={statsVersion} hiddenIds={hiddenIds} addSource={addSource} onOpenActivity={select} />
               )}
               {listView === "timeline" && (
                 <>
-                  <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                    <CategoryChips value={categoryFilter} onChange={setCategoryFilter} />
-                    <span className="mx-1 hidden h-4 w-px bg-hairline sm:block" aria-hidden="true" />
-                    <ApplicationsToggle shown={applications.shown} onChange={applications.setShown} state={applications.state} onRetry={applications.retry} />
-                  </div>
-                  {categoryFilter && timeline.activities.length === 0 && (
-                    <div role="status" className="mt-6 grid justify-items-start gap-2 rounded-md bg-surface-soft px-4.5 py-5">
-                      <p className="m-0 text-sm text-body">「{ACTIVITY_CATEGORIES[categoryFilter]}」로 정리된 활동이 아직 없어요. 분류는 활동 세부에서 고를 수 있어요.</p>
-                      <Button variant="secondary" className="min-h-11 lg:min-h-10" onClick={() => setCategoryFilter(null)}>전체 보기</Button>
-                    </div>
-                  )}
                   <Timeline
                     applications={appItems ?? undefined}
                     activities={timeline.activities}

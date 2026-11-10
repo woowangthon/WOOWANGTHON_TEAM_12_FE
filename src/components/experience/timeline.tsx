@@ -287,7 +287,7 @@ function ApplicationRow({ application, year }: { application: TimelineApplicatio
 }
 
 /** 「2024.09 – ● 진행 중」 */
-function PeriodLabel({ period }: { period: Period }) {
+export function PeriodLabel({ period }: { period: Period }) {
   if (!period.ongoing || !period.start) return <>{periodText(period)}</>;
   return (
     <>
