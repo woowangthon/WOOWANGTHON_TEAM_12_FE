@@ -13,9 +13,8 @@ export const DRAFT_FRAMES: Record<DraftFrame, { name: string; steps: string }> =
   ORIGIN: { name: '계기에서 지금까지', steps: '지금의 나 한 줄 → 계기 → 그대로 해 본 경험 → 결과 → 지금 · 직무에서' },
   NONE: { name: '틀 없이', steps: '상황 → 판단 → 행동 → 결과 → 배운 점' },
 };
-// SKILL_STEPS 는 미리 골라지는 유형이 없다 — 사용자가 고를 수만 있다(계약 README)
 const suggested: Record<QuestionType, DraftFrame> = {
-  MOTIVATION: 'MOTIVE_LINK', PROBLEM_SOLVING: 'CAUSE_FIX', COLLABORATION: 'ALIGN', CONFLICT: 'ALIGN', IDEA: 'CHANGE', GROWTH: 'ORIGIN',
+  MOTIVATION: 'MOTIVE_LINK', PROBLEM_SOLVING: 'CAUSE_FIX', COLLABORATION: 'ALIGN', CONFLICT: 'ALIGN', IDEA: 'CHANGE', GROWTH: 'ORIGIN', JOB_SKILL: 'SKILL_STEPS',
   ACHIEVEMENT: 'STAR', FAILURE: 'CARL', SELF_INTRO: 'PREP', STRENGTH_WEAKNESS: 'PREP', OTHER: 'NONE',
 };
 export function suggestedFrame(type?: QuestionType | null): DraftFrame { return type ? suggested[type] : 'NONE'; }

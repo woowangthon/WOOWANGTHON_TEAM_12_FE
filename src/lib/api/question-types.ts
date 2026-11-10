@@ -32,7 +32,7 @@ export type Recommendation = {
 };
 export type Clarification = { id: number; experienceId: number; question: string; supplementId: number | null };
 /** 문항 유형(S-41) — contracts README 「값 목록」. 문항 하나에 하나 */
-export type QuestionType = "MOTIVATION" | "SELF_INTRO" | "STRENGTH_WEAKNESS" | "ACHIEVEMENT" | "PROBLEM_SOLVING" | "COLLABORATION" | "CONFLICT" | "FAILURE" | "GROWTH" | "IDEA" | "OTHER";
+export type QuestionType = "MOTIVATION" | "SELF_INTRO" | "STRENGTH_WEAKNESS" | "ACHIEVEMENT" | "PROBLEM_SOLVING" | "COLLABORATION" | "CONFLICT" | "FAILURE" | "GROWTH" | "IDEA" | "JOB_SKILL" | "OTHER";
 export const QUESTION_TYPE_LABEL: Record<QuestionType, string> = {
   MOTIVATION: "지원 동기 · 포부 · 목표",
   SELF_INTRO: "자기소개 · 성격 · 가치관",
@@ -44,6 +44,7 @@ export const QUESTION_TYPE_LABEL: Record<QuestionType, string> = {
   FAILURE: "실패 · 극복 · 아쉬움",
   GROWTH: "성장 과정 · 배운 점 · 피드백",
   IDEA: "아이디어 · 기획 제안",
+  JOB_SKILL: "직무 역량 · 직무 준비",
   OTHER: "기타",
 };
 export type QuestionSummary = {
@@ -99,6 +100,8 @@ export type Draft = {
   freeRegenerate?: boolean;
   /** 같은 활동의 다른 경험도 재료로 썼나(S-75). 2026-11-10 부터 늘 true 로 보낸다(ADR-014) */
   useContext?: boolean;
+  /** AI 가 제안한 첫 줄 소제목(S-86) — 문장 0개 · 분석 중 · 실패 · 옛 초안은 null 이거나 없다. 답칸 글의 첫 줄로 넣고, 고친 것은 답칸 글이 원본 */
+  title?: string | null;
   sentences: DraftSentence[]; omitted: DraftOmission[];
   createdAt: string; updatedAt: string;
 };
