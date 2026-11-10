@@ -80,7 +80,8 @@ test("the stats tab replaces search and counts blocks, categories, source status
   await capture(page, `stats-${page.viewportSize()!.width}`);
   expect(await noOverflow(page)).toBe(true);
 
-  await stats(page).getByRole("button", { name: "확인할 경험 보기" }).click();
+  // 따로 있던 「확인할 경험 보기」 줄 대신 「확인 필요」 숫자 자체를 눌러 그 경험으로 간다(FE#461)
+  await source.getByRole("button", { name: "확인 필요 1", exact: true }).click();
   await expect(page.getByRole("complementary", { name: "활동 세부" })).toBeVisible();
 });
 
