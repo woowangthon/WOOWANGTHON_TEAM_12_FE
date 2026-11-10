@@ -401,3 +401,26 @@ test("경험 합치기 — 세 폭에서 확인 창 배치", async ({ page }) =>
     await page.screenshot({ path: `artifacts/merge-experience-${width}.png`, style: "nextjs-portal { display: none !important; }" });
   }
 });
+
+// FE#344 — 모바일 시트: 본문만 스크롤하고 버튼 칸은 고정된 판이라 버튼 밑으로 내용이 비치지 않는다
+test("같은 활동 제안 — 시트를 끝까지 스크롤해도 버튼 밑에 내용이 비치지 않는다 (모바일)", async ({ page }) => {
+  test.skip(!isMobile(page), "1024 이상 가운데 창은 그대로 — 모바일 시트만 본다");
+  await setup(page, true);
+  await open(page, "Swap app");
+  await lines(page).getByRole("button", { name: "비교하기" }).click();
+  const dialog = compare(page);
+  const merge = dialog.getByRole("button", { name: "하나로 합치기" });
+  await expect(merge).toBeVisible();
+  const measure = () => dialog.evaluate((el) => {
+    const body = [...el.children].find((c) => (c as HTMLElement).scrollHeight > (c as HTMLElement).clientHeight && getComputedStyle(c).overflowY === "auto") as HTMLElement | undefined;
+    const footer = el.querySelector<HTMLElement>("[data-slot=dialog-footer]")!.parentElement!;
+    const sheet = el.getBoundingClientRect();
+    const f = footer.getBoundingClientRect();
+    return { scrolls: !!body, bodyBottom: body?.getBoundingClientRect().bottom ?? 0, footerTop: f.top, footerBottom: f.bottom, sheetBottom: sheet.bottom, sheetScroll: el.scrollTop };
+  });
+  const m = await measure();
+  expect(m.sheetScroll).toBe(0); // 시트 자체는 스크롤하지 않는다 — 본문 칸만
+  if (m.scrolls) expect(m.bodyBottom).toBeLessThanOrEqual(m.footerTop + 0.5); // 본문은 버튼 칸 위에서 끝난다
+  const buttonBox = (await merge.boundingBox())!;
+  expect(m.footerBottom - (buttonBox.y + buttonBox.height)).toBeGreaterThanOrEqual(12); // 버튼이 바닥에 딱 붙지 않는다
+});

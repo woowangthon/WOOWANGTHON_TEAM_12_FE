@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Answer, QuestionDetail, RequirementStatus, Supplement } from "@/lib/api/question-types";
 import { bubble, ClarificationItem, ClarifyBlock, clarifyList, type AnswerHandler } from "./clarifications";
-import { DraftFollowUp, draftAsks, OmissionItem, type DraftPanelActions } from "./draft-omissions";
+import { DraftFollowUp, draftAsks, OmissionItem, omissionSource, type DraftPanelActions } from "./draft-omissions";
 import { shortName } from "./question-result";
 import { ChagokComposer, ChagokRunFeed } from "./chagok-run";
 import type { ChagokRunControl } from "./use-chagok-run";
@@ -86,6 +86,20 @@ function PanelNewFacts({ question, onAnswerChange, findRequested, onFindStarted 
   return <div className="mt-2.5"><NewFactCandidates confirmed={confirmed} findRequested={findRequested} onFindStarted={onFindStarted} /></div>;
 }
 
+/** 「차곡이가 물어볼 것」 한 블록의 질문 — 문항 되묻기(추천 경험에 붙은 것) + 초안 빈칸 질문(S-27 · S-22).
+ *  위 막대의 「차곡이 질문 N」도 이것으로 센다 — 둘이 어긋나지 않게(FE#383) */
+export function chagokAsks(q: QuestionDetail) {
+  const asks = q.clarifications.flatMap(c => {
+    const experience = q.recommendations.find(r => r.experience.id === c.experienceId)?.experience;
+    return experience ? [{ c, experience }] : [];
+  });
+  // 초안 빈칸 질문(S-27)과 문항 되묻기(S-22)는 답이 같은 보완으로 쌓이니 한 블록으로 — 초안 질문이 위(FE#336)
+  const fromDraft = draftAsks(q);
+  const total = asks.length + fromDraft.length;
+  const answered = asks.filter(({ c }) => c.supplementId !== null).length + fromDraft.filter(item => item.supplementId !== null).length;
+  return { asks, fromDraft, total, answered };
+}
+
 function Feed({ question: q, originOf, onAnswer, draftActions }: { question: QuestionDetail; originOf: SupplementOrigin; onAnswer: AnswerHandler; draftActions: DraftPanelActions }) {
   if (q.status === "ANALYZING") return <div role="status" aria-live="polite" className={bubble}>문항을 읽고, 쌓인 경험에서 맞는 걸 찾고 있어요…</div>;
   if (q.status === "FAILED") return <p className={bubble}>이 문항은 분석하지 못했어요. 가운데의 「다시 시도」를 눌러 주세요.</p>;
@@ -97,16 +111,9 @@ function Feed({ question: q, originOf, onAnswer, draftActions }: { question: Que
     return supplement && supplement.questionId !== q.id ? [{ activity: r.activity.name, supplement }] : [];
   }));
   const top = q.recommendations[0];
-  const asks = q.clarifications.flatMap(c => {
-    const experience = q.recommendations.find(r => r.experience.id === c.experienceId)?.experience;
-    return experience ? [{ c, experience }] : [];
-  });
-  // 초안 빈칸 질문(S-27)과 문항 되묻기(S-22)는 답이 같은 보완으로 쌓이니 한 블록으로 — 초안 질문이 위(FE#336)
-  const fromDraft = draftAsks(q);
+  const { asks, fromDraft, total, answered } = chagokAsks(q);
   const supplementOf = (experienceId: number | null, supplementId: number | null) => q.recommendations.find(r => r.experience.id === experienceId)?.experience.supplements.find(s => s.id === supplementId);
-  const total = asks.length + fromDraft.length;
-  const answered = asks.filter(({ c }) => c.supplementId !== null).length + fromDraft.filter(item => item.supplementId !== null).length;
-  const attention = asks.some(({ c }) => supplementOf(c.experienceId, c.supplementId)?.mcpChange) || fromDraft.some(item => supplementOf(item.experienceId, item.supplementId)?.mcpChange);
+  const attention = asks.some(({ c }) => supplementOf(c.experienceId, c.supplementId)?.mcpChange) || fromDraft.some(item => omissionSource(q, item).supplement?.mcpChange);
   const draftDisabled = draftActions.savingAnswer || draftActions.requestingDraft || q.draft?.status === "ANALYZING";
   const refreshDraft = async () => { try { await draftActions.onRefresh(); } catch { /* 실패하면 다음 갱신에서 다시 읽는다 */ } };
 

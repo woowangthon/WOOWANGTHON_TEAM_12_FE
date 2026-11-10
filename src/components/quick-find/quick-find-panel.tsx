@@ -205,8 +205,12 @@ function Key({ name, children }: { name: string; children: ReactNode }) {
 }
 
 function OptionList({ label, children }: { label: string; children: ReactNode }) {
-  // 눌러도 초점은 입력칸에 그대로
-  return <ul id={LIST_ID} role="listbox" aria-label={label} onMouseDown={e => e.preventDefault()} className="m-0 grid list-none gap-0.5 p-0">{children}</ul>;
+  // 마우스로 눌러도 초점은 입력칸에 그대로 — 계속 치고 ↑↓ · Enter 로 고른다.
+  // 손가락·펜은 붙잡지 않는다: 키보드를 내렸는데 초점이 입력칸에 남아 있으면 「더 보기」를 누를 때마다 키보드가 다시 올라온다(FE#366).
+  // pointerdown 이 mousedown 보다 먼저라 거기서 입력 장치를 적어 둔다
+  const pointer = useRef("mouse");
+  return <ul id={LIST_ID} role="listbox" aria-label={label} onPointerDown={e => { pointer.current = e.pointerType; }}
+    onMouseDown={e => { if (pointer.current === "mouse") e.preventDefault(); }} className="m-0 grid list-none gap-0.5 p-0">{children}</ul>;
 }
 
 function Option({ index, active, disabled, onPick, onHover, children }: { index: number; active: boolean; disabled?: boolean; onPick: (index: number) => void; onHover: (index: number) => void; children: ReactNode }) {

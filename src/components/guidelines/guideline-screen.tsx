@@ -24,6 +24,8 @@ export function GuidelineScreen() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // 상단 「지침 더하기」(한 줄 저장 · AI 정리) 처리 중일 때만 — 하단 목록 조작은 busy 만 켠다(FE#375)
+  const [composing, setComposing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast, showToast, clearToast } = useToast();
   const locked = useRef(false);
@@ -45,12 +47,12 @@ export function GuidelineScreen() {
   ).finally(() => setLoading(false)), []);
   useEffect(() => { void load(); }, [load]);
 
-  async function act(action: () => Promise<void>) {
+  async function act(action: () => Promise<void>, fromComposer = false) {
     if (locked.current) return;
-    locked.current = true; setBusy(true); setError(null); clearToast();
+    locked.current = true; setBusy(true); setComposing(fromComposer); setError(null); clearToast();
     try { await action(); }
     catch (e) { setError(guidelineError(e)); }
-    finally { locked.current = false; setBusy(false); }
+    finally { locked.current = false; setBusy(false); setComposing(false); }
   }
   async function extract() {
     await act(async () => {
@@ -59,15 +61,15 @@ export function GuidelineScreen() {
         const result = await extractGuidelines(raw);
         setCandidates(result.candidates.map((c, key) => ({ key, text: c.text, source: result.source ?? '' })));
       } catch (e) { setExtractError(guidelineError(e)); }
-    });
+    }, true);
   }
-  async function save(lines: GuidelineInput[], after: () => void) {
+  async function save(lines: GuidelineInput[], after: () => void, fromComposer = false) {
     await act(async () => {
       const saved = await saveGuidelines(lines);
       setItems(previous => [...previous, ...saved]); after();
       if (saved.some(g => !g.enabled)) showToast('지침을 저장했어요. 켠 지침이 10개라 일부는 꺼진 채 저장했어요. 목록에서 확인해 주세요.', true);
       else showToast('지침을 저장했어요. 다음에 만드는 초안부터 써요.');
-    });
+    }, fromComposer);
   }
 
   return <>
@@ -85,7 +87,7 @@ export function GuidelineScreen() {
             <h2 id="compose-title" className="m-0 text-lg font-semibold">지침 더하기</h2>
             <p className="m-0 text-sm leading-relaxed text-muted">내가 정한 작성법을 한 줄로 쓰거나, 영상 요점 · 자막을 붙여 넣으면 작성법만 한 줄씩 정리해요.</p>
           </div>
-          <form onSubmit={e => { e.preventDefault(); if (isLine) void save([{ text, source: raw.source }], resetComposer); else void extract(); }} className="grid min-w-0 gap-3">
+          <form onSubmit={e => { e.preventDefault(); if (isLine) void save([{ text, source: raw.source }], resetComposer, true); else void extract(); }} className="grid min-w-0 gap-3">
             <fieldset disabled={busy} className="m-0 grid min-w-0 gap-3 border-0 p-0">
               <label className="sr-only" htmlFor="guideline-compose">지침 한 줄 또는 요점 · 자막</label>
               <textarea id="guideline-compose" maxLength={20000} rows={3} placeholder="예: 첫 문장에 무엇을 했고 어떻게 됐는지 먼저 쓴다" className={inputClass + ' max-h-96 min-h-24 resize-y leading-relaxed [field-sizing:content]'} value={raw.text} onChange={e => setRaw({ ...raw, text: e.target.value })} />
@@ -97,7 +99,7 @@ export function GuidelineScreen() {
                     <Button type="button" variant="ghost" className="min-h-11 lg:min-h-10" disabled={!text} onClick={() => void extract()}>AI로 정리</Button>
                     <Button type="submit" className="min-h-11 lg:min-h-10" disabled={!text || loading || !!loadError}>한 줄 저장</Button>
                   </> : <>
-                    <AnalysisCost running={busy} />
+                    <AnalysisCost running={composing} />
                     <Button type="submit" className="min-h-11 lg:min-h-10" disabled={!text}>AI로 정리하기</Button>
                   </>}
                 </div>
@@ -105,12 +107,12 @@ export function GuidelineScreen() {
             </fieldset>
           </form>
           {extractError && <div className="grid justify-items-start gap-2"><p role="alert" className="m-0 text-sm text-error">{extractError}</p><Button variant="secondary" disabled={busy} onClick={() => void extract()}>다시 시도</Button></div>}
-          {busy && <p role="status" className="m-0 text-sm text-muted">요청을 처리하고 있어요…</p>}
+          {composing && <p role="status" className="m-0 text-sm text-muted">요청을 처리하고 있어요…</p>}
         </section>
         {candidates !== null && <section aria-labelledby="candidates-title" className={card}>
           <h2 id="candidates-title" className="m-0 text-lg font-semibold">정리한 후보</h2>
           <p className="m-0 text-sm text-muted">AI 해석이에요. 줄을 고치거나 빼고 저장해 주세요. 아직 저장하지 않았어요.</p>
-          {candidates.length === 0 ? <p className="m-0 text-sm">지침으로 정리할 만한 게 없어요 — 직접 써 주세요.</p> : <form className="grid gap-4" onSubmit={e => { e.preventDefault(); void save(candidates.map(({ text, source }) => ({ text, source })), () => { setCandidates(null); resetComposer(); }); }}>
+          {candidates.length === 0 ? <p className="m-0 text-sm">지침으로 정리할 만한 게 없어요 — 직접 써 주세요.</p> : <form className="grid gap-4" onSubmit={e => { e.preventDefault(); void save(candidates.map(({ text, source }) => ({ text, source })), () => { setCandidates(null); resetComposer(); }, true); }}>
             <fieldset disabled={busy || loading || !!loadError} className="m-0 grid min-w-0 gap-5 border-0 p-0">
               {candidates.map(c => <div key={c.key} role="group" aria-label={'지침 후보 ' + (c.key + 1)} className="grid min-w-0 gap-3 border-t border-hairline pt-4"><LineFields value={c} onChange={value => setCandidates(previous => previous!.map(item => item.key === c.key ? { ...value, key: c.key } : item))} /><Button type="button" variant="ghost" className="min-h-11 lg:min-h-10 justify-self-start" onClick={() => setCandidates(previous => previous!.filter(item => item.key !== c.key))}>빼기</Button></div>)}
               <Button type="submit" className="min-h-11 lg:min-h-10 justify-self-start">후보 저장</Button>

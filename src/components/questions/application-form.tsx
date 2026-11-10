@@ -116,6 +116,17 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
   // 링크가 아직 입력칸에 있으면 같은 값을 두 번 보이지 않는다
   const urlShown = urlField && (!urlTrimmed || paste.trim() !== urlTrimmed);
 
+  // 처음으로(FE#245) — 닫을 입력창이 없는 자리(onCancel 없음, 지원서 0개 화면)에서 펼친 칸을 접고 입력을 비운다. 쓴 게 있으면 한 번 묻는다
+  const [confirmingReset, setConfirmingReset] = useState(false);
+  const dirty = !!(organization || organizationType || jobRole || paste.trim() || urlTrimmed || texts.some(t => t.trim()));
+  const reset = () => {
+    parse.clear();
+    setOrganization(""); setOrganizationType(""); setJobRole(""); setTexts([""]); setPaste(""); setFilled(null);
+    setPostingUrl(""); setFilledFrom(null); setReading("text"); setOpen(false); setWriting(false); setAskingLink(false);
+    setUrlField(false); setError(null); setPicking(false); setConfirmingReset(false);
+    pasteBox.current?.focus();
+  };
+
   return (
     <form className="grid max-w-2xl gap-5" aria-busy={saving || parse.parsing} onSubmit={async event => {
       event.preventDefault();
@@ -220,6 +231,13 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
         {open && <p className="m-0 mr-auto min-w-0 flex-1 basis-60 text-note text-muted">넣은 뒤엔 문항을 고치지 않아요 — 잘못 넣었으면 그 지원에 새로 더해 주세요.</p>}
         {!open && <Button type="button" variant="link" className="mr-auto min-h-11 lg:min-h-10" disabled={saving} onClick={writeQuestions}>문항 직접 쓰기</Button>}
         {onCancel && <Button type="button" variant="ghost" disabled={saving} onClick={onCancel}>취소</Button>}
+        {!onCancel && open && (confirmingReset
+          ? <div role="group" aria-label="처음으로 돌아가기" className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-body">쓴 내용을 지우고 처음으로 돌아갈까요?</span>
+              <Button type="button" variant="secondary" className="min-h-11 lg:min-h-10" onClick={reset}>지우고 처음으로</Button>
+              <Button type="button" variant="ghost" className="min-h-11 lg:min-h-10" onClick={() => setConfirmingReset(false)}>계속 쓰기</Button>
+            </div>
+          : <Button type="button" variant="ghost" className="min-h-11 lg:min-h-10" disabled={saving || parse.parsing} onClick={() => (dirty ? setConfirmingReset(true) : reset())}>처음으로</Button>)}
         {onMoveToSource && <Button type="button" variant="secondary" disabled={saving || moveToSourceDisabled} onClick={() => onMoveToSource(paste.trim() ? paste : texts.join("\n\n"))}>자료로 쌓기</Button>}
         {(!open || !!paste.trim()) && <Button type="button" className="min-h-11 lg:min-h-10" variant={open ? "secondary" : "default"} disabled={saving || parse.parsing || !paste.trim()} onClick={split}>{parse.parsing ? (reading === "url" ? "읽는 중…" : "나누는 중…") : "AI 로 나누기"}</Button>}
         {open && <Button type="submit" className="min-h-11 lg:min-h-10" disabled={saving || parse.parsing}>{saving ? "지원을 넣고 있어요…" : texts.length > 1 ? `문항 ${texts.length}개 넣고 경험 찾기` : "지원 넣고 경험 찾기"}</Button>}

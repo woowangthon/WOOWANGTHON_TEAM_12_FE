@@ -33,23 +33,34 @@ export function draftAsks(question: QuestionDetail): DraftOmission[] {
   return draft.omitted.filter(item => !isSupposedPair(draft, item) && answerable(item));
 }
 
+/** 빠진 사실의 경험 · 답한 보완 — BE 가 붙인 값으로(ETC#261). 보조 재료 경험(S-75)은 추천에 없다.
+ *  그 값이 없는 이전 응답만 추천 목록에서 찾는다 */
+export function omissionSource(question: QuestionDetail, item: DraftOmission) {
+  const recommendation = question.recommendations.find(r => r.experience.id === item.experienceId);
+  const activityId = item.activityId ?? recommendation?.activity.id;
+  const activityName = item.activityName ?? recommendation?.activity.name;
+  const content = item.experienceContent ?? recommendation?.experience.content;
+  const supplement = item.supplement !== undefined ? item.supplement ?? undefined
+    : recommendation?.experience.supplements.find(s => s.id === item.supplementId);
+  return { activityId, activityName, content, supplement };
+}
+
 export function OmissionItem({ item, question, onAnswer, onRefresh, disabled }: {
   item: DraftOmission; question: QuestionDetail; onAnswer: AnswerHandler;
   onRefresh: () => Promise<void>; disabled: boolean;
 }) {
-  const recommendation = question.recommendations.find(r => r.experience.id === item.experienceId);
-  const supplement = recommendation?.experience.supplements.find(s => s.id === item.supplementId);
+  const { activityId, activityName, content, supplement } = omissionSource(question, item);
   const where = <>
     <p className="m-0 text-note leading-relaxed text-muted">{item.text}</p>
-    {recommendation && <Link href={`/experience?activity=${recommendation.activity.id}&fromQuestion=${question.id}`}
+    {activityId != null && activityName && <Link href={`/experience?activity=${activityId}&fromQuestion=${question.id}`}
       className="grid min-w-0 gap-1 text-note leading-relaxed text-evidence underline-offset-4 hover:underline">
-      <ActivityChip name={recommendation.activity.name} />
-      <span className="break-words">{recommendation.experience.content}</span>
+      <ActivityChip name={activityName} />
+      {content && <span className="break-words">{content}</span>}
     </Link>}
   </>;
 
   if (item.supplementId !== null) return <AnsweredItem question={item.question!} supplement={supplement} head={where}
-    note={<SupplementNote supplement={supplement} activityName={recommendation?.activity.name} />} />;
+    note={<SupplementNote supplement={supplement} activityName={activityName ?? undefined} />} />;
 
   return <li className={openItem}>
     <AnswerForm head={<span className="flex min-w-0 flex-wrap items-center gap-1.5">{where}</span>} question={<p className="m-0 break-words text-sm font-semibold text-ink">{item.question}</p>} label={item.question!} disabled={disabled} onSave={async text => {
@@ -89,9 +100,8 @@ export function DraftFollowUp({ question, onGenerate, onRefresh, savingAnswer, r
   }, [focusRequest]);
   const draft = question.draft;
   // AI 가정의 짝은 「쓰지 않은 것」이 아니라 회색 문장으로 쓴 것 — 답칸의 그 문장 카드에서 확인한다(S-79 · ADR-014)
-  const listed = draft?.omitted.filter(item => !isSupposedPair(draft, item)) ?? [];
-  const asks = listed.filter(answerable);
-  const unlinked = listed.filter(item => !answerable(item));
+  // 경험에 붙지 않은 빈칸(포부 등)은 묻지 않는다 — 문장 속 빈칸이면 답칸의 빈칸 카드가 알린다(FE#382)
+  const asks = question.draft ? draftAsks(question) : [];
   const analyzing = requestingDraft || draft?.status === "ANALYZING";
   const disabled = savingAnswer || analyzing || refreshing;
   const refresh = async () => {
@@ -109,14 +119,7 @@ export function DraftFollowUp({ question, onGenerate, onRefresh, savingAnswer, r
     {analyzing ? <p role="status" className={bubble}>고른 경험과 보완을 읽고 초안을 만드는 중이에요…</p> : draft ? <>
       {draft?.status === "FAILED" ? <p className={bubble}>초안을 완성하지 못했어요. 아래 설정에서 다시 요청해 주세요.</p> : <>
         {/* 초안 빈칸 질문은 문항 되묻기와 한 블록(「차곡이가 물어볼 것」)에서 묻는다(FE#336) */}
-        <p className={bubble}>{!draft?.sentences.length ? "고른 기록에서 받칠 내용을 찾지 못해 문장을 쓰지 않았어요. 경험이 없다는 뜻은 아니에요." : asks.length ? "초안을 답칸에 넣었어요. 자료에 없어 쓰지 않은 건 위 「차곡이가 물어볼 것」에서 물어봐요." : unlinked.length ? "초안을 답칸에 넣었어요. 아래 내용은 자료에서 확인하지 못해 쓰지 않았어요." : "초안을 답칸에 넣었어요. 밑줄 · 빈칸 · 회색 문장을 눌러 근거와 이유를 확인해 주세요."}</p>
-        {/* 경험에 붙지 않는 빈칸(지원 동기 등)은 묻지 않고 직접 쓸 거리로만 — 보완으로 저장하지 않는다 */}
-        {unlinked.length > 0 && <div className="grid min-w-0 gap-1 px-1">
-          <p className="m-0 text-xs font-semibold text-muted">직접 쓸 거리 · 보완으로 저장하지 않아요</p>
-          <ul aria-label="직접 쓸 거리" className="m-0 grid list-disc gap-1 pl-4 text-note leading-relaxed text-body">
-            {unlinked.map((item, i) => <li key={i} className="break-words">{item.text}</li>)}
-          </ul>
-        </div>}
+        <p className={bubble}>{!draft?.sentences.length ? "고른 기록에서 받칠 내용을 찾지 못해 문장을 쓰지 않았어요. 경험이 없다는 뜻은 아니에요." : asks.length ? "초안을 답칸에 넣었어요. 자료에 없어 쓰지 않은 건 위 「차곡이가 물어볼 것」에서 물어봐요." : "초안을 답칸에 넣었어요. 밑줄 · 빈칸 · 회색 문장을 눌러 근거와 이유를 확인해 주세요."}</p>
       </>}
       {savingAnswer && <p role="status" className={bubble}>보완으로 쌓는 중이에요…</p>}
     </> : null}

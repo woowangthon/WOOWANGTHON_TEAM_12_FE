@@ -6,6 +6,7 @@ import { openMark } from "./draft-marks";
 import { QUESTION_EXAMPLES } from "./fixtures/question-examples";
 import type { Draft, QuestionDetail } from "../src/lib/api/question-types";
 import { DRAFT_EXAMPLE } from "./fixtures/draft-example";
+import { DRAFT_SUPPOSED } from "./fixtures/draft-supposed";
 
 // FE#283 — 초안은 답칸(입력칸)에 글로 들어오고, 표시 층의 문장 표시(data-mark="s-N")를 눌러 카드를 연다
 const answerBox = (page: Page) => page.getByRole("textbox", { name: "내가 쓴 답", exact: true });
@@ -352,12 +353,9 @@ test("omitted facts have optional experience questions, while unlinked gaps stay
   const omissions = await omissionList(page);
   await expect(omissions.getByRole("listitem")).toHaveCount(2);
   await expect(omissions.getByRole("textbox")).toHaveCount(2);
-  // 경험에 붙지 않은 빈칸은 되묻기 묶음 밖의 「직접 쓸 거리」 — 입력칸 · 버튼이 없다(FE#268)
-  const manual = panel.getByRole("list", { name: "직접 쓸 거리" });
-  await expect(manual.getByRole("listitem")).toContainText("Java · Spring");
-  await expect(panel).toContainText("직접 쓸 거리 · 보완으로 저장하지 않아요");
-  await expect(manual.getByRole("textbox")).toHaveCount(0);
-  await expect(manual.getByRole("button")).toHaveCount(0);
+  // 경험에 붙지 않은 빈칸(문장 밖)은 패널에 맥락 없이 늘어놓지 않는다(FE#382)
+  await expect(panel.getByRole("list", { name: "직접 쓸 거리" })).toHaveCount(0);
+  await expect(panel).not.toContainText("보완으로 저장하지 않아요");
   await expect(omissions.getByRole("link").first()).toContainText(QUESTION_EXAMPLES[0].recommendations[0].experience.content);
   const first = omissions.getByRole("listitem").first();
   // 답은 선택 — 건너뛰기 버튼이 없고, 쓰기 전엔 보내기도 없다(FE#320)
@@ -413,6 +411,44 @@ test("saving an omitted answer uses its server ID, persists after reload and reg
   expect(api.supplements.get(101)?.some(s => s.answer === answer && s.questionId === 41)).toBe(true);
   // 추천의 질문 ID와 내용은 초안 재생성으로 바뀌지 않는다.
   expect(api.questions.find(q => q.detail.id === 41)?.detail.clarifications).toEqual(QUESTION_EXAMPLES[0].clarifications);
+});
+
+test("보조 재료 경험(추천 밖)의 빠진 사실도 답 · 활동 칩 · 경험 링크가 보이고 새로고침해도 같다 (FE#321)", async ({ page }) => {
+  // 같은 활동의 고르지 않은 경험 109 — 추천(recommendations)에 없다. 활동 · 경험 문장은 BE 가 omitted 에 붙인다(ETC#261)
+  const aux = { text: "채팅 알림을 묶은 방법", question: "알림이 너무 자주 올 때 어떻게 묶었나요?", experienceId: 109, clarificationId: 70, supplementId: null,
+    activityId: 7, activityName: "바꿔요 — 캠퍼스 중고거래 앱", experienceContent: "채팅 알림이 몰리면 30초 단위로 묶어 보냈다", supplement: null };
+  await setup(page, q => { q.draft = { ...structuredClone(DRAFT_EXAMPLE), omitted: [aux] }; });
+  await openDraftFollowUp(page);
+  const item = (await omissionList(page)).getByRole("listitem").first();
+  await expect(item.getByRole("link")).toContainText(aux.experienceContent);
+  await expect(item.getByRole("link")).toHaveAttribute("href", "/experience?activity=7&fromQuestion=41");
+  const answer = "같은 방의 알림은 30초 동안 모아 한 번만 보냈다";
+  await item.getByRole("textbox").fill(answer);
+  await item.getByRole("button", { name: "답하기", exact: true }).click();
+  // 답한 줄은 접힌 한 줄 — 펼쳐서 본다
+  const check = async () => {
+    await expect(item.locator("details")).toBeVisible();
+    if (!(await item.locator("details").evaluate(el => (el as HTMLDetailsElement).open))) await item.locator("summary").click();
+    await expect(item).toContainText(answer);
+    await expect(item).not.toContainText("답한 보완을 지금 불러오지 못했어요");
+    await expect(item).toContainText("「바꿔요」 경험에 보완으로 쌓았어요");
+    await expect(item.getByRole("link")).toContainText(aux.experienceContent);
+  };
+  await check();
+  await page.reload();
+  await openDraftFollowUp(page);
+  await omissionList(page);
+  await check();
+});
+
+test("AI 가정이 든 초안에서도 위 막대 「차곡이 질문 N」이 패널의 답할 것 개수와 같다 (FE#383)", async ({ page }) => {
+  await setup(page, q => { q.draft = structuredClone(DRAFT_SUPPOSED); });
+  await closeDraftPanel(page);
+  const toggle = page.getByRole("button", { name: /^차곡이 질문 \d+$/ });
+  const label = await toggle.getAttribute("aria-label");
+  const count = Number(label!.replace("차곡이 질문 ", ""));
+  await toggle.click();
+  await expect(asksBlock(page).locator(":scope > summary")).toContainText(`답할 것 ${count}개`);
 });
 
 test("saving blocks regeneration and duplicate answers until the save response arrives", async ({ page }) => {

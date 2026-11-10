@@ -43,10 +43,11 @@ export function blanksOf(draft: Draft): Blank[] {
   return draft.omitted.flatMap((omission, at) => omission.placeholder && omission.sentenceIndex != null ? [{ omission, at }] : []);
 }
 
-/** 빈칸에 답한 글 — 이 화면에서 답한 것(local) 먼저, 아니면 추천 경험의 보완에서 찾는다. 보조 재료 경험이면 새로고침 뒤엔 모를 수 있다(null) */
+/** 빈칸에 답한 글 — 이 화면에서 답한 것(local) 먼저, 아니면 BE 가 붙인 보완(ETC#261), 그 값이 없는 이전 응답은 추천 경험의 보완에서 찾는다 */
 export function blankAnswer(question: QuestionDetail, omission: DraftOmission, local: Record<number, string>) {
   if (omission.clarificationId != null && local[omission.clarificationId]) return local[omission.clarificationId];
   if (omission.supplementId == null) return null;
+  if (omission.supplement !== undefined) return omission.supplement?.answer ?? null;
   for (const r of question.recommendations) {
     const found = r.experience.supplements.find(s => s.id === omission.supplementId);
     if (found) return found.answer;
