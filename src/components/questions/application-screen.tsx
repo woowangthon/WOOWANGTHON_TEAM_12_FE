@@ -53,7 +53,7 @@ export function ApplicationScreen() {
   const params = useSearchParams();
   const rawRun = Number(params.get("run"));
   const restoreRun = Number.isSafeInteger(rawRun) && rawRun > 0 ? rawRun : null;
-  const matching = useApplications();
+  const matching = useApplications(params.get("new") === "1");
   const [groundingChecks] = useState(createGroundingChecks);
   // 사이드바 「+ 추가」 → 새 지원서(FE#147). 새로고침하면 다시 뜨지 않게 주소에서 지운다
   const [composing, setComposing] = useState(useSearchParams().get("new") === "1");
