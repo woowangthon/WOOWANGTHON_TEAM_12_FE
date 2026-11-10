@@ -12,7 +12,7 @@ import { mockSharedIds } from "../mock/share";
 import { ApiError } from "./errors";
 import { isMockMode, request } from "./http";
 import { activityNoteError } from "./editing";
-import type { ActivityCategory, ActivityDetail, Actor, ActivityLink, ActivitySummary, Job, SourceRequest, SourceText, Experience, ExperienceSearch, ExperienceSearchResult, Supplement, UpdateActivityRequest, UpdateExperienceRequest, CreateExperienceRequest } from "./types";
+import type { ActivityCategory, ActivityDetail, ActivityLink, ActivitySummary, Job, SourceRequest, SourceText, Experience, ExperienceSearch, ExperienceSearchResult, Supplement, UpdateActivityRequest, UpdateExperienceRequest, CreateExperienceRequest } from "./types";
 import { ACTIVITY_CATEGORIES, COMPETENCIES, MAX_TEXT_LENGTH, type SourceSubmitted } from "./types";
 
 export { ApiError, isMockMode };
