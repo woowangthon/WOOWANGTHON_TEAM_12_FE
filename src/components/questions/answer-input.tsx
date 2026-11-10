@@ -14,7 +14,7 @@ import { confirmDraftSentence } from "@/lib/api/questions";
 import { updateSupplement } from "@/lib/api/experience";
 import { MAX_GROUNDING_TEXT_LENGTH, type Answer, type AnswerDraft, type QuestionDetail } from "@/lib/api/question-types";
 import { analyze, composeDraft, DraftEditor, isSupposedPair, pairLinked, pairOf, type EditorHandle, type Mark, type Selection } from "./answer-draft";
-import { setEditedAnswer } from "./answer-box-state";
+import { setEditedAnswer, setShowsConfirmed } from "./answer-box-state";
 import type { AnswerHandler } from "./clarifications";
 import { DraftGuidance } from "./draft-guidance";
 import { failureReason } from "./draft-errors";
@@ -166,6 +166,15 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
     setAsk(null);
     g.setText(a.answer.text); setEditBase(a.answer.text); setSelected(null);
   };
+  // 다 쓴 답을 불러온 뒤 초안 글로 돌아가는 길(FE#384) — 이 화면에서 답한 빈칸은 그대로 채워 넣는다
+  const draftText = ready ? composeDraft(question, ready, NONE, box.local) : null;
+  // 답칸이 초안 글이 아닌 다 쓴 답을 보이나 — 패널 안내가 읽는다. 초안 그대로 확정했으면 초안 글이기도 하다
+  const confirmedNotDraft = !!a.answer && text === a.answer.text && draftText !== null && draftText !== text;
+  useEffect(() => { setShowsConfirmed(questionId, confirmedNotDraft); }, [questionId, confirmedNotDraft]);
+  const loadDraft = () => {
+    if (draftText === null) return;
+    g.setText(draftText); setEditBase(draftText); setSelected(null);
+  };
   const copy = async () => {
     setAsk(null);
     try { await navigator.clipboard.writeText(text); showToast("답칸의 글을 복사했어요. 표시는 복사하지 않아요."); }
@@ -271,7 +280,9 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
       </div>
     </div>
     {autosave.status === "error" && <p role="alert" className="m-0 text-sm text-error">쓰는 글을 저장하지 못했어요. {autosave.error} 글은 이 화면에 그대로 있어요 — 「다시 저장」을 눌러 주세요.</p>}
-    {a.answer && text !== a.answer.text && <Button variant="link" size="sm" className="min-h-11 lg:min-h-10 justify-self-start" onClick={() => { if (edited) setAsk("load"); else loadConfirmed(); }}>다 쓴 답 불러오기</Button>}
+    {/* 답칸 글이 있으면 덮기 전에 늘 묻는다 — 손대지 않은 새 초안도 잃는 글이다(FE#384) */}
+    {a.answer && text !== a.answer.text && <Button variant="link" size="sm" className="min-h-11 lg:min-h-10 justify-self-start" onClick={() => { if (text.trim()) setAsk("load"); else loadConfirmed(); }}>다 쓴 답 불러오기</Button>}
+    {confirmedNotDraft && !drafting && <Button variant="link" size="sm" className="min-h-11 lg:min-h-10 justify-self-start" onClick={loadDraft}>초안 글 다시 넣기</Button>}
     {a.failure && <div className="grid justify-items-start gap-2">
       <p role="alert" className="m-0 text-sm text-error">{a.failure.message}{a.pollFailures >= 3 && " 자동 확인을 멈췄어요."}</p>
       <Button variant="secondary" className="min-h-11 lg:min-h-10" disabled={a.busy} onClick={() => void (a.failure?.action === "confirm" ? a.confirm(a.failure.text!) : a.failure?.action === "find" ? a.retryFind() : a.refresh())}>
@@ -304,7 +315,7 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
           </DialogFooter>
         </> : ask === "load" ? <>
           <DialogTitle>다 쓴 답을 불러올까요?</DialogTitle>
-          <DialogDescription>지금 답칸에서 고친 글은 다 쓴 답으로 바뀌어요.</DialogDescription>
+          <DialogDescription>{edited ? "지금 답칸에서 고친 글은 다 쓴 답으로 바뀌어요." : "지금 답칸의 초안 글은 다 쓴 답으로 바뀌어요."}{draftText !== null && " 초안 글은 「초안 글 다시 넣기」로 다시 넣을 수 있어요."}</DialogDescription>
           <DialogFooter>
             <Button className="min-h-11 lg:min-h-10" variant="secondary" onClick={() => setAsk(null)}>취소</Button>
             <Button className="min-h-11 lg:min-h-10" onClick={loadConfirmed}>불러오기</Button>

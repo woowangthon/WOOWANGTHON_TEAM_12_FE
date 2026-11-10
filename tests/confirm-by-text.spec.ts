@@ -26,12 +26,13 @@ const own = (text = OWN): Sentence => ({ text, status: "UNSUPPORTED", evidence: 
 const NEW_FIRST: Sentence = { text: "새로 끼어든 문장입니다.", status: "SOURCE", evidence: [], note: null };
 const UNCHANGED_NEEDS = 4; // 802 · 804 · 805 · 빈칸
 
-type Options = { draft?: boolean; answer?: string; responses: Sentence[][]; saved?: Sentence[]; savedText?: string };
+type Options = { draft?: boolean; freshDraft?: boolean; answer?: string; responses: Sentence[][]; saved?: Sentence[]; savedText?: string };
 /** responses 는 점검을 누를 때마다 차례로 돌려줄 결과(마지막은 되풀이). 점검한 글은 그때 입력칸 글 */
 async function setup(page: Page, opts: Options) {
   const api = new FakeQuestionApi({ sameApplication: true });
   api.edit(41, (q: QuestionDetail) => {
     if (opts.draft) q.draft = structuredClone(DRAFT_S79);
+    if (opts.freshDraft && q.draft) q.draft.createdAt = "2026-11-09T11:00:00+09:00"; // 다 쓴 답보다 나중에 다시 만든 초안
     if (opts.answer) q.answer = { questionId: 41, text: opts.answer, confirmedAt: "2026-11-09T10:00:00+09:00", newFacts: null };
   });
   await api.install(page);
@@ -159,4 +160,27 @@ test("다 쓴 답에 그대로 있어 세지 않는 근거 없음 문장은 평�
   await expect(markOf(page, "g-5")).not.toHaveClass(/bg-review-soft/);
   await hoverMark(page, "g-5");
   await expect(markOf(page, "g-5")).toHaveClass(/bg-evidence-soft/);
+});
+
+test("새 초안이 답칸에 있으면 「다 쓴 답 불러오기」는 먼저 묻고, 불러온 뒤 패널 안내가 바뀌며 초안 글로 돌아갈 수 있다 (FE#384)", async ({ page }, info) => {
+  const OLD = "예전에 다 쓴 답입니다.";
+  await setup(page, { draft: true, freshDraft: true, answer: OLD, responses: [] });
+  const wide = page.viewportSize()!.width >= 1280;
+  const followUp = page.getByRole("region", { name: "차곡이의 초안", exact: true });
+  await expect(answerBox(page)).toHaveText(COMPOSED);
+  if (wide) await expect(followUp).toContainText("초안을 답칸에 넣었어요");
+  await page.getByRole("button", { name: "다 쓴 답 불러오기", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "다 쓴 답을 불러올까요?" });
+  await expect(dialog).toContainText("초안 글은 다 쓴 답으로 바뀌어요");
+  await page.screenshot({ path: `docs/fe-384/ask-${info.project.name}.png`, animations: "disabled" });
+  await dialog.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(answerBox(page)).toHaveText(COMPOSED);
+  await page.getByRole("button", { name: "다 쓴 답 불러오기", exact: true }).click();
+  await dialog.getByRole("button", { name: "불러오기", exact: true }).click();
+  await expect(answerBox(page)).toHaveText(OLD);
+  if (wide) { await expect(followUp).toContainText("지금 답칸엔 다 쓴 답이 있어요"); await expect(followUp).not.toContainText("초안을 답칸에 넣었어요"); }
+  await page.screenshot({ path: `docs/fe-384/loaded-${info.project.name}.png` });
+  await page.getByRole("button", { name: "초안 글 다시 넣기", exact: true }).click();
+  await expect(answerBox(page)).toHaveText(COMPOSED);
+  if (wide) await expect(followUp).toContainText("초안을 답칸에 넣었어요");
 });

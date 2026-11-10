@@ -10,3 +10,22 @@ export function hasEditedAnswer(questionId: number) {
 export function setEditedAnswer(questionId: number, value: boolean) {
   edited.set(questionId, value);
 }
+
+// 답칸이 다 쓴 답을 보이고 있나(FE#384) — 초안이 있어도 「다 쓴 답 불러오기」로 바꿨으면 패널의 「초안을 답칸에 넣었어요」가 틀린다. 패널이 구독한다
+const showsConfirmed = new Map<number, boolean>();
+const listeners = new Set<() => void>();
+
+export function setShowsConfirmed(questionId: number, value: boolean) {
+  if ((showsConfirmed.get(questionId) ?? false) === value) return;
+  showsConfirmed.set(questionId, value);
+  listeners.forEach(l => l());
+}
+
+export function subscribeShowsConfirmed(listener: () => void) {
+  listeners.add(listener);
+  return () => { listeners.delete(listener); };
+}
+
+export function getShowsConfirmed(questionId: number) {
+  return showsConfirmed.get(questionId) ?? false;
+}
