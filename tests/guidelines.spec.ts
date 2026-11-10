@@ -152,7 +152,7 @@ async function closePanel(page: Page) {
 
 test('type suggestion table, explicit NONE and saved CARL survive panel regeneration and reload', async ({ page }) => {
   const api = await new FakeQuestionApi({ sameApplication: true }).install(page);
-  const expected: [QuestionType | null, DraftFrame][] = [['ACHIEVEMENT','STAR'], ['FAILURE','CARL'], ['SELF_INTRO','PREP'], ['MOTIVATION','MOTIVE_LINK'], ['PROBLEM_SOLVING','CAUSE_FIX'], ['COLLABORATION','ALIGN'], ['CONFLICT','ALIGN'], ['IDEA','CHANGE'], ['GROWTH','ORIGIN'], ['OTHER','NONE'], [null,'NONE']];
+  const expected: [QuestionType | null, DraftFrame][] = [['ACHIEVEMENT','STAR'], ['FAILURE','CARL'], ['SELF_INTRO','PREP'], ['MOTIVATION','MOTIVE_LINK'], ['PROBLEM_SOLVING','CAUSE_FIX'], ['COLLABORATION','ALIGN'], ['CONFLICT','ALIGN'], ['IDEA','CHANGE'], ['GROWTH','ORIGIN'], ['JOB_SKILL','SKILL_STEPS'], ['OTHER','NONE'], [null,'NONE']];
   for (const [type, frame] of expected) {
     api.edit(41, q => { q.questionType = type; q.draft = null; });
     await page.goto('/questions?question=41');
