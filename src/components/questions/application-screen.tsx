@@ -2,7 +2,7 @@
 
 import { InfoTip } from "@/components/ui/info-tip";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { peekApplicationText, takeApplicationText } from "@/lib/application-handoff";
 import { ArrowSquareOutIcon, ArrowsClockwiseIcon, MagnifyingGlassIcon, PlusIcon, WarningCircleIcon } from "@phosphor-icons/react";
@@ -34,6 +34,8 @@ import { ActivityCategoriesProvider } from "./activity-categories";
 import { ApplicationStatusTag, ApplicationTypeFields, QuestionTypeField } from "./type-fields";
 import { OrganizationName } from "./organization-name";
 import { closeRevisionPanel, isRevisionPanelOpen } from "@/components/revisions/revision-list";
+import { Toast, useToast } from "@/components/ui/toast";
+import { ApplicationMenu, DeleteApplicationDialog, DeleteQuestionDialog, EditQuestionTextDialog, QuestionMenu } from "./question-menus";
 
 const STATUS = { ANALYZING: "분석 중", COMPLETED: "완료", FAILED: "실패" } as const;
 const DOT = { ANALYZING: "bg-muted-soft", COMPLETED: "bg-mark", FAILED: "bg-error" } as const;
@@ -181,6 +183,12 @@ export function ApplicationScreen() {
   const working = !composing && !matching.error && (matching.loading || !!open);
   const activeId = composing ? null : open?.application.id ?? null;
   const list = { applications: matching.applications, activeId, onPick: pick, onSave: matching.updateApplication };
+  // 지우기 · 글 고치기(S-89) — 메뉴에서 고르면 창을 연다. 지우면 알림, 지원을 지우면 목록으로
+  const { toast, showToast } = useToast();
+  const [deletingApplication, setDeletingApplication] = useState<{ id: number; name: string; questionCount: number } | null>(null);
+  const [deletingQuestion, setDeletingQuestion] = useState<{ id: number; index: number; text: string; hasAnswer: boolean } | null>(null);
+  const [editingQuestion, setEditingQuestion] = useState<{ id: number; index: number; text: string } | null>(null);
+  const askDeleteApplication = (a: Application) => setDeletingApplication({ id: a.id, name: a.organization || "지원처 이름 없음", questionCount: a.questions.length });
 
   return <ActivityCategoriesProvider><div className="flex min-h-dvh flex-col bg-canvas">
     <AppHeader activePage="questions" onNewApplication={startNew}
@@ -220,7 +228,10 @@ export function ApplicationScreen() {
             <button type="button" onClick={showList} className="mb-1 inline-flex min-h-11 lg:min-h-10 items-center text-sm text-muted underline underline-offset-4 lg:hidden">지원 목록으로</button>
             {/* 이름은 한 줄을 다 쓴다(길면 말줄임). 태그 · 넣은 날짜는 아랫줄, 문항 수는 탭이 보여 주니 뺀다(FE#271) */}
             <header className="grid min-w-0 gap-1">
-              <OrganizationName key={`name-${open.application.id}`} application={open.application} onSave={req => matching.updateApplication(open.application.id, req)} />
+              <div className="flex min-w-0 items-start gap-1">
+                <div className="min-w-0 flex-1"><OrganizationName key={`name-${open.application.id}`} application={open.application} onSave={req => matching.updateApplication(open.application.id, req)} /></div>
+                <ApplicationMenu label={open.application.organization || "지원처 이름 없음"} onDelete={() => askDeleteApplication(open.application)} />
+              </div>
               <div className="flex flex-wrap items-center gap-x-2 text-note text-muted tabular-nums">
                 <ApplicationStatusTag key={open.application.id} application={open.application} onSave={req => matching.updateApplication(open.application.id, req)} />
                 <ApplicationTypeFields key={`type-${open.application.id}`} application={open.application}
@@ -244,7 +255,11 @@ export function ApplicationScreen() {
                 loadError={matching.detailError} onReload={matching.reloadQuestion}
                 overlaps={overlaps} onPickOverlap={id => { matching.selectQuestion(id); scrollToDetail(); }} onRetry={id => matching.retry(id)} onTypeChange={(id, type) => matching.updateQuestionType(id, type)} onTargetLengthChange={(id, length) => matching.updateTargetLength(id, length)} onAnswerChange={matching.keepAnswer} onAnswerDraftChange={matching.keepAnswerDraft} groundingChecks={groundingChecks}
                 {...draftActions} onPick={picks.toggle} onOpenOmissions={openDraftQuestions} onNewFacts={openNewFacts}
-                onAnswerClarification={(clarificationId, answer) => selected ? matching.answer(selected.id, clarificationId, answer) : Promise.resolve()} />}
+                onAnswerClarification={(clarificationId, answer) => selected ? matching.answer(selected.id, clarificationId, answer) : Promise.resolve()}
+                menu={summary && <QuestionMenu index={selectedIndex} last={open.application.questions.length === 1}
+                  onEdit={() => setEditingQuestion({ id: summary.id, index: selectedIndex, text: summary.text })}
+                  onDelete={() => setDeletingQuestion({ id: summary.id, index: selectedIndex, text: summary.text, hasAnswer: selected ? !!selected.answer : true })}
+                  onDeleteApplication={() => askDeleteApplication(open.application)} />} />}
             </div>
           </> : null}
         </section>
@@ -260,6 +275,24 @@ export function ApplicationScreen() {
         </SheetContent>
       </Sheet>)}
     </div>
+    <DeleteApplicationDialog target={deletingApplication} onClose={() => setDeletingApplication(null)} onDelete={async id => {
+      await matching.deleteApplication(id);
+      setDeletingApplication(null); setDeletingQuestion(null); setEditingQuestion(null); setAdding(false);
+      showToast("지원을 지웠어요.");
+      showList();
+    }} />
+    <DeleteQuestionDialog target={deletingQuestion} onClose={() => setDeletingQuestion(null)} onDelete={async id => {
+      await matching.deleteQuestion(id);
+      setDeletingQuestion(null);
+      showToast("문항을 지웠어요.");
+    }} />
+    <EditQuestionTextDialog target={editingQuestion} onClose={() => setEditingQuestion(null)} onSave={async (id, text) => {
+      await matching.updateQuestionText(id, text);
+      groundingChecks.forget(id);
+      setEditingQuestion(null);
+      showToast("문항 글을 바꿨어요. 추천을 다시 받고 있어요.");
+    }} />
+    <Toast toast={toast} />
   </div></ActivityCategoriesProvider>;
 }
 
@@ -372,7 +405,9 @@ function useTargetLengthPrefill(question: QuestionSummary | null, save: (id: num
 }
 
 /** 고른 문항 — 받아 둔 내용이 있으면 바로, 처음 보는 문항이면 받는 동안 자리만(FE#60). 문항 글 · 상태는 지원 목록에 이미 있다 */
-function SelectedQuestion({ summary, question, application, index, loadError, onReload, overlaps, onPickOverlap, onRetry, onTypeChange, onTargetLengthChange, onAnswerChange, onAnswerDraftChange, onAnswerClarification, groundingChecks, onOpenOmissions, onNewFacts, onRefresh, savingAnswer, requestingDraft, picks, onPick }: {
+function SelectedQuestion({ summary, question, application, index, loadError, onReload, overlaps, onPickOverlap, onRetry, onTypeChange, onTargetLengthChange, onAnswerChange, onAnswerDraftChange, onAnswerClarification, groundingChecks, onOpenOmissions, onNewFacts, onRefresh, savingAnswer, requestingDraft, picks, onPick, menu }: {
+  /** 문항 메뉴(글 고치기 · 지우기 — S-89) */
+  menu?: ReactNode;
   summary: QuestionSummary | null; question: QuestionDetail | null; application: Application; index: number; loadError: string | null; onReload: (id: number) => void;
   overlaps: Overlap[]; onPickOverlap: (questionId: number) => void; onRetry: (id: number) => Promise<unknown>; onTypeChange: (id: number, type: QuestionType) => Promise<void>; onTargetLengthChange: (id: number, targetLength: number | null) => Promise<void>; onAnswerChange: (id: number, answer: Answer | null) => void; onAnswerDraftChange: (id: number, draft: AnswerDraft | null) => void; groundingChecks: GroundingChecks; onPick: (experienceId: number, on: boolean) => void; onAnswerClarification: AnswerHandler; onNewFacts: (find: boolean) => void;
 } & DraftActions) {
@@ -387,6 +422,7 @@ function SelectedQuestion({ summary, question, application, index, loadError, on
       <div className="flex flex-wrap items-center gap-x-2">
         <p className="m-0 text-note font-medium text-muted">문항 {index + 1} · {STATUS[status]}</p>
         <QuestionTypeField question={question ?? summary} onSave={type => onTypeChange(summary.id, type)} />
+        {menu && <div className="ml-auto">{menu}</div>}
       </div>
       <h3 className="m-0 max-h-36 overflow-y-auto whitespace-pre-wrap text-xl leading-relaxed font-[650] tracking-[-0.3px]">{summary.text}</h3>
       {question && <SimilarAnswers question={question} application={application} />}
