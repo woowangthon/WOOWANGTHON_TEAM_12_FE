@@ -245,7 +245,8 @@ test("자료 작업으로 이동 · 실패 상세 · 기존 retry API는 클릭 
   await page.route("**/api/jobs/34", route => route.fulfill({ json: job }));
   await page.route("**/api/jobs/34/retry", route => { retries++; return route.fulfill({ json: { ...job, status: "ANALYZING", error: null } }); });
   await page.goto("/questions"); await trigger(page).click(); await dialog(page).getByRole("link").click();
-  await expect(page.getByRole("region", { name: "자료 분석 상세" })).toContainText("자료 12 · 실패");
+  await expect(page.getByRole("heading", { name: /^자료 분석/ })).toContainText("실패"); // 자료 번호는 보이지 않는다(FE#398)
+  await expect(page.getByRole("region", { name: "자료 분석 상세" })).not.toContainText("자료 12");
   expect(retries).toBe(0);
   await page.getByRole("region", { name: "자료 분석 상세" }).getByRole("button", { name: "다시 시도", exact: true }).click();
   await expect.poll(() => retries).toBe(1);
