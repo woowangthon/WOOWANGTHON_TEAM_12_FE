@@ -1,4 +1,4 @@
-// 수정 이력(S-80 · ADR-013) — 경험 · 활동 · 답을 고친 전후를 보고 고른 수정 전으로 되돌린다(revision-api.md).
+// 수정 이력(S-80 · ADR-013) — 경험 · 활동 · 답을 고친 전후를 보고 고른 줄의 그때 값으로 되돌린다(revision-api.md).
 // AI 를 부르지 않는다. 목 모드에는 이력이 없다 — request 가 「서버에 저장할 수 없어요」 오류를 낸다
 import { ApiError } from "./errors";
 import { request } from "./http";
@@ -47,9 +47,12 @@ export async function fetchRevisions(target: RevisionTarget | null, cursor: stri
   return { revisions: value.revisions, nextCursor: typeof value.nextCursor === "string" ? value.nextCursor : null };
 }
 
-/** POST /api/revisions/{id}/restore — 그 수정 전(before)으로. 새 RESTORE 기록이 하나 더 생긴다. 답은 임시 글로 들어간다 */
-export async function restoreRevision(id: number): Promise<RestoreResult> {
-  const value = await request<RestoreResult>(`/revisions/${id}/restore`, undefined, "POST");
+/** 어느 쪽으로 되돌리나 — AFTER 는 그 줄에 보이는 그때 값, BEFORE 는 그 수정 전 값(「처음 값」 줄) */
+export type RestoreTo = "BEFORE" | "AFTER";
+
+/** POST /api/revisions/{id}/restore — 그 기록의 after · before 로. 새 RESTORE 기록이 하나 더 생긴다. 답은 임시 글로 들어간다 */
+export async function restoreRevision(id: number, to: RestoreTo): Promise<RestoreResult> {
+  const value = await request<RestoreResult>(`/revisions/${id}/restore`, { to }, "POST");
   if (!value?.revision) throw invalid();
   return value;
 }

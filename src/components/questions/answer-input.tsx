@@ -216,6 +216,8 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
       </div>
       <RevisionDialog open={historyOpen} onOpenChange={setHistoryOpen} target={{ type: "ANSWER", id: questionId }} title="수정 이력"
         description="이 문항의 답을 「다 썼어요」 · 초안 넣기 · 되돌리기 때 남긴 기록이에요. 쓰는 중 자동 저장은 남지 않아요."
+        // 지금 답칸 글 — 이 글과 같은 줄에는 되돌리기를 두지 않는다(자동 저장은 이력에 안 남아 맨 위 기록과 다를 수 있다)
+        current={text}
         // 기다리던 자동 저장을 먼저 보낸다 — 늦게 도착해 되돌린 임시 글을 덮지 않게
         beforeRestore={() => autosave.retry()}
         onRestored={(result) => {

@@ -23,14 +23,16 @@ const OLDER: Revision = { ...ACTIVITY_EDIT, id: 880, createdAt: "2026-11-01T09:0
 
 type State = { all: Revision[]; calls: string[]; restoreFail: string };
 
-async function routeRevisions(page: Page, state: State, restored: (id: number) => Record<string, unknown>) {
+async function routeRevisions(page: Page, state: State, restored: (id: number, to: "BEFORE" | "AFTER") => Record<string, unknown>) {
   await page.route("**/api/revisions**", async (route: Route) => {
     const url = new URL(route.request().url());
     if (route.request().method() === "POST") {
       const id = Number(url.pathname.match(/revisions\/(\d+)\/restore/)![1]);
-      state.calls.push(`restore:${id}`);
+      // 줄은 그때 값(AFTER), 「처음 값」 줄은 BEFORE 로 되돌린다(FE#430)
+      const to = (route.request().postDataJSON() as { to: "BEFORE" | "AFTER" }).to;
+      state.calls.push(`restore:${id}:${to}`);
       if (state.restoreFail) { const code = state.restoreFail; state.restoreFail = ""; return route.fulfill({ status: code === "NOTHING_TO_RESTORE" ? 409 : 503, json: { error: { code, message: "실패" } } }); }
-      return route.fulfill({ json: restored(id) });
+      return route.fulfill({ json: restored(id, to) });
     }
     state.calls.push(`list:${url.search}`);
     const type = url.searchParams.get("targetType"), id = Number(url.searchParams.get("targetId"));
@@ -66,24 +68,25 @@ async function setupTimeline(page: Page) {
     return route.fulfill({ status: 404, json: { error: { code: "NOT_FOUND_IN_TEST", message: "x" } } });
   });
   const state: State = { all: [EXPERIENCE_EDIT, ACTIVITY_EDIT, ANSWER_DELETED, OLDER], calls: [], restoreFail: "" };
-  await routeRevisions(page, state, id => {
+  await routeRevisions(page, state, (id, to) => {
     const r = state.all.find(x => x.id === id)!;
+    const picked = to === "AFTER" ? r.after : r.before;
     if (r.targetType === "EXPERIENCE") {
-      Object.assign(activity.experiences[0], r.before);
-      return { revision: { ...r, id: 950, kind: "RESTORE", by: "USER", restoredFromId: id, before: r.after, after: r.before }, experience: activity.experiences[0], activity: null, answerDraft: null };
+      Object.assign(activity.experiences[0], picked);
+      return { revision: { ...r, id: 950, kind: "RESTORE", by: "USER", restoredFromId: id, before: r.after, after: picked }, experience: activity.experiences[0], activity: null, answerDraft: null };
     }
-    activity.name = r.before.name!; activity.period = r.before.period!;
-    return { revision: { ...r, id: 951, kind: "RESTORE", restoredFromId: id, before: r.after, after: r.before }, experience: null, activity: { id: 7, name: activity.name, period: activity.period }, answerDraft: null };
+    activity.name = picked.name!; activity.period = picked.period!;
+    return { revision: { ...r, id: 951, kind: "RESTORE", restoredFromId: id, before: r.after, after: picked }, experience: null, activity: { id: 7, name: activity.name, period: activity.period }, answerDraft: null };
   });
   await page.goto("/experience");
   return state;
 }
 
-// PR 스크린샷(FE424_SHOTS=1) — 폭마다 docs/fe-424/<이름>-<폭>.png
+// PR 스크린샷(FE430_SHOTS=1) — 폭마다 docs/fe-430/<이름>-<폭>.png
 const shot = async (page: Page, name: string) => {
-  if (process.env.FE424_SHOTS !== "1") return;
+  if (process.env.FE430_SHOTS !== "1") return;
   await page.waitForTimeout(400);
-  await page.screenshot({ path: `docs/fe-424/${name}-${page.viewportSize()!.width}.png`, animations: "disabled", caret: "hide" });
+  await page.screenshot({ path: `docs/fe-430/${name}-${page.viewportSize()!.width}.png`, animations: "disabled", caret: "hide" });
 };
 
 test("헤더 「최근 수정」 — 접힌 요약 · 펼치면 바뀐 부분만 · 더 보기 · 지운 항목은 못 감", async ({ page }) => {
@@ -95,8 +98,11 @@ test("헤더 「최근 수정」 — 접힌 요약 · 펼치면 바뀐 부분만
   await expect(experienceRow).toHaveAttribute("aria-expanded", "false");
   await expect(experienceRow).toContainText("경험 · 바꿔요 — 캠퍼스 중고거래 앱");
   await expect(experienceRow).toContainText("Claude");
-  await expect(dialog.getByRole("button", { name: "이 수정 전으로" })).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: "이때로 되돌리기" })).toHaveCount(0);
   await experienceRow.click();
+  // 전체 목록은 어느 줄이 지금 값인지 몰라 줄마다 되돌리기가 있고, 「처음 값」 줄은 없다
+  await expect(dialog.getByRole("button", { name: "이때로 되돌리기" })).toHaveCount(1);
+  await expect(dialog.getByRole("button", { name: /^처음 값/ })).toHaveCount(0);
   await expect(dialog.locator("del")).toHaveText("지운 글: 설계를 전부 맡았다");
   await expect(dialog.locator("ins")).toHaveText("더한 글: 중 채팅 · 거래 API 를 설계했다");
   await expect(dialog.getByText("출처 상태 원문 확인 → 확인 필요")).toBeVisible();
@@ -121,32 +127,37 @@ test("헤더 「최근 수정」 — 접힌 요약 · 펼치면 바뀐 부분만
   await expect(page.getByRole("button", { name: /^경험 고치기: 백엔드 API 중/ })).toBeVisible();
 });
 
-test("경험 메뉴 「수정 이력」 — 그 항목만 · 확인 뒤 되돌리기 · 실패는 다시 시도", async ({ page }) => {
+test("경험 메뉴 「수정 이력」 — 그 항목만 · 맨 위는 현재라 버튼 없음 · 「처음 값」으로 되돌리기 · 실패는 다시 시도", async ({ page }) => {
   const state = await setupTimeline(page);
   await page.getByRole("button", { name: /바꿔요/ }).first().click();
   await page.getByRole("button", { name: /^경험 메뉴:/ }).click();
   await page.getByRole("menuitem", { name: "수정 이력" }).click();
   const dialog = page.getByRole("dialog", { name: "수정 이력" });
-  // 항목별 이력은 맨 위 줄이 펼쳐져 있고 「현재」 표시
+  // 항목별 이력은 맨 위 줄이 펼쳐져 있고 「현재」 표시 — 지금 값이라 되돌리기가 없다(FE#430)
   const top = dialog.getByRole("button", { name: /^본문을 고쳤어요/ });
   await expect(top).toHaveAttribute("aria-expanded", "true");
   await expect(top).toContainText("현재");
   await expect(dialog.getByRole("button", { name: /^이름/ })).toHaveCount(0);
   expect(state.calls).toContain("list:?targetType=EXPERIENCE&targetId=101");
-  await dialog.getByRole("button", { name: "이 수정 전으로" }).click();
-  await expect(dialog.getByText(/이 수정 전으로 되돌릴까요\?/)).toBeVisible();
+  await expect(dialog.getByText("지금 값이에요. 되돌리려면 아래에서 돌아갈 때를 골라 주세요.")).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "이때로 되돌리기" })).toHaveCount(0);
+  // 맨 아래 「처음 값」 — 첫 수정 전 글이 통째로 보이고 그 값으로 돌아간다
+  await dialog.getByRole("button", { name: /^처음 값\s*첫 수정 전/ }).click();
+  await expect(dialog.getByText("백엔드 API 설계를 전부 맡았다", { exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: "처음 값으로 되돌리기" }).click();
+  await expect(dialog.getByText(/처음 값으로 되돌릴까요\?/)).toBeVisible();
   await shot(page, "experience-confirm");
   state.restoreFail = "INTERNAL_ERROR";
   await dialog.getByRole("button", { name: "되돌리기", exact: true }).click();
   await expect(dialog.getByRole("alert")).toContainText("되돌리지 못했어요");
   await dialog.getByRole("button", { name: "다시 시도" }).click();
   await expect(dialog.getByText("되돌렸어요.")).toBeVisible();
-  expect(state.calls.filter(c => c.startsWith("restore"))).toEqual(["restore:901", "restore:901"]);
+  expect(state.calls.filter(c => c.startsWith("restore"))).toEqual(["restore:901:BEFORE", "restore:901:BEFORE"]);
   await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: "경험 고치기: 백엔드 API 설계를 전부 맡았다" })).toBeVisible();
 });
 
-test("활동 메뉴 「수정 이력」 — 되돌리면 이름 · 기간이 바뀐다", async ({ page }) => {
+test("활동 메뉴 「수정 이력」 — 아래 줄을 고르면 그 줄의 그때 이름 · 기간으로 돌아간다", async ({ page }) => {
   const state = await setupTimeline(page);
   await page.getByRole("button", { name: /바꿔요/ }).first().click();
   await page.getByRole("button", { name: "활동 메뉴" }).click();
@@ -154,38 +165,57 @@ test("활동 메뉴 「수정 이력」 — 되돌리면 이름 · 기간이 바
   const dialog = page.getByRole("dialog", { name: "수정 이력" });
   await expect(dialog.getByRole("button", { name: /^이름/ })).toHaveCount(2);
   expect(state.calls).toContain("list:?targetType=ACTIVITY&targetId=7");
-  state.all = [ACTIVITY_EDIT];
-  await dialog.getByRole("button", { name: "이 수정 전으로" }).first().click();
+  // 맨 위(현재)에는 버튼이 없다 — 그 아래 줄을 펼쳐 그 줄에 보이는 값(after)으로
+  await expect(dialog.getByRole("button", { name: "이때로 되돌리기" })).toHaveCount(0);
+  await dialog.getByRole("button", { name: /^이름을 고쳤어요/ }).click();
+  await dialog.getByRole("button", { name: "이때로 되돌리기" }).click();
+  await expect(dialog.getByText(/이때 값으로 되돌릴까요\?/)).toBeVisible();
   await dialog.getByRole("button", { name: "되돌리기", exact: true }).click();
   await expect(dialog.getByText("되돌렸어요.")).toBeVisible();
+  expect(state.calls).toContain("restore:880:AFTER");
   await page.keyboard.press("Escape");
   await expect(page.getByRole("complementary").getByText("바꿔요", { exact: true }).first()).toBeVisible();
 });
 
-test("답칸 「수정 이력」 — 되돌리면 그때 글이 답칸(임시 글)에 들어온다", async ({ page }) => {
+test("답칸 「수정 이력」 — 초안을 넣고 고친 뒤에도 그 줄의 처음 초안이 답칸에 돌아온다 · 빈 글로는 못 돌아감 (FE#430)", async ({ page }) => {
   const api = new FakeQuestionApi({ sameApplication: true });
   await api.install(page);
   await hideDevOverlay(page);
-  const ANSWER: Revision = { ...base, id: 970, kind: "CONFIRM", targetType: "ANSWER", targetId: 41, target: target({ questionId: 41, questionText: "문항", applicationId: 22, organization: "OO 부트캠프" }),
-    before: { text: "예전에 확정한 답입니다." }, after: { text: "지금 확정한 답입니다." } };
-  const state: State = { all: [ANSWER], calls: [], restoreFail: "" };
-  await routeRevisions(page, state, () => ({ revision: { ...ANSWER, id: 971, kind: "RESTORE", restoredFromId: 970, before: ANSWER.after, after: ANSWER.before }, experience: null, activity: null,
-    answerDraft: { text: "예전에 확정한 답입니다.", state: null, updatedAt: T } }));
+  // 빈 답칸에 초안을 넣은 기록 하나 — 그 뒤 고친 글은 자동 저장이라 이력에 없다
+  const DRAFT: Revision = { ...base, id: 970, kind: "DRAFT_OVERWRITE", targetType: "ANSWER", targetId: 41, target: target({ questionId: 41, questionText: "문항", applicationId: 22, organization: "OO 부트캠프" }),
+    before: { text: "" }, after: { text: "차곡이가 처음 써 준 초안입니다." } };
+  const state: State = { all: [DRAFT], calls: [], restoreFail: "" };
+  await routeRevisions(page, state, (id, to) => {
+    const text = (to === "AFTER" ? DRAFT.after : DRAFT.before).text!;
+    const revision: Revision = { ...DRAFT, id: 971, kind: "RESTORE", restoredFromId: id, before: { text: "고친 글" }, after: { text } };
+    state.all = [revision, DRAFT];
+    return { revision, experience: null, activity: null, answerDraft: { text, state: null, updatedAt: T } };
+  });
   await page.goto("/questions?question=41");
   const region = page.getByRole("region", { name: "내가 쓴 답", exact: true });
-  await expect(region.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toBeEnabled();
+  const box = region.getByRole("textbox", { name: "내가 쓴 답", exact: true });
+  await expect(box).toBeEnabled();
+  await expect(box).not.toContainText("차곡이가 처음 써 준 초안입니다.");
   await region.getByRole("button", { name: "수정 이력" }).click();
   const dialog = page.getByRole("dialog", { name: "수정 이력" });
-  await expect(dialog.getByRole("button", { name: /^답을 다 썼어요/ })).toBeVisible();
-  await expect(dialog.locator("del")).toHaveText("지운 글: 예전에");
-  await expect(dialog.locator("ins")).toHaveText("더한 글: 지금");
+  // 답칸 글이 그 뒤 바뀌었으니 맨 위 줄도 「현재」가 아니다 — 그 줄에 보이는 글로 되돌릴 수 있다
+  const top = dialog.getByRole("button", { name: /^초안을 답칸에 넣었어요/ });
+  await expect(top).toHaveAttribute("aria-expanded", "true");
+  await expect(top).not.toContainText("현재");
+  await expect(dialog.locator("ins")).toHaveText("더한 글: 차곡이가 처음 써 준 초안입니다.");
+  // 첫 수정 전이 빈 글이면 「처음 값」 줄이 없다 — 답칸을 비우는 되돌리기는 없다
+  await expect(dialog.getByRole("button", { name: /^처음 값/ })).toHaveCount(0);
   await shot(page, "answer");
-  await dialog.getByRole("button", { name: "이 수정 전으로" }).click();
+  await dialog.getByRole("button", { name: "이때로 되돌리기" }).click();
   await expect(dialog.getByText(/「다 썼어요」를 다시 눌러야/)).toBeVisible();
   await dialog.getByRole("button", { name: "되돌리기", exact: true }).click();
   await expect(dialog.getByText(/답칸에 그때 글을 넣었어요/)).toBeVisible();
+  expect(state.calls.filter(c => c.startsWith("restore"))).toEqual(["restore:970:AFTER"]);
+  // 되돌린 기록이 맨 위 「현재」 — 지금 값과 같은 줄에는 버튼이 없어 거듭 눌러 기록을 늘릴 수 없다
+  await expect(dialog.getByRole("button", { name: /^그때 답을 답칸에 되돌렸어요/ })).toContainText("현재");
+  await expect(dialog.getByRole("button", { name: "이때로 되돌리기" })).toHaveCount(0);
   await page.keyboard.press("Escape");
-  await expect(region.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toContainText("예전에 확정한 답입니다.");
+  await expect(box).toContainText("차곡이가 처음 써 준 초안입니다.");
 });
 
 test("띄어쓰기만 바뀐 수정 — 요약에 그렇게 적고 빈칸도 강조한다", async ({ page }) => {
