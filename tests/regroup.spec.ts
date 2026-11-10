@@ -285,6 +285,8 @@ test("합치기 — 확인 뒤 남길 활동에 경험이 모이고 다른 활�
   const state = await setup(page);
   await open(page, "Swap deploy");
   await page.getByRole("button", { name: "활동 메뉴" }).click();
+  // 이름 고치기는 메뉴에 없다 — 이름을 눌러서 고친다(FE#404)
+  await expect(page.getByRole("menuitem", { name: "이름 고치기" })).toHaveCount(0);
   await page.getByRole("menuitem", { name: "다른 활동과 합치기" }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByRole("button", { name: "합치기", exact: true })).toBeDisabled();
