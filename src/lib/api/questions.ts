@@ -4,6 +4,7 @@ import type { Answer, AnswerDraft, SaveNewFactRequest, SimilarAnswer } from "./q
 import type { Experience } from "./types";
 import { ApiError } from "./errors";
 import { request } from "./http";
+import { DRAFT_FRAMES } from "../draft-frames";
 import { MAX_GROUNDING_TEXT_LENGTH, type GroundingCheck, type CreateDraftRequest, type Draft } from "./question-types";
 import {
   MAX_ANSWER_LENGTH, MAX_ORGANIZATION_LENGTH, MAX_QUESTION_LENGTH, MAX_QUESTIONS_PER_SUBMIT,
@@ -114,7 +115,7 @@ export async function createQuestionDraft(question: QuestionDetail, req: CreateD
     throw new ApiError("INVALID_REQUEST", "이 문항의 추천 경험을 1 ~ 3개 골라 주세요.", 400);
   }
   if (question.status !== "COMPLETED") throw new ApiError("QUESTION_NOT_COMPLETED", "문항 분석이 끝난 뒤 초안을 만들 수 있어요.", 409);
-  if (req.frame !== undefined && !['STAR', 'CARL', 'PREP', 'NONE'].includes(req.frame)) throw new ApiError('INVALID_REQUEST', '구성 틀을 골라 주세요.', 400);
+  if (req.frame !== undefined && !(Object.keys(DRAFT_FRAMES) as string[]).includes(req.frame)) throw new ApiError('INVALID_REQUEST', '구성 틀을 골라 주세요.', 400);
   return request(`/questions/${question.id}/draft`, {
     experienceIds: ids, ...(req.frame === undefined ? {} : { frame: req.frame }), ...(req.useContext === undefined ? {} : { useContext: req.useContext }),
   }, "POST");

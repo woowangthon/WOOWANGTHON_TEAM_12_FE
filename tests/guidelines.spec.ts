@@ -152,13 +152,14 @@ async function closePanel(page: Page) {
 
 test('type suggestion table, explicit NONE and saved CARL survive panel regeneration and reload', async ({ page }) => {
   const api = await new FakeQuestionApi({ sameApplication: true }).install(page);
-  const expected: [QuestionType | null, DraftFrame][] = [['ACHIEVEMENT','STAR'], ['GROWTH','CARL'], ['MOTIVATION','PREP'], ['OTHER','NONE'], [null,'NONE']];
+  const expected: [QuestionType | null, DraftFrame][] = [['ACHIEVEMENT','STAR'], ['FAILURE','CARL'], ['SELF_INTRO','PREP'], ['MOTIVATION','MOTIVE_LINK'], ['PROBLEM_SOLVING','CAUSE_FIX'], ['COLLABORATION','ALIGN'], ['CONFLICT','ALIGN'], ['IDEA','CHANGE'], ['GROWTH','ORIGIN'], ['OTHER','NONE'], [null,'NONE']];
   for (const [type, frame] of expected) {
     api.edit(41, q => { q.questionType = type; q.draft = null; });
     await page.goto('/questions?question=41');
     const controls = await openComposer(page);
     await expect(controls.getByRole('combobox', { name: '구성 틀', exact: true })).toHaveText(DRAFT_FRAMES[frame].name);
     await expect(controls.getByText('문항 유형에 맞춘 제안', { exact: false })).toBeVisible();
+    await expect(controls.getByText(DRAFT_FRAMES[frame].steps, { exact: true })).toBeVisible();
   }
   const controls = composer(page);
   await pickOption(controls.getByRole('combobox', { name: '구성 틀', exact: true }), '틀 없이');
@@ -181,6 +182,23 @@ test('type suggestion table, explicit NONE and saved CARL survive panel regenera
   await page.getByRole('dialog', { name: '다시 만들면 답칸이 새 초안으로 바뀌어요' }).getByRole('button', { name: '그래도 다시 만들기', exact: true }).click();
   await expect.poll(() => api.calls.filter(c => c.call.endsWith('/draft')).length).toBe(3);
   expect(api.calls.filter(c => c.call.endsWith('/draft')).at(-1)!.body).toMatchObject({ experienceIds: [101], frame: 'CARL' });
+});
+
+test('structure cards are listed in the picker and a picked card goes into the draft request (S-82)', async ({ page }) => {
+  const api = await new FakeQuestionApi({ sameApplication: true }).install(page);
+  api.edit(41, q => { q.questionType = 'ACHIEVEMENT'; q.draft = null; });
+  await page.goto('/questions?question=41');
+  const controls = await openComposer(page);
+  const picker = controls.getByRole('combobox', { name: '구성 틀', exact: true });
+  await picker.click();
+  for (const frame of Object.values(DRAFT_FRAMES)) await expect(page.getByRole('option', { name: frame.name, exact: true })).toBeVisible();
+  await page.getByRole('option', { name: DRAFT_FRAMES.SKILL_STEPS.name, exact: true }).click();
+  await expect(controls.getByText(DRAFT_FRAMES.SKILL_STEPS.steps, { exact: true })).toBeVisible();
+  // 사용자가 바꾼 틀은 「문항 유형에 맞춘 제안」이 아니다
+  await expect(controls.getByText('문항 유형에 맞춘 제안', { exact: false })).toHaveCount(0);
+  await controls.getByRole('button', { name: '초안 만들기', exact: true }).click();
+  await expect.poll(() => api.calls.filter(c => c.call.endsWith('/draft')).length).toBe(1);
+  expect(api.calls.find(c => c.call.endsWith('/draft'))!.body).toMatchObject({ experienceIds: [101], frame: 'SKILL_STEPS' });
 });
 
 test('draft snapshot stays on left, panel owns generation controls and text copy excludes guidance', async ({ page }) => {
