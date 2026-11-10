@@ -74,13 +74,14 @@ test("근거 없음인 내 문장은 칠하고 확인할 곳에 세며, 맞아�
   const card = sentenceCard(page);
   if (!narrow(page)) await expect(card.getByText("내가 쓴 문장", { exact: true })).toBeVisible();
   await expect(card.getByText("점검 · 근거 없음", { exact: true })).toBeVisible();
-  await expect(card.getByText("점검 판정은 AI 해석이에요.")).toBeVisible();
+  await expect(card.getByRole("button", { name: "근거 점검 설명" })).toBeVisible(); // 설명은 ⓘ 안에 있다
   await expect(card.getByText("AI 해석 — 문장의 숫자(100)가 받치는 근거가 없어요")).toBeVisible();
   await expect(card.getByText("지우거나, 사실이면 근거를 더해 주세요", { exact: false })).toBeVisible();
   await card.getByRole("button", { name: "맞아요", exact: true }).click();
   await checks(page, 4);
-  // 칠하기는 판정을 따르고 세기는 확인을 따른다 — 맞아요 뒤에도 칠한다(FE#317)
-  await expect(markOf(page, "g-5")).toHaveClass(/bg-review-soft/);
+  // 확인 끝은 주황이 아니다 — 맞아요 직후엔 초록(FE#325)
+  await expect(markOf(page, "g-5")).not.toHaveClass(/bg-review-soft/);
+  await expect(markOf(page, "g-5")).toHaveClass(/bg-evidence-soft/);
   await page.waitForTimeout(300);
   expect(posts(api)).toEqual([]);
   expect(state.posts).toHaveLength(1); // 점검 요청 한 번뿐 — 맞아요는 요청이 없다
@@ -91,14 +92,14 @@ test("초안 문장 카드에는 근거 점검 판정 · 이유가 더해진다"
   await runCheck(page, COMPOSED);
   await checks(page, 4); // 점검 결과가 모두 근거 없음이 아니면 확인할 곳은 그대로
   await openMark(page, "s-1");
-  await expect(sentenceCard(page).getByText("점검 ✓ 내가 입력", { exact: true })).toBeVisible();
+  await expect(sentenceCard(page).getByText("확인 필요", { exact: true })).toBeVisible(); // 맞아요 전 AI 보탬은 주황 꼬리표
   await expect(sentenceCard(page).getByText("AI 해석 — 점검 메모 — 보완에 있어요")).toBeVisible();
   if (narrow(page)) { await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toHaveCount(0); }
   await openMark(page, "s-0");
   await expect(sentenceCard(page).getByText("점검 ✓ 원문", { exact: true })).toBeVisible();
   if (narrow(page)) { await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toHaveCount(0); }
-  await openMark(page, "s-4"); // 생각 문장
-  await expect(sentenceCard(page).getByText("점검 · 생각", { exact: true })).toBeVisible();
+  await openMark(page, "s-4"); // 맞아요 전 AI 생각
+  await expect(sentenceCard(page).getByText("확인 필요", { exact: true })).toBeVisible();
 });
 
 test("점검 뒤 고친 문장은 고치기 전 결과로 흐려지고 확인할 곳에서 빠진다", async ({ page }) => {
@@ -142,7 +143,7 @@ test("초안이 없어도 직접 쓴 답을 점검하면 블록과 카드가 생
   await clickMark(page, "g-1");
   await expect(sentenceCard(page).getByText("지우거나, 사실이면 근거를 더해 주세요", { exact: false })).toBeVisible();
   if (narrow(page)) { await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toHaveCount(0); }
-  await openMark(page, "g-0"); // 좁은 폭은 「이 문장의 근거 보기」를 거친다
+  await openMark(page, "g-0"); // 좁은 폭은 말풍선 「근거 보기」를 거친다
   await expect(sentenceCard(page).getByText("점검 ✓ 원문", { exact: true })).toBeVisible();
   await expect(sentenceCard(page).getByText("원문 · 바꿔요-회고.md")).toBeVisible();
   await expect(sentenceCard(page).getByRole("button", { name: "맞아요", exact: true })).toHaveCount(0);

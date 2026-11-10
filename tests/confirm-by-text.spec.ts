@@ -3,7 +3,7 @@
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import { FakeQuestionApi } from "./fake-question-api";
-import { clickMark } from "./draft-marks";
+import { clickMark, hoverMark } from "./draft-marks";
 import { DRAFT_S79 } from "./fixtures/draft-s79";
 import { GROUNDING_EXAMPLE } from "./fixtures/grounding-example";
 import type { GroundingCheck, QuestionDetail } from "../src/lib/api/question-types";
@@ -70,7 +70,7 @@ async function runCheck(page: Page, text: string) {
 async function confirmOwn(page: Page, key: string) {
   await clickMark(page, key);
   await sentenceCard(page).getByRole("button", { name: "맞아요", exact: true }).click();
-  if (narrow(page)) await expect(page.getByRole("dialog")).toHaveCount(0);
+  if (narrow(page)) { await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toHaveCount(0); } // 맞아요 뒤에도 카드는 남는다(FE#325)
 }
 
 test("확인한 근거 없음 문장은 다른 문장을 고쳐 다시 점검해 순서가 밀려도 맞아요가 남는다", async ({ page }) => {
@@ -151,9 +151,12 @@ test("점검이 실패하면 같은 글로 다시 시도할 수 있다", async (
   expect(state.posts[1].text).toBe("채팅 지연을 해결했습니다.");
 });
 
-// FE#317 — 「칠하기는 남는다」: 다 쓴 답에 있어 세지 않아도 근거 없음 칠은 남아야 한다
-test("다 쓴 답에 그대로 있어 세지 않는 근거 없음 문장도 칠하기는 남는다", async ({ page }) => {
+// FE#325 — 확인 끝(다 쓴 답)은 평소 칠하지 않는다. 마우스를 올리면 초록(넓은 폭)
+test("다 쓴 답에 그대로 있어 세지 않는 근거 없음 문장은 평소 칠하지 않고, 마우스를 올리면 초록이다", async ({ page }) => {
+  test.skip(narrow(page), "마우스 올림은 넓은 폭만");
   await setup(page, { draft: true, answer: WITH_OWN, saved: [...draftChecked(), own()], responses: [] });
   await expect(markOf(page, "g-5")).toHaveText(OWN);
-  await expect(markOf(page, "g-5")).toHaveClass(/bg-review-soft/);
+  await expect(markOf(page, "g-5")).not.toHaveClass(/bg-review-soft/);
+  await hoverMark(page, "g-5");
+  await expect(markOf(page, "g-5")).toHaveClass(/bg-evidence-soft/);
 });

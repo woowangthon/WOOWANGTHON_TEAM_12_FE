@@ -4,7 +4,9 @@
 // 근거 문장은 조용히 · AI 보탬은 밑줄 · 생각은 점선 밑줄 · 빈칸은 칩. 고친 문장도 원래와 절반 이상 닮으면 표시 · 카드가 남는다(draft-match).
 // 표시를 누르면 카드(넓은 폭은 글 아래, 좁은 폭은 하단 시트)에 근거 · 이유 · 주체와 맞아요 · 빼기가 보인다. 빈칸은 눌러서만 답한다
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode, type RefObject } from "react";
-import { WarningCircleIcon } from "@phosphor-icons/react";
+import { CheckIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { createPortal } from "react-dom";
+import { InfoTip } from "@/components/ui/info-tip";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { updateExperience } from "@/lib/api/experience";
@@ -13,7 +15,7 @@ import type { DraftFrame } from "@/lib/draft-frames";
 import { cn } from "@/lib/utils";
 import { AnswerEvidence } from "./answer-evidence";
 import { inlineAction } from "./clarifications";
-import { diff, matchSentences, sameNumbers } from "./draft-match";
+import { diff, matchSentences, sameNumbers, splitSentences } from "./draft-match";
 
 export type DraftActions = { onGenerate: (experienceIds: number[], frame?: DraftFrame, useContext?: boolean) => Promise<void>; onRefresh: () => Promise<void>; onOpenOmissions: () => void; picks: number[]; onResetPicks: (questionId: number) => void; savingAnswer: boolean; requestingDraft: boolean };
 
@@ -73,12 +75,18 @@ export type Mark = {
   need: "marked" | "numbers" | "filled" | "unsupported" | null;
   filled: { omission: DraftOmission; answer: string } | null;
   ground: Ground | null;
+  /** 왜 세지 않나 — 이 화면에서 맞아요(seen) · 다 쓴 답에 그대로(settled) · 서버에 저장된 맞아요(server) */
+  done: Done;
+  /** 근거 점검 뒤 · 다 쓴 뒤 고쳤나 — 회색 점선(FE#325) */
+  changed: boolean;
 };
+export type Done = "seen" | "settled" | "server" | null;
 /** 초안과 짝이 없는 문장(내가 쓴 문장) — 근거 점검 뒤에만 생긴다. index 는 점검 문장 번호 */
-export type Own = { index: number; start: number; end: number; text: string; ground: Ground; need: "unsupported" | null };
+export type Own = { index: number; start: number; end: number; text: string; ground: Ground; need: "unsupported" | null; done: Done; changed: boolean };
 /** 지금 글에 남은 답 안 한 빈칸 — [start, end) 는 자리 표시 */
 export type Chip = { at: number; omission: DraftOmission; index: number; start: number; end: number; linked: boolean };
-export type Analysis = { marks: Mark[]; chips: Chip[]; own: Own[]; checks: { start: number; selection: NonNullable<Selection> }[] };
+/** drift 는 다 쓴 뒤 고친 그 밖의 문장(점검 전 내가 쓴 문장) — 점선만, 카드는 없다 */
+export type Analysis = { marks: Mark[]; chips: Chip[]; own: Own[]; drift: { start: number; end: number }[]; checks: { start: number; selection: NonNullable<Selection> }[] };
 
 /**
  * 글을 초안 문장 · 근거 점검 문장과 맞춰 본다(FE#317).
@@ -99,7 +107,10 @@ export function analyze(question: QuestionDetail, draft: Draft | null, removed: 
     return inside.find(g => g.ground.status === "UNSUPPORTED")?.ground ?? inside[0]?.ground ?? null;
   };
   const unsupported = (g: Ground | null) => g?.status === "UNSUPPORTED" && !g.stale;
-  const done = (t: string) => seen.has(t) || (!!settled && settled.includes(t));
+  // 화면에서만 세는 확인은 이 화면 맞아요 → 다 쓴 답 순으로 끝난다
+  const doneBy = (t: string): Done => seen.has(t) ? "seen" : settled?.includes(t) ? "settled" : null;
+  // 기준(근거 점검 · 다 쓴 답) 뒤에 고쳤나
+  const changedSince = (t: string, g: Ground | null) => !!g?.stale || (settled !== null && !settled.includes(t));
   for (const m of draft ? matchSentences(text, originals) : []) {
     const s = draft!.sentences[m.index];
     const original = originals[m.index]!;
@@ -118,20 +129,26 @@ export function analyze(question: QuestionDetail, draft: Draft | null, removed: 
     }
     const ground = groundIn(m.start, m.end);
     // 확인할 곳은 한 번만 — 채운 빈칸 → AI 보탬 · 생각 → 숫자 → 근거 없음. 고치지 않은 AI 보탬은 다 쓴 답(settled)으로 끝나지 않는다
-    const need = filled ? (done(m.text) ? null : "filled")
-      : marked(s) ? (seen.has(m.text) || (m.edited && done(m.text)) ? null : "marked")
-        : m.edited && !sameNumbers(original, m.text) ? (done(m.text) ? null : "numbers")
-          : unsupported(ground) && !done(m.text) ? "unsupported" : null;
-    marks.push({ ...m, original, need, filled: need === "filled" ? filled : null, ground });
+    const candidate = filled ? "filled" : marked(s) ? "marked" : m.edited && !sameNumbers(original, m.text) ? "numbers" : unsupported(ground) ? "unsupported" : null;
+    const by = candidate === "marked" ? (seen.has(m.text) ? "seen" : m.edited ? doneBy(m.text) : null) : candidate ? doneBy(m.text) : null;
+    const need = by ? null : candidate;
+    const done: Done = by ?? (s.confirmed && s.kind !== "FACT" ? "server" : null);
+    marks.push({ ...m, original, need, filled: need === "filled" ? filled : null, ground, done, changed: changedSince(m.text, ground) });
   }
   const own: Own[] = grounds.filter(g => !marks.some(m => m.start < g.end && g.start < m.end))
-    .map(g => ({ index: g.index, start: g.start, end: g.end, text: g.text, ground: g.ground, need: unsupported(g.ground) && !done(g.text) ? "unsupported" : null }));
+    .map(g => {
+      const by = unsupported(g.ground) ? doneBy(g.text) : null;
+      return { index: g.index, start: g.start, end: g.end, text: g.text, ground: g.ground, need: unsupported(g.ground) && !by ? "unsupported" as const : null, done: by, changed: changedSince(g.text, g.ground) };
+    });
+  const taken = [...marks, ...own];
+  const drift = settled === null ? [] : splitSentences(text)
+    .filter(p => !taken.some(b => b.start < p.end && p.start < b.end) && !settled.includes(p.text)).map(p => ({ start: p.start, end: p.end }));
   const checks = [
     ...marks.filter(m => m.need).map(m => ({ start: m.start, selection: { kind: "sentence", index: m.index } as const })),
     ...own.filter(o => o.need).map(o => ({ start: o.start, selection: { kind: "own", index: o.index } as const })),
     ...chips.map(c => ({ start: c.start, selection: { kind: "blank", at: c.at } as const })),
   ].sort((a, b) => a.start - b.start);
-  return { marks, chips, own, checks };
+  return { marks, chips, own, drift, checks };
 }
 
 // 카드 머리줄 왼쪽 — 누가 쓴 문장 · 무슨 종류인가. 초안 생각과 근거 점검의 생각은 같은 범주라 같은 이름이다
@@ -163,6 +180,13 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
   const [hover, setHover] = useState<string | null>(null);
   // 좁은 폭에서 확인할 곳이 아닌 문장을 탭하면 시트 대신 「근거 보기」 버튼만 — 고치려고 탭할 때마다 시트가 키보드를 덮지 않게
   const [peek, setPeek] = useState<Selection>(null);
+  // 맞아요 누른 순간 그 문장을 잠깐 초록으로(FE#325)
+  const [flash, setFlash] = useState<string | null>(null);
+  useEffect(() => {
+    if (!flash) return;
+    const timer = setTimeout(() => setFlash(null), 1500);
+    return () => clearTimeout(timer);
+  }, [flash]);
   const [prefill, setPrefill] = useState<{ at: number; text: string } | null>(null);
   const [announce, setAnnounce] = useState("");
   const programmatic = useRef(false);
@@ -316,18 +340,29 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
     setHover(key && !key.startsWith("b-") ? key : null);
   };
 
-  const lit = (key: string) => hover === key || (!!selected && keyOf(selected) === key);
+  const lit = (key: string) => hover === key || flash === key || (!!selected && keyOf(selected) === key) || (!!peek && keyOf(peek) === key);
+  // 평소엔 할 일(주황)만, 기준 뒤 고친 문장은 회색 점선. 마우스 올림 · 고름 · 맞아요 순간엔 꼬리표 색 배경(FE#325)
+  const tint = (key: string, need: boolean, ok: boolean) => !lit(key) ? null : flash === key || (!need && ok) ? "bg-evidence-soft" : need ? "bg-review-soft" : "bg-surface-soft";
+  const passed = (g: Ground | null) => !!g && !g.stale && (g.status === "SOURCE" || g.status === "USER_INPUT");
   const layerContent = (): ReactNode[] => {
     const out: ReactNode[] = [];
     let at = 0;
-    const blocks = [...marks.map(m => ({ start: m.start, m, o: null })), ...own.map(o => ({ start: o.start, m: null, o }))].sort((x, y) => x.start - y.start);
-    for (const { m, o } of blocks) {
+    const dotted = "underline decoration-dotted decoration-hairline decoration-2 underline-offset-[5px]";
+    const blocks = [...marks.map(m => ({ start: m.start, m, o: null, d: null })), ...own.map(o => ({ start: o.start, m: null, o, d: null })),
+      ...(analysis?.drift ?? []).map(d => ({ start: d.start, m: null, o: null, d }))].sort((x, y) => x.start - y.start);
+    for (const { m, o, d } of blocks) {
+      if (d) {
+        // 다 쓴 뒤 고친 그 밖의 문장 — 점선만
+        out.push(text.slice(at, d.start), <span key={`d-${d.start}`} className={dotted}>{text.slice(d.start, d.end)}</span>);
+        at = d.end;
+        continue;
+      }
       if (o) {
-        // 내가 쓴 문장 — 근거 없음만 칠하고, 나머지는 누를 수만 있다. 칠하기는 판정을 따르고 세기는 확인을 따른다(맞아요 · 다 쓴 답 뒤에도 칠한다 — FE#317)
+        // 내가 쓴 문장 — 확인 전 근거 없음만 칠한다. 확인 끝은 평소 표시 없음(마우스 올리면 초록)
+        const key = `g-${o.index}`;
         out.push(text.slice(at, o.start));
-        out.push(<span key={`g-${o.index}`} data-mark={`g-${o.index}`} className={cn("rounded-sm",
-          o.ground.status === "UNSUPPORTED" && !o.ground.stale && "bg-review-soft", o.ground.stale && "underline decoration-dotted decoration-hairline decoration-2 underline-offset-[5px]",
-          lit(`g-${o.index}`) && !(o.ground.status === "UNSUPPORTED" && !o.ground.stale) && "bg-surface-soft")}>{text.slice(o.start, o.end)}</span>);
+        out.push(<span key={key} data-mark={key} className={cn("rounded-sm", o.need ? "bg-review-soft" : o.changed && dotted,
+          tint(key, !!o.need, !!o.done || passed(o.ground)))}>{text.slice(o.start, o.end)}</span>);
         at = o.end;
         continue;
       }
@@ -343,19 +378,21 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
         k = c.end;
       }
       inner.push(text.slice(k, m.end));
+      const key = `s-${m.index}`;
       const strong = m.need === "marked" || m.need === "numbers" || m.need === "filled";
-      out.push(<span key={`s-${m.index}`} data-mark={`s-${m.index}`} className={cn("rounded-sm decoration-2 underline-offset-[5px]",
+      out.push(<span key={key} data-mark={key} className={cn("rounded-sm decoration-2 underline-offset-[5px]",
         strong && "underline decoration-review",
         m.need === "marked" && s.kind === "OPINION" && "decoration-dashed",
-        !strong && m.edited && "underline decoration-dotted decoration-hairline",
-        m.ground?.status === "UNSUPPORTED" && !m.ground.stale ? "bg-review-soft" : lit(`s-${m.index}`) && "bg-surface-soft")}>{inner}</span>);
+        m.need === "unsupported" && "bg-review-soft",
+        !m.need && m.changed && dotted,
+        tint(key, !!m.need, !!m.done || passed(m.ground)))}>{inner}</span>);
       at = m.end;
     }
     out.push(text.slice(at));
     return out;
   };
 
-  const card = selected && <DraftCard {...props} prefill={prefill} onWrite={chip => { open(null, false); select(chip.start, chip.end); }}
+  const card = selected && <DraftCard {...props} onFlash={key => { setFlash(key); setAnnounce("확인했어요"); }} prefill={prefill} onWrite={chip => { open(null, false); select(chip.start, chip.end); }}
     onClose={() => { onSelect(null); setSheet(false); setPrefill(null); }} />;
   return <>
     <div className="relative min-w-0">
@@ -373,9 +410,7 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
         onScroll={e => { if (layer.current) layer.current.scrollTop = e.currentTarget.scrollTop; }}
         className="relative block w-full min-w-0 resize-none overflow-hidden border-0 bg-transparent p-5 text-ui leading-[1.9] break-words whitespace-pre-wrap outline-none focus-visible:outline-none disabled:bg-surface-soft/60" />
     </div>
-    {peek !== null && !sheet && <div className="flex justify-end border-t border-hairline-soft px-3.5 py-1.5 lg:hidden">
-      <Button size="sm" variant="ghost" className="min-h-11 lg:min-h-10" onClick={() => { const sel = peek; setPeek(null); open(sel, true); }}>이 문장의 근거 보기</Button>
-    </div>}
+    {peek !== null && !sheet && <PeekBubble layer={layer} target={peek} onOpen={() => { const sel = peek; setPeek(null); open(sel, true); }} />}
     <p aria-live="polite" className="sr-only">{announce}</p>
     {/* 카드는 한 곳에만 그린다 — 넓은 폭은 글 아래, 좁은 폭은 하단 시트(두 곳에 그리면 입력칸 id 가 겹친다) */}
     {card && !sheet && <div className="border-t border-hairline-soft">{card}</div>}
@@ -392,25 +427,56 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
   </>;
 }
 
-type CardProps = EditorProps & { prefill: { at: number; text: string } | null; onWrite: (chip: Chip) => void; onClose: () => void };
+type CardProps = EditorProps & { prefill: { at: number; text: string } | null; onWrite: (chip: Chip) => void; onClose: () => void; onFlash: (key: string) => void };
+
+/** 좁은 폭 — 확인할 곳이 아닌 문장을 탭하면 그 문장 첫 줄 바로 위에 「근거 보기」 말풍선. 가상 키보드는 아래에서 올라와 위쪽은 가리지 않는다(FE#325).
+ *  보이는 영역(visualViewport) 안에서만, 위에 자리가 없으면 아래로 뒤집는다. 스크롤 · 키보드 오르내림에 다시 잰다 */
+function PeekBubble({ layer, target, onOpen }: { layer: RefObject<HTMLDivElement | null>; target: NonNullable<Selection>; onOpen: () => void }) {
+  const bubble = useRef<HTMLDivElement>(null);
+  const key = keyOf(target);
+  // 위치는 화면을 다시 그리지 않고 스타일로만 옮긴다(스크롤 · 키보드마다 불린다)
+  useLayoutEffect(() => {
+    const place = () => {
+      const el = bubble.current;
+      const line = layer.current?.querySelector(`[data-mark="${key}"]`)?.getClientRects()[0];
+      if (!el) return;
+      if (!line) { el.style.top = "-9999px"; return; }
+      const view = window.visualViewport;
+      const top0 = view?.offsetTop ?? 0, height = view?.height ?? window.innerHeight, width = view?.width ?? window.innerWidth;
+      const { height: h, width: w } = el.getBoundingClientRect();
+      const gap = 8, above = line.top - h - gap;
+      el.style.top = `${above >= top0 + gap ? above : Math.min(line.bottom + gap, top0 + height - h - gap)}px`;
+      el.style.left = `${Math.max(gap, Math.min(line.left, width - w - gap)) + (view?.offsetLeft ?? 0)}px`;
+    };
+    place();
+    const view = window.visualViewport;
+    window.addEventListener("scroll", place, true);
+    view?.addEventListener("resize", place);
+    view?.addEventListener("scroll", place);
+    return () => { window.removeEventListener("scroll", place, true); view?.removeEventListener("resize", place); view?.removeEventListener("scroll", place); };
+  }, [layer, key]);
+  return createPortal(<div ref={bubble} style={{ top: -9999, left: 0 }} className="fixed z-40 rounded-full border border-hairline bg-canvas shadow-float lg:hidden">
+    <Button size="sm" variant="ghost" className="min-h-11 rounded-full px-4" onMouseDown={e => e.preventDefault()} onClick={onOpen}>근거 보기</Button>
+  </div>, document.body);
+}
 
 /** 표시 하나의 카드 — 문장이면 근거 · 이유 · 주체 · 맞아요 · 빼기, 빈칸이면 질문과 답 칸 */
-function DraftCard({ question, draft, analysis, local, selected, onRemove, onAnswer, onConfirm, onConfirmOwn, onFilledFixed, onActorDecided, cardsDisabled: disabled, prefill, onWrite, onClose }: CardProps) {
+function DraftCard({ question, draft, analysis, local, selected, onRemove, onAnswer, onConfirm, onConfirmOwn, onFilledFixed, onActorDecided, cardsDisabled: disabled, prefill, onWrite, onClose, onFlash }: CardProps) {
   const close = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
   if (!analysis) return null;
   if (selected?.kind === "own") {
     const o = analysis.own.find(x => x.index === selected.index);
     if (!o) return null;
     return <div role="group" aria-label="문장 카드" onKeyDown={close} className="grid gap-3 p-4 lg:px-5">
-      <CardHead title="내가 쓴 문장" ground={o.ground} />
-      <GroundNotes ground={o.ground} />
+      <CardHead title="내가 쓴 문장" ground={o.ground} done={o.done} need={!!o.need} />
+      {o.done ? <DoneLine done={o.done} /> : <GroundNotes ground={o.ground} />}
+      {o.done && o.ground.note && <p className="m-0 text-note text-muted">AI 해석 — {o.ground.note}</p>}
       {o.ground.evidence.length > 0 && <div className={cn("grid min-w-0 gap-2", o.ground.stale && "opacity-60")}>
         {o.ground.evidence.map((e, j) => <AnswerEvidence key={`${e.type}-${e.id}-${j}`} evidence={e} questionId={question.id} />)}</div>}
       <div className="flex flex-wrap gap-2">
-        {o.need && <Button size="sm" className={inlineAction} disabled={disabled} onClick={() => { onConfirmOwn(o); onClose(); }}>맞아요</Button>}
+        {o.need && <Button size="sm" className={inlineAction} disabled={disabled} onClick={() => { onConfirmOwn(o); onFlash(`g-${o.index}`); }}>맞아요</Button>}
         <Button size="sm" variant="ghost" className="ml-auto hidden min-h-11 lg:min-h-10 lg:inline-flex" onClick={onClose}>닫기</Button>
       </div>
-      <AiNote />
     </div>;
   }
   if (!draft) return null;
@@ -433,7 +499,8 @@ function DraftCard({ question, draft, analysis, local, selected, onRemove, onAns
   const evidence = [...s.evidence, ...(mark.ground && !mark.ground.stale ? mark.ground.evidence : [])]
     .filter((e, i, all) => all.findIndex(x => x.type === e.type && x.id === e.id) === i);
   return <div role="group" aria-label="문장 카드" onKeyDown={close} className="grid gap-3 p-4 lg:px-5">
-    <CardHead title={`${title}${mark.edited ? " · 고친 문장" : ""}`} ground={mark.ground} />
+    <CardHead title={`${title}${mark.edited ? " · 고친 문장" : ""}`} ground={mark.ground} done={mark.done} need={!!mark.need} />
+    {mark.done && mark.done !== "server" && <DoneLine done={mark.done} />}
     {mark.edited && <p className="m-0 text-note leading-relaxed break-words text-muted">원래 문장 — {mark.original}</p>}
     {mark.need === "filled" && mark.filled && <FilledLine filled={mark.filled} onFixed={onFilledFixed} disabled={disabled} />}
     {mark.need === "numbers" && <p className="m-0 flex items-start gap-1.5 text-note leading-relaxed text-review">
@@ -441,50 +508,65 @@ function DraftCard({ question, draft, analysis, local, selected, onRemove, onAns
     {s.kind === "OPINION" && mark.need === "marked" && <p className="m-0 flex items-start gap-1.5 text-note leading-relaxed text-review">
       <WarningCircleIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />사실이 아니라 문항에 잇는 제안이에요. 맞는지 보고 고치거나 빼 주세요.</p>}
     {s.note && <p className="m-0 text-note leading-relaxed text-body">왜 확인이 필요한가요 — {s.note}</p>}
-    {mark.ground && <GroundNotes ground={mark.ground} />}
+    {mark.ground && !(mark.done && mark.ground.status === "UNSUPPORTED") && <GroundNotes ground={mark.ground} />}
     {s.kind !== "OPINION" && (evidence.length
-      ? <div className="grid min-w-0 gap-2">{mark.edited && <p className="m-0 text-note text-muted">원래 문장의 근거예요 — 고친 내용이 맞는지는 근거 점검으로 볼 수 있어요.</p>}
+      ? <div className="grid min-w-0 gap-2">{mark.edited && <p className="m-0 flex items-center gap-1 text-note text-muted">원래 문장의 근거
+          <InfoTip label="원래 문장의 근거">고친 내용이 이 근거와 맞는지는 근거 점검으로 볼 수 있어요.</InfoTip></p>}
         {evidence.map((e, j) => <AnswerEvidence key={`${e.type}-${e.id}-${j}`} evidence={e} questionId={question.id} question={question} />)}</div>
       : <p className="m-0 text-note text-muted">연결된 근거가 지금은 없어요. 문장은 만들었을 때 그대로예요.</p>)}
     {s.kind !== "OPINION" && <ActorLine sentence={s} edited={mark.edited} onDecided={onActorDecided} />}
     <div className="flex flex-wrap gap-2">
-      {mark.need && <ConfirmButton onConfirm={() => onConfirm(mark)} disabled={disabled} />}
-      <Button size="sm" variant="ghost" className="min-h-11 lg:min-h-10" disabled={disabled} onClick={() => { onRemove(mark); onClose(); }}>빼기</Button>
+      {mark.need && <ConfirmButton onConfirm={async () => { await onConfirm(mark); onFlash(`s-${mark.index}`); }} disabled={disabled} />}
+      <span className="inline-flex items-center">
+        <Button size="sm" variant="ghost" className="min-h-11 lg:min-h-10" disabled={disabled} onClick={() => { onRemove(mark); onClose(); }}>빼기</Button>
+        {mark.edited && <InfoTip label="빼기">빼고 다시 넣으면 원래 문장으로 돌아가요.</InfoTip>}
+      </span>
       <Button size="sm" variant="ghost" className="ml-auto hidden min-h-11 lg:min-h-10 lg:inline-flex" onClick={onClose}>닫기</Button>
     </div>
-    {mark.edited && <p className="m-0 text-note text-muted">빼고 다시 넣으면 원래 문장으로 돌아가요.</p>}
-    {mark.ground && <AiNote />}
   </div>;
 }
 
-/** 카드 머리줄 — 왼쪽은 누가 쓴 문장 · 종류(넓은 폭만, 좁은 폭은 시트 제목), 오른쪽은 근거 점검 꼬리표(점검 전이면 없다) */
-function CardHead({ title, ground }: { title: string; ground: Ground | null }) {
+/** 카드 머리줄 — 왼쪽은 누가 쓴 문장 · 종류(넓은 폭만, 좁은 폭은 시트 제목), 오른쪽은 꼬리표 하나 + ⓘ.
+ *  꼬리표 색은 상태 — 주황 확인해야 함 · 초록 괜찮음(확인함 · 점검 통과) · 회색 참고만(FE#325) */
+function CardHead({ title, ground, done, need }: { title: string; ground: Ground | null; done: Done; need: boolean }) {
   return <div className="flex flex-wrap items-center justify-between gap-2">
     <p className="m-0 hidden text-xs font-semibold text-muted lg:block">{title}</p>
-    {ground && <GroundTag ground={ground} />}
+    <span className="ml-auto inline-flex items-center">
+      <Tag ground={ground} done={done} need={need} />
+      {ground && <InfoTip label="근거 점검" align="end">점검 판정은 AI 해석이에요. 근거 없음은 거짓이라는 뜻이 아니에요.</InfoTip>}
+    </span>
   </div>;
 }
 
-/** 근거 점검 꼬리표(S-45) — 통과는 초록, 근거 없음은 주황, 생각 · 고치기 전 결과는 회색 */
-function GroundTag({ ground }: { ground: Ground }) {
-  const tone = ground.stale || ground.status === "OPINION" ? "bg-surface-soft text-muted"
-    : ground.status === "UNSUPPORTED" ? "bg-review-soft text-review" : "bg-evidence-soft text-evidence";
-  const text = ground.stale ? `고치기 전 결과 · ${GROUND_LABEL[ground.status]}`
-    : ground.status === "UNSUPPORTED" || ground.status === "OPINION" ? `점검 · ${GROUND_LABEL[ground.status]}` : `점검 ✓ ${GROUND_LABEL[ground.status]}`;
-  return <span className={cn("ml-auto inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold", tone)}>{text}</span>;
+function Tag({ ground, done, need }: { ground: Ground | null; done: Done; need: boolean }) {
+  const [tone, text] = ground?.stale ? ["gray", `고치기 전 결과 · ${GROUND_LABEL[ground.status]}`]
+    : done ? ["green", ground?.status === "UNSUPPORTED" ? "✓ 확인함 · 근거 없음" : "✓ 확인함"]
+      : need && ground?.status !== "UNSUPPORTED" ? ["orange", "확인 필요"]
+        : ground?.status === "UNSUPPORTED" ? ["orange", "점검 · 근거 없음"]
+          : ground?.status === "OPINION" ? ["gray", "점검 · 생각"]
+            : ground ? ["green", `점검 ✓ ${GROUND_LABEL[ground.status]}`] : [null, null];
+  if (!text) return null;
+  return <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+    tone === "orange" ? "bg-review-soft text-review" : tone === "green" ? "bg-evidence-soft text-evidence" : "bg-surface-soft text-muted")}>{text}</span>;
 }
 
-/** 판정에 따른 한 줄 — 근거 없음만 강조 상자. 근거 없음은 거짓이라는 뜻이 아니다 */
+/** 확인 끝 한 줄 — 맞아요(seen · server) · 다 쓴 답(settled) */
+function DoneLine({ done }: { done: NonNullable<Done> }) {
+  return <p className="m-0 flex items-start gap-1.5 text-note leading-relaxed text-evidence">
+    <CheckIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+    {done === "settled" ? "다 쓴 답에 넣은 문장이라 확인한 것으로 봤어요. 실제 있었던 일이면 아래 새 경험 후보에서 경험으로 저장할 수 있어요." : "맞아요 눌렀어요 — 이대로 둘게요."}
+  </p>;
+}
+
+/** 판정에 따른 한 줄 — 근거 없음만 강조 상자. 「AI 해석 · 거짓 아님」은 꼬리표 ⓘ 에 */
 function GroundNotes({ ground }: { ground: Ground }) {
   return <>
     {ground.stale ? <p className="m-0 text-note text-muted">고친 뒤로 아직 점검하지 않았어요 — 근거 점검을 다시 눌러 주세요.</p>
-      : ground.status === "UNSUPPORTED" ? <p className="m-0 rounded-sm bg-review-soft px-3 py-2.5 text-note text-review">지우거나, 사실이면 근거를 더해 주세요. 거짓이라는 뜻은 아니에요.</p>
+      : ground.status === "UNSUPPORTED" ? <p className="m-0 rounded-sm bg-review-soft px-3 py-2.5 text-note text-review">지우거나, 사실이면 근거를 더해 주세요.</p>
         : ground.status === "OPINION" && <p className="m-0 text-note text-body">사실이 아니라 생각 · 포부로 봤어요 — 근거가 없어도 돼요.</p>}
     {ground.note && <p className="m-0 text-note text-muted">AI 해석 — {ground.note}</p>}
   </>;
 }
-
-const AiNote = () => <p className="m-0 text-xs text-muted">점검 판정은 AI 해석이에요.</p>;
 
 function ConfirmButton({ onConfirm, disabled }: { onConfirm: () => Promise<void>; disabled: boolean }) {
   const [busy, setBusy] = useState(false);
@@ -556,9 +638,10 @@ function ActorLine({ sentence, edited, onDecided }: { sentence: DraftSentence; e
   </div>;
   return <div className="grid gap-2 rounded-sm bg-surface-soft px-3 py-2.5">
     {/* AI 보탬은 확인 전 「제가」를 쓴 문장이라 확인을 묻고, 근거 문장은 누가 했는지 쓰지 않았으니 선택으로만 보인다(FE#258) */}
-    <p className="m-0 text-note text-body">{edited ? "고친 문장이 아니라 근거 경험을 누가 했는지 정해요 — 정하면 그 경험만 바뀌어요."
-      : sentence.kind === "ELABORATED" ? "누가 했는지 확인 안 됨 — 정하면 이 문장의 근거 경험만 바뀌어요."
-        : "이 문장은 누가 했는지 쓰지 않았어요. 정해 두면 다음 초안이 「제가」 · 「팀은」으로 써요."}</p>
+    <p className="m-0 flex items-center gap-1 text-note text-body">{edited ? "근거 경험을 누가 했나요?" : sentence.kind === "ELABORATED" ? "누가 했는지 확인 안 됨" : "누가 했나요? (선택)"}
+      <InfoTip label="주체">{edited ? "고친 문장이 아니라 근거 경험을 누가 했는지 정해요 — 정하면 그 경험만 바뀌어요."
+        : sentence.kind === "ELABORATED" ? "정하면 이 문장의 근거 경험만 바뀌어요."
+          : "이 문장은 누가 했는지 쓰지 않았어요. 정해 두면 다음 초안이 「제가」 · 「팀은」으로 써요."}</InfoTip></p>
     {/* 근거 경험이 여럿이거나 고친 문장이면 경험 글을 같이 보인다 — 문장이 아니라 경험으로 판단한다 */}
     {unknown.length === 1 && !edited ? choose(unknown[0].experienceId) : <ul aria-label="근거 경험마다 주체 정하기" className="m-0 grid list-none gap-2.5 p-0">
       {unknown.map(e => <li key={e.experienceId} className="grid gap-1.5">
@@ -595,14 +678,14 @@ function BlankCard({ question, omission, local, onAnswer, onWrite, disabled, ini
     <p className="m-0 text-note leading-relaxed text-muted">{omission.text} — 자료에 없어 지어내지 않고 비워 뒀어요.</p>
     {done ? <p role="status" className="m-0 text-note text-body">{answer ? `답 · ${answer}` : "답했어요."} 경험에 보완으로 쌓였고, 다시 만들면 초안에 반영돼요.</p>
       : canAnswer ? <form className="grid gap-2" onSubmit={e => { e.preventDefault(); void save(); }}>
-        <label className="m-0 text-sm font-semibold" htmlFor={inputId}>{omission.question}</label>
+        <span className="flex items-center gap-1"><label className="m-0 text-sm font-semibold" htmlFor={inputId}>{omission.question}</label>
+          <InfoTip label="빈칸 답">빈칸은 여기서 답해요. 답은 경험에 보완으로 저장돼 다른 지원서에서도 근거로 쓰여요.</InfoTip></span>
         <div className="flex flex-wrap gap-1.5">
           <input id={inputId} type="text" value={text} maxLength={MAX_ANSWER_LENGTH} disabled={disabled} autoFocus={!!initial}
             onChange={e => { setText(e.target.value); setError(null); }} placeholder="짧게 답해 주세요"
             className="h-11 lg:h-10 min-w-0 flex-[1_1_160px] rounded-full bg-surface-soft px-3.5 text-base text-body outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--ink)] sm:text-sm" />
           <Button type="submit" size="sm" className={inlineAction} disabled={disabled}>답하기</Button>
         </div>
-        <p className="m-0 text-note text-muted">빈칸은 여기서 답해요. 답은 경험에 보완으로 저장돼 다른 지원서에서도 근거로 쓰여요.</p>
         {error && <p role="alert" className="m-0 text-note text-error">{error}</p>}
       </form>
         : <div className="grid justify-items-start gap-2">
