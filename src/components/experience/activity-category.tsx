@@ -19,11 +19,16 @@ export function categoryOf(activity: Pick<ActivitySummary, "category">): Activit
   return category && Object.hasOwn(ACTIVITY_CATEGORIES, category) ? category : null;
 }
 
-/** 「프로젝트 · 일 (AI 해석)」 — 미분류면 null */
-export function categoryText(activity: Pick<ActivitySummary, "category" | "categoryBy">) {
+/** 「프로젝트 · 일」 — 타임라인 줄에 쓴다. 「AI 해석」은 붙이지 않는다(고르는 자리인 세부에만 · FE#247). 미분류면 null */
+export function categoryName(activity: Pick<ActivitySummary, "category">) {
   const category = categoryOf(activity);
-  if (!category) return null;
-  return `${ACTIVITY_CATEGORIES[category]}${activity.categoryBy === "AI" ? " (AI 해석)" : ""}`;
+  return category ? ACTIVITY_CATEGORIES[category] : null;
+}
+
+/** 「프로젝트 · 일 (AI 해석)」 — 세부(읽기 전용)용. 미분류면 null */
+export function categoryText(activity: Pick<ActivitySummary, "category" | "categoryBy">) {
+  const name = categoryName(activity);
+  return name && `${name}${activity.categoryBy === "AI" ? " (AI 해석)" : ""}`;
 }
 
 /** 활동 이름 칩의 모양 — 분류색은 [data-category] 가 정한다. 회색 카드 위에서도 같은 분류색 칩(채팅 기준으로 통일) */
