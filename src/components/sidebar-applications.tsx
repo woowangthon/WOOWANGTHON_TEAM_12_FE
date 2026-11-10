@@ -73,7 +73,7 @@ export function SidebarApplicationText({ application }: { application: Applicati
 }
 export const sidebarApplicationRow = "grid w-full gap-0.5 rounded-sm px-3.5 py-2 text-left transition-colors";
 
-/** 사이드바 「최근 지원서」 — 어느 화면에서나 같은 자리. 최근 5개 + 「모든 지원서」(FE#347). 못 받으면 빈 목록이 아니라 오류 · 다시 시도(FE#147) */
+/** 사이드바 「최근 지원서」 — 어느 화면에서나 같은 자리. 최근 5개 — 전체는 위 「내 지원서」 메뉴(FE#347 · FE#364). 못 받으면 빈 목록이 아니라 오류 · 다시 시도(FE#147) */
 export function SidebarApplications({ applications, loading, error, onRetry, onNew, rows }: ApplicationsLoad & {
   onNew: () => void;
   /** 지원 화면의 줄(고르기 · 상태 바꾸기 — 거기서 최근 5개로 줄여 넘긴다). 없으면 그 지원으로 가는 링크 */
@@ -98,13 +98,9 @@ export function SidebarApplications({ applications, loading, error, onRetry, onN
         <Link href={`/questions?question=${a.questions[0].id}`} className={`${sidebarApplicationRow} hover:bg-canvas/60`}><SidebarApplicationText application={a} /></Link>
         <span className="pointer-events-none absolute top-2 right-1.5 inline-flex h-6 items-center rounded-full bg-surface-soft px-2.5 text-xs font-medium whitespace-nowrap text-body">{APPLICATION_STATUS_LABEL[a.applicationStatus]}</span>
       </li>)}</ul>}
-    {/* 0개로 확인됐으면 「모든 지원서」가 아니라 넣으러 가는 곳이라는 이름으로(FE#243) — /questions 의 지원서 넣는 칸.
-        그 밖(있음 · 불러오는 중 · 실패 · 목 모드)의 「모든 지원서」는 내 지원서(/applications, FE#347) */}
-    {(() => {
-      const none = !isMockMode() && !loading && !error && !applications.length;
-      return <Link href={none ? "/questions" : "/applications"} className="mt-1 inline-flex min-h-8 shrink-0 items-center self-start px-3.5 text-note text-muted hover:text-ink">
-        {none ? "첫 지원서 넣기" : "모든 지원서"}
-      </Link>;
-    })()}
+    {/* 0개로 확인됐으면 넣으러 가는 길(FE#243) — /questions 의 지원서 넣는 칸. 「모든 지원서」는 위 「내 지원서」 메뉴와 겹쳐 뺐다(FE#364) */}
+    {!isMockMode() && !loading && !error && !applications.length && <Link href="/questions" className="mt-1 inline-flex min-h-8 shrink-0 items-center self-start px-3.5 text-note text-muted hover:text-ink">
+      첫 지원서 넣기
+    </Link>}
   </section>;
 }

@@ -5,6 +5,7 @@
 import { useRef, useState } from "react";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { InfoTip } from "@/components/ui/info-tip";
 import { buildGitHubSource, fetchGitHubRepo, GitHubImportError, NO_COMMITS, parseLogin, parseRepoUrl, type GitHubErrorKind, type GitHubSource } from "@/lib/source-file/github";
 
 type GitHubState =
@@ -88,17 +89,20 @@ export function GitHubImport({ gh }: { gh: ReturnType<typeof useGitHubImport> })
           <input type="url" inputMode="url" value={gh.url} onChange={(e) => gh.setUrl(e.target.value)} placeholder="https://github.com/owner/repo" autoComplete="off" spellCheck={false} className={FIELD} />
         </label>
         <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
-          <label className="grid gap-1 text-note font-medium text-body">
-            내 GitHub 아이디 (선택)
-            <input value={gh.login} onChange={(e) => gh.setLogin(e.target.value)} placeholder="비우면 README 만 넣어요" autoComplete="off" autoCapitalize="off" spellCheck={false} className={FIELD} />
-          </label>
+          <div className="grid gap-1">
+            {/* 무엇을 읽는지는 ⓘ 로 접는다 — 창 안내와 같은 말을 두 번 하지 않는다(FE#364) */}
+            <span className="flex h-6 items-center gap-0.5 text-note font-medium text-body">
+              <label htmlFor="github-login">내 GitHub 아이디 (선택)</label>
+              <InfoTip label="GitHub 에서 읽는 것">
+                README 와, 아이디를 넣으면 그 레포 기본 브랜치에서 내가 쓴 커밋 · 연 PR 의 <b className="font-semibold">제목</b>만 읽어요. 코드 · 커밋 본문 · 이슈 · 리뷰 · 비공개 레포는 읽지 않아요.
+              </InfoTip>
+            </span>
+            <input id="github-login" value={gh.login} onChange={(e) => gh.setLogin(e.target.value)} placeholder="비우면 README 만 넣어요" autoComplete="off" autoCapitalize="off" spellCheck={false} className={FIELD} />
+          </div>
           <Button type="submit" variant="secondary" disabled={loading || !gh.url.trim()} className="max-lg:h-11">
             {loading ? "읽는 중…" : "읽어 오기"}
           </Button>
         </div>
-        <p className="m-0 text-note text-muted">
-          README 와, 아이디를 넣으면 그 레포 기본 브랜치에서 내가 쓴 커밋 · 연 PR 의 <b className="font-semibold">제목</b>만 읽어요. 코드 · 커밋 본문 · 이슈 · 리뷰는 읽지 않아요. 비공개 레포는 읽지 않아요.
-        </p>
       </form>
 
       {loading && <p className="m-0 text-note text-muted" role="status">GitHub 에서 읽어 오는 중…</p>}

@@ -25,7 +25,6 @@ export function ApplicationsScreen() {
   const list = useSidebarApplications(!mock);
   const [by, setBy] = useState<GroupBy>("period");
   const applications = list.applications;
-  const ready = !mock && !list.loading && !list.error;
   const newApplication = () => router.push("/questions?new=1");
 
   return (
@@ -33,10 +32,7 @@ export function ApplicationsScreen() {
       <AppHeader activePage="applications" applicationList={list} />
       <main className="mx-auto w-full max-w-4xl px-5 py-8 lg:px-8 lg:py-12">
         <div className="flex items-center justify-between gap-3">
-          <h1 className="m-0 flex items-baseline gap-2 text-display font-bold tracking-tight">
-            내 지원서
-            {ready && applications.length > 0 && <span className="text-sm font-normal tracking-normal text-muted tabular-nums">{applications.length}곳</span>}
-          </h1>
+          <h1 className="m-0 text-display font-bold tracking-tight">내 지원서</h1>
           <Button variant="secondary" onClick={newApplication} className="max-lg:h-11"><PlusIcon aria-hidden="true" />새 지원서</Button>
         </div>
 

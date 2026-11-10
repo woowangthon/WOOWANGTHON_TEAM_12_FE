@@ -2,13 +2,14 @@
 
 // 자료 넣기 — 붙여넣기 또는 .md · .txt · .pdf · .pptx 파일 최대 10개 (SPEC S-01 · S-39 · S-59). 분석을 시작하기 전에 외부 AI 로 보내진다는 걸 보인다 (S-16)
 // target 을 주면 활동 세부의 「자료 더하기」(S-60) — 붙여넣기 또는 파일 하나
-// mode="line" 은 「직접 기록하기」(FE#179) — 같은 자료 넣기의 한 줄 입구. 안내만 다르고 파일은 받지 않는다
+// 한 줄 기록도 같은 창이다 — 「직접 기록하기」(FE#179) 입구는 이 창에 합쳤다(FE#364)
 // 폴더 · Notion ZIP 가져오기(S-62 · S-63, FE#127) — 노트 목록에서 10개까지 고르면 파일 여러 개 넣기(S-59)와 같은 길로 넣는다
 // GitHub 레포 가져오기(S-64, FE#128) — 읽어 온 글을 미리 보고 「보내기」하면 자료 하나(POST /api/sources)로 넣는다
 // PC 는 가운데 대화창, 모바일은 아래에 붙는 시트(ui/dialog)
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { FileTextIcon, GithubLogoIcon, LockSimpleIcon, PaperclipIcon, XIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { InfoTip } from "@/components/ui/info-tip";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-gate";
@@ -36,8 +37,6 @@ const SUBMIT_ERRORS: Record<string, string> = {
 
 const tooLong = (text: string) => text.length > MAX_TEXT_LENGTH;
 
-export type SourceMode = "material" | "line";
-
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -48,17 +47,14 @@ type Props = {
   onMoveToApplication?: (text: string) => void;
   /** 「자료 더하기」 대상 활동 (S-60) */
   target?: { id: number; name: string };
-  /** 「직접 기록하기」로 열었는가. target 과 같이 쓰지 않는다 */
-  mode?: SourceMode;
 };
 
-export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initialText = "", onMoveToApplication, target, mode = "material" }: Props) {
-  const line = mode === "line";
+export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initialText = "", onMoveToApplication, target }: Props) {
   const maxFiles = target ? 1 : MAX_BATCH_SOURCES;
   const [text, setText] = useState(initialText);
   const { picks, reading, pick, remove, clear } = useFilePicks(maxFiles);
-  // 폴더 · ZIP 은 여러 개 넣는 자료 쌓기에서만 — 자료 더하기 · 직접 기록하기는 아니다
-  const canImport = !line && !target;
+  // 폴더 · ZIP 은 여러 개 넣는 자료 쌓기에서만 — 자료 더하기는 아니다
+  const canImport = !target;
   const notes = useNoteImport(maxFiles);
   /** 노트 목록을 보고 있다 — 목록이 다 만들어지면 창 안이 목록으로 바뀐다 */
   const [choosing, setChoosing] = useState(false);
@@ -125,7 +121,6 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
   const onDrop = (e: DragEvent) => {
     e.preventDefault();
     setDragging(false);
-    if (line) return;
     // 폴더나 .zip 하나를 끌어 놓으면 가져오기. drop 이벤트 안에서 바로 읽어야 한다
     const dropped = canImport ? droppedImport(e.dataTransfer) : null;
     if (dropped?.kind === "folder") importFolder(dropped.read);
@@ -185,16 +180,16 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
     <Dialog open={open} onOpenChange={changeOpen}>
       <DialogContent>
         <DialogHeader className="pr-10">
-          <DialogTitle>{target ? `「${target.name}」에 자료 더하기` : line ? "직접 기록하기" : "자료 쌓기"}</DialogTitle>
+          <DialogTitle>{target ? `「${target.name}」에 자료 더하기` : "자료 쌓기"}</DialogTitle>
+          {/* 안내는 한 줄 — 나머지는 ⓘ 로 접는다(FE#364) */}
           <DialogDescription className="text-ui text-body">
             {github
-              ? "공개 GitHub 레포의 README 와, 아이디를 넣으면 그 레포에서 내가 쓴 커밋 · 연 PR 의 제목을 읽어 자료 하나로 넣어요. 보내기 전에 넣을 글을 그대로 보여 드려요."
+              ? "공개 레포의 README 와 내 커밋 · PR 제목을 읽어 와요. 보내기 전에 그대로 보여 드려요."
               : picking
-              ? `넣을 노트를 ${maxFiles}개까지 골라 주세요. 고른 노트는 하나씩 차례로 분석하고, 근거에 폴더 안 경로가 보여요.`
+              ? `넣을 노트를 ${maxFiles}개까지 골라 주세요. 하나씩 차례로 분석해요.`
               : target
-              ? "이 활동에 대한 새 자료(회고 · 발표 자료 · README)를 넣으면, 이 활동의 경험으로 붙이고 근거를 더해요. 다른 활동 얘기가 섞여 있으면 새 활동으로 남기고 따로 알려 줄게요."
-              : line ? "오늘 한 일이나 든 생각을 한 줄로 적어 주세요. 활동과 그 안에서 한 일을 찾아 정리해 둘게요."
-              : "README · 회고 · 활동 정리 노트를 그대로 넣어 주세요. 활동과 그 안에서 한 일을 찾아 연도별로 정리해 둘게요."}
+              ? "이 활동의 새 자료를 넣으면 경험과 근거를 더해요."
+              : "한 줄 기록도, 회고 · 노트 전체도 괜찮아요. 활동과 한 일을 찾아 정리해 둘게요."}
           </DialogDescription>
         </DialogHeader>
 
@@ -206,7 +201,7 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
           className={cn("grid gap-2 rounded-sm", dragging && "outline-2 outline-offset-4 outline-ink")}
           onDragOver={(e) => {
             e.preventDefault();
-            if (!line) setDragging(true);
+            setDragging(true);
           }}
           onDragLeave={() => setDragging(false)}
           onDrop={onDrop}
@@ -219,10 +214,10 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
                 setText(e.target.value);
                 clearNotice();
               }}
-              placeholder={line ? "예) 오늘 스터디에서 처음 발표했다" : "예) 바꿔요 — 캠퍼스 중고거래 앱 회고\n기간: 2025-03 ~ 2025-06, 4명 팀. 나는 백엔드를 맡았다.\n- 채팅이 늦게 오는 문제를 WebSocket 으로 바꿔 해결했다"}
-              aria-label={line ? "기록할 내용" : "붙여넣을 자료"}
+              placeholder={"예) 오늘 스터디에서 처음 발표했다\n예) 바꿔요 앱 회고 — 백엔드, 채팅 지연을 WebSocket 으로 해결"}
+              aria-label="붙여넣을 자료"
               aria-invalid={!!pasteError}
-              className={cn("w-full resize-y rounded-sm border border-hairline px-3.5 py-3 text-base leading-relaxed outline-none placeholder:text-muted focus:border-ink focus:shadow-[0_0_0_1px_var(--ink)] disabled:bg-surface-soft disabled:text-muted", line ? "min-h-24" : "min-h-[150px]")}
+              className="min-h-32 w-full resize-y rounded-sm border border-hairline px-3.5 py-3 text-base leading-relaxed outline-none placeholder:text-muted focus:border-ink focus:shadow-[0_0_0_1px_var(--ink)] disabled:bg-surface-soft disabled:text-muted"
             />
             {usingFiles ? (
               text.trim() && <p className="m-0 text-note text-muted">파일을 빼면 적어 둔 글을 넣을 수 있어요.</p>
@@ -236,7 +231,7 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
             )}
           </div>
 
-          {!line && <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
             <label className={PICK_BUTTON}>
               <input
                 type="file"
@@ -268,16 +263,15 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
                 이 기기 안에서 {notes.state.status === "reading" && notes.state.from === "notion" ? "ZIP 을 풀어 " : ""}노트 목록을 만드는 중…
               </span>
             ) : (
-              <span className="text-note text-muted">
-                {SOURCE_FILE_LABEL} {maxFiles > 1 ? `${maxFiles}개까지` : "하나"} · 스캔한 PDF 는 읽지 못해요
-              </span>
+              <InfoTip label="넣을 수 있는 파일" className="-ml-1.5">
+                <span className="grid gap-1.5">
+                  <span>{SOURCE_FILE_LABEL} {maxFiles > 1 ? `${maxFiles}개까지` : "하나"} · 스캔한 PDF 는 읽지 못해요.</span>
+                  {canImport && <span>폴더는 하위 폴더까지 읽고 점(.)으로 시작하는 폴더는 빼요.</span>}
+                  {canImport && <span>Notion 은 페이지 ⋯ → 내보내기 → 「Markdown &amp; CSV」로 받은 .zip 을 올려 주세요.</span>}
+                </span>
+              </InfoTip>
             )}
-          </div>}
-          {canImport && (
-            <p className="m-0 text-note text-muted">
-              폴더는 하위 폴더까지 읽고 점(.)으로 시작하는 폴더는 빼요. Notion 은 페이지 ⋯ → 내보내기 → 「Markdown & CSV」로 받은 .zip 을 올려 주세요.
-            </p>
-          )}
+          </div>
           {notes.state.status === "error" && <p className="m-0 text-note text-error" role="alert">{notes.state.message}</p>}
           {notes.state.status === "ready" && !reading && (
             <Button variant="link" size="sm" className="justify-self-start" onClick={() => setChoosing(true)}>
@@ -305,11 +299,12 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
         )}
 
         {/* S-16 — 분석을 시작하기 전에, 외부 AI 로 보내진다는 것을 보인다 */}
-        <p className="m-0 flex gap-2.5 rounded-sm bg-surface-soft px-3.5 py-3 text-note leading-relaxed text-body">
+        {/* 제공사 · 비공개 자료 주의는 늘 보이고, 학습에 쓰지 않는다는 설명만 ⓘ 로 접는다(FE#364) */}
+        <p className="m-0 flex items-start gap-2 text-note leading-relaxed text-muted">
           <LockSimpleIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <span>
-            넣은 자료는 분석을 위해 외부 AI 제공사(<b className="font-semibold">OpenAI</b>)로 보내져요. OpenAI API 는 보낸 내용을
-            AI 학습에 쓰지 않아요. 회사 · 고객의 비공개 자료는 빼고 넣어 주세요.
+            분석을 위해 외부 AI(<b className="font-semibold text-body">OpenAI</b>)로 보내져요. 회사 · 고객의 비공개 자료는 빼 주세요.
+            <InfoTip label="외부 AI 전송" className="align-middle">OpenAI API 는 보낸 내용을 AI 학습에 쓰지 않아요.</InfoTip>
           </span>
         </p>
         {left !== null && (

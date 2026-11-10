@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArchiveIcon, FileTextIcon, FilesIcon, HouseIcon, PaperclipIcon, PencilSimpleIcon, PlusIcon, StackIcon, PlugsConnectedIcon, SidebarSimpleIcon } from "@phosphor-icons/react";
+import { ArchiveIcon, FileTextIcon, FilesIcon, HouseIcon, PaperclipIcon, PlusIcon, StackIcon, PlugsConnectedIcon, SidebarSimpleIcon } from "@phosphor-icons/react";
 import { DropdownMenu, Tooltip } from "radix-ui";
 import { AccountMenu } from "@/components/auth/account-menu";
 import { QuickFindButton, useQuickFindActions, type QuickFindActions } from "@/components/quick-find/quick-find";
@@ -31,7 +31,9 @@ type HeaderProps = {
   quickFind?: Pick<QuickFindActions, "openActivity">;
 };
 type SidebarProps = Pick<HeaderProps, "activePage" | "experienceCount"> & {
-  list: React.ReactNode; onAddSource: () => void; onRecord: () => void; addSourceBusy?: boolean; onNewApplication: () => void;
+  /** 「내 지원서」 옆 숫자 — 내 경험과 같이(FE#364). 받는 중 · 실패면 비운다 */
+  applicationCount: number | null;
+  list: React.ReactNode; onAddSource: () => void; addSourceBusy?: boolean; onNewApplication: () => void;
 };
 const tabs: { page: Page; href: string; label: string; icon: React.ReactNode }[] = [
   { page: "home", href: "/", label: "홈", icon: <HouseIcon /> },
@@ -55,12 +57,12 @@ export function AppHeader({ hideTabBar, panelToggle, addSource, applicationList,
   const { wide, desktop } = useSidebar();
   const router = useRouter();
   const ownList = useSidebarApplications(desktop && !applicationList);
+  const applications = applicationList ?? ownList;
   const ownCount = useExperienceCount(desktop && experienceCount === undefined);
   const page = activePage ?? "timeline";
   const newApplication = onNewApplication ?? (() => router.push("/questions?new=1"));
   const onAddSource = addSource?.onClick ?? (() => router.push("/experience?add=1"));
-  const onRecord = addSource?.onRecord ?? (() => router.push("/experience?add=line"));
-  useQuickFindActions({ ...quickFind, addSource: addSource?.onClick, addRecord: addSource?.onRecord, addSourceBusy: addSource?.busy, newApplication: onNewApplication });
+  useQuickFindActions({ ...quickFind, addSource: addSource?.onClick, addSourceBusy: addSource?.busy, newApplication: onNewApplication });
   return <Tooltip.Provider delayDuration={200}>
     {/* 1024 미만 — 한 줄. 높이는 스크롤해도 붙어 있는 줄 하나(45px)로 두어 본화면을 줄이지 않는다(FE#201) */}
     <header className="sticky top-0 z-40 flex h-11.25 items-center gap-1 border-b border-hairline bg-canvas pr-2 pl-4 lg:hidden">
@@ -78,9 +80,10 @@ export function AppHeader({ hideTabBar, panelToggle, addSource, applicationList,
       <div data-slot="header-actions" className="ml-auto flex min-w-0 items-center gap-2">{desktop && <WorkStatus>{panelToggle}<QuickFindButton /></WorkStatus>}</div>
     </header>
     <DesktopSidebar key={wide ? "wide" : desktop ? "rail" : "mobile"} activePage={page} experienceCount={experienceCount === undefined ? ownCount : experienceCount}
-      onAddSource={onAddSource} onRecord={onRecord} addSourceBusy={addSource?.busy} onNewApplication={newApplication}
-      list={<SidebarApplications {...(applicationList ?? ownList)} onNew={newApplication} />} />
-    {!desktop && !hideTabBar && <TabBar page={page} busy={addSource?.busy} onAddSource={onAddSource} onRecord={onRecord} onNewApplication={newApplication} />}
+      applicationCount={applications.loading || applications.error ? null : applications.applications.length}
+      onAddSource={onAddSource} addSourceBusy={addSource?.busy} onNewApplication={newApplication}
+      list={<SidebarApplications {...applications} onNew={newApplication} />} />
+    {!desktop && !hideTabBar && <TabBar page={page} busy={addSource?.busy} onAddSource={onAddSource} onNewApplication={newApplication} />}
   </Tooltip.Provider>;
 }
 
@@ -132,9 +135,9 @@ function DesktopSidebar(props: SidebarProps) {
   </>;
 }
 
-function SidebarNavigation({ collapsed = false, activePage = "timeline", experienceCount, onAddSource, onRecord, addSourceBusy, onNewApplication, onNavigate, id }: SidebarProps & { collapsed?: boolean; onNavigate?: () => void; id?: string }) {
+function SidebarNavigation({ collapsed = false, activePage = "timeline", experienceCount, applicationCount, onAddSource, addSourceBusy, onNewApplication, onNavigate, id }: SidebarProps & { collapsed?: boolean; onNavigate?: () => void; id?: string }) {
   return <nav id={id} className="relative flex shrink-0 flex-col gap-0.5" aria-label="주 메뉴">
-    <AddMenu side={collapsed ? "right" : "bottom"} align="start" busy={addSourceBusy} onAddSource={() => { onNavigate?.(); onAddSource(); }} onRecord={() => { onNavigate?.(); onRecord(); }} onNewApplication={() => { onNavigate?.(); onNewApplication(); }}>
+    <AddMenu side={collapsed ? "right" : "bottom"} align="start" busy={addSourceBusy} onAddSource={() => { onNavigate?.(); onAddSource(); }} onNewApplication={() => { onNavigate?.(); onNewApplication(); }}>
       <RailTip label="추가" enabled={collapsed}>
         <DropdownMenu.Trigger asChild>
           <button type="button" aria-label="추가" className={cn(navItem, "hover:bg-canvas/60 data-[state=open]:bg-canvas/60")}>
@@ -146,7 +149,7 @@ function SidebarNavigation({ collapsed = false, activePage = "timeline", experie
     </AddMenu>
     {/* 지원 화면(/questions)도 「내 지원서」 영역이다(FE#347) */}
     {sideLinks.map(l => <SideLink key={l.page} {...l} active={activePage === l.page || (l.page === "applications" && activePage === "questions")} collapsed={collapsed} onNavigate={onNavigate}
-      count={l.page === "timeline" ? experienceCount : null} />)}
+      count={l.page === "timeline" ? experienceCount : l.page === "applications" ? applicationCount : null} />)}
   </nav>;
 }
 
@@ -163,9 +166,10 @@ function SideLink({ href, label, icon, active, collapsed, count, railOnly, onNav
   </RailTip>;
 }
 
-/** 「+ 추가」 — 쌓기(자료 쌓기 · 직접 기록하기) · 꺼내기(새 지원서). 직접 기록하기는 같은 자료 넣기(S-01)의 한 줄 입구다(FE#179) */
-function AddMenu({ side, align, busy, onAddSource, onRecord, onNewApplication, children }: {
-  side: "right" | "bottom" | "top"; align: "start" | "center"; busy?: boolean; onAddSource: () => void; onRecord: () => void; onNewApplication: () => void; children: React.ReactNode;
+/** 「+ 추가」 — 쌓기(자료 쌓기) · 꺼내기(새 지원서). 한 줄 기록도 자료 쌓기 창에 적는다 — 「직접 기록하기」(FE#179)는 합쳤다(FE#364).
+ *  설명은 한 줄만. 항목 전체가 누르는 자리라 ⓘ 를 넣지 않는다 */
+function AddMenu({ side, align, busy, onAddSource, onNewApplication, children }: {
+  side: "right" | "bottom" | "top"; align: "start" | "center"; busy?: boolean; onAddSource: () => void; onNewApplication: () => void; children: React.ReactNode;
 }) {
   const item = "flex cursor-pointer gap-3 rounded-sm px-3 py-2.5 outline-none focus:bg-surface-soft data-disabled:cursor-default data-disabled:opacity-60";
   const text = (title: string, detail: string) => <span className="grid"><span className="text-sm leading-4 font-semibold text-ink">{title}</span><span className="text-note leading-normal text-muted">{detail}</span></span>;
@@ -177,17 +181,13 @@ function AddMenu({ side, align, busy, onAddSource, onRecord, onNewApplication, c
         <DropdownMenu.Label className={label}>쌓기</DropdownMenu.Label>
         <DropdownMenu.Item disabled={busy} onSelect={onAddSource} className={item}>
           <PaperclipIcon className="mt-px size-5 shrink-0" aria-hidden="true" />
-          {text("자료 쌓기", busy ? BUSY : "README · 회고 · 노트 파일 · 폴더 · Notion ZIP — AI 가 활동과 경험을 찾아요")}
-        </DropdownMenu.Item>
-        <DropdownMenu.Item disabled={busy} onSelect={onRecord} className={item}>
-          <PencilSimpleIcon className="mt-px size-5 shrink-0" aria-hidden="true" />
-          {text("직접 기록하기", busy ? BUSY : "오늘 한 일 · 든 생각 한 줄 — AI 가 활동과 경험을 찾아요")}
+          {text("자료 쌓기", busy ? BUSY : "한 줄 기록 · 노트 · 파일 · GitHub")}
         </DropdownMenu.Item>
         <DropdownMenu.Separator className="my-1 h-px bg-hairline" />
         <DropdownMenu.Label className={label}>꺼내기</DropdownMenu.Label>
         <DropdownMenu.Item onSelect={onNewApplication} className={item}>
           <FileTextIcon className="mt-px size-5 shrink-0" aria-hidden="true" />
-          {text("새 지원서", "지원처와 문항을 넣으면 맞는 경험을 근거와 함께 찾아요")}
+          {text("새 지원서", "문항 넣고 맞는 경험 찾기")}
         </DropdownMenu.Item>
       </DropdownMenu.Content>
     </DropdownMenu.Portal>
@@ -195,7 +195,7 @@ function AddMenu({ side, align, busy, onAddSource, onRecord, onNewApplication, c
 }
 
 /** 1024 미만 아래 탭바 — 위 막대의 글자 메뉴 · 내 경험의 떠 있는 버튼을 대신한다(FE#201) */
-function TabBar({ page, busy, onAddSource, onRecord, onNewApplication }: { page: Page; busy?: boolean; onAddSource: () => void; onRecord: () => void; onNewApplication: () => void }) {
+function TabBar({ page, busy, onAddSource, onNewApplication }: { page: Page; busy?: boolean; onAddSource: () => void; onNewApplication: () => void }) {
   const hidden = useHideOnScrollDown();
   const tab = "flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 text-xs font-medium";
   // 「지원서」 탭은 내 지원서와 지원 화면 둘 다에서 켜진다(FE#347)
@@ -208,7 +208,7 @@ function TabBar({ page, busy, onAddSource, onRecord, onNewApplication }: { page:
   // 바로 나오면 누르기가 탭바에 끝나 버튼이 안 눌린다 — 나오기를 200ms 늦춘다
   return <nav data-slot="tab-bar" aria-label="주 메뉴" className={cn("fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-hairline bg-canvas pb-[env(safe-area-inset-bottom,0px)] [transition:transform_150ms,visibility_0s_200ms] has-focus-visible:translate-y-0 motion-reduce:[transition:visibility_0s_200ms] lg:hidden [body:has(input:focus,textarea:focus)_&]:invisible", hidden && "translate-y-full")}>
     {link(tabs[0])}{link(tabs[1])}
-    <AddMenu side="top" align="center" busy={busy} onAddSource={onAddSource} onRecord={onRecord} onNewApplication={onNewApplication}>
+    <AddMenu side="top" align="center" busy={busy} onAddSource={onAddSource} onNewApplication={onNewApplication}>
       <DropdownMenu.Trigger asChild>
         <button type="button" aria-label="추가" className={cn(tab, "text-ink")}>
           <span className="flex size-9 items-center justify-center rounded-full bg-primary text-on-primary" aria-hidden="true"><PlusIcon className="size-5" /></span>
@@ -273,9 +273,9 @@ export function Logo({ className }: { className?: string }) {
   return <Image src="/brand/logo.svg" alt="차곡" width={93} height={26} className={className} style={{ width: "auto" }} priority />;
 }
 
-export type AddSourceProps = { onClick: () => void; onRecord: () => void; busy?: boolean };
+export type AddSourceProps = { onClick: () => void; busy?: boolean };
 
-export function AddSourceButton({ onClick, busy, className }: Omit<AddSourceProps, "onRecord"> & { className?: string }) {
+export function AddSourceButton({ onClick, busy, className }: AddSourceProps & { className?: string }) {
   return <Button onClick={onClick} disabled={busy} title={busy ? BUSY : undefined} className={className}>
     <PlusIcon />자료 쌓기
   </Button>;

@@ -86,7 +86,7 @@ test("못 넣는 파일은 이유를 보이고 나머지만 묶음으로 보낸�
   await expect(dialog.getByRole("alert").filter({ hasText: "문서.hwp" })).toContainText("넣을 수 없어요");
   await expect(dialog.getByRole("alert").filter({ hasText: "긴글.txt" })).toContainText("지금 50,001자");
   await expect(dialog.getByText("못 넣는 파일 2개는 빼고 3개만 넣어요.")).toBeVisible();
-  await expect(dialog.getByText("외부 AI 제공사")).toBeVisible();
+  await expect(dialog.getByText(/외부 AI\(OpenAI\)로 보내져요/)).toBeVisible();
   await page.screenshot({ path: `test-results/source-batch-pick-${test.info().project.name}.png`, style: "nextjs-portal { display: none !important; }" });
   await dialog.getByRole("button", { name: "이력서.txt 빼기" }).click();
   await dialog.getByRole("button", { name: "2개 넣기", exact: true }).click();
@@ -166,7 +166,7 @@ test("자료 더하기 — 같은 활동을 찾으면 그 활동 세부를 다�
   await page.getByRole("button", { name: "자료 더하기" }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByRole("heading", { name: "「바꿔요」에 자료 더하기" })).toBeVisible();
-  await expect(dialog.getByText("외부 AI 제공사")).toBeVisible();
+  await expect(dialog.getByText(/외부 AI\(OpenAI\)로 보내져요/)).toBeVisible();
   await dialog.getByLabel("붙여넣을 자료").fill("바꿔요 회고 더 쓴 것");
   await dialog.getByRole("button", { name: "넣기", exact: true }).click();
 

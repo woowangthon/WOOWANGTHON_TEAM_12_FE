@@ -247,26 +247,27 @@ test("PDF · PPTX 는 브라우저에서 글자를 뽑아 sections 와 함께 �
   }]);
 });
 
-// FE#179 — 「직접 기록하기」는 같은 자료 넣기의 한 줄 입구다. 파일을 받지 않고 같은 계약으로 보낸다
-test("direct record opens the one-line source dialog and submits like pasted text", async ({ page }, info) => {
+// FE#364 — 한 줄 기록도 자료 쌓기 창에 적는다(「직접 기록하기」 FE#179 를 합쳤다). 붙여 넣은 글과 같은 계약으로 보낸다
+test("a one-line record goes through the source dialog like pasted text", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop");
   const state = await setup(page);
   await page.getByRole("complementary", { name: "사이드바", exact: true }).getByRole("button", { name: "추가", exact: true }).click();
-  await page.getByRole("menuitem", { name: /^직접 기록하기/ }).click();
-  const dialog = page.getByRole("dialog", { name: "직접 기록하기" });
+  await expect(page.getByRole("menuitem")).toHaveText([/^자료 쌓기/, /^새 지원서/]);
+  await page.getByRole("menuitem", { name: /^자료 쌓기/ }).click();
+  const dialog = page.getByRole("dialog", { name: "자료 쌓기" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByText("파일 올리기")).toHaveCount(0);
-  await expect(dialog.getByText(/외부 AI 제공사/)).toBeVisible();
-  await dialog.getByLabel("기록할 내용").fill("오늘 스터디에서 처음 발표했다");
+  await expect(dialog.getByText(/외부 AI\(OpenAI\)로 보내져요/)).toBeVisible(); // S-16 — 접지 않고 보인다
+  await dialog.getByLabel("붙여넣을 자료").fill("오늘 스터디에서 처음 발표했다");
   await dialog.getByRole("button", { name: "넣기", exact: true }).click();
   await expect(page.getByRole("progressbar", { name: "분석 중" })).toBeVisible();
   expect(state.sources).toEqual([{ kind: "TEXT", name: null, text: "오늘 스터디에서 처음 발표했다" }]);
 });
 
-test("direct record from another screen reopens on the experience screen once", async ({ page }) => {
+// 예전 「직접 기록하기」 주소도 같은 자료 쌓기 창을 연다(FE#364)
+test("the old direct-record link opens the source dialog on the experience screen once", async ({ page }) => {
   await setup(page);
   await page.goto("/?add=line");
-  await expect(page.getByRole("dialog", { name: "직접 기록하기" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "자료 쌓기" })).toBeVisible();
   await expect(page).toHaveURL(/\/experience$/);
   await page.reload();
   await expect(page.getByRole("heading", { name: "어떤 일을 해 왔나요?" })).toBeVisible();
