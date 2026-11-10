@@ -55,7 +55,7 @@ export function Select<T extends string>({ value, options, onChange, placeholder
     </SelectPrimitive.Trigger>
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content position="popper" align="start" sideOffset={2} onCloseAutoFocus={onClosed && (e => { e.preventDefault(); onClosed(); })}
-        className="z-60 max-h-[min(20rem,var(--radix-select-content-available-height))] max-w-[calc(100vw-2rem)] min-w-(--radix-select-trigger-width) rounded-md border border-hairline bg-canvas p-1 shadow-float">
+        className="z-60 max-h-[min(20rem,var(--radix-select-content-available-height))] max-w-[calc(100vw-2rem)] min-w-(--radix-select-trigger-width) rounded-md border border-hairline bg-canvas p-2 shadow-float">
         <SelectPrimitive.Viewport>{sectionsOf(options).map((section, i) => <Fragment key={i}>
           {i > 0 && <SelectPrimitive.Separator className="mx-2.5 my-1 h-px bg-hairline" />}
           {section.group ? <SelectPrimitive.Group>

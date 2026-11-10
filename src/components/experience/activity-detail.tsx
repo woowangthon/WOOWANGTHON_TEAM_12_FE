@@ -95,7 +95,7 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
                 <Button variant="ghost" size="icon" className="size-11 lg:size-9" aria-label="활동 메뉴"><DotsThreeIcon /></Button>
               </DropdownMenu.Trigger>
               <DropdownMenu.Portal>
-                <DropdownMenu.Content align="end" sideOffset={4} className="z-50 min-w-40 rounded-md border border-hairline bg-canvas p-1 shadow-float">
+                <DropdownMenu.Content align="end" sideOffset={4} className="z-50 min-w-40 rounded-md border border-hairline bg-canvas p-2 shadow-float">
                   <DropdownMenu.Item onSelect={() => setHistoryOpen(true)} className="flex min-h-11 lg:min-h-10 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">수정 이력</DropdownMenu.Item>
                   {onMergeRequest && <DropdownMenu.Item onSelect={onMergeRequest} className="flex min-h-11 lg:min-h-10 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">다른 활동과 합치기</DropdownMenu.Item>}
                   {onDeleteRequest && <DropdownMenu.Item onSelect={onDeleteRequest} className="flex min-h-11 lg:min-h-10 cursor-pointer items-center rounded-sm px-3 text-sm text-error outline-none focus:bg-surface-soft">지우기</DropdownMenu.Item>}

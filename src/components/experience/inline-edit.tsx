@@ -237,7 +237,7 @@ export function ActorField({ experience: e, onSaved }: { experience: Experience;
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
-        <DropdownMenu.Content align="start" sideOffset={4} className="z-50 max-w-[calc(100vw-2rem)] min-w-40 rounded-md border border-hairline bg-canvas p-1 shadow-float">
+        <DropdownMenu.Content align="start" sideOffset={4} className="z-50 max-w-[calc(100vw-2rem)] min-w-40 rounded-md border border-hairline bg-canvas p-2 shadow-float">
           <DropdownMenu.Label className="px-3 pt-1.5 pb-1 text-xs text-muted">누가 한 일인가요?</DropdownMenu.Label>
           <DropdownMenu.RadioGroup value={e.actor} onValueChange={(v) => void save(v as Actor)}>
             {(Object.keys(ACTOR) as Actor[]).map((a) => <DropdownMenu.RadioItem key={a} value={a}

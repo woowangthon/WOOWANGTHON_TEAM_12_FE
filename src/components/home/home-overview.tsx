@@ -13,7 +13,7 @@ import type { HomeOverview } from "./use-home-overview";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "@/components/sidebar-layout";
 
-/** 내 경험 통계(S-83) — 쌓인 블록을 크게 보는 자리 */
+/** 내 경험 서랍(S-83) — 쌓인 블록을 크게 보는 자리 */
 const STATS_HREF = "/experience?view=stats";
 
 export function HomeMascot({ overview, onRefresh, mode }: { overview: HomeOverview; onRefresh: () => void; mode: "out" | "in" }) {
@@ -28,12 +28,12 @@ export function HomeMascot({ overview, onRefresh, mode }: { overview: HomeOvervi
         <div className="mb-2 flex items-center gap-0.5"><p className="m-0 text-sm font-semibold">쌓인 블록</p><InfoTip label="쌓인 블록">활동 시작 연도별 경험 수예요. 점선은 확인이 필요한 경험이에요.</InfoTip></div>
         {overview.activityError ? <p className="m-0 text-sm text-error">{overview.activityError} <Button variant="link" onClick={onRefresh}>다시 시도</Button></p>
           : total === undefined ? <p role="status" className="m-0 text-sm text-muted">경험을 불러오고 있어요…</p>
-          : <Link href={STATS_HREF} className="flex items-end gap-3" aria-label={`쌓인 경험 ${total}개 — 통계 보기`}>
+          : <Link href={STATS_HREF} className="flex items-end gap-3" aria-label={`쌓인 경험 ${total}개 — 서랍 열기`}>
             <ExperienceBlocks years={years} className="max-h-52 min-h-16 flex-1 overflow-y-auto py-1" />
             <span className="shrink-0 self-center text-right text-xs leading-relaxed text-muted"><b className="text-2xl text-ink">{total}</b>개의 경험이<br />차곡차곡</span>
           </Link>}
         {total === 0 && <p className="mt-2 mb-0 text-note text-muted">자료를 넣으면 경험 하나가 블록 하나로 쌓여요.</p>}
-        {!!total && <Link href={STATS_HREF} className="mt-2 inline-flex min-h-11 items-center gap-1 text-note font-medium text-ink underline underline-offset-4 lg:min-h-0">내 경험 통계 보기<ArrowRightIcon className="size-3.5" aria-hidden="true" /></Link>}
+        {!!total && <Link href={STATS_HREF} className="mt-2 inline-flex min-h-11 items-center gap-1 text-note font-medium text-ink underline underline-offset-4 lg:min-h-0">내 경험 서랍 열기<ArrowRightIcon className="size-3.5" aria-hidden="true" /></Link>}
         {overview.detailError && <p className="mt-2 mb-0 text-note text-error">{overview.detailError} <Button variant="link" onClick={onRefresh}>다시 시도</Button></p>}
       </Popover.Content></Popover.Portal>
     </Popover.Root>

@@ -46,7 +46,7 @@ export function ExperienceFilterBar({ value, onChange, years, clearable, onDone,
         </DropdownMenu.Trigger>
         <DropdownMenu.Portal>
           <DropdownMenu.Content align="start" sideOffset={4} onCloseAutoFocus={onDone && ((e) => { e.preventDefault(); onDone(); })}
-            className="z-50 max-h-[min(60dvh,420px)] min-w-40 overflow-auto rounded-md border border-hairline bg-canvas p-1 shadow-float">
+            className="z-50 max-h-[min(60dvh,420px)] min-w-40 overflow-auto rounded-md border border-hairline bg-canvas p-2 shadow-float">
             {(Object.keys(COMPETENCIES) as Competency[]).map((c) => (
               <DropdownMenu.CheckboxItem
                 key={c}

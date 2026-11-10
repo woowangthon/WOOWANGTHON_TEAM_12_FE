@@ -190,7 +190,7 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
             </DropdownMenu.Trigger>
             <DropdownMenu.Portal>
               {/* 순서: 켜고 끄는 것(저장 · 프로필) → 옮기기 · 합치기 → 지우기. 본문 고치기는 본문을 누르면 돼서 메뉴에 없다(FE#293) */}
-              <DropdownMenu.Content align="end" sideOffset={4} className="z-50 min-w-44 rounded-md border border-hairline bg-canvas p-1 shadow-float">
+              <DropdownMenu.Content align="end" sideOffset={4} className="z-50 min-w-44 rounded-md border border-hairline bg-canvas p-2 shadow-float">
                 <DropdownMenu.CheckboxItem checked={save.saved} disabled={save.busy} onSelect={() => void save.toggle()} className={MENU_ITEM}><MenuCheckBox />저장</DropdownMenu.CheckboxItem>
                 <ProfileMenuItems share={share} />
                 <DropdownMenu.Separator className="my-1 h-px bg-hairline" />
