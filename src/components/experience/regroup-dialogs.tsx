@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import type { ActivitySummary, Experience } from "@/lib/api/types";
+import type { ActivityDetail, ActivitySummary, Experience } from "@/lib/api/types";
 import { periodText } from "@/lib/period";
 
 export function MoveExperienceDialog({ experience, activities, onClose, onPick }: {
@@ -234,5 +234,63 @@ function Choice({ name, checked, onChange, title, sub }: { name: string; checked
         <span className="text-note text-muted tabular-nums">{sub}</span>
       </span>
     </label>
+  );
+}
+
+/** 활동 지우기(S-88) — 한 번에 지워지는 양이 많고 되살리는 API 가 없어, 같이 지워지는 개수를 보이고 확인받는다.
+ *  개수는 활동 세부의 경험 · 근거로 센다(계약 — 새 API 없음) */
+export function DeleteActivityDialog({ activity, open, onOpenChange, onDelete }: {
+  activity: ActivityDetail | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** 실패하면 던진다 — 창을 열어 둔 채 이유를 보여 준다. 활동은 그대로 */
+  onDelete: (id: number) => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const experiences = activity?.experiences ?? [];
+  const citations = experiences.reduce((sum, e) => sum + e.citations.length, 0);
+  const supplements = experiences.reduce((sum, e) => sum + (e.supplements?.length ?? 0), 0);
+
+  const change = (next: boolean) => {
+    if (busy) return;
+    if (!next) setError(null);
+    onOpenChange(next);
+  };
+
+  const submit = async () => {
+    if (!activity || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await onDelete(activity.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "지우지 못했어요. 다시 시도해 주세요.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={open && activity != null} onOpenChange={change}>
+      <DialogContent>
+        <DialogHeader className="pr-10">
+          <DialogTitle>활동 지우기</DialogTitle>
+          <DialogDescription className="text-ui text-body">「{activity?.name}」을 지울까요?</DialogDescription>
+        </DialogHeader>
+        <p className="m-0 rounded-sm bg-surface-soft px-3.5 py-3 text-sm leading-relaxed text-body">
+          {experiences.length === 0
+            ? "경험 없음 — 활동만 지워져요."
+            : `경험 ${experiences.length}개 · 근거 ${citations}개${supplements ? ` · 보완 ${supplements}개` : ""}도 같이 지워져요.`}
+          <br />
+          원본 자료는 남아요. 지운 뒤에는 되돌릴 수 없어요.
+        </p>
+        {error && <p className="m-0 text-sm font-medium text-error" role="alert">{error}</p>}
+        <DialogFooter>
+          <Button variant="link" onClick={() => change(false)} disabled={busy}>취소</Button>
+          <Button onClick={submit} disabled={busy}>{busy ? "지우는 중…" : error ? "다시 시도" : "지우기"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

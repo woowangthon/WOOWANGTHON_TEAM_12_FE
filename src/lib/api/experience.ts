@@ -229,6 +229,11 @@ export async function mergeActivities(keepId: number, fromId: number): Promise<A
   return activity;
 }
 
+/** DELETE /api/activities/{id} — 활동과 그 경험 · 근거 · 보완을 한 번에 지운다. 원본은 남고 되살리는 API 는 없다 (S-88) */
+export function deleteActivity(id: number): Promise<void> {
+  return request(`/activities/${id}`, undefined, "DELETE");
+}
+
 /** S-44 — 제안만 지우며 두 활동은 그대로 둔다. */
 export function dismissMergeSuggestion(id: number): Promise<void> {
   return request(`/activities/${id}/merge-suggestion`, undefined, "DELETE");
