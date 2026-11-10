@@ -1,4 +1,4 @@
-// 시험 전용 HTTP 응답 — 목표 글자 수 칸 · 「500자」 미리 채우기 · 재료 부족 안내 · 다시 만들기 무료 표시 · 활동 주체 정하기(FE#233, S-76 · S-77).
+// 시험 전용 HTTP 응답 — 목표 글자 수 칸 · 「500자」 미리 채우기 · 재료 부족 안내 · 다시 만들기 무료 표시 · 활동 주체 「누가 했나요?」(FE#233, S-76 · S-77).
 // 실제 BE 영속성 검증이 아니다.
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
@@ -128,13 +128,14 @@ async function openActivity(page: Page, fail = false) {
     const { experiences, ...rest } = state.activity;
     if (path === "/api/activities") return route.fulfill({ json: { activities: [{ ...rest, experienceCount: experiences.length }] } });
     if (path === "/api/activities/7" && request.method() === "GET") return route.fulfill({ json: structuredClone(state.activity) });
-    if (path === "/api/activities/7/actor" && request.method() === "POST") {
+    const edited = path.match(/^\/api\/experiences\/(\d+)$/);
+    if (edited && request.method() === "PATCH") {
       const body = request.postDataJSON() as { actor: "ME" | "TEAM" };
-      state.posts.push(body);
+      state.posts.push({ id: Number(edited[1]), ...body });
       if (fail) return route.fulfill({ status: 503, json: { error: { code: "INTERNAL_ERROR", message: "주체를 저장하지 못했어요." } } });
-      const changed = state.activity.experiences.filter(e => e.actor === "UNKNOWN").length;
-      state.activity.experiences = state.activity.experiences.map(e => e.actor === "UNKNOWN" ? { ...e, actor: body.actor } : e);
-      return route.fulfill({ json: { changed } });
+      const target = state.activity.experiences.find(e => e.id === Number(edited[1]))!;
+      target.actor = body.actor;
+      return route.fulfill({ json: structuredClone(target) });
     }
     return route.fulfill({ status: 404, json: { error: { code: "NOT_FOUND", message: "시험 경로 없음" } } });
   });
@@ -146,23 +147,17 @@ async function openActivity(page: Page, fail = false) {
   return state;
 }
 
-test("활동 세부에서 「누가 했는지 모름」 경험만 한 번에 내가 한 일로 정한다", async ({ page }) => {
+// 일괄 정하기(S-76)는 FE#327 근처에서 뺐다 — 주체를 모르는 경험은 줄에서 「누가 했나요?」로 보이고 그 자리에서 고른다(FE#359)
+test("활동 세부에서 주체를 모르는 경험만 「누가 했나요?」로 보이고, 하나를 고르면 그 경험만 바뀐다", async ({ page }) => {
   const state = await openActivity(page);
-  const box = page.getByRole("region", { name: "수행 주체 정하기" });
-  await expect(box).toContainText("누가 했는지 확인 안 된 경험 2개");
+  const unknown = page.getByRole("button", { name: "수행 주체 고치기: 알 수 없음" }).filter({ visible: true });
+  await expect(page.getByText("누가 했나요?", { exact: true }).filter({ visible: true })).toHaveCount(2);
+  await expect(page.getByRole("region", { name: "수행 주체 정하기" })).toHaveCount(0);
   await shot(page, "activity-actor");
-  await box.getByRole("button", { name: "이 활동의 일은 내가 했어요" }).click();
-  await expect(page.getByRole("status").filter({ hasText: "경험 2개를 내가 한 일로 정했어요" })).toBeVisible();
-  await expect(box).toHaveCount(0);
-  expect(state.posts).toEqual([{ actor: "ME" }]);
+  await unknown.first().click();
+  await page.getByRole("menuitemradio", { name: "나", exact: true }).click();
+  await expect(page.getByText("누가 했나요?", { exact: true }).filter({ visible: true })).toHaveCount(1);
+  expect(state.posts).toEqual([{ id: 114, actor: "ME" }]);
+  expect(state.activity.experiences.map(e => e.actor)).toEqual(["ME", "UNKNOWN", "TEAM"]);
   await shot(page, "activity-actor-done");
-});
-
-test("주체 정하기에 실패하면 이유를 보이고 경험은 그대로다", async ({ page }) => {
-  const state = await openActivity(page, true);
-  const box = page.getByRole("region", { name: "수행 주체 정하기" });
-  await box.getByRole("button", { name: "팀이 했어요" }).click();
-  await expect(box.getByRole("alert")).toContainText("주체를 저장하지 못했어요");
-  await expect(box).toContainText("누가 했는지 확인 안 된 경험 2개");
-  expect(state.posts).toEqual([{ actor: "TEAM" }]);
 });
