@@ -97,7 +97,7 @@ export function NotePicker({ label, notes, selection, max, onToggle }: {
           const { dir, name } = splitPath(note.path);
           return (
             <li key={note.path}>
-              <label className={cn("flex min-h-11 cursor-pointer items-start gap-3 rounded-sm px-3 py-2.5 hover:bg-surface-soft has-disabled:cursor-default has-disabled:opacity-50", checked && "bg-surface-soft")}>
+              <label className={cn("flex min-h-11 lg:min-h-10 cursor-pointer items-start gap-3 rounded-sm px-3 py-2.5 hover:bg-surface-soft has-disabled:cursor-default has-disabled:opacity-50", checked && "bg-surface-soft")}>
                 <input type="checkbox" checked={checked} disabled={!checked && full} onChange={() => onToggle(note.path)} className="mt-1 size-4 shrink-0 accent-[var(--ink)]" />
                 <span className="grid min-w-0 gap-0.5">
                   <span className="text-ui leading-snug break-words text-ink">{name}</span>

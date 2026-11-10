@@ -292,8 +292,9 @@ function PeriodLabel({ period }: { period: Period }) {
   return (
     <>
       {periodText({ start: period.start, end: null, ongoing: false })} –{" "}
-      <span className="ml-0.5 inline-flex items-center gap-1.5 font-semibold text-ink">
-        <span className="size-1.5 rounded-full bg-category" aria-hidden="true" />
+      {/* 점은 가운데, 글자는 날짜와 같은 기준선 — items-center 면 점이 기준선을 정해 글자가 내려간다 */}
+      <span className="ml-0.5 inline-flex items-baseline gap-1.5 font-semibold text-ink">
+        <span className="size-1.5 self-center rounded-full bg-category" aria-hidden="true" />
         진행 중
       </span>
     </>

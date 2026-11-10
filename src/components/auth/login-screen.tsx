@@ -9,7 +9,7 @@ import { authErrorMessage, login, signup, signupError, type Me } from "@/lib/api
 
 type Mode = "login" | "signup";
 
-const field = "min-h-11 w-full rounded-sm border border-hairline bg-canvas px-3 text-base outline-none focus:border-ink focus:shadow-[0_0_0_1px_var(--ink)]";
+const field = "min-h-11 lg:min-h-10 w-full rounded-sm border border-hairline bg-canvas px-3 text-base outline-none focus:border-ink focus:shadow-[0_0_0_1px_var(--ink)]";
 
 export function LoginScreen({ notice, onSignedIn }: { notice?: string; onSignedIn: (me: Me) => void }) {
   const [mode, setMode] = useState<Mode>("login");

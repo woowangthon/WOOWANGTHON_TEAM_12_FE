@@ -133,7 +133,7 @@ export function TargetLengthField({ value, onSave }: { value: number | null; onS
     if (next !== shown) void save(next);
   };
   return <>
-    {editing ? <span className="inline-flex min-h-11 items-center gap-1 text-xs">
+    {editing ? <span className="inline-flex min-h-11 lg:min-h-10 items-center gap-1 text-xs">
       <label htmlFor={id} className="sr-only">목표 글자 수</label>
       <input id={id} autoFocus inputMode="numeric" value={draft} placeholder="500" aria-invalid={invalid} aria-describedby={invalid ? `${id}-invalid` : undefined}
         onChange={e => { setDraft(e.target.value.replace(/[^\d]/g, "")); setInvalid(false); }}
@@ -143,7 +143,7 @@ export function TargetLengthField({ value, onSave }: { value: number | null; onS
       <span className="text-muted">자</span>
     </span>
       : <button type="button" onClick={open} disabled={!!pending} aria-label={shown === null ? "목표 글자 수 정하기" : `목표 ${shown}자 — 고치기`}
-        className="group inline-flex min-h-11 shrink-0 cursor-pointer items-center rounded-full disabled:cursor-default disabled:opacity-60">
+        className="group inline-flex min-h-11 lg:min-h-10 shrink-0 cursor-pointer items-center rounded-full disabled:cursor-default disabled:opacity-60">
         <span className={cn("inline-flex h-6 items-center rounded-full bg-surface-soft px-2.5 text-xs font-medium whitespace-nowrap tabular-nums", shown === null ? "text-muted" : "text-body")}>
           {shown === null ? "목표 글자 수" : `목표 ${shown.toLocaleString("ko-KR")}자`}
         </span>

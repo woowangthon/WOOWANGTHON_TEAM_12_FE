@@ -37,7 +37,7 @@ export function useProfileShare(e: Experience, onSaved: (experience: Experience)
 
 type Share = ReturnType<typeof useProfileShare>;
 
-export const MENU_ITEM = "flex min-h-11 cursor-pointer items-center gap-2 rounded-sm px-3 text-sm outline-none focus:bg-surface-soft data-disabled:cursor-default data-disabled:opacity-50";
+export const MENU_ITEM = "flex min-h-11 lg:min-h-10 cursor-pointer items-center gap-2 rounded-sm px-3 text-sm outline-none focus:bg-surface-soft data-disabled:cursor-default data-disabled:opacity-50";
 
 /** 메뉴 체크 항목의 네모 — 저장 · 프로필에 넣기가 같이 쓴다 */
 export function MenuCheckBox() {

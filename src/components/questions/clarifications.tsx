@@ -16,21 +16,24 @@ export type AnswerHandler = (clarificationId: number, answer: string) => Promise
 export const bubble = "m-0 grid max-w-[92%] gap-1.5 justify-self-start rounded-[4px_16px_16px_16px] border border-hairline-soft bg-canvas px-3.5 py-3 text-sm leading-relaxed text-body";
 
 /** 지원 화면의 줄 안 검은 버튼(답하기 · 맞아요 · 내가 했어요 …) — 글자 길이와 상관없이 같은 높이 · 최소 폭(FE#268) */
-export const inlineAction = "min-h-11 min-w-20";
+export const inlineAction = "min-h-11 lg:min-h-10 min-w-20";
 
-/** 답할 질문 상자 — 블록 안에서 이것만 상자로 강조한다 */
-export const openItem = "grid min-w-0 gap-2 rounded-sm bg-surface-soft p-3";
+/** 답할 질문 — 상자 안 상자를 만들지 않는다. 질문끼리는 목록(clarifyList)의 가는 선으로만 나눈다(FE#320) */
+export const openItem = "grid min-w-0 gap-2 py-3";
+
+/** 되묻기 목록 — 항목 사이 가는 선 */
+export const clarifyList = "m-0 grid list-none divide-y divide-hairline-soft p-0";
 
 /** 되묻기 묶음 — 머리에 무엇에 대한 되묻기인지 · 몇 개 · 답한 수. 답할 게 남았거나 확인할 답(attention)이 있으면 펼친 채 시작한다 */
 export function ClarifyBlock({ title, total, answered, attention = false, children }: { title: string; total: number; answered: number; attention?: boolean; children: ReactNode }) {
   const [open, setOpen] = useState(answered < total || attention);
   return <details open={open} onToggle={e => setOpen(e.currentTarget.open)} className="group/block min-w-0 rounded-sm border border-hairline bg-canvas">
-    <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3.5 py-2 [&::-webkit-details-marker]:hidden">
+    <summary className="flex min-h-11 lg:min-h-10 cursor-pointer list-none items-center gap-2 px-3.5 py-2 [&::-webkit-details-marker]:hidden">
       <CaretRightIcon aria-hidden="true" className="size-4 shrink-0 text-muted transition-transform group-open/block:rotate-90" />
       <span className="min-w-0 flex-1 text-sm font-semibold text-ink">{title}</span>
       <span className="shrink-0 text-xs text-muted tabular-nums">{total}개 · 답 {answered}</span>
     </summary>
-    <div className="grid min-w-0 gap-2 border-t border-hairline-soft px-3.5 pt-2.5 pb-3">{children}</div>
+    <div className="grid min-w-0 gap-2 border-t border-hairline-soft px-3.5 pb-1">{children}</div>
   </details>;
 }
 
@@ -39,7 +42,7 @@ export function ClarifyBlock({ title, total, answered, attention = false, childr
 export function AnsweredItem({ head, question, supplement, note }: { head?: ReactNode; question: string; supplement: Supplement | undefined; note: ReactNode }) {
   return <li className="min-w-0">
     <details className="group/item" open={!!supplement?.mcpChange || undefined}>
-      <summary className="flex min-h-11 cursor-pointer list-none items-start gap-2 py-2 text-sm text-body [&::-webkit-details-marker]:hidden">
+      <summary className="flex min-h-11 lg:min-h-10 cursor-pointer list-none items-start gap-2 py-2 text-sm text-body [&::-webkit-details-marker]:hidden">
         <CheckIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-evidence" />
         <span className="line-clamp-1 min-w-0 flex-1 break-words group-open/item:line-clamp-none">{question}</span>
         <span className="sr-only">답함</span>
@@ -80,15 +83,18 @@ export function AnswerForm({ label, disabled, onSave, after }: { label: string; 
   };
   if (skipped) return <div className="flex flex-wrap items-center gap-2">
     <span className="text-note text-muted">건너뛰었어요</span>
-    <Button variant="link" size="sm" className="min-h-11" onClick={() => setSkipped(false)}>다시 답하기</Button>
+    <Button variant="link" size="sm" className="min-h-11 lg:min-h-10" onClick={() => setSkipped(false)}>다시 답하기</Button>
   </div>;
   return <>
-    <form className="flex min-w-0 flex-wrap gap-1.5" onSubmit={e => { e.preventDefault(); void save(); }}>
+    {/* 입력칸은 한 줄을 다 쓰고(테두리 없이 옅은 바탕), 그 아래 오른쪽에 건너뛰기 · 답하기 */}
+    <form className="grid min-w-0 gap-2" onSubmit={e => { e.preventDefault(); void save(); }}>
       <input type="text" maxLength={MAX_ANSWER_LENGTH} value={text} disabled={saving || disabled} onChange={e => { setText(e.target.value); setError(null); }}
         aria-label={`답: ${label}`} placeholder="짧게 답해 주세요"
-        className="h-11 min-w-0 flex-[1_1_140px] rounded-full bg-canvas px-3.5 text-base text-body shadow-[inset_0_0_0_1px_var(--hairline)] outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--ink)] sm:text-sm" />
-      <Button type="submit" size="sm" className={inlineAction} disabled={saving || disabled}>{saving ? "쌓는 중…" : error ? "다시 시도" : "답하기"}</Button>
-      <Button type="button" variant="ghost" size="sm" className="min-h-11" disabled={saving} onClick={() => { setSkipped(true); setError(null); }}>건너뛰기</Button>
+        className="h-11 lg:h-10 w-full min-w-0 rounded-full bg-surface-soft px-3.5 text-base text-body outline-none placeholder:text-muted focus-visible:shadow-[inset_0_0_0_1px_var(--ink)] sm:text-sm" />
+      <div className="flex items-center justify-end gap-1">
+        <Button type="button" variant="ghost" size="sm" className="min-h-11 lg:min-h-10 px-3 text-muted hover:text-ink" disabled={saving} onClick={() => { setSkipped(true); setError(null); }}>건너뛰기</Button>
+        <Button type="submit" size="sm" className={inlineAction} disabled={saving || disabled}>{saving ? "쌓는 중…" : error ? "다시 시도" : "답하기"}</Button>
+      </div>
     </form>
     {error && <div className="grid justify-items-start gap-2">
       <p role="alert" className="m-0 text-note text-error">{error}</p>

@@ -168,17 +168,21 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
           <DotsSixVerticalIcon className="size-4" />
         </span>
       )}
+      {usedIn.length > 0 && <div className="flex">
+        <UsedInChip usedIn={usedIn} open={usedInOpen} onToggle={() => setUsedInOpen((v) => !v)} controls={`used-in-${e.id}`} />
+      </div>}
+      {usedInOpen && usedIn.length > 0 && <UsedInList usedIn={usedIn} id={`used-in-${e.id}`} />}
       <div className="flex items-start gap-2">
           <ExperienceContentField experience={e} readOnly={readOnly} onEditingChange={setEditing}
             onSaved={(result) => onSaved({ ...result, usedIn: result.usedIn ?? e.usedIn })} />
           {!readOnly && <>
           {/* 저장 · 프로필에 넣기는 「…」 메뉴 안(FE#272 · FE#293). 저장한 경험은 표시만 — 누르는 건 메뉴에서 */}
-          {save.saved && !editing && <span title="저장한 경험이에요" className="flex h-11 shrink-0 items-center text-ink">
+          {save.saved && !editing && <span title="저장한 경험이에요" className="flex h-11 lg:h-10 shrink-0 items-center text-ink">
             <BookmarkSimpleIcon className="size-4" weight="fill" aria-hidden="true" /><span className="sr-only">저장함</span>
           </span>}
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
-              <Button variant="ghost" size="icon" className="size-11" aria-label={`경험 메뉴: ${e.content}`}><DotsThreeIcon /></Button>
+              <Button variant="ghost" size="icon" className="size-11 lg:size-10" aria-label={`경험 메뉴: ${e.content}`}><DotsThreeIcon /></Button>
             </DropdownMenu.Trigger>
             <DropdownMenu.Portal>
               {/* 순서: 켜고 끄는 것(저장 · 프로필) → 옮기기 · 합치기 → 지우기. 본문 고치기는 본문을 누르면 돼서 메뉴에 없다(FE#293) */}
@@ -196,7 +200,6 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
       </div>
       <div className="flex flex-wrap items-center gap-1.5 text-note font-medium text-muted">
         <ExperienceMeta experience={e} edit={readOnly ? undefined : { experience: e, onSaved: (result) => onSaved({ ...result, usedIn: result.usedIn ?? e.usedIn }) }} />
-        <UsedInChip usedIn={usedIn} open={usedInOpen} onToggle={() => setUsedInOpen((v) => !v)} controls={`used-in-${e.id}`} />
         <span className="ml-auto inline-flex items-center gap-1.5">
         {!readOnly && e.origin?.type !== "ANSWER" && <SourceStatusIcon status={e.sourceStatus} />}
         {n === 0 ? (
@@ -227,7 +230,6 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
       {<ExperienceMcpChange experience={e} readOnly={readOnly} onSaved={onSaved} />}
       {!readOnly && <ProfileShareNote share={share} />}
       {!readOnly && save.error && <p role="alert" className="m-0 text-note font-medium text-error">{SAVE_ERROR}</p>}
-      {usedInOpen && usedIn.length > 0 && <UsedInList usedIn={usedIn} id={`used-in-${e.id}`} />}
       {citationsOpen && (
         <div className="mt-1.5 hidden lg:block">
           <CitationList citations={e.citations} readOnly={readOnly} />

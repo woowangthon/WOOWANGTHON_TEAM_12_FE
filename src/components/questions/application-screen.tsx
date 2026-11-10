@@ -165,7 +165,7 @@ export function ApplicationScreen() {
       {working ? <h1 className="sr-only">지원</h1> : <div className="mb-7 flex items-start justify-between gap-3">
         <div className="flex items-center gap-1"><h1 className="m-0 text-display leading-snug font-bold tracking-[-0.4px]">지원</h1><InfoTip label="지원">지원서의 문항마다 꺼내 볼 경험을 찾아요. 같은 경험도 문항마다 다른 점을 보여 줄 수 있어요.</InfoTip></div>
         {(empty || matching.error) && restoreRun !== null && <Button variant="secondary" onClick={() => setPanelChoice(!panelOpen)} aria-expanded={panelOpen}>차곡이</Button>}
-        {!empty && <Button className="min-h-11" disabled={composing || !!matching.error} onClick={startNew}><PlusIcon aria-hidden="true" />지원 넣기</Button>}
+        {!empty && <Button className="min-h-11 lg:min-h-10" disabled={composing || !!matching.error} onClick={startNew}><PlusIcon aria-hidden="true" />지원 넣기</Button>}
       </div>}
       {ready && matching.pollWarnings.map(warning => <div key={warning.id} role="alert" aria-label={warning.label}
         className="mb-4 flex flex-wrap items-center justify-between gap-3 border-y border-hairline py-3 text-sm">
@@ -188,7 +188,7 @@ export function ApplicationScreen() {
             const saved = await matching.submit(req);
             if (saved) { setComposing(false); scrollToDetail(); }
           }} /> : open ? <>
-            <button type="button" onClick={showList} className="mb-1 inline-flex min-h-11 items-center text-sm text-muted underline underline-offset-4 lg:hidden">지원 목록으로</button>
+            <button type="button" onClick={showList} className="mb-1 inline-flex min-h-11 lg:min-h-10 items-center text-sm text-muted underline underline-offset-4 lg:hidden">지원 목록으로</button>
             {/* 이름은 한 줄을 다 쓴다(길면 말줄임). 태그 · 넣은 날짜는 아랫줄, 문항 수는 탭이 보여 주니 뺀다(FE#271) */}
             <header className="grid min-w-0 gap-1">
               <OrganizationName key={`name-${open.application.id}`} application={open.application} onSave={req => matching.updateApplication(open.application.id, req)} />
@@ -288,13 +288,13 @@ function QuestionTabs({ questions, selectedId, adding, canAdd, onPick, onAdd }: 
       {questions.map((q, i) => {
         const active = q.id === selectedId;
         return <button key={q.id} type="button" role="tab" aria-selected={active} aria-controls="question-panel" title={q.text}
-          className={cn("inline-flex min-h-11 items-center gap-1.5 border-b-2 px-3 text-ui whitespace-nowrap", active ? "border-ink font-bold" : "border-transparent text-muted hover:text-ink")}
+          className={cn("inline-flex min-h-11 lg:min-h-10 items-center gap-1.5 border-b-2 px-3 text-ui whitespace-nowrap", active ? "border-ink font-bold" : "border-transparent text-muted hover:text-ink")}
           onClick={() => onPick(q.id)}>
           문항 {i + 1}<i className={cn("size-1.5 rounded-full", DOT[q.status])} aria-hidden="true" /><span className="sr-only">{STATUS[q.status]}</span>
         </button>;
       })}
       {canAdd && <button type="button" onClick={onAdd} aria-pressed={adding}
-        className={cn("inline-flex min-h-11 items-center gap-1 border-b-2 px-3 text-sm whitespace-nowrap", adding ? "border-ink font-bold" : "border-transparent text-muted hover:text-ink")}>
+        className={cn("inline-flex min-h-11 lg:min-h-10 items-center gap-1 border-b-2 px-3 text-sm whitespace-nowrap", adding ? "border-ink font-bold" : "border-transparent text-muted hover:text-ink")}>
         <PlusIcon aria-hidden="true" />문항 더하기
       </button>}
     </div>
@@ -369,7 +369,7 @@ function SelectedQuestion({ summary, question, application, index, loadError, on
       <AnswerSkeleton />
     </div>
       : question.status === "FAILED" ? <CenterState icon={<WarningCircleIcon className="text-error" />} title="문항을 분석하지 못했어요" body={failureText(question.error)}>
-        <Button className="min-h-11" disabled={retrying} onClick={async () => {
+        <Button className="min-h-11 lg:min-h-10" disabled={retrying} onClick={async () => {
           if (retryPending.current) return;
           retryPending.current = true; setRetrying(true); setRetryError(null);
           try { await onRetry(question.id); }

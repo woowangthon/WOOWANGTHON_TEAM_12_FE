@@ -69,7 +69,7 @@ export function ActivityLinks({ activity, readOnly = false, onOpenActivity }: {
               return (
                 <li key={l.id} className="grid gap-1">
                   <button type="button" onClick={() => onOpenActivity(otherId)}
-                    className="inline-flex min-h-11 items-center gap-1.5 self-start rounded-sm text-left text-sm font-medium text-ink underline-offset-4 hover:underline">
+                    className="inline-flex min-h-11 lg:min-h-10 items-center gap-1.5 self-start rounded-sm text-left text-sm font-medium text-ink underline-offset-4 hover:underline">
                     {l.fromActivityId === activity.id ? "이 마음이 이어진 곳" : "이 활동을 시작한 마음"} · {otherName}
                     <ArrowRightIcon className="size-[1.1em] shrink-0" aria-hidden="true" />
                   </button>
@@ -86,7 +86,7 @@ export function ActivityLinks({ activity, readOnly = false, onOpenActivity }: {
       {hasNote && !readOnly && (
         <div className="grid justify-items-start gap-2">
           {finding.status !== "loading" && finding.status !== "error" && (
-            <Button variant="secondary" size="sm" className="min-h-11" onClick={() => void find()}>
+            <Button variant="secondary" size="sm" className="min-h-11 lg:min-h-10" onClick={() => void find()}>
               <SparkleIcon />
               이어진 활동 찾아보기
             </Button>
@@ -100,7 +100,7 @@ export function ActivityLinks({ activity, readOnly = false, onOpenActivity }: {
           {finding.status === "error" && (
             <>
               <p role="alert" className="m-0 text-sm text-error">{finding.message}</p>
-              <Button variant="secondary" size="sm" className="min-h-11" onClick={() => void find()}>
+              <Button variant="secondary" size="sm" className="min-h-11 lg:min-h-10" onClick={() => void find()}>
                 <ArrowsClockwiseIcon />
                 다시 시도
               </Button>
@@ -152,14 +152,14 @@ function LinkSuggestion({ link, activityId, readOnly, onDecided }: {
       <p className="m-0 text-note leading-relaxed text-muted">{link.reason}</p>
       {!readOnly && (
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" className="min-h-11" disabled={busy} onClick={() => void decide("CONFIRMED")}>맞아요</Button>
-          <Button size="sm" variant="ghost" className="min-h-11" disabled={busy} onClick={() => void decide("REJECTED")}>아니에요</Button>
+          <Button size="sm" className="min-h-11 lg:min-h-10" disabled={busy} onClick={() => void decide("CONFIRMED")}>맞아요</Button>
+          <Button size="sm" variant="ghost" className="min-h-11 lg:min-h-10" disabled={busy} onClick={() => void decide("REJECTED")}>아니에요</Button>
         </div>
       )}
       {error && (
         <div className="grid justify-items-start gap-2">
           <p role="alert" className="m-0 text-sm text-error">{error.message}</p>
-          {error.retry && <Button size="sm" variant="secondary" className="min-h-11" disabled={busy} onClick={() => void decide(error.retry!)}>다시 시도</Button>}
+          {error.retry && <Button size="sm" variant="secondary" className="min-h-11 lg:min-h-10" disabled={busy} onClick={() => void decide(error.retry!)}>다시 시도</Button>}
         </div>
       )}
     </div>

@@ -486,7 +486,7 @@ test("status can be changed from the list without opening that application, and 
   expect(patches(api)).toEqual([["PATCH /api/applications/22", { applicationStatus: "UNKNOWN" }], ["PATCH /api/applications/22", { applicationStatus: "UNKNOWN" }]]);
 });
 
-test("status tags fit every width: 44 touch target, same look for passed and not passed, no sideways scroll", async ({ page }, info) => {
+test("status tags fit every width: touch target 44 under 1024 and 40 on PC, same look for passed and not passed, no sideways scroll", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "폭을 직접 바꾼다");
   const api = await fake(page);
   api.statuses.set(21, { applicationStatus: "PASSED", submittedMonth: "2025-02" });
@@ -498,7 +498,7 @@ test("status tags fit every width: 44 touch target, same look for passed and not
     const tags = page.getByLabel("지원 상태").filter({ visible: true });
     await expect(tags.first()).toBeVisible();
     await expect(page.getByText("2025년 2월 냄").filter({ visible: true }).first()).toBeVisible();
-    for (const tag of await tags.all()) expect((await tag.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    for (const tag of await tags.all()) expect((await tag.boundingBox())!.height).toBeGreaterThanOrEqual(width < 1024 ? 44 : 40);
     const look = (label: string) => page.getByLabel(label).filter({ visible: true }).first().locator("span").first().evaluate(el => {
       const { backgroundColor, color } = getComputedStyle(el);
       return { backgroundColor, color };
