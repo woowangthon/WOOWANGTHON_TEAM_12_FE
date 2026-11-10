@@ -96,7 +96,8 @@ test("헤더 「최근 수정」 — 접힌 요약 · 펼치면 바뀐 부분만
   // 전체 목록은 다 접혀 있다 — 요약 · 대상 · 누가만
   const experienceRow = dialog.getByRole("button", { name: /^본문을 고쳤어요/ });
   await expect(experienceRow).toHaveAttribute("aria-expanded", "false");
-  await expect(experienceRow).toContainText("경험 · 바꿔요 — 캠퍼스 중고거래 앱");
+  // 같은 활동에 경험이 여럿이어도 알아보게 본문 앞부분(그때 값)을 같이 보인다(FE#433)
+  await expect(experienceRow).toContainText("경험 「백엔드 API 중 채팅 · 거래 AP…」 · 바꿔요 — 캠퍼스 중고거래 앱");
   await expect(experienceRow).toContainText("Claude");
   await expect(dialog.getByRole("button", { name: "이때로 되돌리기" })).toHaveCount(0);
   await experienceRow.click();

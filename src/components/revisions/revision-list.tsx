@@ -39,8 +39,19 @@ function targetLink(r: Revision): { href: string; label: string } | null {
   return { href: `/questions?question=${r.targetId}`, label: "그 답 보기" };
 }
 
+/** 본문 앞부분 — 한 활동에 경험이 여럿이어도 어느 경험인지 알게(FE#433). 그때 값(after) 기준, 비면 before.
+ *  좁은 폭에서 줄 끝이 잘려도 남게 활동 이름보다 앞에 둔다 */
+const SNIPPET = 20;
+function snippet(text: string | undefined) {
+  const s = (text ?? "").replace(/\s+/g, " ").trim();
+  return s.length > SNIPPET ? `${s.slice(0, SNIPPET).trimEnd()}…` : s;
+}
+
 function targetName(r: Revision) {
-  if (r.targetType === "EXPERIENCE") return `경험 · ${r.target.activityName ?? "활동"}`;
+  if (r.targetType === "EXPERIENCE") {
+    const s = snippet(r.after.content || r.before.content);
+    return `경험${s ? ` 「${s}」` : ""} · ${r.target.activityName ?? "활동"}`;
+  }
   if (r.targetType === "ACTIVITY") return `활동 · ${r.after.name ?? r.before.name ?? ""}`;
   return `지원서 · ${r.target.organization || "지원처 미입력"} · ${r.target.questionText ?? "문항"}`;
 }
