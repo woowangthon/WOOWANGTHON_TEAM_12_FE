@@ -553,7 +553,7 @@ export function TimelineScreen() {
   const shownInDetail = selected != null && analysis.tracked?.targetActivityId === selected.id;
 
   return (
-    <div className="flex min-h-dvh flex-1 flex-col bg-canvas lg:h-dvh">
+    <div className="flex min-h-dvh flex-1 flex-col bg-canvas lg:h-dvh lg:flex-none">
       <AppHeader hideTabBar={!!selected} addSource={addSource} experienceCount={ready ? countExperiences(ready.activities) : null} quickFind={{ openActivity: select }} />
       {Number(params.get("workJob")) > 0 && !isMockMode() && <SourceWorkDetail key={params.get("workJob")} jobId={Number(params.get("workJob"))} activities={ready?.activities} onClose={closeWorkJob} onOpenActivity={(id) => { closeWorkJob(); select(id); }} />}
       {/* 실제 API 모드엔 안내 줄을 두지 않는다 — 목 모드 표시(대회 규칙 1)와 지원에서 온 길만 (FE#174) */}
@@ -561,7 +561,7 @@ export function TimelineScreen() {
         {isMockMode() && "목 모드 · 예시 데이터이며 서버에 저장할 수 없어요. 자료 쌓기·분석도 목 기능이에요."}
         {fromQuestion && <>{isMockMode() && " "}<Link href={`/questions?question=${fromQuestion}`} className="font-medium text-ink underline underline-offset-4">지원 화면으로 돌아가기</Link></>}
       </p>}
-      <div className={cn("flex-1 lg:grid lg:min-h-0", selected && "lg:grid-cols-[minmax(0,1fr)_440px]")}>
+      <div className={cn("flex-1 lg:grid lg:min-h-0 lg:grid-rows-[minmax(0,1fr)]", selected && "lg:grid-cols-[minmax(0,1fr)_440px]")}>
         <main
           className={cn(
             "min-w-0 px-4.5 pt-4.5 pb-24 lg:overflow-auto lg:px-8 lg:pt-8 lg:pb-16",
