@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import type { ActivitySummary, Experience, Period } from "@/lib/api/types";
 import { APPLICATION_STATUS_LABEL } from "@/lib/api/question-types";
 import { groupYear, periodText, type Span } from "@/lib/period";
-import { CategoryIcon, categoryOf, categoryText } from "./activity-category";
+import { CategoryIcon, categoryName, categoryOf } from "./activity-category";
 import type { TimelineApplication } from "./use-timeline-applications";
 
 type Edge = "start" | "end";
@@ -192,7 +192,7 @@ function Row({
   const droppable = drop.dragging != null && drop.dragging.activityId !== activity.id;
   const over = droppable && drop.overId === activity.id;
   const category = categoryOf(activity);
-  const label = categoryText(activity);
+  const label = categoryName(activity);
   const dragOver = (e: DragEvent) => {
     if (!droppable) return;
     e.preventDefault();

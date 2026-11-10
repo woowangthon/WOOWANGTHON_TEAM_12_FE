@@ -47,9 +47,10 @@ const row = (page: Page, name: string) => page.getByRole("button", { name: new R
 const chip = (page: Page, name: string) => page.getByRole("group", { name: "분류로 거르기" }).getByRole("button", { name, exact: true });
 const field = (page: Page) => page.getByRole("combobox", { name: "이 활동의 분류" });
 
-test("분류가 글자로도 보이고 AI 가 붙인 것은 「AI 해석」 · 필드 없는 활동도 깨지지 않는다", async ({ page }) => {
+test("분류 이름이 글자로 보이고 목록에는 「AI 해석」이 없다 · 필드 없는 활동도 깨지지 않는다 (FE#247)", async ({ page }) => {
   await setup(page);
-  await expect(row(page, "바꿔요 앱")).toContainText("프로젝트 · 일 (AI 해석)");
+  await expect(row(page, "바꿔요 앱")).toContainText("프로젝트 · 일");
+  await expect(row(page, "바꿔요 앱")).not.toContainText("AI 해석");
   await expect(row(page, "알고리즘 스터디")).toContainText("공부 · 성장");
   await expect(row(page, "알고리즘 스터디")).not.toContainText("AI 해석");
   await expect(row(page, "미분류 활동")).not.toContainText("AI 해석");
