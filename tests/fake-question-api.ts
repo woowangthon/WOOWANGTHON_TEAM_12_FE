@@ -135,6 +135,8 @@ export class FakeQuestionApi {
   private now(detail: QuestionDetail): QuestionDetail {
     const out = structuredClone(detail);
     for (const r of out.recommendations) r.experience.supplements = structuredClone(this.supplements.get(r.experience.id) ?? []);
+    // 초안 빠진 사실의 답한 보완도 지금 상태로(ETC#261) — 보조 재료 경험이어도 같다
+    for (const o of out.draft?.omitted ?? []) if (o.experienceId !== null) o.supplement = structuredClone(this.supplements.get(o.experienceId)?.find(s => s.id === o.supplementId) ?? null);
     return out;
   }
 

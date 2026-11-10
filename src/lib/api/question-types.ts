@@ -86,6 +86,10 @@ export type DraftOmission = {
   clarificationId: number | null; supplementId: number | null;
   /** 문장 속 빈칸(S-78) — 그 문장 text 에 글자 그대로 한 번 있는 「[결과]」와 문장 순번. 빈칸이 아니면 둘 다 null(이전 응답엔 없다) */
   placeholder?: string | null; sentenceIndex?: number | null;
+  /** BE 가 experienceId 로 붙이는 지금 상태(ETC#261) — 보조 재료 경험(S-75)은 추천에 없으니 이것으로 그린다. 경험이 없으면 null, 이전 응답엔 없다 */
+  activityId?: number | null; activityName?: string | null; experienceContent?: string | null;
+  /** supplementId 의 보완 — 안 답했거나 지웠으면 null */
+  supplement?: Supplement | null;
 };
 export type Draft = {
   /** 전환 전 서버의 저장 초안은 NONE / []로 표시한다. */

@@ -26,7 +26,7 @@ import type { DraftActions } from "./answer-draft";
 import type { AnswerHandler } from "./clarifications";
 import { QuestionResult } from "./question-result";
 import { SimilarAnswers } from "./similar-answers";
-import { ChagokPanel, Mascot, type SupplementOrigin } from "./chagok-panel";
+import { ChagokPanel, chagokAsks, Mascot, type SupplementOrigin } from "./chagok-panel";
 import { useApplications } from "./use-applications";
 import { useChagokRun } from "./use-chagok-run";
 import { useDraftPicks } from "./use-draft-picks";
@@ -116,8 +116,9 @@ export function ApplicationScreen() {
     }, 0);
     return () => clearTimeout(timer);
   }, [linkedArea, linkedQuestion, selectedQuestionId]);
-  const unanswered = (selected?.clarifications.filter(c => c.supplementId === null).length ?? 0)
-    + (selected?.draft?.status === "COMPLETED" ? selected.draft.omitted.filter(o => o.clarificationId !== null && o.supplementId === null).length : 0);
+  // 패널의 「차곡이가 물어볼 것」과 같은 질문을 센다(FE#383)
+  const asked = selected ? chagokAsks(selected) : null;
+  const unanswered = asked ? asked.total - asked.answered : 0;
   const picks = useDraftPicks(selected);
   const draftActions = {
     picks: picks.ids, onResetPicks: picks.reset,
