@@ -232,7 +232,7 @@ function ExperienceList({ activity, onSaved, onAdded, onDelete, onMove, onMerge,
         ) : experiences.length === 0 ? (
           <EmptyExperiences onAdd={readOnly ? undefined : () => setAdding(true)} />
         ) : !readOnly && (
-          <Button variant="ghost" className="w-full justify-start" onClick={() => { setShowAll(true); setAdding(true); }}><PlusIcon />경험 직접 추가</Button>
+          <Button variant="ghost" className="w-full justify-start lg:h-9" onClick={() => { setShowAll(true); setAdding(true); }}><PlusIcon />경험 직접 추가</Button>
         )}
       </div>
       {/* 경험이 0개면 빈 상태 안내가 같은 말을 하므로 숨긴다 (FE#22) */}

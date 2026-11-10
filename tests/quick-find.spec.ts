@@ -483,3 +483,33 @@ test("window fits at 1024 with the preview", async ({ page }, info) => {
   await expect(page.locator("[data-slot=quick-find-preview]")).toBeVisible();
   await capture(page, "find-1024");
 });
+
+// FE#278 — 결과를 아래로 내린 채 낱말을 바꾸거나 다른 결과로 옮기면 스크롤이 그대로라 맨 위(제목)가 안 보였다
+test("results and the preview start from the top again when the search or the picked row changes", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop");
+  const api = await setup(page);
+  const longCitations = Array.from({ length: 12 }, (_, k) => ({ ...WEBSOCKET.citations[0], id: 5000 + k, quote: `근거 ${k + 1} `.repeat(10) }));
+  api.search = { json: { total: 20, experiences: many(20).map(e => ({ ...e, citations: longCitations })) } };
+  await page.setViewportSize({ width: 1440, height: 560 });
+  await page.goto("/experience");
+  await openByButton(page);
+  await expect(rows(page)).toHaveCount(9); // 8 + 「더 보기」
+  const list = dialog(page).getByRole("listbox").locator("xpath=ancestor::div[contains(@class,'overflow-y-auto')][1]");
+  const preview = page.locator("[data-slot=quick-find-preview]");
+  const top = (target: typeof list) => target.evaluate(el => el.scrollTop);
+
+  // 낱말을 바꾸면 목록이 맨 위로
+  await list.evaluate(el => { el.scrollTop = el.scrollHeight; });
+  expect(await top(list)).toBeGreaterThan(0);
+  await box(page).fill("다른 낱말");
+  await expect.poll(() => api.searches.at(-1)).toBe("다른 낱말");
+  await expect.poll(() => top(list)).toBe(0);
+
+  // 다른 결과로 옮기면 오른쪽 미리 보기가 맨 위로
+  await expect(preview).toContainText("시험 경험 1");
+  await preview.evaluate(el => { el.scrollTop = el.scrollHeight; });
+  expect(await top(preview)).toBeGreaterThan(0);
+  await page.keyboard.press("ArrowDown");
+  await expect(preview).toContainText("시험 경험 2");
+  await expect.poll(() => top(preview)).toBe(0);
+});

@@ -48,6 +48,8 @@ export function QuickFindPanel({ asked, addSourceBusy, initial, onGo }: { asked:
   const [filters, setFilters] = useState<ExperienceFilters>(() => { const { query: _word, ...rest } = initial ?? {}; void _word; return rest; });
   const [years, setYears] = useState<number[]>([]);
   const input = useRef<HTMLInputElement>(null);
+  const resultList = useRef<HTMLDivElement>(null);
+  const previewBox = useRef<HTMLDivElement>(null);
   const query = word.trim();
   const search: ExperienceSearch = { query: query || undefined, ...filters };
   const { state, retry } = useExperienceSearch(search, { enabled: tab === "find" });
@@ -67,6 +69,11 @@ export function QuickFindPanel({ asked, addSourceBusy, initial, onGo }: { asked:
   const preview = tab === "find" ? found[current] : undefined;
 
   useEffect(() => { document.getElementById(optionId(current))?.scrollIntoView({ block: "nearest" }); }, [current]);
+  // 아래로 내린 채 다시 찾거나 다른 결과로 옮기면 스크롤이 그대로라 맨 위(제목)가 안 보인다 — 새로 보일 때는 맨 위부터(FE#278)
+  const searchKey = JSON.stringify(search);
+  useEffect(() => { if (resultList.current) resultList.current.scrollTop = 0; }, [searchKey, tab]);
+  const previewId = preview?.id;
+  useEffect(() => { if (previewBox.current) previewBox.current.scrollTop = 0; }, [previewId]);
   // 연도 목록만 쓴다 — 못 받아도 찾기는 되니 「모든 연도」로 둔다
   useEffect(() => {
     let live = true;
@@ -152,7 +159,7 @@ export function QuickFindPanel({ asked, addSourceBusy, initial, onGo }: { asked:
         </Option>)}
       </OptionList>
     </div> : <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-      <div className="min-h-0 overflow-y-auto p-2.5" aria-busy={refreshing}>
+      <div ref={resultList} className="min-h-0 overflow-y-auto p-2.5" aria-busy={refreshing}>
         {state.status === "loading" && <p role="status" className="p-3 text-sm text-muted">경험을 찾고 있어요…</p>}
         {state.status === "error" && <div role="alert" className="grid justify-items-start gap-2 p-3">
           <p className="m-0 text-sm text-error">경험을 찾지 못했어요. {state.message}</p>
@@ -178,7 +185,7 @@ export function QuickFindPanel({ asked, addSourceBusy, initial, onGo }: { asked:
         </>}
       </div>
       {/* 좁은 화면엔 자리가 없다 — 고르면 활동 세부에서 같은 내용을 본다 */}
-      <div data-slot="quick-find-preview" className={cn("hidden min-h-0 flex-col items-start gap-2 overflow-y-auto border-l border-hairline-soft p-5.5 transition-opacity duration-150 lg:flex", refreshing && "opacity-50")}>
+      <div ref={previewBox} data-slot="quick-find-preview" className={cn("hidden min-h-0 flex-col items-start gap-2 overflow-y-auto border-l border-hairline-soft p-5.5 transition-opacity duration-150 lg:flex", refreshing && "opacity-50")}>
         {preview && <Preview experience={preview} />}
       </div>
     </div>}
