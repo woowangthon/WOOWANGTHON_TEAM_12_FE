@@ -79,11 +79,11 @@ async function setupTimeline(page: Page) {
   return state;
 }
 
-// PR 스크린샷(FE413_SHOTS=1) — 폭마다 docs/fe-413/<이름>-<폭>.png
+// PR 스크린샷(FE424_SHOTS=1) — 폭마다 docs/fe-424/<이름>-<폭>.png
 const shot = async (page: Page, name: string) => {
-  if (process.env.FE413_SHOTS !== "1") return;
+  if (process.env.FE424_SHOTS !== "1") return;
   await page.waitForTimeout(400);
-  await page.screenshot({ path: `docs/fe-413/${name}-${page.viewportSize()!.width}.png`, animations: "disabled", caret: "hide" });
+  await page.screenshot({ path: `docs/fe-424/${name}-${page.viewportSize()!.width}.png`, animations: "disabled", caret: "hide" });
 };
 
 test("헤더 「최근 수정」 — 접힌 요약 · 펼치면 바뀐 부분만 · 더 보기 · 지운 항목은 못 감", async ({ page }) => {
@@ -199,6 +199,51 @@ test("띄어쓰기만 바뀐 수정 — 요약에 그렇게 적고 빈칸도 강
   await expect(dialog.getByRole("button", { name: /^본문 띄어쓰기를 고쳤어요/ })).toBeVisible();
   await expect(dialog.locator("ins")).toHaveCount(1);
   await expect(dialog.getByText("출처 상태 원문 확인 → 내가 입력")).toBeVisible();
+});
+
+test("넓은 화면 — 오른쪽 사이드바로 열리고, 활동을 누르거나 Esc · 다시 누르면 닫힌다", async ({ page }) => {
+  test.skip(test.info().project.name !== "desktop");
+  await setupTimeline(page);
+  const button = page.getByRole("button", { name: "최근 수정" }).filter({ visible: true });
+  await button.click();
+  const panel = page.getByRole("dialog", { name: "최근 수정" });
+  await expect(panel).toBeVisible();
+  // 머리 아래 오른쪽 끝에 붙은 사이드바 — 가운데 창이 아니다
+  const box = (await panel.boundingBox())!;
+  expect(Math.round(box.x + box.width)).toBe(page.viewportSize()!.width);
+  expect(box.y).toBeGreaterThanOrEqual(50);
+  await expect(button).toHaveAttribute("aria-expanded", "true");
+  await page.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+  await expect(button).toBeFocused();
+  // 다시 누르면 닫힌다
+  await button.click();
+  await expect(panel).toBeVisible();
+  await button.click();
+  await expect(panel).toHaveCount(0);
+  // 모달이 아니라 왼쪽 목록을 그대로 누를 수 있고, 활동을 누르면 자리를 활동 세부에 돌려준다
+  await button.click();
+  await page.getByRole("button", { name: /바꿔요/ }).first().click();
+  await expect(panel).toHaveCount(0);
+  await expect(page.getByRole("complementary", { name: "활동 세부" })).toBeVisible();
+});
+
+test("넓은 화면 — 답칸 이력을 연 채 차곡이를 누르면 차곡이로 돌아온다", async ({ page }) => {
+  test.skip(test.info().project.name !== "desktop");
+  const api = new FakeQuestionApi({ sameApplication: true });
+  await api.install(page);
+  await hideDevOverlay(page);
+  const state: State = { all: [], calls: [], restoreFail: "" };
+  await routeRevisions(page, state, () => ({}));
+  await page.goto("/questions?question=41");
+  const region = page.getByRole("region", { name: "내가 쓴 답", exact: true });
+  await expect(region.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toBeEnabled();
+  await region.getByRole("button", { name: "수정 이력" }).click();
+  const panel = page.getByRole("dialog", { name: "수정 이력" });
+  await expect(panel).toContainText("아직 고친 기록이 없어요");
+  await page.getByRole("button", { name: /^차곡이/ }).filter({ visible: true }).first().click();
+  await expect(panel).toHaveCount(0);
+  await expect(page.locator("#chagok-panel")).toBeVisible();
 });
 
 test("초안을 답칸에 넣은 저장에만 fromDraft 를 싣는다 — 그 뒤 고친 자동 저장은 싣지 않는다", async ({ page }) => {

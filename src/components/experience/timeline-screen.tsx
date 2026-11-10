@@ -36,6 +36,7 @@ import { rememberActivity } from "@/lib/home-overview";
 import { SourceWorkDetail } from "@/components/work/source-work-detail";
 import { useWorkRefresh } from "@/components/work/work-provider";
 import { SameActivityDialog, SuggestionLines, suggestionPairs } from "./merge-suggestion";
+import { closeRevisionPanel } from "@/components/revisions/revision-list";
 
 type ListState =
   | { status: "loading" }
@@ -282,6 +283,7 @@ export function TimelineScreen() {
   const narrow = () => !matchMedia("(min-width: 64rem)").matches;
 
   const select = (id: number) => {
+    closeRevisionPanel(); // 오른쪽 자리를 활동 세부에 돌려준다(FE#424)
     selectedRef.current = id;
     const full = narrow();
     if (selectedId == null && full) listScrollY.current = window.scrollY;
