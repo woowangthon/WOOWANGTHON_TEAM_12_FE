@@ -171,9 +171,10 @@ export function ChagokComposer({ control, hasQuestion }: { control: ChagokRunCon
         className="rounded-full border border-hairline-soft bg-surface-soft px-2.5 py-1 text-xs text-ink transition-colors hover:bg-surface-strong disabled:opacity-50">{p.label}</button>)}
     </div>}
     <form className="flex items-end gap-1.5 rounded-[20px] border border-hairline py-1 pr-1 pl-3.5" onSubmit={e => { e.preventDefault(); submit(); }}>
+      {/* 높이만 글에 맞춰 늘고(최대 128) 폭은 남은 자리로 고정 — 띄어쓰기 없는 긴 글도 줄을 바꿔 보내기 버튼을 밀지 않는다 */}
       <textarea rows={1} value={draft} onChange={e => control.setDraft(e.target.value)} onKeyDown={onKeyDown} aria-label="차곡이에게 부탁하기"
         placeholder="차곡이에게 부탁하기 — 예: WebSocket 경험 찾아 줘"
-        className="field-sizing-content max-h-32 min-h-[34px] min-w-0 flex-1 resize-none border-0 bg-transparent py-1.5 text-note leading-[22px] outline-0 placeholder:text-muted" />
+        className="field-sizing-content max-h-32 min-h-[34px] w-0 min-w-0 flex-1 resize-none border-0 [overflow-wrap:anywhere] bg-transparent py-1.5 text-note leading-[22px] outline-0 placeholder:text-muted" />
       <Button size="icon" className="size-[34px] shrink-0 rounded-full" type="submit" disabled={blocked || !draft.trim()} aria-label="보내기"><ArrowUpIcon aria-hidden="true" /></Button>
     </form>
   </div>;

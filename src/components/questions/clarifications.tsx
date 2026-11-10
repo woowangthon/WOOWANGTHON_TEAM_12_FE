@@ -4,11 +4,12 @@
 // 말풍선을 한 줄씩 쌓지 않고 블록 하나(문항 · 초안)로 묶는다 — 답한 것은 접힌 한 줄, 답할 것만 상자로 강조(FE#268)
 import { useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { CaretRightIcon, CheckIcon } from "@phosphor-icons/react";
+import { ArrowUpIcon, CaretRightIcon, CheckIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { MCP_ANSWER_NOTE, mcpAnswerName } from "@/components/experience/supplement-list";
 import { mcpClientName } from "@/lib/api/mcp";
 import { MAX_ANSWER_LENGTH, type Clarification, type QuestionExperience, type Supplement } from "@/lib/api/question-types";
+import { cn } from "@/lib/utils";
 import { ActivityChip, shortName } from "./question-result";
 
 export type AnswerHandler = (clarificationId: number, answer: string) => Promise<void>;
@@ -67,34 +68,34 @@ export function SupplementNote({ supplement, activityId, activityName }: { suppl
   return <p className="m-0 text-muted">{activityName ? `「${shortName(activityName)}」 경험에 ` : "경험에 "}보완으로 쌓았어요. 다른 지원서에서도 이 답을 근거로 같이 써요.</p>;
 }
 
-/** 답할 질문의 입력 줄 — 문항 · 초안 되묻기가 같이 쓴다. onSave 는 오류 문구를 돌려준다(성공이면 null) */
-export function AnswerForm({ label, disabled, onSave, after }: { label: string; disabled: boolean; onSave: (text: string) => Promise<string | null>; after?: ReactNode }) {
+/** 답할 질문 — 활동 칩 · 질문 · 입력칸. 문항 · 초안 되묻기가 같이 쓴다.
+ *  답은 선택이라 건너뛰기 버튼이 없다 — 비워 두면 아무것도 보내지 않는다(S-22 · S-23).
+ *  보내기는 글을 쓴 칸에만 입력칸 안 오른쪽에 나타난다 — 질문마다 같은 버튼이 줄지어 보이지 않게(FE#320).
+ *  onSave 는 오류 문구를 돌려준다(성공이면 null) */
+export function AnswerForm({ head, question, label, disabled, onSave, after }: { head: ReactNode; question: ReactNode; label: string; disabled: boolean; onSave: (text: string) => Promise<string | null>; after?: ReactNode }) {
   const [text, setText] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [skipped, setSkipped] = useState(false);
   const pending = useRef(false);
+  const ready = text.trim().length > 0;
   const save = async () => {
-    if (pending.current || disabled) return;
-    if (!text.trim()) { setError("답을 적어 주세요. 답하지 않으려면 「건너뛰기」를 눌러 주세요."); return; }
+    if (pending.current || disabled || !ready) return;
     pending.current = true; setSaving(true); setError(null);
     try { setError(await onSave(text.trim())); }
     finally { pending.current = false; setSaving(false); }
   };
-  if (skipped) return <div className="flex flex-wrap items-center gap-2">
-    <span className="text-note text-muted">건너뛰었어요</span>
-    <Button variant="link" size="sm" className="min-h-11 lg:min-h-10" onClick={() => setSkipped(false)}>다시 답하기</Button>
-  </div>;
   return <>
-    {/* 입력칸은 한 줄을 다 쓰고(테두리 없이 옅은 바탕), 그 아래 오른쪽에 건너뛰기 · 답하기 */}
-    <form className="grid min-w-0 gap-2" onSubmit={e => { e.preventDefault(); void save(); }}>
+    <div className="flex min-w-0">{head}</div>
+    {question}
+    <form className="relative mt-1.5 min-w-0" onSubmit={e => { e.preventDefault(); void save(); }}>
       <input type="text" maxLength={MAX_ANSWER_LENGTH} value={text} disabled={saving || disabled} onChange={e => { setText(e.target.value); setError(null); }}
         aria-label={`답: ${label}`} placeholder="짧게 답해 주세요"
-        className="h-11 lg:h-10 w-full min-w-0 rounded-full bg-surface-soft px-3.5 text-base text-body outline-none placeholder:text-muted focus-visible:shadow-[inset_0_0_0_1px_var(--ink)] sm:text-sm" />
-      <div className="flex items-center justify-end gap-1">
-        <Button type="button" variant="ghost" size="sm" className="min-h-11 lg:min-h-10 px-3 text-muted hover:text-ink" disabled={saving} onClick={() => { setSkipped(true); setError(null); }}>건너뛰기</Button>
-        <Button type="submit" size="sm" className={inlineAction} disabled={saving || disabled}>{saving ? "쌓는 중…" : error ? "다시 시도" : "답하기"}</Button>
-      </div>
+        className={cn("h-11 w-full min-w-0 rounded-sm bg-surface-soft pl-3.5 text-base text-body outline-none placeholder:text-muted focus-visible:shadow-[inset_0_0_0_1px_var(--ink)] sm:text-sm lg:h-10", ready ? "pr-12 lg:pr-11" : "pr-3.5")} />
+      {/* 보내기는 모양 없이 진한 화살표만 — 둥근 입력칸 안에서 혼자 튀지 않게. 올리면 옅은 바탕 */}
+      {ready && <Button type="submit" variant="ghost" size="icon" className="absolute top-1 right-1 size-9 rounded-[6px] text-ink after:absolute after:-inset-1 hover:bg-surface-strong lg:size-8" disabled={saving || disabled}
+        aria-label={saving ? "쌓는 중" : error ? "다시 시도" : "답하기"} title="답하기">
+        <ArrowUpIcon aria-hidden="true" weight="bold" />
+      </Button>}
     </form>
     {error && <div className="grid justify-items-start gap-2">
       <p role="alert" className="m-0 text-note text-error">{error}</p>
@@ -113,9 +114,7 @@ export function ClarificationItem({ activityName, clarification: c, experience, 
       note={<SupplementNote supplement={supplement} activityId={experience.activityId} activityName={activityName} />} />;
   }
   return <li className={openItem}>
-    <span className="grid justify-items-start"><ActivityChip name={activityName} /></span>
-    <p className="m-0 text-sm leading-relaxed font-semibold text-ink">{c.question}</p>
-    <AnswerForm label={c.question} disabled={!onAnswer} onSave={async text => {
+    <AnswerForm head={<ActivityChip name={activityName} />} question={<p className="m-0 text-sm leading-relaxed font-semibold text-ink">{c.question}</p>} label={c.question} disabled={!onAnswer} onSave={async text => {
       try { await onAnswer!(c.id, text); return null; }
       catch (e) { return e instanceof Error ? e.message : "보완을 저장하지 못했어요. 다시 시도해 주세요."; }
     }} />
