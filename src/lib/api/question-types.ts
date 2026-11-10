@@ -62,6 +62,8 @@ export type QuestionDetail = QuestionSummary & {
   answer?: Answer | null;
   /** S-27. 이전 서버 응답에는 없을 수 있다. 초안 미생성은 null */
   draft?: Draft | null;
+  /** S-72: 쓰는 중인 답(임시 글). 저장한 적 없거나 확정해서 지워졌으면 null. 이전 서버 응답에는 없을 수 있다 */
+  answerDraft?: AnswerDraft | null;
   error: Job["error"];
   requirements: Requirement[];
   recommendations: Recommendation[];
@@ -191,6 +193,9 @@ export type NewFactCandidate = {
   activityId: number | null; activityName: string | null;
   status: "PENDING" | "SAVED" | "DISMISSED"; experienceId: number | null;
 };
+/** S-72 임시 글 — 확정 답이 아니다. state 는 FE 가 정하는 답칸 화면 상태(BE 는 해석하지 않는다) */
+export type AnswerDraft = { text: string; state: Record<string, unknown> | null; updatedAt: string };
+
 export type Answer = {
   questionId: number; text: string; confirmedAt: string;
   newFacts: { status: JobStatus; error: Job["error"]; candidates: NewFactCandidate[]; createdAt: string; updatedAt: string } | null;

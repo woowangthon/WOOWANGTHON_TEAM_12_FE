@@ -51,6 +51,8 @@ export class FakeQuestionApi {
   similarDown = false;
   /** 초안 HTTP 계약 시험 제어. 제품 실행에서는 사용하지 않는다. */
   draftError: { status: number; code: string } | null = null;
+  /** 켜 두면 PUT answer-draft(S-72 자동 저장)가 503 */
+  answerDraftDown = false;
   failDraft = false;
   holdDraft = false;
   private draftStarted = new Map<number, number>();
@@ -256,6 +258,16 @@ export class FakeQuestionApi {
       q.detail.draft = { questionId: q.detail.id, status: "ANALYZING", error: null, experienceIds: ids, frame: body.frame ?? "NONE", useContext: body.useContext ?? true, guidelines: [], sentences: [], omitted: [], createdAt: now, updatedAt: now };
       this.draftStarted.set(q.detail.id, Date.now());
       return json(route, q.detail.draft, 202);
+    }
+    // 쓰는 중인 답 임시 글(S-72) — 통째로 바꾼다. answerDraftDown 이면 503
+    if ((m = path.match(/^\/api\/questions\/(\d+)\/answer-draft$/)) && method === "PUT") {
+      if (this.answerDraftDown) return error(route, 503, "INTERNAL_ERROR", "잠시 뒤 다시 시도해 주세요.");
+      const q = this.find(+m[1]);
+      if (!q) return error(route, 404, "QUESTION_NOT_FOUND");
+      if (typeof body?.text !== "string" || (body.state != null && typeof body.state !== "object")) return error(route, 400, "INVALID_REQUEST");
+      if (body.text.length > 5000) return error(route, 413, "TEXT_TOO_LONG");
+      q.detail.answerDraft = { text: body.text, state: body.state ?? null, updatedAt: new Date().toISOString() };
+      return json(route, { answerDraft: q.detail.answerDraft });
     }
     // 초안 문장 「맞아요」(S-79) — 다시 눌러도 204, 없는 문장은 404
     if ((m = path.match(/^\/api\/draft-sentences\/(\d+)\/confirm$/)) && method === "POST") {
