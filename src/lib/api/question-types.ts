@@ -91,15 +91,17 @@ export type Draft = {
   questionId: number; status: JobStatus; error: Job["error"]; experienceIds: number[];
   /** 지금 다시 만들면 분석 횟수를 쓰지 않는가 — 빠진 사실에 답했거나 주체를 정함(S-77, BE 가 판단) */
   freeRegenerate?: boolean;
-  /** 같은 활동의 다른 경험도 재료로 썼나(S-75) — 다시 만들 때 골라 둔다. 이전 응답엔 없다(켠 것) */
+  /** 같은 활동의 다른 경험도 재료로 썼나(S-75). 2026-11-10 부터 늘 true 로 보낸다(ADR-014) */
   useContext?: boolean;
   sentences: DraftSentence[]; omitted: DraftOmission[];
   createdAt: string; updatedAt: string;
 };
-/** 초안 문장 — 근거(FACT) · AI 보탬(ELABORATED, note 필수) · 생각(OPINION). id · confirmed 는 「맞아요」(S-79) — 이전 응답엔 없다 */
+/** 초안 문장 — 근거(FACT) · AI 보탬(ELABORATED, note 필수) · 생각(OPINION) · AI 가정(SUPPOSED — S-78 · ADR-014). id · confirmed 는 「맞아요」(S-79) — 이전 응답엔 없다 */
 export type DraftSentence = {
-  id?: number; kind: "FACT" | "OPINION" | "ELABORATED"; text: string; evidence: DraftEvidence[];
+  id?: number; kind: "FACT" | "OPINION" | "ELABORATED" | "SUPPOSED"; text: string; evidence: DraftEvidence[];
   note?: string | null; confirmed?: boolean;
+  /** SUPPOSED 만 — 수치 · 수상 · 직책 · 고유명사가 든 가정(한 단계 진하게). 나머지 · 옛 초안은 null 이거나 없다 */
+  specific?: boolean | null;
   /** 예전 카드 「빼기」의 서버 값(S-79). FE 는 더 읽지 않는다 — 문장 빼기는 글에서 지우는 것뿐(FE#337) */
   removed?: boolean;
 };

@@ -9,6 +9,7 @@ import { ApiError } from "@/lib/api/errors";
 import type { DraftOmission, QuestionDetail } from "@/lib/api/question-types";
 import { AnsweredItem, AnswerForm, bubble, ClarifyBlock, clarifyList, openItem, SupplementNote, type AnswerHandler } from "./clarifications";
 import { DraftComposer } from "./draft-composer";
+import { isSupposedPair } from "./answer-draft";
 import { ActivityChip } from "./question-result";
 import { requestError } from "./draft-errors";
 import { scrollWithinContainer } from "@/lib/scroll";
@@ -81,8 +82,10 @@ export function DraftFollowUp({ question, onAnswer, onGenerate, onRefresh, savin
     return () => { clearTimeout(on); clearTimeout(off); setHighlight(false); };
   }, [focusRequest]);
   const draft = question.draft;
-  const asks = draft?.omitted.filter(answerable) ?? [];
-  const unlinked = draft?.omitted.filter(item => !answerable(item)) ?? [];
+  // AI 가정의 짝은 「쓰지 않은 것」이 아니라 회색 문장으로 쓴 것 — 답칸의 그 문장 카드에서 확인한다(S-79 · ADR-014)
+  const listed = draft?.omitted.filter(item => !isSupposedPair(draft, item)) ?? [];
+  const asks = listed.filter(answerable);
+  const unlinked = listed.filter(item => !answerable(item));
   const supplementOf = (item: DraftOmission) => question.recommendations.find(r => r.experience.id === item.experienceId)?.experience.supplements.find(s => s.id === item.supplementId);
   const analyzing = requestingDraft || draft?.status === "ANALYZING";
   const disabled = savingAnswer || analyzing || refreshing;
@@ -100,7 +103,7 @@ export function DraftFollowUp({ question, onAnswer, onGenerate, onRefresh, savin
     <h3 className="m-0 text-xs font-semibold text-muted">{draft ? "초안 보완" : "초안 준비"}</h3>
     {analyzing ? <p role="status" className={bubble}>고른 경험과 보완을 읽고 초안을 만드는 중이에요…</p> : draft ? <>
       {draft?.status === "FAILED" ? <p className={bubble}>초안을 완성하지 못했어요. 아래 설정에서 다시 요청해 주세요.</p> : <>
-        <p className={bubble}>{!draft?.sentences.length ? "고른 기록에서 받칠 내용을 찾지 못해 문장을 쓰지 않았어요. 경험이 없다는 뜻은 아니에요." : draft.omitted.length ? "초안을 답칸에 넣었어요. 아래 내용은 자료에서 확인하지 못해 쓰지 않았어요." : "초안을 답칸에 넣었어요. 밑줄 · 빈칸을 눌러 근거와 이유를 확인해 주세요."}</p>
+        <p className={bubble}>{!draft?.sentences.length ? "고른 기록에서 받칠 내용을 찾지 못해 문장을 쓰지 않았어요. 경험이 없다는 뜻은 아니에요." : listed.length ? "초안을 답칸에 넣었어요. 아래 내용은 자료에서 확인하지 못해 쓰지 않았어요." : "초안을 답칸에 넣었어요. 밑줄 · 빈칸 · 회색 문장을 눌러 근거와 이유를 확인해 주세요."}</p>
         {asks.length > 0 && <ClarifyBlock title="초안에 대한 되묻기" total={asks.length} answered={asks.filter(item => item.supplementId !== null).length}
           attention={asks.some(item => supplementOf(item)?.mcpChange)}>
           <p className="m-0 text-note leading-relaxed text-muted"><b className="font-semibold text-body">자료에 없어 쓰지 않았어요 · AI 해석</b><InfoTip label="초안에 대한 되묻기" className="align-middle">기억나는 것만 알려 주세요. 답은 선택이고, 건너뛰어도 초안을 복사할 수 있어요.</InfoTip></p>
