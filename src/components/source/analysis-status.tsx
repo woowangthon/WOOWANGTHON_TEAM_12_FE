@@ -50,7 +50,7 @@ type Actions = {
 type ActivityBrief = { id: number; name: string; category?: ActivityCategory | null; mergeSuggestion?: unknown };
 
 /** 이 작업으로 새로 생긴 활동으로 가는 버튼 */
-function NewActivities({ ids, activities, onOpen }: { ids: number[]; activities?: ActivityBrief[]; onOpen?: (id: number) => void }) {
+export function NewActivities({ ids, activities, onOpen }: { ids: number[]; activities?: ActivityBrief[]; onOpen?: (id: number) => void }) {
   if (!onOpen) return null;
   return ids.map((id) => {
     const found = activities?.find((a) => a.id === id);

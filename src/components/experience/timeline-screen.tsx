@@ -292,6 +292,14 @@ export function TimelineScreen() {
     if (full) window.scrollTo(0, 0);
   };
 
+  // 소식에서 온 「자료 분석」 카드 닫기 — 주소에서 지워 화면을 새로 읽지 않는다
+  const closeWorkJob = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("workJob");
+    url.searchParams.delete("source");
+    window.history.replaceState(null, "", url);
+  };
+
   const close = () => {
     selectedRef.current = null;
     ++detailRequest.current;
@@ -547,7 +555,7 @@ export function TimelineScreen() {
   return (
     <div className="flex min-h-dvh flex-1 flex-col bg-canvas lg:h-dvh">
       <AppHeader hideTabBar={!!selected} addSource={addSource} experienceCount={ready ? countExperiences(ready.activities) : null} quickFind={{ openActivity: select }} />
-      {Number(params.get("workJob")) > 0 && !isMockMode() && <SourceWorkDetail key={params.get("workJob")} jobId={Number(params.get("workJob"))} />}
+      {Number(params.get("workJob")) > 0 && !isMockMode() && <SourceWorkDetail key={params.get("workJob")} jobId={Number(params.get("workJob"))} activities={ready?.activities} onClose={closeWorkJob} onOpenActivity={(id) => { closeWorkJob(); select(id); }} />}
       {/* 실제 API 모드엔 안내 줄을 두지 않는다 — 목 모드 표시(대회 규칙 1)와 지원에서 온 길만 (FE#174) */}
       {(isMockMode() || fromQuestion) && <p className="m-0 border-b border-hairline px-4 py-2 text-note text-muted" role="note">
         {isMockMode() && "목 모드 · 예시 데이터이며 서버에 저장할 수 없어요. 자료 쌓기·분석도 목 기능이에요."}
