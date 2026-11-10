@@ -40,7 +40,7 @@ test("icons stay in place throughout collapse and expansion while width and labe
   }, label);
   for (const label of ["사이드바 접기", "사이드바 펼치기"]) {
     const { before, frames } = await measure(label);
-    expect(before.icons).toHaveLength(5);
+    expect(before.icons).toHaveLength(6); // 추가 · 홈 · 내 경험 · 내 지원서(FE#347) · 연결 · 계정
     expect(frames.some(f => f.width > 72.5 && f.width < 247.5)).toBe(true);
     expect(frames.some(f => f.labels.some(l => l.opacity > 0 && l.opacity < 1))).toBe(true);
     for (const frame of frames) {
@@ -89,9 +89,9 @@ test("desktop collapse survives reload and navigation; the application list rema
   await expect(sidebar(page)).toHaveCSS("width", "248px");
   await sidebar(page).getByRole("button", { name: "사이드바 접기", exact: true }).click();
   await page.locator("main").click({ position: { x: 4, y: 4 } });
-  const link = sidebar(page).getByRole("link", { name: "지원서", exact: true });
+  const link = sidebar(page).getByRole("link", { name: "내 지원서", exact: true });
   await link.hover();
-  await expect(page.getByRole("tooltip")).toHaveText("지원서");
+  await expect(page.getByRole("tooltip")).toHaveText("내 지원서");
   await page.mouse.move(500, 10);
   await capture(page, "questions-1440-collapsed");
   await page.reload();
@@ -99,8 +99,8 @@ test("desktop collapse survives reload and navigation; the application list rema
   await sidebar(page).getByRole("link", { name: "내 경험", exact: true }).click();
   await expect(page.getByRole("heading", { name: "내 경험", exact: true })).toBeVisible();
   await expect(sidebar(page)).toHaveCSS("width", "72px");
-  await sidebar(page).getByRole("link", { name: "지원서", exact: true }).click();
-  await expect(page.locator("#application-list").getByRole("button").first()).toBeVisible();
+  await sidebar(page).getByRole("link", { name: "내 지원서", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: /^내 지원서/ })).toBeVisible();
   await sidebar(page).getByRole("button", { name: "사이드바 펼치기", exact: true }).click();
   await expect(sidebar(page)).toHaveCSS("width", "248px");
   await page.reload();

@@ -4,7 +4,7 @@ import { FakeQuestionApi } from "./fake-question-api";
 import type { Page } from "@playwright/test";
 
 const sidebar = (page: Page) => page.getByRole("complementary", { name: "사이드바", exact: true });
-const applications = (page: Page) => sidebar(page).getByRole("region", { name: "지원서", exact: true });
+const applications = (page: Page) => sidebar(page).getByRole("region", { name: "최근 지원서", exact: true });
 const capture = async (page: Page, name: string) => {
   if (process.env.UPDATE_SHELL_SCREENSHOTS !== "1") return;
   await page.screenshot({ path: `docs/fe-147/${name}.png`, animations: "disabled", style: "nextjs-portal { display: none !important; }" });
@@ -41,13 +41,14 @@ test("sidebar shows the applications anywhere and a row opens that application",
   await expect(sidebar(page).getByRole("link", { name: "연결 · 내보내기", exact: true })).toBeVisible();
   const row = applications(page).getByRole("link", { name: /OO 연합 동아리/ });
   await expect(row).toBeVisible();
-  await expect(applications(page).getByRole("link", { name: "모든 지원서", exact: true })).toHaveAttribute("href", "/questions");
+  await expect(applications(page).getByRole("link", { name: "모든 지원서", exact: true })).toHaveAttribute("href", "/applications"); // 모든 지원서 → 내 지원서(FE#347)
   await capture(page, "experience-1440");
   await row.click();
   await expect(page).toHaveURL(/\/questions\?question=\d+/);
   await expect(page.getByRole("tabpanel", { name: "선택한 문항", exact: true })).toBeVisible();
   await expect(sidebar(page).locator("button[aria-pressed=true]")).toContainText("OO 연합 동아리");
-  await expect(applications(page).getByRole("link", { name: "모든 지원서", exact: true })).toHaveCount(0);
+  // 사이드바는 최근 5개만이라 지원 화면에서도 「모든 지원서」가 있다(FE#347)
+  await expect(applications(page).getByRole("link", { name: "모든 지원서", exact: true })).toHaveAttribute("href", "/applications");
   await capture(page, "questions-1440");
 });
 
@@ -91,8 +92,8 @@ test("rail keeps the menu reachable: applications icon, add menu and overlay lis
   await page.setViewportSize({ width: 1024, height: 900 });
   await page.goto("/experience");
   await expect(sidebar(page)).toHaveCSS("width", "72px");
-  await expect(sidebar(page).getByRole("link", { name: "지원서", exact: true })).toBeVisible();
-  await expect(sidebar(page).getByRole("region", { name: "지원서", exact: true })).toHaveCount(0);
+  await expect(sidebar(page).getByRole("link", { name: "내 지원서", exact: true })).toBeVisible();
+  await expect(sidebar(page).getByRole("region", { name: "최근 지원서", exact: true })).toHaveCount(0);
   await capture(page, "experience-1024");
   await sidebar(page).getByRole("button", { name: "추가", exact: true }).click();
   await expect(page.getByRole("menuitem", { name: /^자료 쌓기/ })).toBeVisible();
@@ -113,7 +114,7 @@ test("390 uses a one line top bar and a bottom tab bar without the desktop shell
   await page.goto("/connections");
   const banner = page.getByRole("banner").filter({ visible: true });
   const tabs = page.getByRole("navigation", { name: "주 메뉴", exact: true });
-  await expect(tabs.getByRole("link")).toHaveText(["홈", "내 경험", "지원", "연결"]);
+  await expect(tabs.getByRole("link")).toHaveText(["홈", "내 경험", "지원서", "연결"]);
   await expect(tabs.getByRole("link", { name: "연결", exact: true })).toHaveAttribute("aria-current", "page");
   await expect(banner.getByRole("button", { name: "빠른 찾기", exact: true })).toBeVisible();
   // 본화면을 줄이지 않는다 — 위 45 + 아래 56 은 예전 두 줄(45 + 56)과 같다

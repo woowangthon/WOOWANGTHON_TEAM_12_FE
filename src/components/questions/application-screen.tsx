@@ -1,6 +1,7 @@
 "use client";
 
 import { InfoTip } from "@/components/ui/info-tip";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { peekApplicationText, takeApplicationText } from "@/lib/application-handoff";
@@ -8,7 +9,7 @@ import { ArrowSquareOutIcon, ArrowsClockwiseIcon, MagnifyingGlassIcon, PlusIcon,
 import { isPostingUrl } from "@/lib/api/entrance";
 import { AppHeader } from "@/components/app-header";
 import { useSidebar } from "@/components/sidebar-layout";
-import { SidebarApplicationText, dateText, monthText, progressText, sidebarApplicationRow } from "@/components/sidebar-applications";
+import { SidebarApplicationText, dateText, monthText, progressText, recentApplications, sidebarApplicationRow } from "@/components/sidebar-applications";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { CenterState } from "@/components/center-state";
 import { Button } from "@/components/ui/button";
@@ -167,7 +168,7 @@ export function ApplicationScreen() {
       panelToggle={open && !composing && <Button variant="secondary" size="sm" className="shrink-0 max-lg:h-11 max-lg:min-w-11 max-lg:gap-1 max-lg:border-0 max-lg:px-1" aria-label={unanswered > 0 && !panelOpen ? `차곡이 질문 ${unanswered}` : "차곡이"} aria-expanded={panelOpen} aria-controls="chagok-panel" onClick={() => setPanelChoice(!panelOpen)}>
         <Mascot size={20} /><span className="max-lg:sr-only">차곡이</span>{unanswered > 0 && !panelOpen && <span className="rounded-full bg-primary px-1.5 text-xs leading-5 text-on-primary tabular-nums"><span className="max-lg:hidden">질문 </span>{unanswered}</span>}
       </Button>}
-      applicationList={{ applications: matching.applications, loading: matching.loading, error: matching.error, onRetry: () => { void matching.refresh(); }, rows: <ApplicationList {...list} sidebar /> }} />
+      applicationList={{ applications: matching.applications, loading: matching.loading, error: matching.error, onRetry: () => { void matching.refresh(); }, rows: <ApplicationList {...list} applications={recentApplications(matching.applications, activeId)} sidebar /> }} />
     <div className="flex-1 xl:flex xl:items-start">
     <div className="min-w-0 flex-1">
     <main className="mx-auto max-w-[1280px] px-4.5 py-5 lg:px-8 lg:py-6">
@@ -267,7 +268,10 @@ function ApplicationList({ applications, activeId, onPick, onSave, sidebar = fal
   return <>
     {!sidebar && <div className="mb-3 flex items-baseline justify-between">
       <h2 className="m-0 text-title-md font-semibold">넣었던 지원</h2>
-      <span className="text-note text-muted tabular-nums">{applications.length}곳</span>
+      {/* 사이드바가 없는 폭(레일 · 모바일)에서 내 지원서로 가는 길(FE#347) */}
+      <span className="flex items-baseline gap-2.5 text-note text-muted tabular-nums">{applications.length}곳
+        <Link href="/applications" className="inline-flex min-h-11 items-center text-ink underline-offset-3 hover:underline lg:min-h-0">전체 보기</Link>
+      </span>
     </div>}
     <ul className={cn("m-0 grid list-none content-start gap-1 overflow-y-auto p-0", sidebar ? "min-h-0" : "max-h-72 lg:max-h-[calc(100dvh-240px)] xl:max-h-72")}>{applications.map(a => {
       const active = activeId === a.id;

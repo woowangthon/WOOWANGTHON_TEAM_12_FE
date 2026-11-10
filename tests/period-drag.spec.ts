@@ -191,8 +191,9 @@ test("화면을 떠나도 대기 중 마지막 값은 저장하고 새 화면에
   await drag(page, "band-end-7-2025", 7);
   await expect.poll(() => state.replies.length).toBe(1);
   await drag(page, "band-end-7-2025", 10);
-  await page.getByRole("link", { name: /^(지원|모든 지원서)$/ }).filter({ visible: true }).click();
-  await expect(page).toHaveURL(/\/questions/);
+  await page.getByRole("link", { name: /^(지원서|모든 지원서)$/ }).filter({ visible: true }).click();
+  // 넓은 화면의 「모든 지원서」는 내 지원서로 간다(FE#347) — 여기서 보는 건 화면을 떠나는 것뿐이다
+  await expect(page).toHaveURL(/\/(questions|applications)/);
   state.replies[0].release();
   await expect.poll(() => state.replies.length).toBe(2);
   state.replies[1].release();
