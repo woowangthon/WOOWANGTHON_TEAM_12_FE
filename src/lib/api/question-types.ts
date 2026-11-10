@@ -100,7 +100,7 @@ export type Draft = {
 export type DraftSentence = {
   id?: number; kind: "FACT" | "OPINION" | "ELABORATED"; text: string; evidence: DraftEvidence[];
   note?: string | null; confirmed?: boolean;
-  /** 카드에서 「빼기」를 눌렀나(S-79) — 뺀 문장도 응답에 오고 답칸 글에서 뺀다. 이전 응답엔 없다 */
+  /** 예전 카드 「빼기」의 서버 값(S-79). FE 는 더 읽지 않는다 — 문장 빼기는 글에서 지우는 것뿐(FE#337) */
   removed?: boolean;
 };
 export type CreateDraftRequest = { experienceIds: number[]; frame?: DraftFrame; useContext?: boolean };

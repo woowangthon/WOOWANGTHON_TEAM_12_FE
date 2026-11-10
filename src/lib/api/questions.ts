@@ -125,11 +125,6 @@ export function confirmDraftSentence(sentenceId: number): Promise<void> {
   return request(`/draft-sentences/${sentenceId}/confirm`, undefined, "POST");
 }
 
-/** PUT /api/draft-sentences/{id}/removed — 카드의 「빼기」 · 답칸 아래 「다시 넣기」(S-79). 204 */
-export function setDraftSentenceRemoved(sentenceId: number, removed: boolean): Promise<void> {
-  return request(`/draft-sentences/${sentenceId}/removed`, { removed }, "PUT");
-}
-
 /** S-45: 실패를 고정 결과로 대체하지 않고, 공백과 길이는 HTTP 전에 확인한다. */
 export async function createGroundingCheck(questionId: number, req: { text: string }): Promise<GroundingCheck> {
   if (!req.text.trim()) throw new ApiError("EMPTY_TEXT", "점검할 답을 입력해 주세요.");
