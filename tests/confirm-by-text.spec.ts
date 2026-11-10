@@ -65,7 +65,7 @@ async function setup(page: Page, opts: Options) {
 async function runCheck(page: Page, text: string) {
   await answerBox(page).fill(text);
   await checkButton(page).click();
-  await expect(page.locator("summary").filter({ hasText: "근거 점검 —" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "점검했어요", exact: true })).toBeVisible(); // 결과는 답칸 표시 · 카드에만 붙는다(FE#336)
 }
 async function confirmOwn(page: Page, key: string) {
   await clickMark(page, key);

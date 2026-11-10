@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Answer, QuestionDetail, RequirementStatus, Supplement } from "@/lib/api/question-types";
 import { bubble, ClarificationItem, ClarifyBlock, clarifyList, type AnswerHandler } from "./clarifications";
-import { DraftFollowUp, type DraftPanelActions } from "./draft-omissions";
+import { DraftFollowUp, draftAsks, OmissionItem, type DraftPanelActions } from "./draft-omissions";
 import { shortName } from "./question-result";
 import { ChagokComposer, ChagokRunFeed } from "./chagok-run";
 import type { ChagokRunControl } from "./use-chagok-run";
@@ -101,6 +101,14 @@ function Feed({ question: q, originOf, onAnswer, draftActions }: { question: Que
     const experience = q.recommendations.find(r => r.experience.id === c.experienceId)?.experience;
     return experience ? [{ c, experience }] : [];
   });
+  // 초안 빈칸 질문(S-27)과 문항 되묻기(S-22)는 답이 같은 보완으로 쌓이니 한 블록으로 — 초안 질문이 위(FE#336)
+  const fromDraft = draftAsks(q);
+  const supplementOf = (experienceId: number | null, supplementId: number | null) => q.recommendations.find(r => r.experience.id === experienceId)?.experience.supplements.find(s => s.id === supplementId);
+  const total = asks.length + fromDraft.length;
+  const answered = asks.filter(({ c }) => c.supplementId !== null).length + fromDraft.filter(item => item.supplementId !== null).length;
+  const attention = asks.some(({ c }) => supplementOf(c.experienceId, c.supplementId)?.mcpChange) || fromDraft.some(item => supplementOf(item.experienceId, item.supplementId)?.mcpChange);
+  const draftDisabled = draftActions.savingAnswer || draftActions.requestingDraft || q.draft?.status === "ANALYZING";
+  const refreshDraft = async () => { try { await draftActions.onRefresh(); } catch { /* 실패하면 다음 갱신에서 다시 읽는다 */ } };
 
   return <div className="grid gap-2.5">
     <section aria-label="문항이 보려는 것" className={bubble}>
@@ -121,11 +129,16 @@ function Feed({ question: q, originOf, onAnswer, draftActions }: { question: Que
       <p className="m-0 border-l-2 border-hairline pl-3 text-note whitespace-pre-wrap text-muted">{supplement.answer}</p>
       {!q.clarifications.some(c => c.question === supplement.question) && <p className="m-0 text-note text-muted">그 부분은 다시 묻지 않을게요.</p>}
     </div>)}
-    {asks.length > 0 && <ClarifyBlock title="문항에 대한 되묻기" total={asks.length} answered={asks.filter(({ c }) => c.supplementId !== null).length}
-      attention={asks.some(({ c, experience }) => experience.supplements.find(s => s.id === c.supplementId)?.mcpChange)}>
-      <ul aria-label="차곡이의 질문" className={clarifyList}>{asks.map(({ c, experience }) =>
-        <ClarificationItem key={c.id} activityName={activityOf(c.experienceId)} clarification={c} experience={experience} onAnswer={onAnswer} />)}</ul>
+    {total > 0 && <ClarifyBlock title={`차곡이가 물어볼 것 ${total}개`} total={total} answered={answered} attention={attention} openSignal={draftActions.focusRequest}>
+      <p className="m-0 pt-2 text-note leading-relaxed text-muted">자료에 없어 묻는 거예요. 기억나는 것만 짧게 — 답은 경험에 보완으로 쌓이고 다음 초안에 들어가요.</p>
+      {/* 초안 빈칸 질문이 위 — 목록은 둘이지만 같은 가는 선으로 이어 보인다 */}
+      {fromDraft.length > 0 && <ul aria-label="초안의 빠진 사실" className={clarifyList}>
+        {fromDraft.map(item => <OmissionItem key={item.clarificationId} item={item} question={q} onAnswer={onAnswer} onRefresh={refreshDraft} disabled={draftDisabled} />)}
+      </ul>}
+      {asks.length > 0 && <ul aria-label="차곡이의 질문" className={cn(clarifyList, fromDraft.length > 0 && "border-t border-hairline-soft")}>
+        {asks.map(({ c, experience }) => <ClarificationItem key={c.id} activityName={activityOf(c.experienceId)} clarification={c} experience={experience} onAnswer={onAnswer} />)}
+      </ul>}
     </ClarifyBlock>}
-    <DraftFollowUp question={q} onAnswer={onAnswer} {...draftActions} />
+    <DraftFollowUp question={q} {...draftActions} />
   </div>;
 }

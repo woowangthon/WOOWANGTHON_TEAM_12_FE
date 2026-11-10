@@ -13,7 +13,7 @@ const draftBody = (page: Page) => page.locator("[data-mark]").first();
 const draftSentences = (page: Page) => page.locator('[data-mark^="s-"]');
 const narrow = (page: Page) => page.viewportSize()!.width < 1024;
 const sentenceCard = (page: Page) => page.getByRole("group", { name: "문장 카드" }).filter({ visible: true });
-const copyButton = (page: Page) => page.getByRole("button", { name: "복사", exact: true });
+const copyButton = (page: Page) => page.getByRole("button", { name: "답 복사", exact: true });
 /** 좁은 폭은 카드가 하단 시트로 떠서 뒤 화면을 가린다 — 닫고 다음으로 간다. 넓은 폭은 다른 문장을 누르면 카드가 바뀐다 */
 async function closeCard(page: Page) {
   if (page.viewportSize()!.width < 1024) { await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toHaveCount(0); }
@@ -36,6 +36,14 @@ async function openDraftFollowUp(page: Page) {
   if (!(await draftFollowUp(page).isVisible())) await ask.click();
   await expect(draftFollowUp(page)).toBeVisible();
   return draftFollowUp(page);
+}
+/** 차곡이 패널의 「차곡이가 물어볼 것」 — 문항 · 초안 되묻기 한 블록, 기본은 접혀 있다(FE#336). 펼치고 초안 빈칸 질문 목록을 준다 */
+const asksBlock = (page: Page) => page.locator("details").filter({ has: page.locator("summary", { hasText: "차곡이가 물어볼 것" }) });
+async function omissionList(page: Page) {
+  const block = asksBlock(page);
+  await expect(block).toBeVisible();
+  if (!(await block.evaluate(el => (el as HTMLDetailsElement).open))) await block.locator(":scope > summary").click();
+  return block.getByRole("list", { name: "초안의 빠진 사실" });
 }
 async function openDraftComposer(page: Page) {
   await openDraftFollowUp(page);
@@ -101,7 +109,7 @@ test("default selection, zero-selection guard, generating, evidence details and 
   await expect(card).toContainText("내가 입력 · 폴링을");
   await closeCard(page);
   await openDraftFollowUp(page); // 쓰지 않은 빠진 사실은 차곡이 패널에 남는다
-  await expect(draftFollowUp(page)).toContainText("자료에 없어 쓰지 않았어요");
+  await expect(draftFollowUp(page)).toContainText("자료에 없어 쓰지 않은 건");
   await closeDraftPanel(page);
   await copyButton(page).click();
   await expect(page.getByRole("status").filter({ hasText: "답칸의 글을 복사했어요" })).toBeVisible();
@@ -175,7 +183,7 @@ test("zero sentences with omitted only disables copying", async ({ page }) => {
   await expect(page.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toHaveValue("");
   await expect(copyButton(page)).toBeDisabled();
   await openDraftFollowUp(page);
-  await expect(draftFollowUp(page)).toContainText("자료에 없어 쓰지 않았어요");
+  await expect(await omissionList(page)).toBeVisible();
 });
 
 test("EXPERIENCE is labeled as user input and its original content is inspectable", async ({ page }) => {
@@ -345,7 +353,7 @@ test("retry uses server experienceIds and UNKNOWN sentences are shown verbatim w
 test("omitted facts have optional experience questions, while unlinked gaps stay manual; skipping permits copy", async ({ page }, info) => {
   const api = await setup(page, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
   const panel = await openDraftFollowUp(page);
-  const omissions = panel.getByRole("list", { name: "초안의 빠진 사실" });
+  const omissions = await omissionList(page);
   await expect(omissions.getByRole("listitem")).toHaveCount(2);
   await expect(omissions.getByRole("textbox")).toHaveCount(2);
   // 경험에 붙지 않은 빈칸은 되묻기 묶음 밖의 「직접 쓸 거리」 — 입력칸 · 버튼이 없다(FE#268)
@@ -379,7 +387,7 @@ test("omitted facts have optional experience questions, while unlinked gaps stay
 test("saving an omitted answer uses its server ID, persists after reload and regenerates only on click", async ({ page }, info) => {
   const api = await setup(page, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
   const panel = await openDraftFollowUp(page);
-  const omissions = panel.getByRole("list", { name: "초안의 빠진 사실" });
+  const omissions = await omissionList(page);
   const first = omissions.getByRole("listitem").first();
   const answer = "두 기기로 메시지를 보내고 양쪽 화면에 도착하는지 확인했다";
   await first.getByRole("textbox").fill("  " + answer + "  ");
@@ -397,6 +405,7 @@ test("saving an omitted answer uses its server ID, persists after reload and reg
   await expect(draftBody(page)).toContainText(DRAFT_EXAMPLE.sentences[0].text);
   await page.reload();
   await openDraftFollowUp(page);
+  await omissionList(page);
   await expect(first).toContainText(answer);
   await expect(first.getByRole("textbox")).toHaveCount(0);
   await regenerate(page, panel);
@@ -416,7 +425,7 @@ test("saving blocks regeneration and duplicate answers until the save response a
   const gate = new Promise<void>(resolve => { release = resolve; });
   await page.route("**/api/clarifications/64/answer", async route => { await gate; await route.fallback(); });
   const panel = await openDraftFollowUp(page);
-  const omissions = panel.getByRole("list", { name: "초안의 빠진 사실" });
+  const omissions = await omissionList(page);
   await omissions.getByRole("textbox").first().fill("메시지가 도착하는지 확인했다");
   await omissions.getByRole("button", { name: "답하기", exact: true }).first().click();
   await expect(panel.getByRole("button", { name: "다시 만들기", exact: true })).toBeDisabled();
@@ -442,8 +451,8 @@ test("save errors preserve the answer and draft, and retry stores it once", asyn
   await page.route("**/api/clarifications/64/answer", route => down
     ? route.fulfill({ status: 503, json: { error: { code: "INTERNAL_ERROR", message: "보완을 저장하지 못했어요." } } })
     : route.fallback());
-  const panel = await openDraftFollowUp(page);
-  const first = panel.getByRole("list", { name: "초안의 빠진 사실" }).getByRole("listitem").first();
+  await openDraftFollowUp(page);
+  const first = (await omissionList(page)).getByRole("listitem").first();
   const answer = "두 기기에서 메시지를 확인했다";
   await first.getByRole("textbox").fill(answer);
   await first.getByRole("button", { name: "답하기", exact: true }).click();
@@ -465,8 +474,8 @@ for (const [status, code, note] of [
   test(`stale omitted answer ${code} offers refresh without creating a new draft`, async ({ page }) => {
     const api = await setup(page, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
     await page.route("**/api/clarifications/64/answer", route => route.fulfill({ status, json: { error: { code, message: code } } }));
-    const panel = await openDraftFollowUp(page);
-    const first = panel.getByRole("list", { name: "초안의 빠진 사실" }).getByRole("listitem").first();
+    await openDraftFollowUp(page);
+    const first = (await omissionList(page)).getByRole("listitem").first();
     await first.getByRole("textbox").fill("두 기기로 확인했다");
     await first.getByRole("button", { name: "답하기", exact: true }).click();
     await expect(first.getByRole("alert")).toContainText(note);
@@ -497,7 +506,7 @@ test("the panel reports a rejected regeneration and keeps the draft available fo
   api.draftError = { status: 429, code: "DAILY_LIMIT_EXCEEDED" };
   await regenerate(page, panel);
   await expect(panel.getByRole("alert")).toContainText("오늘 분석 횟수를 다 썼어요");
-  await expect(panel.getByRole("list", { name: "초안의 빠진 사실" }).getByRole("textbox")).toHaveCount(2);
+  await expect((await omissionList(page)).getByRole("textbox")).toHaveCount(2);
   await closeDraftPanel(page);
   await expect(draftBody(page)).toContainText(DRAFT_EXAMPLE.sentences[0].text);
   await openDraftFollowUp(page);
@@ -514,7 +523,7 @@ test("the panel shows an AI failure and retries with the same experiences", asyn
   api.failDraft = true;
   await regenerate(page, panel);
   await expect(panel.getByRole("alert")).toContainText("시간이 초과됐어요");
-  await expect(panel.getByRole("list", { name: "초안의 빠진 사실" })).toHaveCount(0);
+  await expect(page.getByRole("list", { name: "초안의 빠진 사실" })).toHaveCount(0);
   api.failDraft = false;
   await regenerate(page, panel);
   await expect(panel.getByRole("button", { name: "다시 만들기", exact: true })).toBeEnabled();
@@ -653,6 +662,8 @@ test("초안 부탁하기 — 열린 패널에서도 「초안 준비」를 강�
 test("답 칸 줄의 「분석 1회」는 「근거 점검」 바로 뒤에만 있다 — 「다 썼어요」는 저장만 한다 (FE#270)", async ({ page }) => {
   await setup(page);
   await closeDraftPanel(page);
+  // 근거 점검은 직접 쓴 글이 있을 때만 보인다(FE#336)
+  await answerBox(page).fill("직접 쓴 문장이에요.");
   const done = page.getByRole("button", { name: "다 썼어요", exact: true });
   const doneGroup = await done.evaluate((el) => [...el.parentElement!.children].map((c) => c.textContent?.trim()));
   expect(doneGroup.some((text) => text?.startsWith("분석 1회"))).toBe(false);

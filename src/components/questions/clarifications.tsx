@@ -25,14 +25,20 @@ export const openItem = "grid min-w-0 gap-2 py-3";
 /** 되묻기 목록 — 항목 사이 가는 선 */
 export const clarifyList = "m-0 grid list-none divide-y divide-hairline-soft p-0";
 
-/** 되묻기 묶음 — 머리에 무엇에 대한 되묻기인지 · 몇 개 · 답한 수. 답할 게 남았거나 확인할 답(attention)이 있으면 펼친 채 시작한다 */
-export function ClarifyBlock({ title, total, answered, attention = false, children }: { title: string; total: number; answered: number; attention?: boolean; children: ReactNode }) {
-  const [open, setOpen] = useState(answered < total || attention);
+/** 되묻기 묶음 — 문항 · 초안 되묻기를 한 블록으로(FE#336). 기본은 접고, 답할 게 남았으면 머리줄에 점 · 개수로 강조한다.
+ *  외부 AI 를 거친 답(attention)이 있으면 펼친 채 시작한다. openSignal 이 바뀌면(초안 부탁 · 질문 보기) 답할 게 남았을 때 연다 */
+export function ClarifyBlock({ title, total, answered, attention = false, openSignal = 0, children }: { title: string; total: number; answered: number; attention?: boolean; openSignal?: number; children: ReactNode }) {
+  const left = total - answered;
+  // 좁은 폭은 패널이 시트라 질문 보기와 함께 새로 그려진다 — 요청이 이미 있으면 열린 채 시작한다(초안 구역의 초점 이동과 같은 기준)
+  const [open, setOpen] = useState(attention || (openSignal > 0 && left > 0));
+  const [signal, setSignal] = useState(openSignal);
+  if (signal !== openSignal) { setSignal(openSignal); if (openSignal && left > 0) setOpen(true); }
   return <details open={open} onToggle={e => setOpen(e.currentTarget.open)} className="group/block min-w-0 rounded-sm border border-hairline bg-canvas">
     <summary className="flex min-h-11 lg:min-h-10 cursor-pointer list-none items-center gap-2 px-3.5 py-2 [&::-webkit-details-marker]:hidden">
       <CaretRightIcon aria-hidden="true" className="size-4 shrink-0 text-muted transition-transform group-open/block:rotate-90" />
       <span className="min-w-0 flex-1 text-sm font-semibold text-ink">{title}</span>
-      <span className="shrink-0 text-xs text-muted tabular-nums">{total}개 · 답 {answered}</span>
+      {left > 0 ? <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-review tabular-nums"><span aria-hidden="true" className="size-1.5 rounded-full bg-review" />답할 것 {left}개</span>
+        : <span className="shrink-0 text-xs text-muted tabular-nums">모두 답했어요</span>}
     </summary>
     <div className="grid min-w-0 gap-2 border-t border-hairline-soft px-3.5 pb-1">{children}</div>
   </details>;

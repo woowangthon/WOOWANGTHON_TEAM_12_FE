@@ -108,7 +108,7 @@ test("빼기는 글에서 그 문장을 지운다", async ({ page }) => {
 
 test("확인 전 가정이 남은 채 복사하면 한 번 알리고, 막지 않는다", async ({ page }) => {
   await open(page);
-  await page.getByRole("button", { name: "복사", exact: true }).click();
+  await page.getByRole("button", { name: "답 복사", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "AI 가정 2곳 · 구체 값 1곳이 확인 전이에요" });
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("빈칸 1개도 남았어요");
@@ -116,7 +116,7 @@ test("확인 전 가정이 남은 채 복사하면 한 번 알리고, 막지 않
   await dialog.getByRole("button", { name: "그대로 둘게요" }).click();
   await expect.poll(() => copied(page)).toBe(COMPOSED);
   // 확인하러 가기는 다음 확인할 곳 카드를 연다
-  await page.getByRole("button", { name: "복사", exact: true }).click();
+  await page.getByRole("button", { name: "답 복사", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "확인하러 가기" }).click();
   await expect(page.getByRole("group", { name: /카드$/ }).filter({ visible: true })).toBeVisible();
 });

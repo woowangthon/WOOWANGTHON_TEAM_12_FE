@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckIcon } from "@phosphor-icons/react";
+import { CheckIcon, CopyIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { useConfirmedAnswer } from "./use-confirmed-answer";
 import { AnalysisCost } from "@/components/auth/analysis-cost";
@@ -11,18 +11,16 @@ import { InfoTip } from "@/components/ui/info-tip";
 import { Toast, useToast } from "@/components/ui/toast";
 import { confirmDraftSentence } from "@/lib/api/questions";
 import { updateSupplement } from "@/lib/api/experience";
-import { MAX_GROUNDING_TEXT_LENGTH, type Answer, type AnswerDraft, type GroundingStatus, type QuestionDetail } from "@/lib/api/question-types";
-import { AnswerEvidence } from "./answer-evidence";
-import { analyze, composeDraft, DraftEditor, GROUND_LABEL as LABEL, isSupposedPair, pairLinked, pairOf, type EditorHandle, type Mark, type Selection } from "./answer-draft";
+import { MAX_GROUNDING_TEXT_LENGTH, type Answer, type AnswerDraft, type QuestionDetail } from "@/lib/api/question-types";
+import { analyze, composeDraft, DraftEditor, isSupposedPair, pairLinked, pairOf, type EditorHandle, type Mark, type Selection } from "./answer-draft";
 import { setEditedAnswer } from "./answer-box-state";
 import type { AnswerHandler } from "./clarifications";
 import { DraftGuidance } from "./draft-guidance";
 import { failureReason } from "./draft-errors";
+import { splitSentences } from "./draft-match";
 import { useGroundingCheck, type GroundingChecks } from "./use-grounding-check";
 import { TargetLengthField } from "./type-fields";
 import { useAnswerAutosave } from "./use-answer-autosave";
-
-const TINT: Record<GroundingStatus, string> = { SOURCE: "bg-evidence-soft", USER_INPUT: "bg-primary-soft", UNSUPPORTED: "bg-review-soft", OPINION: "" };
 
 type AnswerChange = (id: number, answer: Answer | null) => void;
 type AnswerDraftChange = (id: number, draft: AnswerDraft | null) => void;
@@ -34,10 +32,13 @@ type DraftHooks = { onAnswer: AnswerHandler; onRefresh: () => Promise<void>; dra
  *  문항을 못 받았으면 화면의 「다시 불러오기」를 쓴다 */
 export function AnswerInput({ questionId, question, loadFailed, onAnswerChange, onAnswerDraftChange, checks, onAskDraft, ...hooks }: { questionId: number; question: QuestionDetail | null; loadFailed: boolean; onAnswerChange: AnswerChange; onAnswerDraftChange: AnswerDraftChange; checks: GroundingChecks; onAskDraft: () => void } & DraftHooks) {
   return <section aria-labelledby={`answer-title-${questionId}`} className="mb-8 grid min-w-0 gap-3">
-    <h3 id={`answer-title-${questionId}`} className="m-0 text-title-md font-semibold">내가 쓴 답</h3>
     {question ? <LoadedAnswer question={question} onAnswerChange={onAnswerChange} onAnswerDraftChange={onAnswerDraftChange} checks={checks} draftLabel={question.status === "ANALYZING" || question.status === "FAILED" ? null : question.draft ? "초안 설정 열기" : "초안 부탁하기"} onAskDraft={onAskDraft} {...hooks} />
-      : !loadFailed && <p role="status" className="m-0 text-sm text-muted">쓴 답을 불러오고 있어요…</p>}
+      : <><AnswerTitle questionId={questionId} />{!loadFailed && <p role="status" className="m-0 text-sm text-muted">쓴 답을 불러오고 있어요…</p>}</>}
   </section>;
+}
+
+function AnswerTitle({ questionId }: { questionId: number }) {
+  return <h3 id={`answer-title-${questionId}`} className="m-0 text-title-md font-semibold">내가 쓴 답</h3>;
 }
 
 function LoadedAnswer({ question, onAnswerChange, onAnswerDraftChange, checks, draftLabel, onAskDraft, ...hooks }: { question: QuestionDetail; onAnswerChange: AnswerChange; onAnswerDraftChange: AnswerDraftChange; checks: GroundingChecks; draftLabel: string | null; onAskDraft: () => void } & DraftHooks) {
@@ -174,18 +175,30 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
   const same = !!a.answer && text === a.answer.text;
   const analyzing = g.check?.status === "ANALYZING";
   const valid = !!text.trim() && text.length <= MAX_GROUNDING_TEXT_LENGTH;
-  const stale = g.check?.status === "COMPLETED" && text !== g.check.text;
   const checkedSame = g.check?.status === "COMPLETED" && text === g.check.text;
-  const unsupportedCount = g.check?.status === "COMPLETED" ? g.check.sentences.filter(x => x.status === "UNSUPPORTED").length : 0;
   // 고친 사실 문장 — 그 글로 근거 점검을 안 했으면 다 썼어요 때 한 번 권한다(뜻이 바뀐 건 코드가 못 잡는다)
   const editedFacts = analysis?.marks.filter(m => m.edited && ready?.sentences[m.index].kind === "FACT").length ?? 0;
   const groundFirst = editedFacts > 0 && !(g.check?.status === "COMPLETED" && g.check.text === text);
+  // 근거 점검은 필요할 때만(FE#336) — 손대지 않은 초안은 문장마다 근거가 이미 붙어 있다. 고친 사실 문장 · 초안 밖에서 직접 쓴 문장이 있거나 점검이 진행 · 실패 중일 때 보인다
+  const ownText = splitSentences(text).some(p => p.text.trim() && !analysis.marks.some(m => m.start < p.end && p.start < m.end));
+  const showGround = editedFacts > 0 || ownText || analyzing || g.busy || !!g.failure || g.check?.status === "FAILED";
+  const copyAnswer = () => { if (warnFirst) setAsk("copy"); else void copy(); };
   const finish = () => { if (groundFirst) setAsk("ground"); else void confirmAnswer(); };
   // 빠진 사실 질문은 차곡이 패널에서 답한다 — 답칸 위에서는 한 줄로 알린다(FE#262 · FE#266). 글에 칩으로 남은 빈칸은 「확인할 곳」이 센다
   const chipped = new Set(analysis?.chips.map(c => c.at) ?? []);
   // AI 가정의 짝은 그 문장 카드에서 확인하니 세지 않는다
   const asked = ready?.omitted.filter((o, at) => o.clarificationId !== null && o.supplementId === null && !chipped.has(at) && !isSupposedPair(ready, o)).length ?? 0;
   return <>
+    {/* 답칸 머리줄(FE#336) — 왼쪽 제목, 오른쪽 글자 수 / 목표 · 복사 */}
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+      <AnswerTitle questionId={questionId} />
+      <div className="flex items-center gap-1">
+        <span className="inline-flex items-center gap-1 text-xs text-muted tabular-nums">{text.length.toLocaleString()}자 /{" "}
+          <TargetLengthField value={target} onSave={onTargetLength} />
+          {marked && target !== null && text.length < target && <InfoTip label="목표 글자 수" align="end">자료에 있는 내용으로만 써서 목표보다 짧을 수 있어요. 빈칸 · 빠진 사실에 답하면 다음 초안이 길어져요.</InfoTip>}</span>
+        <Button variant="ghost" size="icon" className="size-11 lg:size-9" aria-label="답 복사" title="답 복사" disabled={!text.trim()} onClick={copyAnswer}><CopyIcon aria-hidden="true" /></Button>
+      </div>
+    </div>
     {drafting && <p role="status" className="m-0 text-sm text-muted">차곡이가 초안을 만들고 있어요. 다 되면 답칸에 들어와요.</p>}
     {draft?.status === "FAILED" && !drafting && <p role="alert" className="m-0 text-sm text-error">{failureReason(draft.error)} 차곡이에서 다시 만들 수 있어요.</p>}
     {marked && <div id={`draft-title-${questionId}`} role="group" aria-label="답변 초안" className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
@@ -196,6 +209,7 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
       {supposedLeft.length > 0 && <span role="status" className="inline-flex items-center gap-1.5 text-note font-medium text-body tabular-nums">
         <span aria-hidden="true" className="h-2 w-3 rounded-[2px] bg-surface-strong outline-1 outline-muted-soft" />AI 가정 {supposedLeft.length}곳
       </span>}
+      {ready && <DraftGuidance draft={ready} />}
       <span className="-ml-2 mr-auto inline-flex items-center"><InfoTip label="차곡이 초안">차곡이 초안이에요. 바로 고쳐 쓰고, 밑줄 · 빈칸을 누르면 근거와 이유가 보여요. 최종 문장은 직접 정해요.</InfoTip></span>
       {left > 0 && <Button variant="secondary" size="sm" className="min-h-11 lg:min-h-10" title="Alt + ↓" onClick={() => editor.current?.next()}>다음 확인할 곳 →</Button>}
     </div>}
@@ -227,17 +241,13 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
         {/* 왼쪽은 글을 살피는 일, 오른쪽은 다음 행동 — 초안 부탁을 더 많이 쓴다(FE#215). 「다 썼어요」가 줄 끝이다.
             「분석 1회」는 분석을 쓰는 「근거 점검」 옆에만(S-15) — 「다 썼어요」는 저장만 하고(FE#270), 「초안 부탁하기」는 분석을 쓰지 않는다(FE#249) */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1 text-xs text-muted tabular-nums">{text.length.toLocaleString()}자 /{" "}
-            <TargetLengthField value={target} onSave={onTargetLength} />
-            {marked && target !== null && text.length < target && <InfoTip label="목표 글자 수" align="start">자료에 있는 내용으로만 써서 목표보다 짧을 수 있어요. 빈칸 · 빠진 사실에 답하면 다음 초안이 길어져요.</InfoTip>}</span>
           <SaveState status={autosave.status} onRetry={() => void autosave.retry()} />
           {/* 같은 글은 다시 점검하지 않는다 — 분석 1회를 아끼고 판정이 오락가락하지 않게(FE#317). 실패한 점검은 아래 「같은 글로 다시 시도」 */}
-          <Button variant="ghost" className="min-h-11 lg:min-h-10" title={checkedSame ? "이미 점검한 글이에요 — 고치면 다시 점검할 수 있어요" : "분석 1회를 써요"}
+          {showGround && <><Button variant="ghost" className="min-h-11 lg:min-h-10" title={checkedSame ? "이미 점검한 글이에요 — 고치면 다시 점검할 수 있어요" : "분석 1회를 써요"}
             disabled={!valid || g.loading || g.busy || analyzing || !g.initialized || checkedSame} onClick={() => void g.submit(text)}>
             {g.busy || analyzing ? "근거 점검 중…" : checkedSame ? "점검했어요" : "근거 점검"}
           </Button>
-          {!checkedSame && <AnalysisCost running={g.busy || analyzing} className="-ml-1.5" />}
-          <Button variant="ghost" className="min-h-11 lg:min-h-10" disabled={!text.trim()} onClick={() => { if (warnFirst) setAsk("copy"); else void copy(); }}>복사</Button>
+          {!checkedSame && <AnalysisCost running={g.busy || analyzing} className="-ml-1.5" />}</>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {draftLabel && <Button variant="secondary" className="min-h-11 lg:min-h-10" onClick={onAskDraft}>{draftLabel}</Button>}
@@ -247,7 +257,6 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
       </div>
     </div>
     {autosave.status === "error" && <p role="alert" className="m-0 text-sm text-error">쓰는 글을 저장하지 못했어요. {autosave.error} 글은 이 화면에 그대로 있어요 — 「다시 저장」을 눌러 주세요.</p>}
-    {marked && ready && <DraftGuidance draft={ready} />}
     {a.answer && text !== a.answer.text && <Button variant="link" size="sm" className="min-h-11 lg:min-h-10 justify-self-start" onClick={() => { if (edited) setAsk("load"); else loadConfirmed(); }}>다 쓴 답 불러오기</Button>}
     {a.failure && <div className="grid justify-items-start gap-2">
       <p role="alert" className="m-0 text-sm text-error">{a.failure.message}{a.pollFailures >= 3 && " 자동 확인을 멈췄어요."}</p>
@@ -269,23 +278,7 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
       <p role="alert" className="m-0 text-sm text-error">{g.check.error?.message || "근거 점검을 마치지 못했어요."} 점검할 글은 저장돼 있어요.</p>
       <Button variant="secondary" className="min-h-11 lg:min-h-10" disabled={g.busy} onClick={() => void g.submit(g.check!.text)}>같은 글로 다시 시도</Button>
     </div>}
-    {/* 점검 결과는 답칸 문장 카드에 붙는다(FE#307) — 목록은 요약 한 줄로 접어 화면 읽기 · 비교용으로 남긴다 */}
-    {g.check?.status === "COMPLETED" && <details className="grid min-w-0 gap-4 rounded-sm bg-surface-soft px-3.5 py-2.5">
-      <summary className="min-h-11 lg:min-h-10 cursor-pointer content-center text-sm font-semibold">
-        {stale ? "고치기 전 근거 점검 — 다시 점검해 주세요" : unsupportedCount ? `근거 점검 — 근거 없음 ${unsupportedCount}문장 · 답칸에 칠했어요` : "근거 점검 — 근거 없음 없어요"}
-      </summary>
-      <p className="m-0 text-note leading-relaxed text-muted">근거 없음은 현재 자료에서 받칠 근거를 찾지 못했다는 뜻이에요. 거짓이라는 뜻은 아니에요. 판정과 이유는 AI 해석이니 직접 확인해 주세요. 답칸에서 문장을 누르면 그 문장의 결과가 보여요.</p>
-      <ol aria-label={stale ? "고치기 전 문장별 근거" : "문장별 근거"} className="m-0 grid list-none gap-4 p-0">
-        {g.check.sentences.map((s, i) => <li key={i} className="grid min-w-0 gap-2">
-          <p className="m-0 whitespace-pre-wrap break-words text-ui leading-loose"><span className={`${TINT[s.status]} rounded-sm px-1 py-0.5`}>{s.text}</span></p>
-          <p className={`m-0 text-xs font-semibold ${s.status === "UNSUPPORTED" ? "text-review" : "text-muted"}`}>{LABEL[s.status]}</p>
-          {s.status === "UNSUPPORTED" && <p className="m-0 text-sm text-review">지우거나, 사실이면 근거를 더해 주세요.</p>}
-          {s.note && <p className="m-0 text-sm text-muted">AI 해석 — {s.note}</p>}
-          {s.evidence.map((e, j) => <AnswerEvidence key={`${e.type}-${e.id}-${j}`} evidence={e} questionId={questionId} />)}
-          {(s.status === "SOURCE" || s.status === "USER_INPUT") && !s.evidence.length && <p className="m-0 text-sm text-muted">연결된 근거가 지금은 없어요. 판정은 점검했을 때 그대로이니 다시 점검해 주세요.</p>}
-        </li>)}
-      </ol>
-    </details>}
+    {/* 점검 결과는 답칸 문장 표시 · 카드에만 붙는다 — 답칸 아래 목록은 두지 않는다(FE#307 · FE#336). 근거 없음은 「확인할 곳」이 센다 */}
     <Dialog open={ask !== null} onOpenChange={o => { if (!o) setAsk(null); }}>
       <DialogContent>
         {ask === "ground" ? <>
