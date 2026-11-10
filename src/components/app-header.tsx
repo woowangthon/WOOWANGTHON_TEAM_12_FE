@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArchiveIcon, FileTextIcon, FolderSimpleIcon, HouseIcon, PaperclipIcon, PencilSimpleIcon, PlusIcon, StackIcon, PlugsConnectedIcon, SidebarSimpleIcon } from "@phosphor-icons/react";
+import { ArchiveIcon, FileTextIcon, FilesIcon, HouseIcon, PaperclipIcon, PencilSimpleIcon, PlusIcon, StackIcon, PlugsConnectedIcon, SidebarSimpleIcon } from "@phosphor-icons/react";
 import { DropdownMenu, Tooltip } from "radix-ui";
 import { AccountMenu } from "@/components/auth/account-menu";
 import { QuickFindButton, useQuickFindActions, type QuickFindActions } from "@/components/quick-find/quick-find";
@@ -42,8 +42,8 @@ const tabs: { page: Page; href: string; label: string; icon: React.ReactNode }[]
 const sideLinks = [
   { page: "home", href: "/", label: "홈", icon: <HouseIcon /> },
   { page: "timeline", href: "/experience", label: "내 경험", icon: <StackIcon /> },
-  // 넣은 지원서를 모두 모아 보고 폴더로 나눈다(FE#347)
-  { page: "applications", href: "/applications", label: "내 지원서", icon: <FolderSimpleIcon /> },
+  // 넣은 지원서를 모두 모아 시기 · 종류로 묶어 본다(FE#347)
+  { page: "applications", href: "/applications", label: "내 지원서", icon: <FilesIcon /> },
 ];
 const PAGE_NAME: Record<Page, string> = { home: "홈", timeline: "내 경험", applications: "내 지원서", questions: "지원서", connections: "연결 · 내보내기", guidelines: "작성 지침" };
 const BUSY = "지금 넣은 자료의 분석이 끝나면 더 넣을 수 있어요";
