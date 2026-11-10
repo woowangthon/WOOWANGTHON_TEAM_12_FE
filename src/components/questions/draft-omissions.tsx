@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { DraftFrame } from "@/lib/draft-frames";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { InfoTip } from "@/components/ui/info-tip";
 import { ApiError } from "@/lib/api/errors";
 import type { DraftOmission, QuestionDetail } from "@/lib/api/question-types";
 import { AnsweredItem, AnswerForm, bubble, ClarifyBlock, clarifyList, openItem, SupplementNote, type AnswerHandler } from "./clarifications";
@@ -104,7 +105,7 @@ export function DraftFollowUp({ question, onAnswer, onGenerate, onRefresh, savin
         <p className={bubble}>{!draft?.sentences.length ? "고른 기록에서 받칠 내용을 찾지 못해 문장을 쓰지 않았어요. 경험이 없다는 뜻은 아니에요." : draft.omitted.length ? "초안을 답칸에 넣었어요. 아래 내용은 자료에서 확인하지 못해 쓰지 않았어요." : "초안을 답칸에 넣었어요. 밑줄 · 빈칸을 눌러 근거와 이유를 확인해 주세요."}</p>
         {asks.length > 0 && <ClarifyBlock title="초안에 대한 되묻기" total={asks.length} answered={asks.filter(item => item.supplementId !== null).length}
           attention={asks.some(item => supplementOf(item)?.mcpChange)}>
-          <p className="m-0 text-note leading-relaxed text-muted"><b className="font-semibold text-body">자료에 없어 쓰지 않았어요 · AI 해석.</b> 기억나는 것만 알려 주세요. 답은 선택이고, 건너뛰어도 초안을 복사할 수 있어요.</p>
+          <p className="m-0 text-note leading-relaxed text-muted"><b className="font-semibold text-body">자료에 없어 쓰지 않았어요 · AI 해석</b><InfoTip label="초안에 대한 되묻기" className="align-middle">기억나는 것만 알려 주세요. 답은 선택이고, 건너뛰어도 초안을 복사할 수 있어요.</InfoTip></p>
           <ul aria-label="초안의 빠진 사실" className={clarifyList}>
             {asks.map(item => <OmissionItem key={item.clarificationId} item={item} question={question} onAnswer={onAnswer} onRefresh={refresh} disabled={disabled} />)}
           </ul>

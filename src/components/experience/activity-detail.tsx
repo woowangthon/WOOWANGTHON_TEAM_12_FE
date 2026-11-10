@@ -6,6 +6,7 @@ import { useRef, useState, type ReactNode } from "react";
 import { ArrowsClockwiseIcon, CaretLeftIcon, DotsThreeIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { DropdownMenu } from "radix-ui";
 import { Button } from "@/components/ui/button";
+import { InfoTip } from "@/components/ui/info-tip";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { ActivityDetail, ActivitySummary, Experience } from "@/lib/api/types";
 import { durationText } from "@/lib/period";
@@ -236,8 +237,8 @@ function ExperienceList({ activity, onSaved, onAdded, onDelete, onMove, onMerge,
       </div>
       {/* 경험이 0개면 빈 상태 안내가 같은 말을 하므로 숨긴다 (FE#22) */}
       {experiences.length > 0 && <p className="m-0 mt-5 hidden text-note leading-relaxed text-muted lg:block">
-        AI 가 자료에서 찾아 채운 기록이에요. 「확인 필요」는 원문과 맞는지 한번 봐 주세요. 자료에서 찾지 못했다고 경험이
-        없는 건 아니에요. {!readOnly && <>다른 활동의 일이면 경험 왼쪽 손잡이를 끌어 타임라인의 그 활동에 놓아 주세요.</>}
+        AI 가 자료에서 찾아 채운 기록이에요. 「확인 필요」는 원문과 맞는지 한번 봐 주세요.
+        <InfoTip label="찾아 채운 기록" className="align-middle">자료에서 찾지 못했다고 경험이 없는 건 아니에요.{!readOnly && <> 다른 활동의 일이면 경험 왼쪽 손잡이를 끌어 타임라인의 그 활동에 놓아 주세요.</>}</InfoTip>
       </p>}
 
       {/* 모바일 — 근거 하단 시트 */}

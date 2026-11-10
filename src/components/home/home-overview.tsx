@@ -6,6 +6,7 @@ import { ArrowRightIcon, ClockCounterClockwiseIcon, FileTextIcon, StackIcon } fr
 import { ExperienceBlocks, experienceYears } from "@/components/experience/experience-blocks";
 import { Mascot } from "@/components/questions/chagok-panel";
 import { Button } from "@/components/ui/button";
+import { InfoTip } from "@/components/ui/info-tip";
 import { thisTimeLastYear } from "@/lib/home-overview";
 import { periodText } from "@/lib/period";
 import type { HomeOverview } from "./use-home-overview";
@@ -24,6 +25,7 @@ export function HomeMascot({ overview, onRefresh, mode }: { overview: HomeOvervi
     <Popover.Root>
       <Popover.Trigger asChild><button type="button" aria-label="차곡이 — 쌓인 경험 보기" className="rounded-md p-1.5 transition-transform hover:-translate-y-0.5 hover:-rotate-3 hover:bg-surface-soft"><Mascot size={72} animate className="max-lg:h-15 max-lg:w-auto" /></button></Popover.Trigger>
       <Popover.Portal><Popover.Content side={desktop ? "right" : "bottom"} align="center" sideOffset={12} collisionPadding={16} aria-label="쌓인 블록" className="z-40 w-72 max-w-[calc(100vw-2rem)] rounded-md border border-hairline bg-canvas p-4 text-ink shadow-float">
+        <div className="mb-2 flex items-center gap-0.5"><p className="m-0 text-sm font-semibold">쌓인 블록</p><InfoTip label="쌓인 블록">활동 시작 연도별 경험 수예요. 점선은 확인이 필요한 경험이에요.</InfoTip></div>
         {overview.activityError ? <p className="m-0 text-sm text-error">{overview.activityError} <Button variant="link" onClick={onRefresh}>다시 시도</Button></p>
           : total === undefined ? <p role="status" className="m-0 text-sm text-muted">경험을 불러오고 있어요…</p>
           : <Link href={STATS_HREF} className="flex items-end gap-3" aria-label={`쌓인 경험 ${total}개 — 통계 보기`}>
@@ -31,7 +33,6 @@ export function HomeMascot({ overview, onRefresh, mode }: { overview: HomeOvervi
             <span className="shrink-0 self-center text-right text-xs leading-relaxed text-muted"><b className="text-2xl text-ink">{total}</b>개의 경험이<br />차곡차곡</span>
           </Link>}
         {total === 0 && <p className="mt-2 mb-0 text-note text-muted">자료를 넣으면 경험 하나가 블록 하나로 쌓여요.</p>}
-        <p className="mt-3 mb-0 text-note leading-relaxed text-muted">활동 시작 연도별 경험 수예요. 점선은 확인이 필요한 경험이에요.</p>
         {!!total && <Link href={STATS_HREF} className="mt-2 inline-flex min-h-11 items-center gap-1 text-note font-medium text-ink underline underline-offset-4 lg:min-h-0">내 경험 통계 보기<ArrowRightIcon className="size-3.5" aria-hidden="true" /></Link>}
         {overview.detailError && <p className="mt-2 mb-0 text-note text-error">{overview.detailError} <Button variant="link" onClick={onRefresh}>다시 시도</Button></p>}
       </Popover.Content></Popover.Portal>
