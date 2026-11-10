@@ -6,7 +6,8 @@ import type { AskRecommendation } from "@/lib/api/entrance";
 import { periodText } from "@/lib/period";
 
 export type AskAnswerState = { text: string; recommendations: AskRecommendation[]; mock: boolean };
-export type AskFailure = { text: string; message: string; retryable: boolean };
+/** limit: 오늘 분석 횟수를 다 써서 못 한 것(DAILY_LIMIT_EXCEEDED) — 다시 시도도 「지원으로 만들기」도 의미가 없다 */
+export type AskFailure = { text: string; message: string; retryable: boolean; limit?: boolean };
 
 const box = "grid content-start gap-1.5 rounded-[14px] bg-canvas/80 px-3.5 py-3 text-sm leading-relaxed";
 const boxTitle = "m-0 text-xs font-semibold text-muted";
@@ -54,13 +55,13 @@ export function AskAnswer({ answer, onMakeApplication, busy, onOpenActivity }: {
   </section>;
 }
 
-/** 꺼내기 실패 — 오류 · 「다시 시도」(502 · 504) · 429 한도 문구. 아래엔 늘 「지원으로 만들기」 */
+/** 꺼내기 실패 — 오류 · 「다시 시도」(502 · 504) · 429 한도 문구. 아래엔 「지원으로 만들기」 — 한도 초과만 뺀다(S-15 · FE#289) */
 export function AskFailureNotice({ failure, onRetry, onMakeApplication, busy }: { failure: AskFailure; onRetry: () => void; onMakeApplication: () => void; busy: boolean }) {
   return <section aria-label="꺼내기 답" className="mt-6 rounded-lg border border-hairline bg-canvas p-4 sm:p-5">
     <div role="alert">
       <p className="m-0 text-sm text-error">{failure.message}</p>
       {failure.retryable && <Button type="button" variant="link" disabled={busy} onClick={onRetry}>다시 시도</Button>}
     </div>
-    <MakeApplication onMakeApplication={onMakeApplication} disabled={busy} />
+    {!failure.limit && <MakeApplication onMakeApplication={onMakeApplication} disabled={busy} />}
   </section>;
 }

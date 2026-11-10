@@ -22,7 +22,7 @@ import { submitApplication } from "@/lib/api/questions";
 import { submitSource, type MockAnalysis } from "@/lib/api/experience";
 import { dailyLimitMessage } from "@/lib/api/auth";
 import { useAuth } from "@/components/auth/auth-gate";
-import { LowAnalysisNotice } from "@/components/auth/analysis-cost";
+import { ANALYSIS_EXHAUSTED_NOTE, LowAnalysisNotice, useAnalysisLeft } from "@/components/auth/analysis-cost";
 import { readSourceFile, SOURCE_FILE_ACCEPT, SourceFileError, type SourceFile } from "@/lib/source-file/read";
 import { MAX_TEXT_LENGTH, type SourceRequest } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
@@ -77,6 +77,8 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
   const fileVersion = useRef(0);
   const pending = useRef(false);
   const tooLong = text.length > MAX_TEXT_LENGTH;
+  // 꺼내기(묻기 · 지원) 는 분석 1회를 쓴다 — 0회면 보내기 전에 막는다. 쌓기는 중복 안내가 먼저라 그대로 둔다(S-15)
+  const exhausted = useAnalysisLeft() === 0 && mode === "out" && !file;
   const busy = routing || asking || parse.parsing || sourceSubmitting || readingFile;
 
   const pickFile = async (picked: File | undefined) => {
@@ -139,7 +141,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
   };
 
   const send = async () => {
-    if (pending.current || readingFile || (!file && (!text.trim() || tooLong))) return;
+    if (pending.current || readingFile || exhausted || (!file && (!text.trim() || tooLong))) return;
     if (mode === "in" || file) {
       // 다시 시도는 처음 넣기와 같다 — 안내에서 「그래도 넣기」를 고른 뒤 실패했으면 다시 견준다
       await sendSource();
@@ -188,7 +190,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
           <Button type="button" variant="ghost" size="icon" className="size-11 bg-surface-soft lg:size-9" aria-label="파일 올리기" disabled={busy || sourceBusy} onClick={() => fileInput.current?.click()}><PlusIcon aria-hidden="true" /></Button>
           <span id="entrance-length" className={cn("text-xs tabular-nums", tooLong ? "text-error" : "text-muted")}>{text.length > 0 && `${text.length.toLocaleString("ko-KR")} / 50,000`}</span>
           <ModelMenu />
-          <Button type="submit" size="icon" className="size-11 lg:size-9" aria-label="보내기" title={mode === "in" ? "자료 분석 시작" : "보내기"} disabled={busy || (!file && (!text.trim() || tooLong)) || ((mode === "in" || !!file) && sourceBusy)}><ArrowUpIcon aria-hidden="true" /></Button>
+          <Button type="submit" size="icon" className="size-11 lg:size-9" aria-label="보내기" title={mode === "in" ? "자료 분석 시작" : "보내기"} disabled={busy || exhausted || (!file && (!text.trim() || tooLong)) || ((mode === "in" || !!file) && sourceBusy)}><ArrowUpIcon aria-hidden="true" /></Button>
         </div>
       </div>
     </form>
@@ -201,6 +203,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     {/* S-16 — 자료를 넣는 쌓기 모드에서, 분석을 시작하기 전에 보인다 */}
     {mode === "in" && <p id="entrance-note" className="mt-3 mb-0 flex items-center justify-center gap-1.5 text-center text-note leading-relaxed text-muted"><LockSimpleIcon className="size-[13px] shrink-0" aria-hidden="true" />넣은 자료는 분석을 위해 외부 AI 제공사(OpenAI)로 보내져요 · 학습엔 안 쓰여요</p>}
     <LowAnalysisNotice running={busy} className="mt-2 text-center" />
+    {exhausted && <p id="entrance-exhausted" role="status" className="mt-1 mb-0 text-center text-sm text-review">{ANALYSIS_EXHAUSTED_NOTE}</p>}
     {readingFile && <p role="status" className="mt-4 text-center text-sm text-muted">파일을 읽고 있어요…</p>}
     {fileError && <p role="alert" className="mt-4 text-sm text-error">{fileError}</p>}
     {readingFile && <p role="status" className="mt-3 text-sm text-muted">파일에서 글자를 읽는 중…</p>}

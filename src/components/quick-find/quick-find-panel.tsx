@@ -7,7 +7,7 @@ import { ExperienceFilterBar, isFiltered, type ExperienceFilters } from "@/compo
 import { ActivityTag, categoryOf } from "@/components/experience/activity-category";
 import { ExperienceProperties, SourceStatusMark } from "@/components/experience/experience-item";
 import { useExperienceSearch } from "@/components/experience/use-experience-search";
-import { AnalysisCost } from "@/components/auth/analysis-cost";
+import { ANALYSIS_EXHAUSTED_NOTE, AnalysisCost, useAnalysisLeft } from "@/components/auth/analysis-cost";
 import { AskAnswer, AskFailureNotice } from "@/components/home/ask-answer";
 import type { useAsk } from "@/components/home/use-ask";
 import { Mascot } from "@/components/questions/chagok-panel";
@@ -97,7 +97,8 @@ export function QuickFindPanel({ asked, addSourceBusy, initial, onGo }: { asked:
     if (row) onGo({ kind: "activity", id: row.activity.id });
     else if (more) setRows(n => n + PAGE_ROWS); // 고른 자리가 새로 펼친 첫 줄이 된다
   };
-  const send = () => { if (query) void asked.ask(query); };
+  const exhausted = useAnalysisLeft() === 0;
+  const send = () => { if (query && !exhausted) void asked.ask(query); };
   const makeApplication = (text: string) => { handOffApplicationText(text); onGo({ kind: "application" }); };
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -119,7 +120,7 @@ export function QuickFindPanel({ asked, addSourceBusy, initial, onGo }: { asked:
         aria-autocomplete={hasList ? "list" : undefined} aria-activedescendant={hasList && count ? optionId(current) : undefined}
         className="min-h-11 min-w-0 flex-1 bg-transparent lg:h-5.5 lg:min-h-0 text-title-md text-ellipsis text-ink outline-none placeholder:text-muted" />
       {tab === "ask" && <AnalysisCost className="shrink-0" />}
-      {tab === "ask" && <Button type="button" size="icon" className="size-11 shrink-0 lg:size-8" aria-label="보내기" disabled={!query || asked.asking} onClick={send}><ArrowUpIcon aria-hidden="true" /></Button>}
+      {tab === "ask" && <Button type="button" size="icon" className="size-11 shrink-0 lg:size-8" aria-label="보내기" aria-describedby={exhausted ? "quick-find-exhausted" : undefined} disabled={!query || asked.asking || exhausted} onClick={send}><ArrowUpIcon aria-hidden="true" /></Button>}
     </div>
     <div role="group" aria-label="빠른 찾기 탭" className={cn("flex gap-1.5 px-3.5 lg:px-4.5", tab === "find" ? "pb-1.5" : "border-b border-hairline-soft pb-2.5")}>
       {TABS.map(t => <button key={t.value} type="button" aria-pressed={tab === t.value} onClick={() => moveTo(t.value)}
@@ -136,6 +137,7 @@ export function QuickFindPanel({ asked, addSourceBusy, initial, onGo }: { asked:
           <p className="m-0 break-words text-body">{query ? `「${query}」 — 쌓인 경험에서 찾아 근거와 함께 답할게요.` : "무엇이든 물어보세요. 예: 리더십을 보여 준 경험 있어?"}</p>
         </div>
       </div>}
+      {exhausted && <p id="quick-find-exhausted" role="status" className="mb-3 mt-0 rounded-sm bg-surface-soft px-3 py-2 text-sm text-review">{ANALYSIS_EXHAUSTED_NOTE}</p>}
       {asked.asking && <p role="status" className="py-8 text-center text-sm text-muted">쌓인 경험에서 찾고 있어요…</p>}
       {asked.answer && <AskAnswer answer={asked.answer} busy={asked.asking} onMakeApplication={() => makeApplication(asked.answer!.text)} onOpenActivity={id => onGo({ kind: "activity", id })} />}
       {asked.failure && <AskFailureNotice failure={asked.failure} busy={asked.asking} onRetry={() => void asked.ask(asked.failure!.text)} onMakeApplication={() => makeApplication(asked.failure!.text)} />}
