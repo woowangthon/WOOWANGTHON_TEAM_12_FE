@@ -10,6 +10,7 @@ import { foundExperiences, type ChagokConfirmStep, type ChagokRun, type ChagokTo
 import { JOB_ROLE_LABEL, ORGANIZATION_TYPE_LABEL, type JobRole, type OrganizationType } from "@/lib/api/question-types";
 import { bubble, inlineAction } from "./clarifications";
 import { ActivityChip, RecommendationEvidence } from "./question-result";
+import { RematchButton, type Rematch } from "./rematch-button";
 import { whyFailed, type ChagokRunControl } from "./use-chagok-run";
 
 /** 시안의 부탁 칩 중 도구가 있는 둘 — 근거 점검 · 초안은 그 도구가 생긴 뒤(S-45 · S-27) */
@@ -107,9 +108,16 @@ function ResultLink({ run }: { run: ChagokRun }) {
   </div>;
 }
 
-export function ChagokRunFeed({ control, currentQuestionId }: { control: ChagokRunControl; currentQuestionId: number | null }) {
+export function ChagokRunFeed({ control, currentQuestionId, rematch }: {
+  control: ChagokRunControl; currentQuestionId: number | null;
+  /** 지금 문항이 추천이 끝난 상태일 때만 — 차곡이가 찾은 경험을 이 문항의 추천에 반영하는 길(S-90) */
+  rematch: { onRematch: Rematch; busy: boolean } | null;
+}) {
   const { run, pollState, acting, actionError, starting } = control;
   if (!run) return null;
+  // 이 문항에서 한 부탁이 끝났고 찾은 경험이 보일 때만. 차곡이가 스스로 시작하지 않는다 — 사용자가 누른다
+  const foundHere = currentQuestionId !== null && run.questionId === currentQuestionId && run.status !== "RUNNING" && run.status !== "WAITING_CONFIRM"
+    && run.steps.some(step => step.type === "TOOL_CALL" && foundExperiences(step.result).length > 0);
   return <section aria-label="차곡이의 일" className="mt-2.5 grid gap-2.5 border-t border-hairline-soft pt-3">
     <div className="grid justify-items-end gap-1">
       <p className="m-0 line-clamp-4 max-w-[92%] rounded-[16px_4px_16px_16px] bg-primary px-3.5 py-2.5 text-sm leading-relaxed break-words whitespace-pre-wrap text-on-primary">{run.text}</p>
@@ -120,6 +128,10 @@ export function ChagokRunFeed({ control, currentQuestionId }: { control: ChagokR
         : step.type === "MESSAGE" ? <li key={step.seq} className={`${bubble} break-words`}>{step.text}</li>
         : <ConfirmCard key={step.seq} step={step} control={control} />)}
     </ol>
+    {rematch && foundHere && currentQuestionId !== null && <div className={notice}>
+      <p className="m-0 text-body">찾은 경험을 이 문항의 추천에 반영하려면 경험을 다시 찾아 주세요. 초안과 다 쓴 답은 그대로 남아요.</p>
+      <RematchButton questionId={currentQuestionId} onRematch={rematch.onRematch} busy={rematch.busy} label="이 문항에서 경험 다시 찾기" />
+    </div>}
     {run.status === "RUNNING" && <div className="grid gap-2">
       <div role="status" className="flex items-center gap-2 text-note font-medium text-ink">
         <span aria-hidden="true" className="size-[18px] shrink-0 rounded-full border-2 border-ink border-r-transparent motion-safe:animate-spin" />

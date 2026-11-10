@@ -100,6 +100,24 @@ test("부탁하면 단계 · 경험 카드 · 확인 카드가 쌓이고 만들�
   expect(chagok.calls.at(-1)?.call).toBe("POST /55/confirm");
 });
 
+test("문항에서 찾은 경험 아래 「이 문항에서 경험 다시 찾기」 — 같은 재매칭을 부른다 (S-90)", async ({ page }) => {
+  const questions = new FakeQuestionApi({ sameApplication: true });
+  await questions.install(page);
+  const chagok = new FakeChagok();
+  await chagok.install(page);
+  await page.goto("/questions?question=41");
+  if (page.viewportSize()!.width < 1280) await page.getByRole("button", { name: /^차곡이( ?질문 \d+)?$/ }).click();
+  const again = panel(page).getByRole("button", { name: "이 문항에서 경험 다시 찾기" });
+  chagok.script = [{ steps: [SEARCH] }, { steps: [SEARCH, SAID], status: "DONE" }];
+  await panel(page).getByRole("button", { name: "근거 찾기" }).click();
+  await expect(panel(page).getByRole("list", { name: "찾은 경험" })).toBeVisible();
+  await expect(again).toBeVisible();
+  await again.click();
+  await expect.poll(() => questions.calls.some(c => c.call === "POST /api/questions/41/retry")).toBe(true);
+  // 다시 찾는 동안에는 버튼이 없다 — 끝난 문항에서만 보인다
+  await expect(again).toHaveCount(0);
+});
+
 test("미리 정한 부탁은 정한 글을 그 문항으로 보낸다 · 안 함은 cancel", async ({ page }) => {
   const chagok = await open(page);
   chagok.script = [{ steps: [CONFIRM], status: "WAITING_CONFIRM" }];

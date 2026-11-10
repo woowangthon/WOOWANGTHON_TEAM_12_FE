@@ -62,7 +62,7 @@ export class FakeQuestionApi {
   private nextSupplement = 302;
   private applications = new Map<number, string | null>();
 
-  constructor(private options: FakeOptions = {}) {
+  constructor(readonly options: FakeOptions = {}) {
     if (options.empty) return;
     for (const sample of QUESTION_EXAMPLES) {
       const detail = structuredClone(sample);
@@ -302,7 +302,8 @@ export class FakeQuestionApi {
     if ((m = path.match(/^\/api\/questions\/(\d+)\/retry$/)) && method === "POST") {
       const q = this.find(+m[1]);
       if (!q) return error(route, 404, "QUESTION_NOT_FOUND");
-      if (q.detail.status !== "FAILED") return error(route, 409, "QUESTION_NOT_FAILED");
+      // 끝난 문항도 받는다(S-90 — 경험 다시 찾기). 분석 중일 때만 409
+      if (q.detail.status === "ANALYZING" || q.detail.draft?.status === "ANALYZING") return error(route, 409, "QUESTION_ANALYZING");
       q.fail = false; q.startedAt = Date.now();
       q.detail = { ...q.detail, status: "ANALYZING", error: null, requirements: [], recommendations: [], clarifications: [] };
       return json(route, q.detail, 202);

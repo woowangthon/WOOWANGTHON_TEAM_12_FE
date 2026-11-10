@@ -12,6 +12,7 @@ import { bubble, ClarificationItem, ClarifyBlock, clarifyList, type AnswerHandle
 import { DraftFollowUp, draftAsks, OmissionItem, omissionSource, type DraftPanelActions } from "./draft-omissions";
 import { shortName } from "./question-result";
 import { ChagokComposer, ChagokRunFeed } from "./chagok-run";
+import type { Rematch } from "./rematch-button";
 import type { ChagokRunControl } from "./use-chagok-run";
 import { NewFactCandidates } from "./new-fact-candidates";
 import { useConfirmedAnswer } from "./use-confirmed-answer";
@@ -51,8 +52,8 @@ export type SupplementOrigin = (supplement: Supplement) => string;
 /** 새 경험 후보(S-48)를 패널에서 찾고 고른다(FE#270) — 답은 화면이 받아 둔 문항의 것을 같이 쓴다 */
 export type NewFactActions = { onAnswerChange: (id: number, answer: Answer | null) => void; findRequested: boolean; onFindStarted: () => void };
 
-export function ChagokPanel({ question, index, originOf, onAnswer, onClose, draftActions, control, newFacts }: {
-  question: QuestionDetail | null; index: number; originOf: SupplementOrigin; onAnswer: AnswerHandler; onClose: () => void; draftActions: DraftPanelActions; control: ChagokRunControl; newFacts: NewFactActions;
+export function ChagokPanel({ question, index, originOf, onAnswer, onClose, draftActions, control, newFacts, onRematch }: {
+  question: QuestionDetail | null; index: number; originOf: SupplementOrigin; onAnswer: AnswerHandler; onClose: () => void; draftActions: DraftPanelActions; control: ChagokRunControl; newFacts: NewFactActions; onRematch: Rematch;
 }) {
   // 단계가 쌓이면 맨 아래를 보인다
   const body = useRef<HTMLDivElement>(null);
@@ -74,7 +75,8 @@ export function ChagokPanel({ question, index, originOf, onAnswer, onClose, draf
       {question ? <Feed key={question.id} question={question} originOf={originOf} onAnswer={onAnswer} draftActions={draftActions} /> : <p className={bubble}>문항을 고르면 읽어 보고 맞는 경험을 찾아 둘게요.</p>}
       {/* 흐름의 끝 — 다 쓴 답에서 새로 쓴 사실을 경험으로(S-48) */}
       {question?.answer && <PanelNewFacts key={`facts-${question.id}`} question={question} {...newFacts} />}
-      {!control.restoring && !control.restoreError && <ChagokRunFeed control={control} currentQuestionId={question?.id ?? null} />}
+      {!control.restoring && !control.restoreError && <ChagokRunFeed control={control} currentQuestionId={question?.id ?? null}
+        rematch={question?.status === "COMPLETED" ? { onRematch, busy: draftActions.savingAnswer || draftActions.requestingDraft || question.draft?.status === "ANALYZING" } : null} />}
     </div>
     <ChagokComposer control={control} hasQuestion={!!question} />
   </div>;
