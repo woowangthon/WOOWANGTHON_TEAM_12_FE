@@ -2,7 +2,7 @@
 
 // 활동 세부 — 이름 · 기간 · 이 활동을 만든 자료 · 경험들 (SPEC S-08 · S-09 · DESIGN.md 「활동 세부」)
 // PC 는 타임라인 옆 패널, 모바일은 전체 화면 + 근거는 하단 시트
-import { useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { ArrowsClockwiseIcon, CaretLeftIcon, DotsThreeIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { DropdownMenu } from "radix-ui";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { durationText } from "@/lib/period";
 import { CitationList, SourceFile } from "./citation-list";
 import { ExperienceItem, ExperienceMeta } from "./experience-item";
 import { ActivityCategoryField } from "./activity-category";
-import { ActivityNameField, PeriodField, type InlineEditHandle } from "./inline-edit";
+import { ActivityNameField, PeriodField } from "./inline-edit";
 import { ActivityNote } from "./activity-note";
 import { ActivityLinks } from "./activity-links";
 import { ExperienceEditor } from "./experience-editor";
@@ -60,9 +60,6 @@ type Props = {
 };
 
 export function ActivityDetailView({ summary, state, now, onClose, onRetry, onActivitySaved, onNoteSaved, onCategorySaved, onExperienceSaved, onExperienceAdded, onExperienceDelete, onExperienceMove, onExperienceMerge, onDragChange, draggingId, onMergeRequest, suggestions, onOpenActivity, onAddSource, addSourceBusy, addSourceStatus, readOnly = false }: Props) {
-  const nameEdit = useRef<InlineEditHandle>(null);
-  // 메뉴가 닫힌 뒤에 칸을 연다 — 열린 메뉴가 포커스를 붙잡고 있어서
-  const editFromMenu = useRef(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const activity = state.status === "ready" ? state.activity : null;
   const current = activity ?? summary;
@@ -88,7 +85,7 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
 
       <header className="grid gap-2.5 border-b border-hairline px-4.5 pt-5 pb-4 lg:px-7 lg:pt-7 lg:pb-5">
         <div className="flex items-start gap-2">
-          <ActivityNameField key={current.id} activity={{ ...summary, name: current.name, period }} readOnly={readOnly || !activity} onSaved={onActivitySaved} editRef={nameEdit} />
+          <ActivityNameField key={current.id} activity={{ ...summary, name: current.name, period }} readOnly={readOnly || !activity} onSaved={onActivitySaved} />
           {/* 활동이 하나여도 메뉴는 있다 — 수정 이력(S-80). 합치기만 둘 이상일 때 */}
           {activity && !readOnly && (
             <DropdownMenu.Root>
@@ -96,8 +93,7 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
                 <Button variant="ghost" size="icon" className="size-11 lg:size-9" aria-label="활동 메뉴"><DotsThreeIcon /></Button>
               </DropdownMenu.Trigger>
               <DropdownMenu.Portal>
-                <DropdownMenu.Content align="end" sideOffset={4} onCloseAutoFocus={(e) => { if (!editFromMenu.current) return; e.preventDefault(); editFromMenu.current = false; nameEdit.current?.open(); }} className="z-50 min-w-40 rounded-md border border-hairline bg-canvas p-1 shadow-float">
-                  <DropdownMenu.Item onSelect={() => { editFromMenu.current = true; }} className="flex min-h-11 lg:min-h-10 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">이름 고치기</DropdownMenu.Item>
+                <DropdownMenu.Content align="end" sideOffset={4} className="z-50 min-w-40 rounded-md border border-hairline bg-canvas p-1 shadow-float">
                   <DropdownMenu.Item onSelect={() => setHistoryOpen(true)} className="flex min-h-11 lg:min-h-10 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">수정 이력</DropdownMenu.Item>
                   {onMergeRequest && <DropdownMenu.Item onSelect={onMergeRequest} className="flex min-h-11 lg:min-h-10 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">다른 활동과 합치기</DropdownMenu.Item>}
                 </DropdownMenu.Content>
