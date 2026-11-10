@@ -89,9 +89,9 @@ test("desktop collapse survives reload and navigation; the application list rema
   await expect(sidebar(page)).toHaveCSS("width", "248px");
   await sidebar(page).getByRole("button", { name: "사이드바 접기", exact: true }).click();
   await page.locator("main").click({ position: { x: 4, y: 4 } });
-  const link = sidebar(page).getByRole("link", { name: "지원서", exact: true });
+  const link = sidebar(page).getByRole("link", { name: "내 지원서", exact: true });
   await link.hover();
-  await expect(page.getByRole("tooltip")).toHaveText("지원서");
+  await expect(page.getByRole("tooltip")).toHaveText("내 지원서");
   await page.mouse.move(500, 10);
   await capture(page, "questions-1440-collapsed");
   await page.reload();
@@ -99,8 +99,8 @@ test("desktop collapse survives reload and navigation; the application list rema
   await sidebar(page).getByRole("link", { name: "내 경험", exact: true }).click();
   await expect(page.getByRole("heading", { name: "내 경험", exact: true })).toBeVisible();
   await expect(sidebar(page)).toHaveCSS("width", "72px");
-  await sidebar(page).getByRole("link", { name: "지원서", exact: true }).click();
-  await expect(page.locator("#application-list").getByRole("button").first()).toBeVisible();
+  await sidebar(page).getByRole("link", { name: "내 지원서", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: /^내 지원서/ })).toBeVisible();
   await sidebar(page).getByRole("button", { name: "사이드바 펼치기", exact: true }).click();
   await expect(sidebar(page)).toHaveCSS("width", "248px");
   await page.reload();

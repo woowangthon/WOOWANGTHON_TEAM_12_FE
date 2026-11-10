@@ -36,7 +36,8 @@ type SidebarProps = Pick<HeaderProps, "activePage" | "experienceCount"> & {
 const tabs: { page: Page; href: string; label: string; icon: React.ReactNode }[] = [
   { page: "home", href: "/", label: "홈", icon: <HouseIcon /> },
   { page: "timeline", href: "/experience", label: "내 경험", icon: <StackIcon /> },
-  { page: "questions", href: "/questions", label: "지원", icon: <FileTextIcon /> },
+  // 지원서 영역의 입구는 내 지원서 — PC 사이드바 「내 지원서」와 같은 곳(FE#347). 지원 화면(/questions)에서도 켜진다
+  { page: "applications", href: "/applications", label: "지원서", icon: <FileTextIcon /> },
   { page: "connections", href: "/connections", label: "연결", icon: <PlugsConnectedIcon /> },
 ];
 const sideLinks = [
@@ -78,7 +79,7 @@ export function AppHeader({ hideTabBar, panelToggle, addSource, applicationList,
     </header>
     <DesktopSidebar key={wide ? "wide" : desktop ? "rail" : "mobile"} activePage={page} experienceCount={experienceCount === undefined ? ownCount : experienceCount}
       onAddSource={onAddSource} onRecord={onRecord} addSourceBusy={addSource?.busy} onNewApplication={newApplication}
-      list={<SidebarApplications {...(applicationList ?? ownList)} onNew={newApplication} showAll={page !== "questions"} />} />
+      list={<SidebarApplications {...(applicationList ?? ownList)} onNew={newApplication} />} />
     {!desktop && !hideTabBar && <TabBar page={page} busy={addSource?.busy} onAddSource={onAddSource} onRecord={onRecord} onNewApplication={newApplication} />}
   </Tooltip.Provider>;
 }
@@ -143,10 +144,9 @@ function SidebarNavigation({ collapsed = false, activePage = "timeline", experie
         </DropdownMenu.Trigger>
       </RailTip>
     </AddMenu>
-    {sideLinks.map(l => <SideLink key={l.page} {...l} active={activePage === l.page} collapsed={collapsed} onNavigate={onNavigate}
+    {/* 지원 화면(/questions)도 「내 지원서」 영역이다(FE#347) */}
+    {sideLinks.map(l => <SideLink key={l.page} {...l} active={activePage === l.page || (l.page === "applications" && activePage === "questions")} collapsed={collapsed} onNavigate={onNavigate}
       count={l.page === "timeline" ? experienceCount : null} />)}
-    {/* 펼치면 아래 「지원서」 목록이 이 메뉴를 대신한다(시안 6) */}
-    {collapsed && <SideLink href="/questions" label="지원서" icon={<FileTextIcon />} active={activePage === "questions"} collapsed railOnly />}
   </nav>;
 }
 
@@ -198,8 +198,8 @@ function AddMenu({ side, align, busy, onAddSource, onRecord, onNewApplication, c
 function TabBar({ page, busy, onAddSource, onRecord, onNewApplication }: { page: Page; busy?: boolean; onAddSource: () => void; onRecord: () => void; onNewApplication: () => void }) {
   const hidden = useHideOnScrollDown();
   const tab = "flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 text-xs font-medium";
-  // 탭바엔 「내 지원서」 칸이 없다 — 지원 묶음이라 「지원」 탭을 켠다(FE#347)
-  const tabPage = page === "applications" ? "questions" : page;
+  // 「지원서」 탭은 내 지원서와 지원 화면 둘 다에서 켜진다(FE#347)
+  const tabPage = page === "questions" ? "applications" : page;
   const link = ({ page: target, href, label, icon }: (typeof tabs)[number]) => <Link key={target} href={href} aria-current={tabPage === target ? "page" : undefined}
     className={cn(tab, tabPage === target ? "font-bold text-ink" : "text-muted")}>
     <span className="text-heading leading-none" aria-hidden="true">{icon}</span>{label}
