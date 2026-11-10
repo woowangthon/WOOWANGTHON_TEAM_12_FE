@@ -1,6 +1,6 @@
 "use client";
 
-import type { ComponentProps } from "react";
+import { Fragment, type ComponentProps } from "react";
 import { CaretDownIcon, CheckIcon } from "@phosphor-icons/react";
 import { Select as SelectPrimitive } from "radix-ui";
 import { cn } from "@/lib/utils";
@@ -8,7 +8,8 @@ import { cn } from "@/lib/utils";
 /** Radix 는 빈 값 항목을 받지 않는다 — 「고르지 않음」 같은 빈 값을 안에서만 이 값으로 바꾼다 */
 const EMPTY = "__empty__";
 
-export type SelectOption<T extends string> = { value: T | ""; label: string };
+/** group — 같은 글이 이어진 항목끼리 묶어 제목을 단다. 제목이 없는 묶음은 앞 묶음과 구분선으로만 나뉜다 */
+export type SelectOption<T extends string> = { value: T | ""; label: string; group?: string };
 
 type SelectProps<T extends string> = {
   value: T | "";
@@ -24,11 +25,26 @@ type SelectProps<T extends string> = {
   onClosed?: () => void;
 } & Pick<ComponentProps<"button">, "id" | "className" | "disabled" | "aria-label" | "aria-describedby">;
 
+/** 이어진 같은 group 끼리 한 묶음으로 — group 을 안 쓰면 묶음 하나다 */
+function sectionsOf<T extends string>(options: SelectOption<T>[]) {
+  const sections: { group?: string; options: SelectOption<T>[] }[] = [];
+  for (const o of options) {
+    const last = sections.at(-1);
+    if (last && last.group === o.group) last.options.push(o); else sections.push({ group: o.group, options: [o] });
+  }
+  return sections;
+}
+
 /** 앱의 고르기 칸 — 브라우저 기본 select 대신 쓴다(FE#148). 키보드 · 읽기 프로그램은 Radix 의 combobox 를 그대로 쓴다 */
 export function Select<T extends string>({ value, options, onChange, placeholder, variant = "field", triggerLabel, onClosed, disabled, className, ...trigger }: SelectProps<T>) {
   const selected = options.find(o => o.value === value);
   const label = <SelectPrimitive.Value placeholder={placeholder}>{triggerLabel ?? selected?.label}</SelectPrimitive.Value>;
   const caret = <SelectPrimitive.Icon className="shrink-0"><CaretDownIcon aria-hidden="true" className={variant === "chip" ? "size-3" : "size-3.5 text-muted"} /></SelectPrimitive.Icon>;
+  const item = (o: SelectOption<T>) => <SelectPrimitive.Item key={o.value || EMPTY} value={o.value || EMPTY}
+    className="flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-sm px-2.5 text-sm outline-none select-none data-highlighted:bg-surface-soft lg:min-h-9">
+    <SelectPrimitive.ItemText>{o.label}</SelectPrimitive.ItemText>
+    <SelectPrimitive.ItemIndicator><CheckIcon aria-hidden="true" className="size-3.5" /></SelectPrimitive.ItemIndicator>
+  </SelectPrimitive.Item>;
   return <SelectPrimitive.Root value={selected ? selected.value || EMPTY : ""} disabled={disabled}
     onValueChange={next => onChange((next === EMPTY ? "" : next) as T | "")}>
     <SelectPrimitive.Trigger {...trigger} className={cn("group cursor-pointer disabled:cursor-default disabled:opacity-60",
@@ -40,11 +56,13 @@ export function Select<T extends string>({ value, options, onChange, placeholder
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content position="popper" align="start" sideOffset={2} onCloseAutoFocus={onClosed && (e => { e.preventDefault(); onClosed(); })}
         className="z-60 max-h-[min(20rem,var(--radix-select-content-available-height))] max-w-[calc(100vw-2rem)] min-w-(--radix-select-trigger-width) rounded-md border border-hairline bg-canvas p-1 shadow-float">
-        <SelectPrimitive.Viewport>{options.map(o => <SelectPrimitive.Item key={o.value || EMPTY} value={o.value || EMPTY}
-          className="flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-sm px-2.5 text-sm outline-none select-none data-highlighted:bg-surface-soft lg:min-h-9">
-          <SelectPrimitive.ItemText>{o.label}</SelectPrimitive.ItemText>
-          <SelectPrimitive.ItemIndicator><CheckIcon aria-hidden="true" className="size-3.5" /></SelectPrimitive.ItemIndicator>
-        </SelectPrimitive.Item>)}</SelectPrimitive.Viewport>
+        <SelectPrimitive.Viewport>{sectionsOf(options).map((section, i) => <Fragment key={i}>
+          {i > 0 && <SelectPrimitive.Separator className="mx-2.5 my-1 h-px bg-hairline" />}
+          {section.group ? <SelectPrimitive.Group>
+            <SelectPrimitive.Label className="px-2.5 pt-2 pb-1 text-xs font-semibold text-muted">{section.group}</SelectPrimitive.Label>
+            {section.options.map(item)}
+          </SelectPrimitive.Group> : section.options.map(item)}
+        </Fragment>)}</SelectPrimitive.Viewport>
       </SelectPrimitive.Content>
     </SelectPrimitive.Portal>
   </SelectPrimitive.Root>;
