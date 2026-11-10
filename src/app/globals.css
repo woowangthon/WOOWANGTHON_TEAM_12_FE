@@ -46,6 +46,7 @@
   --evidence: #1f6fb2;
   --positive: #1f7a58; /* 끝난 일 · 공부 분류의 글자 */
   --evidence-soft: #e3f3fe;
+  --added-soft: #dcf3e6; /* 수정 이력 — 더한 글 바탕(FE#413). 지운 글은 surface-soft 에 취소선 */
   --review: #a15c00;
   --review-soft: #fff4e0;
   --review-line: #f0b25a;
@@ -128,6 +129,7 @@
   --shadow-mode: var(--mode-shadow);
   --color-evidence: var(--evidence);
   --color-evidence-soft: var(--evidence-soft);
+  --color-added-soft: var(--added-soft);
   --color-review: var(--review);
   --color-review-soft: var(--review-soft);
   --color-review-line: var(--review-line);

@@ -79,31 +79,43 @@ async function setupTimeline(page: Page) {
   return state;
 }
 
-// PR 스크린샷(FE237_SHOTS=1) — 폭마다 docs/fe-237/<이름>-<폭>.png
+// PR 스크린샷(FE413_SHOTS=1) — 폭마다 docs/fe-413/<이름>-<폭>.png
 const shot = async (page: Page, name: string) => {
-  if (process.env.FE237_SHOTS !== "1") return;
+  if (process.env.FE413_SHOTS !== "1") return;
   await page.waitForTimeout(400);
-  await page.screenshot({ path: `docs/fe-237/${name}-${page.viewportSize()!.width}.png`, animations: "disabled", caret: "hide" });
+  await page.screenshot({ path: `docs/fe-413/${name}-${page.viewportSize()!.width}.png`, animations: "disabled", caret: "hide" });
 };
 
-test("헤더 「최근 수정」 — 전체 시간순 · 누가 · 전후 · 더 보기 · 지운 항목은 못 감", async ({ page }) => {
+test("헤더 「최근 수정」 — 접힌 요약 · 펼치면 바뀐 부분만 · 더 보기 · 지운 항목은 못 감", async ({ page }) => {
   const state = await setupTimeline(page);
   await page.getByRole("button", { name: "최근 수정" }).filter({ visible: true }).click();
   const dialog = page.getByRole("dialog", { name: "최근 수정" });
-  await expect(dialog.getByText("Claude · 경험을 고침")).toBeVisible();
-  await expect(dialog.getByText("백엔드 API 설계를 전부 맡았다")).toBeVisible();
+  // 전체 목록은 다 접혀 있다 — 요약 · 대상 · 누가만
+  const experienceRow = dialog.getByRole("button", { name: /^본문을 고쳤어요/ });
+  await expect(experienceRow).toHaveAttribute("aria-expanded", "false");
+  await expect(experienceRow).toContainText("경험 · 바꿔요 — 캠퍼스 중고거래 앱");
+  await expect(experienceRow).toContainText("Claude");
+  await expect(dialog.getByRole("button", { name: "이 수정 전으로" })).toHaveCount(0);
+  await experienceRow.click();
+  await expect(dialog.locator("del")).toHaveText("지운 글: 설계를 전부 맡았다");
+  await expect(dialog.locator("ins")).toHaveText("더한 글: 중 채팅 · 거래 API 를 설계했다");
   await expect(dialog.getByText("출처 상태 원문 확인 → 확인 필요")).toBeVisible();
-  await expect(dialog.getByText("나 · 활동을 고침")).toBeVisible();
+  const activityRow = dialog.getByRole("button", { name: /^이름에 글을 더했어요 · 기간도 바뀜/ });
+  await activityRow.click();
   await expect(dialog.getByText(/^기간/)).toBeVisible();
+  await expect(dialog.getByRole("button", { name: /^답을 다 썼어요/ })).toContainText("지운 항목");
+  await dialog.getByRole("button", { name: /^답을 다 썼어요/ }).click();
   await expect(dialog.getByText("지운 항목이라 그 항목으로 가거나 되돌릴 수 없어요.")).toBeVisible();
   await expect(dialog.getByRole("link", { name: /OO 재단/ })).toHaveCount(0);
+  await activityRow.click();
+  await dialog.getByRole("button", { name: /^답을 다 썼어요/ }).click();
   await shot(page, "recent");
   await dialog.getByRole("button", { name: "더 보기" }).click();
-  await expect(dialog.getByText("중고거래 앱", { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: /^이름을 고쳤어요/ })).toBeVisible();
   await expect(dialog.getByRole("button", { name: "더 보기" })).toHaveCount(0);
   expect(state.calls).toContain("list:?cursor=next");
-  await expect(dialog.getByText("Claude · 경험을 고침")).toHaveCount(1);
-  await dialog.getByRole("link", { name: "경험 · 바꿔요 — 캠퍼스 중고거래 앱" }).click();
+  await expect(dialog.getByRole("button", { name: /^본문을 고쳤어요/ })).toHaveCount(1);
+  await dialog.getByRole("link", { name: "그 경험 보기" }).click();
   await expect(dialog).toHaveCount(0);
   // 링크(?experience=101)를 받은 타임라인이 그 활동 세부를 연다 — 주소의 링크는 연 뒤 지운다(FE#322)
   await expect(page.getByRole("button", { name: /^경험 고치기: 백엔드 API 중/ })).toBeVisible();
@@ -115,8 +127,11 @@ test("경험 메뉴 「수정 이력」 — 그 항목만 · 확인 뒤 되돌�
   await page.getByRole("button", { name: /^경험 메뉴:/ }).click();
   await page.getByRole("menuitem", { name: "수정 이력" }).click();
   const dialog = page.getByRole("dialog", { name: "수정 이력" });
-  await expect(dialog.getByText("Claude · 경험을 고침")).toBeVisible();
-  await expect(dialog.getByText("나 · 활동을 고침")).toHaveCount(0);
+  // 항목별 이력은 맨 위 줄이 펼쳐져 있고 「현재」 표시
+  const top = dialog.getByRole("button", { name: /^본문을 고쳤어요/ });
+  await expect(top).toHaveAttribute("aria-expanded", "true");
+  await expect(top).toContainText("현재");
+  await expect(dialog.getByRole("button", { name: /^이름/ })).toHaveCount(0);
   expect(state.calls).toContain("list:?targetType=EXPERIENCE&targetId=101");
   await dialog.getByRole("button", { name: "이 수정 전으로" }).click();
   await expect(dialog.getByText(/이 수정 전으로 되돌릴까요\?/)).toBeVisible();
@@ -137,7 +152,7 @@ test("활동 메뉴 「수정 이력」 — 되돌리면 이름 · 기간이 바
   await page.getByRole("button", { name: "활동 메뉴" }).click();
   await page.getByRole("menuitem", { name: "수정 이력" }).click();
   const dialog = page.getByRole("dialog", { name: "수정 이력" });
-  await expect(dialog.getByText("나 · 활동을 고침")).toHaveCount(2);
+  await expect(dialog.getByRole("button", { name: /^이름/ })).toHaveCount(2);
   expect(state.calls).toContain("list:?targetType=ACTIVITY&targetId=7");
   state.all = [ACTIVITY_EDIT];
   await dialog.getByRole("button", { name: "이 수정 전으로" }).first().click();
@@ -161,7 +176,9 @@ test("답칸 「수정 이력」 — 되돌리면 그때 글이 답칸(임시 �
   await expect(region.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toBeEnabled();
   await region.getByRole("button", { name: "수정 이력" }).click();
   const dialog = page.getByRole("dialog", { name: "수정 이력" });
-  await expect(dialog.getByText("나 · 다 썼어요")).toBeVisible();
+  await expect(dialog.getByRole("button", { name: /^답을 다 썼어요/ })).toBeVisible();
+  await expect(dialog.locator("del")).toHaveText("지운 글: 예전에");
+  await expect(dialog.locator("ins")).toHaveText("더한 글: 지금");
   await shot(page, "answer");
   await dialog.getByRole("button", { name: "이 수정 전으로" }).click();
   await expect(dialog.getByText(/「다 썼어요」를 다시 눌러야/)).toBeVisible();
@@ -169,6 +186,19 @@ test("답칸 「수정 이력」 — 되돌리면 그때 글이 답칸(임시 �
   await expect(dialog.getByText(/답칸에 그때 글을 넣었어요/)).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(region.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toContainText("예전에 확정한 답입니다.");
+});
+
+test("띄어쓰기만 바뀐 수정 — 요약에 그렇게 적고 빈칸도 강조한다", async ({ page }) => {
+  test.skip(test.info().project.name !== "desktop");
+  const state = await setupTimeline(page);
+  state.all = [{ ...EXPERIENCE_EDIT, id: 990, by: "USER", client: null, before: snap("CI/CD trigger를 테스트했다."), after: snap("CI/CD trigger를 테스트했다. ", "USER_ENTERED") }];
+  await page.getByRole("button", { name: /바꿔요/ }).first().click();
+  await page.getByRole("button", { name: /^경험 메뉴:/ }).click();
+  await page.getByRole("menuitem", { name: "수정 이력" }).click();
+  const dialog = page.getByRole("dialog", { name: "수정 이력" });
+  await expect(dialog.getByRole("button", { name: /^본문 띄어쓰기를 고쳤어요/ })).toBeVisible();
+  await expect(dialog.locator("ins")).toHaveCount(1);
+  await expect(dialog.getByText("출처 상태 원문 확인 → 내가 입력")).toBeVisible();
 });
 
 test("초안을 답칸에 넣은 저장에만 fromDraft 를 싣는다 — 그 뒤 고친 자동 저장은 싣지 않는다", async ({ page }) => {
