@@ -968,6 +968,21 @@ test("write questions opens the fields at once, keeping a pasted link as the ori
   await expect(input).toHaveValue("");
 });
 
+test("공고 링크 모드에서 다시 눌러 글 붙여넣기로 돌아간다(FE#436)", async ({ page }) => {
+  await fake(page);
+  await page.goto("/questions");
+  await startApplication(page);
+  const input = page.getByLabel("공고 · 문항 글이나 공고 링크");
+  const textHint = await input.getAttribute("placeholder");
+  await page.getByRole("button", { name: "공고 링크로 가져오기", exact: true }).click();
+  await expect(input).toHaveAttribute("placeholder", /공고 페이지 주소/);
+  await expect(page.getByText("링크를 한 번 읽어 칸을 채우고")).toBeVisible();
+  await page.getByRole("button", { name: "글 붙여넣기로 돌아가기", exact: true }).click();
+  await expect(input).toHaveAttribute("placeholder", textHint!);
+  await expect(page.getByText("링크를 한 번 읽어 칸을 채우고")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "공고 링크로 가져오기", exact: true })).toBeVisible();
+});
+
 // FE#245 — 지원서 0개 화면에서 펼친 칸을 되돌린다
 test("with no applications the opened fields can go back to the start; typed text is asked about first", async ({ page }) => {
   await fake(page, { empty: true });
