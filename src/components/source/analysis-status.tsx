@@ -255,13 +255,15 @@ export function AnalysisBanner({ view, tracked, ...a }: { view: Exclude<Analysis
 }
 
 /** 같이 넣은 파일들 (S-59) — 어디서 고른 파일이든 작업 목록만 넘기면 된다 */
-export function AnalysisBatch({ jobs, activities, onRetry, onRecheck, onDismiss, onOpenActivity }: {
+export function AnalysisBatch({ jobs, activities, onRetry, onRecheck, onDismiss, onOpenActivity, onTidy }: {
   jobs: TrackedJob[];
   activities?: ActivityBrief[];
   onRetry: (jobId: number) => Promise<void>;
   onRecheck: (jobId: number) => void;
   onDismiss: () => void;
   onOpenActivity?: (id: number) => void;
+  /** 「같아 보이는 활동」 비교 창을 이 작업의 새 활동부터 연다(S-44 · FE#246) */
+  onTidy?: (activityIds: number[]) => void;
 }) {
   const running = jobs.some(isWaiting);
   const done = jobs.filter((t) => t.job?.status === "COMPLETED").length;
@@ -280,7 +282,7 @@ export function AnalysisBatch({ jobs, activities, onRetry, onRecheck, onDismiss,
       {running && <p className="m-0 text-note text-muted">앞 자료가 끝나면 다음 자료를 찾아요. 창을 닫아도 이어져요.</p>}
       <ol className="m-0 grid list-none gap-2.5 py-1 pl-0">
         {jobs.map((tracked) => (
-          <BatchRow key={tracked.jobId} tracked={tracked} activities={activities} onRetry={() => onRetry(tracked.jobId)} onRecheck={() => onRecheck(tracked.jobId)} onOpenActivity={onOpenActivity} />
+          <BatchRow key={tracked.jobId} tracked={tracked} activities={activities} onRetry={() => onRetry(tracked.jobId)} onRecheck={() => onRecheck(tracked.jobId)} onOpenActivity={onOpenActivity} onTidy={onTidy} />
         ))}
       </ol>
     </section>
@@ -303,12 +305,13 @@ function StepMark({ state }: { state: "done" | "now" | "wait" | "failed" }) {
   );
 }
 
-function BatchRow({ tracked, activities, onRetry, onRecheck, onOpenActivity }: {
+function BatchRow({ tracked, activities, onRetry, onRecheck, onOpenActivity, onTidy }: {
   tracked: TrackedJob;
   activities?: ActivityBrief[];
   onRetry: () => Promise<void>;
   onRecheck: () => void;
   onOpenActivity?: (id: number) => void;
+  onTidy?: (activityIds: number[]) => void;
 }) {
   const retry = useRetry(onRetry);
   const job = tracked.job;
@@ -353,6 +356,7 @@ function BatchRow({ tracked, activities, onRetry, onRecheck, onOpenActivity }: {
       <span className="text-note text-muted">
         {ids.length ? `완료 — 활동 ${ids.length}개` : "완료 — 활동을 찾지 못했어요. 자료에 없다고 경험이 없는 건 아니에요."}
         {suggested > 0 && ` · 기존 활동과 같아 보이는 활동 ${suggested}개`}
+        {suggested > 0 && onTidy && <Button variant="secondary" size="sm" className="ml-2 align-middle" onClick={() => onTidy(ids)}>정리하기</Button>}
       </span>
       {ids.length > 0 && onOpenActivity && (
         <span className="flex flex-wrap gap-1.5 pt-0.5"><NewActivities ids={ids} activities={activities} onOpen={onOpenActivity} /></span>

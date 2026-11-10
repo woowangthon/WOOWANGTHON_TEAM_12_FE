@@ -18,7 +18,6 @@ import { ActivityNote } from "./activity-note";
 import { ActivityLinks } from "./activity-links";
 import { ActivityActorDecision } from "./activity-actor";
 import { ExperienceEditor } from "./experience-editor";
-import { MergeSuggestionView } from "./merge-suggestion";
 import { SourceFileButton } from "./source-viewer";
 
 const FIRST_COUNT = 3;
@@ -48,8 +47,8 @@ type Props = {
   draggingId: number | null;
   /** 다른 활동이 없으면 undefined — 메뉴를 숨긴다 */
   onMergeRequest?: () => void;
-  onSuggestedMerge?: (keepId: number, fromId: number) => Promise<void>;
-  onSuggestionDismiss?: (id: number) => Promise<void>;
+  /** 같은 활동 제안 줄(S-44 · FE#246) — 이 활동이 새 쪽이든 기존 쪽이든. 결정은 비교 창에서 */
+  suggestions?: ReactNode;
   /** 이어진 활동(S-35)을 누르면 그 활동 세부로 간다 */
   onOpenActivity: (id: number) => void;
   /** 「자료 더하기」(S-60) — 없으면 버튼을 숨긴다 */
@@ -60,7 +59,7 @@ type Props = {
   addSourceStatus?: ReactNode;
 };
 
-export function ActivityDetailView({ summary, state, now, onClose, onRetry, onActivitySaved, onNoteSaved, onCategorySaved, onExperienceSaved, onExperienceAdded, onExperienceDelete, onExperienceMove, onExperienceMerge, onDragChange, draggingId, onMergeRequest, onSuggestedMerge, onSuggestionDismiss, onOpenActivity, onAddSource, addSourceBusy, addSourceStatus, readOnly = false }: Props) {
+export function ActivityDetailView({ summary, state, now, onClose, onRetry, onActivitySaved, onNoteSaved, onCategorySaved, onExperienceSaved, onExperienceAdded, onExperienceDelete, onExperienceMove, onExperienceMerge, onDragChange, draggingId, onMergeRequest, suggestions, onOpenActivity, onAddSource, addSourceBusy, addSourceStatus, readOnly = false }: Props) {
   const nameEdit = useRef<InlineEditHandle>(null);
   // 메뉴가 닫힌 뒤에 칸을 연다 — 열린 메뉴가 포커스를 붙잡고 있어서
   const editFromMenu = useRef(false);
@@ -130,13 +129,12 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
         )}
       </header>
 
+      {!readOnly && suggestions}
+
       {addSourceStatus && <div className="px-4.5 lg:px-7">{addSourceStatus}</div>}
 
       {activity && <ActivityLinks key={`links-${activity.id}`} activity={activity} readOnly={readOnly} onOpenActivity={onOpenActivity} />}
 
-      {activity?.mergeSuggestion && !readOnly && onSuggestedMerge && onSuggestionDismiss && (
-        <MergeSuggestionView key={`${activity.id}-${activity.mergeSuggestion.activityId}`} activity={activity} suggestion={activity.mergeSuggestion} onMerge={onSuggestedMerge} onDismiss={onSuggestionDismiss} />
-      )}
 
       <div className="px-4.5 pt-2 pb-10 lg:px-7 lg:pb-8">
         {state.status === "loading" && <p className="pt-4 text-sm text-muted">경험을 불러오고 있어요…</p>}
