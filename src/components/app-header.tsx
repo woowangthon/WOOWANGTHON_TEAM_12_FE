@@ -109,7 +109,7 @@ function DesktopSidebar(props: SidebarProps) {
         <RailTip label={toggleLabel} enabled={collapsed}>
           <button ref={trigger} type="button" aria-label={toggleLabel} aria-expanded={wide ? !collapsed : overlayOpen} aria-controls={wide ? "sidebar-navigation" : "sidebar-overlay"}
             onClick={() => wide ? toggle() : setOverlayOpen(true)}
-            className={cn("flex size-11 lg:size-10 shrink-0 items-center justify-center rounded-full hover:bg-canvas/60", collapsed && "absolute inset-0")}>
+            className={cn("flex size-11 lg:size-10 shrink-0 items-center justify-center rounded-full hover:bg-canvas/60", collapsed && "absolute inset-0 m-auto")}>
             <SidebarSimpleIcon className={cn("size-5", collapsed && "opacity-0 group-hover/brand:opacity-100 group-focus-within/brand:opacity-100")} aria-hidden="true" />
           </button>
         </RailTip>
