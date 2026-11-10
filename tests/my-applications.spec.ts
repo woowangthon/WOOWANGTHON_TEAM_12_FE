@@ -22,7 +22,7 @@ test("내 지원서는 시기별로 묶이고 종류별로 바꿔 볼 수 있다
   const main = page.getByRole("main");
   const groups = () => main.getByRole("heading", { level: 2 }).allInnerTexts();
 
-  await expect(main.getByRole("heading", { level: 1 })).toContainText("3곳");
+  await expect(main.getByRole("heading", { level: 1 })).toHaveText("내 지원서"); // 개수는 사이드바 「내 지원서」 옆에(FE#364)
   expect((await groups()).map(t => t.replace(/\s+/g, " "))).toEqual(["작성 중 1", "2026년 11월 1", "2026년 10월 1"]);
   await expect(main.getByText("지원처 이름 없음")).toBeVisible();
   await expect(main.getByText("외 2")).toBeVisible();

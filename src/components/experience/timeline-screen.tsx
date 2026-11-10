@@ -11,7 +11,7 @@ import { AddSourceButton, AppHeader, RailTip, type AddSourceProps } from "@/comp
 import { useSidebar } from "@/components/sidebar-layout";
 import { countExperiences } from "@/components/sidebar-applications";
 import { CenterState } from "@/components/center-state";
-import { AddSourceDialog, type SourceMode } from "@/components/source/add-source-dialog";
+import { AddSourceDialog } from "@/components/source/add-source-dialog";
 import { AnalysisBanner, AnalysisBatch, AnalysisCenter, analysisView } from "@/components/source/analysis-status";
 import { hasPendingAnalysis, useAnalysisJob } from "@/components/source/use-analysis-job";
 import { Button } from "@/components/ui/button";
@@ -62,7 +62,6 @@ export function TimelineScreen() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detail, setDetail] = useState<DetailState>({ status: "loading" });
   const [addOpen, setAddOpen] = useState(false);
-  const [addMode, setAddMode] = useState<SourceMode>("material");
   const [addToActivity, setAddToActivity] = useState(false);
   const { toast, showToast, clearToast } = useToast();
   const [dragging, setDragging] = useState<Experience | null>(null);
@@ -203,17 +202,14 @@ export function TimelineScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mock, linkedActivity, linkedExperience]);
 
-  // 다른 화면(지원)의 「자료 넣기」(?add=1, FE#64) · 「직접 기록하기」(?add=line, FE#179) — 그 창을 연다. 새로고침에 다시 열리지 않게 주소에서 지운다.
+  // 다른 화면(지원)의 「자료 넣기」(?add=1, FE#64) — 그 창을 연다. 예전 「직접 기록하기」 주소(?add=line, FE#179)도 같은 창(FE#364). 새로고침에 다시 열리지 않게 주소에서 지운다.
   // 분석이 아직 돌고 있으면 이 화면의 「자료 넣기」처럼 막고 이유만 알린다
   const addRequested = params.get("add");
   useEffect(() => {
     if (addRequested !== "1" && addRequested !== "line") return;
     const timer = setTimeout(() => {
       if (hasPendingAnalysis()) showToast("지금 넣은 자료의 분석이 끝나면 더 넣을 수 있어요.");
-      else {
-        setAddMode(addRequested === "line" ? "line" : "material");
-        setAddOpen(true);
-      }
+      else setAddOpen(true);
       const url = new URL(window.location.href);
       url.searchParams.delete("add");
       window.history.replaceState(null, "", url);
@@ -515,18 +511,15 @@ export function TimelineScreen() {
 
   const selected = ready?.activities.find((a) => a.id === selectedId) ?? null;
   const hasActivities = !!ready && ready.activities.length > 0;
-  const openAdd = (mode: SourceMode) => {
-    setAddMode(mode);
-    setAddOpen(true);
-  };
-  const addSource: AddSourceProps = { onClick: () => openAdd("material"), onRecord: () => openAdd("line"), busy: analysis.busy };
+  const openAdd = () => setAddOpen(true);
+  const addSource: AddSourceProps = { onClick: openAdd, busy: analysis.busy };
   const analysisActions = {
     onRetry: analysis.retry,
     onRecheck: analysis.recheck,
     onDismiss: analysis.dismiss,
     onAddSource: () => {
       analysis.dismiss();
-      openAdd("material");
+      openAdd();
     },
     onOpenActivity: select,
     activities: ready?.activities,
@@ -676,7 +669,6 @@ export function TimelineScreen() {
       <AddSourceDialog
         open={addOpen}
         onOpenChange={setAddOpen}
-        mode={addMode}
         mock={mockAnalysis}
         onSubmitted={(jobs) => analysis.start(jobs)}
       />

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ComponentType, type KeyboardEvent, type ReactNode } from "react";
-import { ArrowsClockwiseIcon, CaretDownIcon, ArrowUpIcon, FileTextIcon, HouseIcon, MagnifyingGlassIcon, PencilSimpleIcon, PlusIcon, StackIcon } from "@phosphor-icons/react";
+import { ArrowsClockwiseIcon, CaretDownIcon, ArrowUpIcon, FileTextIcon, HouseIcon, MagnifyingGlassIcon, PlusIcon, StackIcon } from "@phosphor-icons/react";
 import { CitationList } from "@/components/experience/citation-list";
 import { ExperienceFilterBar, isFiltered, type ExperienceFilters } from "@/components/experience/experience-filters";
 import { ActivityTag, categoryOf } from "@/components/experience/activity-category";
@@ -23,13 +23,12 @@ export type QuickFindTarget =
   | { kind: Shortcut["kind"] };
 
 type Tab = "find" | "ask" | "go";
-type Shortcut = { kind: "source" | "record" | "application" | "experience" | "home"; label: string; detail: string; icon: ComponentType<{ className?: string }> };
+type Shortcut = { kind: "source" | "application" | "experience" | "home"; label: string; detail: string; icon: ComponentType<{ className?: string }> };
 
 const TABS: { value: Tab; label: string }[] = [{ value: "find", label: "찾기" }, { value: "ask", label: "차곡이에게" }, { value: "go", label: "바로가기" }];
 const PLACEHOLDER: Record<Tab, string> = { find: "경험 찾기", ask: "한 줄로 물어보세요", go: "어디로 갈까요?" };
 const SHORTCUTS: Shortcut[] = [
-  { kind: "source", label: "자료 쌓기", detail: "README · 회고 · 노트를 넣는 창을 열어요", icon: PlusIcon },
-  { kind: "record", label: "직접 기록하기", detail: "오늘 한 일이나 든 생각을 한 줄로 적어요", icon: PencilSimpleIcon },
+  { kind: "source", label: "자료 쌓기", detail: "한 줄 기록 · 노트 · 파일을 넣어요", icon: PlusIcon },
   { kind: "application", label: "새 지원", detail: "지원처와 문항을 넣는 화면으로 가요", icon: FileTextIcon },
   { kind: "experience", label: "내 경험", detail: "타임라인으로 가요", icon: StackIcon },
   { kind: "home", label: "홈", detail: "홈으로 가요", icon: HouseIcon },
@@ -62,7 +61,7 @@ export function QuickFindPanel({ asked, addSourceBusy, initial, onGo }: { asked:
   // 서버가 한 번에 주는 만큼(limit) 다 펼쳤는데도 맞은 게 더 있으면 더 좁히라고 알린다
   const capped = state.status === "ready" && !more && state.total > state.experiences.length;
   const shortcuts = SHORTCUTS.filter(s => s.label.includes(query));
-  const isDisabled = (s: Shortcut) => (s.kind === "source" || s.kind === "record") && addSourceBusy;
+  const isDisabled = (s: Shortcut) => s.kind === "source" && addSourceBusy;
   // 더 있으면 찾기의 마지막 줄은 「더 보기」
   const count = tab === "find" ? found.length + (more ? 1 : 0) : tab === "go" ? shortcuts.length : 0;
   const current = Math.max(Math.min(active, count - 1), 0);

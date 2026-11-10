@@ -41,14 +41,16 @@ test("sidebar shows the applications anywhere and a row opens that application",
   await expect(sidebar(page).getByRole("link", { name: "연결 · 내보내기", exact: true })).toBeVisible();
   const row = applications(page).getByRole("link", { name: /OO 연합 동아리/ });
   await expect(row).toBeVisible();
-  await expect(applications(page).getByRole("link", { name: "모든 지원서", exact: true })).toHaveAttribute("href", "/applications"); // 모든 지원서 → 내 지원서(FE#347)
+  // 전체 목록은 위 「내 지원서」 메뉴 하나 — 내 경험처럼 개수를 단다(FE#364)
+  await expect(sidebar(page).getByRole("link", { name: "내 지원서", exact: true })).toHaveAttribute("href", "/applications");
+  await expect(sidebar(page).getByRole("link", { name: "내 지원서", exact: true })).toContainText(/\d+/);
+  await expect(applications(page).getByRole("link", { name: "모든 지원서", exact: true })).toHaveCount(0);
   await capture(page, "experience-1440");
   await row.click();
   await expect(page).toHaveURL(/\/questions\?question=\d+/);
   await expect(page.getByRole("tabpanel", { name: "선택한 문항", exact: true })).toBeVisible();
   await expect(sidebar(page).locator("button[aria-pressed=true]")).toContainText("OO 연합 동아리");
-  // 사이드바는 최근 5개만이라 지원 화면에서도 「모든 지원서」가 있다(FE#347)
-  await expect(applications(page).getByRole("link", { name: "모든 지원서", exact: true })).toHaveAttribute("href", "/applications");
+  await expect(sidebar(page).getByRole("link", { name: "내 지원서", exact: true })).toHaveAttribute("aria-current", "page"); // 지원 화면도 내 지원서 영역(FE#347)
   await capture(page, "questions-1440");
 });
 
@@ -71,7 +73,7 @@ test("the add menu opens a new application from another screen, once", async ({ 
   await install(page);
   await page.goto("/connections");
   await sidebar(page).getByRole("button", { name: "추가", exact: true }).click();
-  await expect(page.getByRole("menuitem")).toHaveCount(3);
+  await expect(page.getByRole("menuitem")).toHaveCount(2); // 자료 쌓기 · 새 지원서 — 직접 기록하기는 자료 쌓기에 합쳤다(FE#364)
   await expect(page.getByRole("menu").getByText("쌓기", { exact: true })).toBeVisible();
   await expect(page.getByRole("menu").getByText("꺼내기", { exact: true })).toBeVisible();
   await capture(page, "add-menu-1440");
@@ -122,7 +124,7 @@ test("390 uses a one line top bar and a bottom tab bar without the desktop shell
   expect((await tabs.boundingBox())!.height).toBeLessThanOrEqual(57);
   for (const target of await tabs.locator("a, button").all()) expect((await target.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   await tabs.getByRole("button", { name: "추가", exact: true }).click();
-  await expect(page.getByRole("menuitem")).toHaveText([/^자료 쌓기/, /^직접 기록하기/, /^새 지원서/]);
+  await expect(page.getByRole("menuitem")).toHaveText([/^자료 쌓기/, /^새 지원서/]);
   await page.keyboard.press("Escape");
   await expect(page.getByRole("banner").getByRole("navigation", { name: "현재 위치", exact: true })).toBeHidden();
   await expect(sidebar(page)).toBeHidden();
@@ -154,8 +156,8 @@ test("the tab bar hides while scrolling down, returns on the way up, and stays o
   await expect(tabs).toBeVisible();
 });
 
-// FE#243 — 지원서가 0개면 「모든 지원서」 대신 넣으러 가는 곳이라는 이름. 있으면 그대로 「모든 지원서」
-test("with no applications the sidebar link says where it goes, not 「모든 지원서」", async ({ page }, info) => {
+// FE#243 — 지원서가 0개면 넣으러 가는 길 「첫 지원서 넣기」. 있으면 아래 링크 없이 위 「내 지원서」 메뉴로(FE#364)
+test("with no applications the sidebar offers 「첫 지원서 넣기」", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop");
   await page.route("https://cdn.jsdelivr.net/**", route => route.abort());
   await new FakeQuestionApi({ empty: true }).install(page);
@@ -169,11 +171,11 @@ test("with no applications the sidebar link says where it goes, not 「모든 �
   await expect(page).toHaveURL(/\/questions$/);
 });
 
-test("with applications the sidebar keeps 「모든 지원서」; a load failure does not claim there are none", async ({ page }, info) => {
+test("with applications there is no extra link; a load failure does not claim there are none", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop");
   const api = await install(page);
   await page.goto("/experience");
-  await expect(applications(page).getByRole("link", { name: "모든 지원서", exact: true })).toBeVisible();
+  await expect(applications(page).getByRole("link", { name: /OO 연합 동아리/ })).toBeVisible();
   await expect(applications(page).getByRole("link", { name: "첫 지원서 넣기", exact: true })).toHaveCount(0);
   await page.screenshot({ path: "artifacts/sidebar-applications-filled-1440.png", style: "nextjs-portal { display: none !important; }" });
   api.listDown = true;
