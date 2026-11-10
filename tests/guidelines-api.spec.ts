@@ -34,7 +34,8 @@ test('invalid text/source and extract limit stop before HTTP, failure never retu
   globalThis.fetch = async () => { calls++; return Response.json({}); };
   await expect(extractGuidelines({ text: ' '.repeat(2), source: '멘토' })).rejects.toMatchObject({ code: 'EMPTY_TEXT' });
   await expect(extractGuidelines({ text: '가'.repeat(20001), source: '멘토' })).rejects.toMatchObject({ code: 'TEXT_TOO_LONG' });
-  for (const input of [{ text: '지침', source: '' }, { text: '지침', source: '가'.repeat(101) }, { text: '가'.repeat(201), source: '멘토' }, { text: '행동\n먼저', source: '멘토' }])
+  // 출처는 선택이라 빈 값은 거절 대상이 아니다(FE#304 이후) — 100자 넘는 출처 · 200자 넘는 지침 · 줄바꿈만 거절한다
+  for (const input of [{ text: '지침', source: '가'.repeat(101) }, { text: '가'.repeat(201), source: '멘토' }, { text: '행동\n먼저', source: '멘토' }])
     await expect(saveGuidelines([input])).rejects.toMatchObject({ code: 'INVALID_REQUEST' });
   expect(calls).toBe(0);
   for (const [status, code] of [[502, 'AI_FAILED'], [504, 'AI_TIMEOUT'], [429, 'DAILY_LIMIT_EXCEEDED']] as const) {

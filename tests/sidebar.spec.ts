@@ -1,8 +1,12 @@
 import { test, expect } from "./signed-in";
 import { FakeQuestionApi } from "./fake-question-api";
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 const sidebar = (page: Page) => page.getByRole("complementary", { name: "사이드바", exact: true });
+// 접힌 레일의 로고 자리는 마스코트 그림(alt 없음 — 링크 이름이 「차곡 — 홈」)이다
+const mascot = (brand: Locator) => brand.locator('img[src*="mascot"]');
+// 본문 왼쪽 여백(내용 없는 곳)을 눌러 초점을 뺀다. 위쪽 40px 은 달라붙는 상단 막대 밑에 들어갈 수 있어 피한다
+const clickMainMargin = (page: Page) => page.locator("main").click({ position: { x: 4, y: 80 } });
 const capture = async (page: Page, name: string) => {
   if (process.env.UPDATE_SIDEBAR_SCREENSHOTS !== "1") return;
   await page.screenshot({ path: `docs/fe-53/${name}.png`, fullPage: await page.getByRole("dialog").count() === 0,
@@ -71,24 +75,28 @@ test("desktop collapse survives reload and navigation; the application list rema
   // 시안 6: 별도 버튼 줄 없이 로고와 펼침 버튼이 같은 자리를 쓴다.
   const brand = sidebar(page).locator('[data-slot="sidebar-brand"]');
   const expand = sidebar(page).getByRole("button", { name: "사이드바 펼치기", exact: true });
-  await page.locator("main").click({ position: { x: 4, y: 4 } });
-  await expect(brand.getByAltText("차곡")).toBeVisible();
+  await clickMainMargin(page);
+  await expect(mascot(brand)).toBeVisible();
   await expect(expand.locator("svg")).toHaveCSS("opacity", "0");
   const logoBounds = (await brand.boundingBox())!;
   const toggleBounds = (await expand.boundingBox())!;
-  expect(toggleBounds).toEqual(logoBounds);
+  // 펼침 버튼(40px 원)은 로고 칸(44 × 40) 안에 같은 높이로 겹친다 — 칸 가장자리에 붙어 가로로 4px 작다
+  expect(toggleBounds.y).toBe(logoBounds.y);
+  expect(toggleBounds.height).toBe(logoBounds.height);
+  expect(toggleBounds.x).toBeGreaterThanOrEqual(logoBounds.x);
+  expect(toggleBounds.x + toggleBounds.width).toBeLessThanOrEqual(logoBounds.x + logoBounds.width);
   await brand.hover();
-  await expect(brand.getByAltText("차곡")).toBeHidden();
+  await expect(mascot(brand)).toBeHidden();
   await expect(expand.locator("svg")).toHaveCSS("opacity", "1");
   await capture(page, "questions-1440-rail-hover");
   await page.mouse.move(500, 10);
-  await expect(brand.getByAltText("차곡")).toBeVisible();
+  await expect(mascot(brand)).toBeVisible();
   await expand.focus();
   await expect(expand.locator("svg")).toHaveCSS("opacity", "1");
   await expand.press("Enter");
   await expect(sidebar(page)).toHaveCSS("width", "248px");
   await sidebar(page).getByRole("button", { name: "사이드바 접기", exact: true }).click();
-  await page.locator("main").click({ position: { x: 4, y: 4 } });
+  await clickMainMargin(page);
   const link = sidebar(page).getByRole("link", { name: "내 지원서", exact: true });
   await link.hover();
   await expect(page.getByRole("tooltip")).toHaveText("내 지원서");
@@ -118,7 +126,7 @@ test("automatic rail overlays without moving content, supports Escape and resets
   const brand = sidebar(page).locator('[data-slot="sidebar-brand"]');
   const navBefore = (await sidebar(page).getByRole("navigation", { name: "주 메뉴", exact: true }).boundingBox())!;
   await brand.hover();
-  await expect(brand.getByAltText("차곡")).toBeHidden();
+  await expect(mascot(brand)).toBeHidden();
   const navAfter = (await sidebar(page).getByRole("navigation", { name: "주 메뉴", exact: true }).boundingBox())!;
   expect(navAfter).toEqual(navBefore);
   await capture(page, "questions-1024-rail-hover");

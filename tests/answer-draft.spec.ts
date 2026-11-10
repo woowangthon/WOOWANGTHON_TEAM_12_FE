@@ -7,6 +7,10 @@ import { QUESTION_EXAMPLES } from "./fixtures/question-examples";
 import type { Draft, QuestionDetail } from "../src/lib/api/question-types";
 import { DRAFT_EXAMPLE } from "./fixtures/draft-example";
 import { DRAFT_SUPPOSED } from "./fixtures/draft-supposed";
+import { suggestedFrame } from "../src/lib/draft-frames";
+
+// 틀을 고르지 않으면 문항 유형에 맞춘 제안이 간다(S-50) — 41번 문항은 PROBLEM_SOLVING 이라 CAUSE_FIX 다
+const DEFAULT_FRAME = suggestedFrame(QUESTION_EXAMPLES[0].questionType);
 
 // FE#283 — 초안은 답칸(입력칸)에 글로 들어오고, 표시 층의 문장 표시(data-mark="s-N")를 눌러 카드를 연다
 const answerBox = (page: Page) => page.getByRole("textbox", { name: "내가 쓴 답", exact: true });
@@ -115,7 +119,7 @@ test("default selection, zero-selection guard, generating, evidence details and 
   await copyButton(page).click();
   await expect(page.getByRole("status").filter({ hasText: "답칸의 글을 복사했어요" })).toBeVisible();
   expect(await page.evaluate(() => (window as unknown as { copied: string }).copied)).toBe("「바꿔요」 프로젝트에서 채팅 메시지가 늦게 도착하는 문제가 있었고, 제가 폴링을 WebSocket 으로 바꿔 해결했습니다. 서버에 STOMP 엔드포인트를 만들고, 앱의 3초 폴링 코드를 구독 방식으로 바꿨습니다.");
-  expect(api.calls.filter(c => c.call.endsWith("/draft"))).toMatchObject([{ call: "POST /api/questions/41/draft", body: { experienceIds: [101], frame: "STAR" } }]);
+  expect(api.calls.filter(c => c.call.endsWith("/draft"))).toMatchObject([{ call: "POST /api/questions/41/draft", body: { experienceIds: [101], frame: DEFAULT_FRAME } }]);
   // 화면과 기존 추천은 함께 남는다. 문항을 오가도 최신 초안 하나만 유지한다.
   const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab");
   await tabs.nth(1).click();
@@ -161,7 +165,7 @@ test("failure shows its reason without success text; retry uses the same POST fl
   await closeDraftPanel(page);
   await expect(draftSentences(page)).toHaveCount(2);
   await expect((await openDraftComposer(page)).getByRole("alert")).toHaveCount(0);
-  expect(api.calls.filter(c => c.call.endsWith("/draft")).map(c => c.body)).toMatchObject([{ experienceIds: [101], frame: "STAR" }, { experienceIds: [101], frame: "STAR" }]);
+  expect(api.calls.filter(c => c.call.endsWith("/draft")).map(c => c.body)).toMatchObject([{ experienceIds: [101], frame: DEFAULT_FRAME }, { experienceIds: [101], frame: DEFAULT_FRAME }]);
 });
 
 test("missing evidence preserves the sentence and shows a careful notice", async ({ page }) => {
