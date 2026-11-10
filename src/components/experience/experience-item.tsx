@@ -63,9 +63,11 @@ const isAiCompetency = (e: Pick<Experience, "competenciesBy" | "sourceStatus">) 
   e.competenciesBy === undefined ? e.sourceStatus !== "USER_ENTERED" : e.competenciesBy === "AI";
 
 /** 수행 주체 · 출처 상태 · 역량 — AI 표시는 부가 정보라 맨 뒤. 고칠 수 있는 줄(edit)에선 출처 상태를 빼고 근거 옆 아이콘으로(FE#293) */
-export function ExperienceMeta({ experience: e, aiLabel = "AI", edit }: {
+export function ExperienceMeta({ experience: e, aiLabel = "AI", edit, noSource }: {
   experience: Pick<Experience, "actor" | "competencies" | "competenciesBy" | "sourceStatus" | "origin">;
   aiLabel?: string;
+  /** 출처 상태를 근거 옆 아이콘(SourceStatusIcon)으로 따로 둘 때 — 꺼내기 답(FE#363) */
+  noSource?: boolean;
   /** 주면 수행 주체 · 역량을 눌러 그 자리에서 고친다 (S-10) */
   edit?: { experience: Experience; onSaved: (experience: Experience) => void };
 }) {
@@ -80,7 +82,7 @@ export function ExperienceMeta({ experience: e, aiLabel = "AI", edit }: {
     <>
       {edit ? <ActorField experience={edit.experience} onSaved={edit.onSaved} /> : <span>{ACTOR[e.actor]}</span>}
       {e.origin?.type === "ANSWER" ? <>{sep}<Link href={`/questions?question=${e.origin.questionId}`} className="min-w-0 break-words underline-offset-3 hover:underline">내가 쓴 지원서 · {e.origin.organization || "지원처 미입력"} · {e.origin.questionText}</Link></>
-        : !edit && <>{sep}<SourceStatusMark status={e.sourceStatus} /></>}
+        : !edit && !noSource && <>{sep}<SourceStatusMark status={e.sourceStatus} /></>}
       {edit ? <>{sep}<CompetencyField experience={edit.experience} aiMark={aiMark} onSaved={edit.onSaved} /></> : e.competencies.length > 0 && (
         <>
           {sep}
