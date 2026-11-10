@@ -80,7 +80,10 @@ test("checks text, distinguishes all statuses, opens non-recommended evidence, r
   await tabs.nth(1).click();
   await expect(input).toHaveValue("");
   await tabs.first().click();
-  await expect(input).toHaveValue(GROUNDING_EXAMPLE.text);
+  // 고친 글은 자동 저장돼 문항을 오가도 남는다(S-72) — 점검한 글로 되돌려 저장한 뒤 새로고침해 점검을 잇는다
+  await expect(input).toHaveValue("내가 고친 글");
+  await input.fill(GROUNDING_EXAMPLE.text);
+  await expect(s.getByText("저장됨", { exact: true })).toBeVisible();
   await page.reload();
   await expect(input).toHaveValue(GROUNDING_EXAMPLE.text);
   await expect(summary(page)).toBeVisible();

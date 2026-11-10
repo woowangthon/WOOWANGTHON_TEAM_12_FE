@@ -257,37 +257,6 @@ test("빈칸 카드에서 답하면 글의 자리 표시가 답으로 바뀌고 
   await checks(page, 3);
 });
 
-test("빼기는 글에서 문장을 지우고 PUT 으로 저장하며, 다시 넣기는 그 자리에 원래 문장을 되돌린다", async ({ page }) => {
-  const api = await open(page);
-  await clickMark(page, "s-4");
-  await sentenceCard(page).getByRole("button", { name: "빼기", exact: true }).click();
-  await expect(answerBox(page)).not.toHaveValue(/앞으로도 문제의 원인을/);
-  await expect.poll(() => posts(api)).toEqual([{ call: "PUT /api/draft-sentences/805/removed", body: { removed: true } }]);
-  await page.getByText("뺀 문장 1개 — 다시 넣을 수 있어요").click();
-  await page.getByRole("list", { name: "뺀 문장" }).getByRole("button", { name: "다시 넣기", exact: true }).click();
-  await expect.poll(() => posts(api).at(-1)).toEqual({ call: "PUT /api/draft-sentences/805/removed", body: { removed: false } });
-  await expect(answerBox(page)).toHaveValue(COMPOSED);
-});
-
-test("고친 문장을 빼고 다시 넣으면 원래 초안 문장으로 돌아온다", async ({ page }) => {
-  const api = await open(page);
-  await change(page, "자주 끊기는", "종종 끊기는");
-  await expect(markOf(page, "s-1")).toContainText("종종 끊기는");
-  await clickMark(page, "s-1");
-  await sentenceCard(page).getByRole("button", { name: "빼기 설명" }).click();
-  await expect(page.getByRole("dialog", { name: "빼기 설명" })).toContainText("빼고 다시 넣으면 원래 문장으로 돌아가요.");
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog", { name: "빼기 설명" })).toHaveCount(0);
-  await sentenceCard(page).getByRole("button", { name: "빼기", exact: true }).click();
-  await expect(answerBox(page)).not.toHaveValue(/종종 끊기는/);
-  await expect.poll(() => posts(api)).toEqual([{ call: "PUT /api/draft-sentences/802/removed", body: { removed: true } }]);
-  await page.getByText("뺀 문장 1개 — 다시 넣을 수 있어요").click();
-  await page.getByRole("list", { name: "뺀 문장" }).getByRole("button", { name: "다시 넣기", exact: true }).click();
-  await expect.poll(() => posts(api).at(-1)).toEqual({ call: "PUT /api/draft-sentences/802/removed", body: { removed: false } });
-  await expect(answerBox(page)).toHaveValue(COMPOSED); // 고친 글이 아니라 원래 문장, 앞 문장 바로 뒤
-  await expect(markOf(page, "s-1")).toHaveText(S_802_TEXT);
-});
-
 test("다음 확인할 곳 → 은 고쳐서 생긴 확인할 곳까지 글 순서로 돈다", async ({ page }) => {
   await open(page);
   await change(page, "3초", "5초");

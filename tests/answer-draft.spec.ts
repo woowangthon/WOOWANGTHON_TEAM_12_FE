@@ -619,7 +619,7 @@ test("an unconfirmed answer relayed by external AI is labelled apart and the dra
   await expect(page.getByText("Claude가 전한 답이에요.", { exact: false })).toHaveCount(0);
 });
 
-// FE#249 — 「초안 부탁하기」: 패널이 열려 있어도 반응이 보이고(강조 · 초점), 메인 페이지는 움직이지 않는다. 「분석 1회」는 「다 썼어요」 옆
+// FE#249 — 「초안 부탁하기」: 패널이 열려 있어도 반응이 보이고(강조 · 초점), 메인 페이지는 움직이지 않는다. 「분석 1회」는 분석을 쓰는 「근거 점검」 옆(FE#270)
 test("초안 부탁하기 — 열린 패널에서도 「초안 준비」를 강조하고 「초안 만들기」로 초점을 옮기며 메인 스크롤은 그대로다", async ({ page }, info) => {
   await setup(page);
   const ask = page.getByRole("button", { name: /초안 부탁하기|초안 설정 열기/ });
@@ -650,13 +650,15 @@ test("초안 부탁하기 — 열린 패널에서도 「초안 준비」를 강�
   await page.screenshot({ path: "artifacts/draft-ask-1024.png", style: "nextjs-portal { display: none !important; }" });
 });
 
-test("답 칸 줄의 「분석 1회」는 「다 썼어요」 바로 앞에 있다 (#217 · FE#249)", async ({ page }) => {
+test("답 칸 줄의 「분석 1회」는 「근거 점검」 바로 뒤에만 있다 — 「다 썼어요」는 저장만 한다 (FE#270)", async ({ page }) => {
   await setup(page);
   await closeDraftPanel(page);
-  const order = await page.getByRole("button", { name: "다 썼어요", exact: true }).evaluate((done) =>
-    [...done.parentElement!.children].map((el) => el.textContent?.trim()));
-  const cost = order.findIndex((text) => text?.startsWith("분석 1회"));
-  expect(order[cost + 1]).toBe("다 썼어요");
-  expect(order.slice(0, cost).some((text) => /초안 부탁하기|초안 설정 열기/.test(text ?? ""))).toBe(true);
+  const done = page.getByRole("button", { name: "다 썼어요", exact: true });
+  const doneGroup = await done.evaluate((el) => [...el.parentElement!.children].map((c) => c.textContent?.trim()));
+  expect(doneGroup.some((text) => text?.startsWith("분석 1회"))).toBe(false);
+  const order = await page.getByRole("button", { name: "근거 점검", exact: true }).evaluate((el) =>
+    [...el.parentElement!.children].map((c) => c.textContent?.trim()));
+  const check = order.indexOf("근거 점검");
+  expect(order[check + 1]).toMatch(/^분석 1회/);
   expect(order.filter((text) => text?.startsWith("분석 1회"))).toHaveLength(1);
 });

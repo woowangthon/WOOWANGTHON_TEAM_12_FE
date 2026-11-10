@@ -62,6 +62,8 @@ export type QuestionDetail = QuestionSummary & {
   answer?: Answer | null;
   /** S-27. 이전 서버 응답에는 없을 수 있다. 초안 미생성은 null */
   draft?: Draft | null;
+  /** S-72: 쓰는 중인 답(임시 글). 저장한 적 없거나 확정해서 지워졌으면 null. 이전 서버 응답에는 없을 수 있다 */
+  answerDraft?: AnswerDraft | null;
   error: Job["error"];
   requirements: Requirement[];
   recommendations: Recommendation[];
@@ -89,16 +91,18 @@ export type Draft = {
   questionId: number; status: JobStatus; error: Job["error"]; experienceIds: number[];
   /** 지금 다시 만들면 분석 횟수를 쓰지 않는가 — 빠진 사실에 답했거나 주체를 정함(S-77, BE 가 판단) */
   freeRegenerate?: boolean;
-  /** 같은 활동의 다른 경험도 재료로 썼나(S-75) — 다시 만들 때 골라 둔다. 이전 응답엔 없다(켠 것) */
+  /** 같은 활동의 다른 경험도 재료로 썼나(S-75). 2026-11-10 부터 늘 true 로 보낸다(ADR-014) */
   useContext?: boolean;
   sentences: DraftSentence[]; omitted: DraftOmission[];
   createdAt: string; updatedAt: string;
 };
-/** 초안 문장 — 근거(FACT) · AI 보탬(ELABORATED, note 필수) · 생각(OPINION). id · confirmed 는 「맞아요」(S-79) — 이전 응답엔 없다 */
+/** 초안 문장 — 근거(FACT) · AI 보탬(ELABORATED, note 필수) · 생각(OPINION) · AI 가정(SUPPOSED — S-78 · ADR-014). id · confirmed 는 「맞아요」(S-79) — 이전 응답엔 없다 */
 export type DraftSentence = {
-  id?: number; kind: "FACT" | "OPINION" | "ELABORATED"; text: string; evidence: DraftEvidence[];
+  id?: number; kind: "FACT" | "OPINION" | "ELABORATED" | "SUPPOSED"; text: string; evidence: DraftEvidence[];
   note?: string | null; confirmed?: boolean;
-  /** 카드에서 「빼기」를 눌렀나(S-79) — 뺀 문장도 응답에 오고 답칸 글에서 뺀다. 이전 응답엔 없다 */
+  /** SUPPOSED 만 — 수치 · 수상 · 직책 · 고유명사가 든 가정(한 단계 진하게). 나머지 · 옛 초안은 null 이거나 없다 */
+  specific?: boolean | null;
+  /** 예전 카드 「빼기」의 서버 값(S-79). FE 는 더 읽지 않는다 — 문장 빼기는 글에서 지우는 것뿐(FE#337) */
   removed?: boolean;
 };
 export type CreateDraftRequest = { experienceIds: number[]; frame?: DraftFrame; useContext?: boolean };
@@ -191,6 +195,9 @@ export type NewFactCandidate = {
   activityId: number | null; activityName: string | null;
   status: "PENDING" | "SAVED" | "DISMISSED"; experienceId: number | null;
 };
+/** S-72 임시 글 — 확정 답이 아니다. state 는 FE 가 정하는 답칸 화면 상태(BE 는 해석하지 않는다) */
+export type AnswerDraft = { text: string; state: Record<string, unknown> | null; updatedAt: string };
+
 export type Answer = {
   questionId: number; text: string; confirmedAt: string;
   newFacts: { status: JobStatus; error: Job["error"]; candidates: NewFactCandidate[]; createdAt: string; updatedAt: string } | null;

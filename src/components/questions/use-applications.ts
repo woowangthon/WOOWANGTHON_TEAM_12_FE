@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { addApplicationQuestion, answerClarification, createQuestionDraft, fetchApplications, fetchQuestion, retryQuestion, submitApplication, updateApplication, updateQuestionTargetLength, updateQuestionType } from "@/lib/api/questions";
 import { ApiError } from "@/lib/api/errors";
 import type { DraftFrame } from "@/lib/draft-frames";
-import type { Answer, Application, CreateApplicationRequest, QuestionDetail, QuestionSummary, QuestionType, UpdateApplicationRequest } from "@/lib/api/question-types";
+import type { Answer, AnswerDraft, Application, CreateApplicationRequest, QuestionDetail, QuestionSummary, QuestionType, UpdateApplicationRequest } from "@/lib/api/question-types";
 
 /** 고른 지원 하나 — 문항마다 추천 결과(넣은 순서, `application.questions` 와 같은 자리). 아직 못 받은 문항은 null(FE#60).
  *  같은 경험이 여러 문항에 추천됐는지는 details 로 계산한다(S-21) */
@@ -95,6 +95,14 @@ export function useApplications() {
     setState(prev => {
       const kept = prev.details[id];
       return kept ? { ...prev, details: { ...prev.details, [id]: { ...kept, answer } } } : prev;
+    });
+  }, []);
+
+  /** 답칸이 자동 저장한 임시 글(S-72)을 받아 둔 문항에 옮긴다 — 탭을 돌아와도 요청 없이 새 글로 시작하게. 확정하면 null */
+  const keepAnswerDraft = useCallback((id: number, answerDraft: AnswerDraft | null) => {
+    setState(prev => {
+      const kept = prev.details[id];
+      return kept ? { ...prev, details: { ...prev.details, [id]: { ...kept, answerDraft } } } : prev;
     });
   }, []);
 
@@ -220,6 +228,7 @@ export function useApplications() {
     /** 못 받은 문항 하나 다시 받기 — 오류를 지우면 위 효과가 다시 받는다 */
     reloadQuestion: (id: number) => setState(prev => { const detailErrors = { ...prev.detailErrors }; delete detailErrors[id]; return { ...prev, detailErrors }; }),
     keepAnswer,
+    keepAnswerDraft,
     selectQuestion,
     /** S-47: work.applicationId가 null이어도 questionId로 문항을 찾는다. */
     openLinkedQuestion: async (id: number) => {

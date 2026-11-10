@@ -1,68 +1,86 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { CheckIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { useConfirmedAnswer } from "./use-confirmed-answer";
-import { NewFactCandidates } from "./new-fact-candidates";
 import { AnalysisCost } from "@/components/auth/analysis-cost";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { InfoTip } from "@/components/ui/info-tip";
 import { Toast, useToast } from "@/components/ui/toast";
-import { confirmDraftSentence, setDraftSentenceRemoved } from "@/lib/api/questions";
+import { confirmDraftSentence } from "@/lib/api/questions";
 import { updateSupplement } from "@/lib/api/experience";
-import { MAX_GROUNDING_TEXT_LENGTH, type Answer, type GroundingStatus, type QuestionDetail } from "@/lib/api/question-types";
+import { MAX_GROUNDING_TEXT_LENGTH, type Answer, type AnswerDraft, type GroundingStatus, type QuestionDetail } from "@/lib/api/question-types";
 import { AnswerEvidence } from "./answer-evidence";
-import { analyze, composeDraft, DraftEditor, GROUND_LABEL as LABEL, type EditorHandle, type Mark, type Selection } from "./answer-draft";
+import { analyze, composeDraft, DraftEditor, GROUND_LABEL as LABEL, isSupposedPair, pairLinked, pairOf, type EditorHandle, type Mark, type Selection } from "./answer-draft";
 import { setEditedAnswer } from "./answer-box-state";
 import type { AnswerHandler } from "./clarifications";
 import { DraftGuidance } from "./draft-guidance";
 import { failureReason } from "./draft-errors";
 import { useGroundingCheck, type GroundingChecks } from "./use-grounding-check";
 import { TargetLengthField } from "./type-fields";
+import { useAnswerAutosave } from "./use-answer-autosave";
 
 const TINT: Record<GroundingStatus, string> = { SOURCE: "bg-evidence-soft", USER_INPUT: "bg-primary-soft", UNSUPPORTED: "bg-review-soft", OPINION: "" };
 
 type AnswerChange = (id: number, answer: Answer | null) => void;
+type AnswerDraftChange = (id: number, draft: AnswerDraft | null) => void;
 // 목표 글자 수는 답칸 아래 한 곳에서 정한다(FE#269)
-type DraftHooks = { onAnswer: AnswerHandler; onRefresh: () => Promise<void>; draftBusy: boolean; onTargetLength: (targetLength: number | null) => Promise<void> };
+// onNewFacts — 새 경험 후보는 차곡이 패널에서 찾고 고른다(FE#270). find 면 패널을 열며 찾기를 시작한다
+type DraftHooks = { onAnswer: AnswerHandler; onRefresh: () => Promise<void>; draftBusy: boolean; onTargetLength: (targetLength: number | null) => Promise<void>; onNewFacts: (find: boolean) => void };
 
 /** 내가 쓴 답(S-45 · S-48 · S-79): 받아 둔 문항의 확정 답으로 시작하고, 초안이 더 새로우면 초안을 보기 상태로 담는다. 근거 점검은 독립적으로 읽는다.
  *  문항을 못 받았으면 화면의 「다시 불러오기」를 쓴다 */
-export function AnswerInput({ questionId, question, loadFailed, onAnswerChange, checks, onAskDraft, ...hooks }: { questionId: number; question: QuestionDetail | null; loadFailed: boolean; onAnswerChange: AnswerChange; checks: GroundingChecks; onAskDraft: () => void } & DraftHooks) {
+export function AnswerInput({ questionId, question, loadFailed, onAnswerChange, onAnswerDraftChange, checks, onAskDraft, ...hooks }: { questionId: number; question: QuestionDetail | null; loadFailed: boolean; onAnswerChange: AnswerChange; onAnswerDraftChange: AnswerDraftChange; checks: GroundingChecks; onAskDraft: () => void } & DraftHooks) {
   return <section aria-labelledby={`answer-title-${questionId}`} className="mb-8 grid min-w-0 gap-3">
     <h3 id={`answer-title-${questionId}`} className="m-0 text-title-md font-semibold">내가 쓴 답</h3>
-    {question ? <LoadedAnswer question={question} onAnswerChange={onAnswerChange} checks={checks} draftLabel={question.status === "ANALYZING" || question.status === "FAILED" ? null : question.draft ? "초안 설정 열기" : "초안 부탁하기"} onAskDraft={onAskDraft} {...hooks} />
+    {question ? <LoadedAnswer question={question} onAnswerChange={onAnswerChange} onAnswerDraftChange={onAnswerDraftChange} checks={checks} draftLabel={question.status === "ANALYZING" || question.status === "FAILED" ? null : question.draft ? "초안 설정 열기" : "초안 부탁하기"} onAskDraft={onAskDraft} {...hooks} />
       : !loadFailed && <p role="status" className="m-0 text-sm text-muted">쓴 답을 불러오고 있어요…</p>}
   </section>;
 }
 
-function LoadedAnswer({ question, onAnswerChange, checks, draftLabel, onAskDraft, ...hooks }: { question: QuestionDetail; onAnswerChange: AnswerChange; checks: GroundingChecks; draftLabel: string | null; onAskDraft: () => void } & DraftHooks) {
+function LoadedAnswer({ question, onAnswerChange, onAnswerDraftChange, checks, draftLabel, onAskDraft, ...hooks }: { question: QuestionDetail; onAnswerChange: AnswerChange; onAnswerDraftChange: AnswerDraftChange; checks: GroundingChecks; draftLabel: string | null; onAskDraft: () => void } & DraftHooks) {
   const confirmed = useConfirmedAnswer(question.id, question.answer ?? null, onAnswerChange);
-  return <>
-    <AnswerEditor question={question} confirmed={confirmed} checks={checks} draftLabel={draftLabel} onAskDraft={onAskDraft} {...hooks} />
-    <NewFactCandidates confirmed={confirmed} />
-  </>;
+  return <AnswerEditor question={question} confirmed={confirmed} onAnswerDraftChange={onAnswerDraftChange} checks={checks} draftLabel={draftLabel} onAskDraft={onAskDraft} {...hooks} />;
 }
 
-/** 답칸의 상태 — 어느 초안(key)을 담았나, 이 화면에서 답한 빈칸(local), 이 화면에서만 누른 맞아요(seen — 문장 글, FE#317).
- *  뺀 문장은 서버 값(sentences[].removed)이고 removed 는 저장을 기다리는 동안만 쓴다(FE#262). 고친 글 · seen 은 저장하지 않는다(자동 저장 S-72 · FE#213 전 — 떠날 때 경고) */
-type Box = { key: string | null; removed: Set<number>; local: Record<number, string>; seen: Set<string>; sawDrafting: boolean };
+/** 답칸의 상태 — 어느 초안(key)을 담았나, 이 화면에서 답한 빈칸(local), 서버 문장에 저장 못 하는 맞아요(seen — 문장 글, FE#317).
+ *  글 · local · seen 은 임시 글로 자동 저장한다(S-72 · FE#213). 문장 빼기는 글에서 지우는 것뿐이다 — 서버의 sentences[].removed 는 읽지 않는다(FE#337) */
+type Box = { key: string | null; local: Record<number, string>; seen: Set<string>; sawDrafting: boolean };
+const NONE = new Set<number>();
 const later = (a: string, b: string) => Date.parse(a) > Date.parse(b);
 
-function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, onAnswer, onRefresh, draftBusy, onTargetLength }: { question: QuestionDetail; confirmed: ReturnType<typeof useConfirmedAnswer>; checks: GroundingChecks; draftLabel: string | null; onAskDraft: () => void } & DraftHooks) {
+/** 임시 글 state 의 모양(FE 가 정한다 — 계약 question-api.md 「임시 글」). 다른 모양 · 다른 초안의 것이면 버린다 */
+type SavedBox = { v: 1; draftKey: string | null; local: Record<number, string>; seen: string[] };
+function readSavedBox(state: AnswerDraft["state"], draftKey: string | null): Pick<Box, "local" | "seen"> | null {
+  const s = state as Partial<SavedBox> | null;
+  if (!s || s.v !== 1 || s.draftKey !== draftKey || typeof s.local !== "object" || !s.local || !Array.isArray(s.seen)) return null;
+  const local = Object.fromEntries(Object.entries(s.local).filter(([k, v]) => Number.isInteger(+k) && typeof v === "string").map(([k, v]) => [+k, v as string]));
+  return { local, seen: new Set(s.seen.filter((x): x is string => typeof x === "string")) };
+}
+
+function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, draftLabel, onAskDraft, onAnswer, onRefresh, draftBusy, onTargetLength, onNewFacts }: { question: QuestionDetail; confirmed: ReturnType<typeof useConfirmedAnswer>; onAnswerDraftChange: AnswerDraftChange; checks: GroundingChecks; draftLabel: string | null; onAskDraft: () => void } & DraftHooks) {
   const questionId = question.id;
   const draft = question.draft ?? null;
   const ready = draft?.status === "COMPLETED" && draft.sentences.length > 0 ? draft : null;
   const draftKey = ready?.createdAt ?? null;
-  const removedKey = ready?.sentences.flatMap((s, i) => s.removed ? [i] : []).join() ?? "";
   // 새 초안이 다 쓴 답보다 나중이면 초안 글로 시작한다 — 다 쓴 답은 서버에 남고 「다 쓴 답 불러오기」로 돌아간다
   const fresh = !!ready && (!a.answer || later(ready.createdAt, a.answer.confirmedAt));
-  const serverRemoved = () => new Set(removedKey ? removedKey.split(",").map(Number) : []);
-  const [initialText] = useState(() => fresh && ready ? composeDraft(question, ready, serverRemoved(), {}) : a.initialText);
+  // 임시 글(S-72)이 있으면 그 글로 시작한다 — 확정하면 지워지니 다 쓴 답보다 늘 새롭다. 그 뒤에 만든 초안이 있으면 초안이 이긴다
+  const [start] = useState(() => {
+    const saved = question.answerDraft ?? null;
+    const restored = saved && !(ready && later(ready.createdAt, saved.updatedAt)) ? saved : null;
+    const kept = restored ? readSavedBox(restored.state, draftKey) : null;
+    const composed = ready ? composeDraft(question, ready, NONE, kept?.local ?? {}) : null;
+    const text = restored ? restored.text : fresh && composed !== null ? composed : a.initialText;
+    // 고친 글의 기준 — 다시 만들기 전 경고가 읽는다. 초안이 있으면 초안 글, 없으면 처음 글
+    return { text, kept, base: composed ?? text ?? "" };
+  });
+  const initialText = start.text;
   const g = useGroundingCheck(questionId, checks, initialText);
-  const [box, setBox] = useState<Box>(() => ({ key: draftKey, removed: new Set(), local: {}, seen: new Set(), sawDrafting: false }));
-  const [editBase, setEditBase] = useState(initialText ?? "");
+  const [box, setBox] = useState<Box>(() => ({ key: draftKey, local: start.kept?.local ?? {}, seen: start.kept?.seen ?? new Set(), sawDrafting: false }));
+  const [editBase, setEditBase] = useState(start.base);
   const [selected, setSelected] = useState<Selection>(null);
   const [ask, setAsk] = useState<"copy" | "confirm" | "ground" | "load" | null>(null);
   const { toast, showToast } = useToast();
@@ -76,62 +94,36 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
   // 다른 탭에서 만든 초안은 고친 글을 덮지 않는다(새로고침하면 보인다 — 「불러오기」 안내는 백로그)
   if (box.key !== draftKey) {
     const take = !!ready && fresh && (box.sawDrafting || !edited);
-    setBox({ key: draftKey, removed: new Set(), local: {}, seen: new Set(), sawDrafting: false });
+    setBox({ key: draftKey, local: {}, seen: new Set(), sawDrafting: false });
     setSelected(null);
-    if (take) { const next = composeDraft(question, ready, serverRemoved(), {}); g.setText(next); setEditBase(next); }
+    if (take) { const next = composeDraft(question, ready, NONE, {}); g.setText(next); setEditBase(next); }
   }
-  // 뺀 문장 — 서버에 저장된 것과 저장 중인 것
-  const removed = useMemo(() => new Set([...box.removed, ...(removedKey ? removedKey.split(",").map(Number) : [])]), [box.removed, removedKey]);
   const settled = a.answer?.text ?? null;
-  const analysis = useMemo(() => analyze(question, ready, removed, box.local, box.seen, settled, text, g.check), [question, ready, removed, box.local, box.seen, settled, text, g.check]);
+  const analysis = useMemo(() => analyze(question, ready, NONE, box.local, box.seen, settled, text, g.check), [question, ready, box.local, box.seen, settled, text, g.check]);
   const latest = useRef(analysis);
   useEffect(() => { latest.current = analysis; });
   const target = question.targetLength ?? null;
   const marked = !!analysis.marks.length || !!analysis.own.length;
   const left = analysis?.checks.length ?? 0;
   const blanksLeft = analysis?.chips.length ?? 0;
+  // 확인 전 AI 가정 · 그중 구체 값(specific) — 「확인할 곳」 옆에 따로 보이고, 복사 · 다 썼어요 때 한 번 알린다(막지 않음)
+  const supposedLeft = analysis.marks.filter(m => m.need === "supposed");
+  const specificLeft = supposedLeft.filter(m => ready?.sentences[m.index]?.specific).length;
+  const otherLeft = left - supposedLeft.length;
+  const warnFirst = blanksLeft > 0 || supposedLeft.length > 0;
 
   useEffect(() => { setEditedAnswer(questionId, edited); }, [questionId, edited]);
-  // 고친 글은 아직 저장하지 않으니 새로고침 · 닫기 전에 브라우저가 묻는다(FE#262 — 자동 저장 FE#213 전까지)
+  // 자동 저장(S-72) — 글과 이 화면의 표시 상태(답한 빈칸 · 맞아요 문장 글)를 같이
+  const savedBox: SavedBox = { v: 1, draftKey, local: box.local, seen: [...box.seen] };
+  const autosave = useAnswerAutosave(questionId, { text, state: savedBox }, g.initialized, draft => onAnswerDraftChange(questionId, draft));
+  // 아직 저장하지 못한 글이 있으면 새로고침 · 닫기 전에 브라우저가 묻는다
   useEffect(() => {
-    if (!edited) return;
+    if (!autosave.unsaved) return;
     const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
-  }, [edited]);
+  }, [autosave.unsaved]);
 
-  // 빼기 — 글에서 지우고 서버에 저장한다. 실패하면 알린다(글은 Ctrl+Z 로 되돌릴 수 있다)
-  const remove = async (mark: Mark) => {
-    const sentence = ready?.sentences[mark.index];
-    if (!sentence) return;
-    const after = text.slice(mark.end).match(/^\s*/)![0].length;
-    const before = after ? 0 : text.slice(0, mark.start).match(/\s*$/)![0].length;
-    editor.current?.replace(mark.start - before, mark.end + after, "");
-    setBox(b => ({ ...b, removed: new Set(b.removed).add(mark.index) }));
-    try {
-      if (sentence.id != null) { await setDraftSentenceRemoved(sentence.id, true); await onRefresh(); }
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : "저장하지 못했어요. 다시 시도해 주세요.", true);
-    } finally {
-      setBox(b => { const next = new Set(b.removed); next.delete(mark.index); return { ...b, removed: next }; });
-    }
-  };
-  // 다시 넣기 — 원래 초안 문장을 짝이 있는 가장 가까운 앞 문장 뒤에(없으면 맨 앞)
-  const restore = async (index: number) => {
-    if (!ready) return;
-    const sentence = ready.sentences[index];
-    try {
-      if (sentence.id != null) await setDraftSentenceRemoved(sentence.id, false);
-      const others = new Set(ready.sentences.flatMap((_, i) => i === index ? [] : [i]));
-      const original = composeDraft(question, ready, others, box.local);
-      const before = (latest.current?.marks ?? []).filter(m => m.index < index).sort((x, y) => y.index - x.index)[0];
-      const at = before ? before.end : 0;
-      editor.current?.replace(at, at, before ? ` ${original}` : text ? `${original} ` : original);
-      await onRefresh();
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : "저장하지 못했어요. 다시 시도해 주세요.", true);
-    }
-  };
   // 맞아요 — 고치지 않은 AI 보탬 · 생각은 서버에, 고친 문장 · 숫자 · 채운 빈칸 확인은 이 화면에서만(저장된 문장 글과 달라서)
   const confirm = async (mark: Mark) => {
     const sentence = ready?.sentences[mark.index];
@@ -139,6 +131,29 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
     if (!mark.edited && mark.need === "marked" && sentence.id != null) { await confirmDraftSentence(sentence.id); await onRefresh(); }
     else setBox(b => ({ ...b, seen: new Set(b.seen).add(mark.text) }));
     // 카드는 닫지 않는다 — 확인한 상태가 보이게(FE#325)
+  };
+  // AI 가정(S-79 · ADR-014) — 비슷했어요는 문장 그대로, 고치기는 고친 글을 짝 omitted 의 되묻기로 답해 경험의 보완으로 쌓는다.
+  // 짝이 경험에 안 붙었으면 비슷했어요는 서버 맞아요, 고치기는 글만 바꾸고 이 화면에서 확인한 것으로 둔다
+  const settleSupposed = async (mark: Mark, value: string | null) => {
+    if (!ready) return;
+    const sentence = ready.sentences[mark.index];
+    const pair = pairOf(ready, mark.index);
+    const answer = value ?? mark.text;
+    if (pairLinked(pair) && pair.question != null) {
+      await onAnswer(pair.clarificationId, answer);
+      setBox(b => ({ ...b, local: { ...b.local, [pair.clarificationId]: answer } }));
+    } else if (value === null && !mark.edited && sentence.id != null) { await confirmDraftSentence(sentence.id); await onRefresh(); }
+    else setBox(b => ({ ...b, seen: new Set(b.seen).add(answer) }));
+    if (value === null) return;
+    // 기다리는 동안 글이 바뀌었을 수 있다 — 그 문장의 지금 자리를 바꾼다
+    const now = latest.current.marks.find(m => m.index === mark.index);
+    if (now) editor.current?.replace(now.start, now.end, value);
+  };
+  // 빼기 — 글에서 그 문장을 지운다(Ctrl+Z 로 되돌린다). 뒤 띄어쓰기 하나도 같이
+  const removeSentence = (mark: Mark) => {
+    const now = latest.current.marks.find(m => m.index === mark.index);
+    if (!now) return;
+    editor.current?.replace(now.start, text[now.end] === " " ? now.end + 1 : now.end, "");
   };
 
   const loadConfirmed = () => {
@@ -151,9 +166,12 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
     try { await navigator.clipboard.writeText(text); showToast("답칸의 글을 복사했어요. 표시는 복사하지 않아요."); }
     catch { showToast("복사하지 못했어요. 브라우저의 클립보드 권한을 확인해 주세요.", true); }
   };
-  const confirmAnswer = () => { setAsk(null); void a.confirm(text); };
+  // 「다 썼어요」 전에 기다리던 자동 저장을 버린다 — 늦게 도착하면 지운 임시 글이 되살아난다(계약)
+  const confirmAnswer = async () => { setAsk(null); await autosave.settle(); void a.confirm(text, () => onAnswerDraftChange(questionId, null)); };
 
   const locked = a.busy || a.answer?.newFacts?.status === "ANALYZING";
+  // 확정 답과 같은 글은 다시 확정하지 않는다 — 서버도 아무것도 바꾸지 않는다(ETC#266)
+  const same = !!a.answer && text === a.answer.text;
   const analyzing = g.check?.status === "ANALYZING";
   const valid = !!text.trim() && text.length <= MAX_GROUNDING_TEXT_LENGTH;
   const stale = g.check?.status === "COMPLETED" && text !== g.check.text;
@@ -162,19 +180,22 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
   // 고친 사실 문장 — 그 글로 근거 점검을 안 했으면 다 썼어요 때 한 번 권한다(뜻이 바뀐 건 코드가 못 잡는다)
   const editedFacts = analysis?.marks.filter(m => m.edited && ready?.sentences[m.index].kind === "FACT").length ?? 0;
   const groundFirst = editedFacts > 0 && !(g.check?.status === "COMPLETED" && g.check.text === text);
-  const finish = () => { if (groundFirst) setAsk("ground"); else confirmAnswer(); };
-  const removedList = ready ? ready.sentences.flatMap((s, i) => removed.has(i) ? [{ s, i }] : []) : [];
+  const finish = () => { if (groundFirst) setAsk("ground"); else void confirmAnswer(); };
   // 빠진 사실 질문은 차곡이 패널에서 답한다 — 답칸 위에서는 한 줄로 알린다(FE#262 · FE#266). 글에 칩으로 남은 빈칸은 「확인할 곳」이 센다
   const chipped = new Set(analysis?.chips.map(c => c.at) ?? []);
-  const asked = ready?.omitted.filter((o, at) => o.clarificationId !== null && o.supplementId === null && !chipped.has(at)).length ?? 0;
+  // AI 가정의 짝은 그 문장 카드에서 확인하니 세지 않는다
+  const asked = ready?.omitted.filter((o, at) => o.clarificationId !== null && o.supplementId === null && !chipped.has(at) && !isSupposedPair(ready, o)).length ?? 0;
   return <>
     {drafting && <p role="status" className="m-0 text-sm text-muted">차곡이가 초안을 만들고 있어요. 다 되면 답칸에 들어와요.</p>}
     {draft?.status === "FAILED" && !drafting && <p role="alert" className="m-0 text-sm text-error">{failureReason(draft.error)} 차곡이에서 다시 만들 수 있어요.</p>}
     {marked && <div id={`draft-title-${questionId}`} role="group" aria-label="답변 초안" className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
       {/* 확인할 곳은 부가 정보라 작게 — 남은 개수는 늘 보인다(FE#262 · FE#269). 사용법은 ⓘ 로 접는다 */}
       <span role="status" className={cn("inline-flex items-center gap-1.5 text-note font-medium tabular-nums", left ? "text-review" : "text-evidence")}>
-        {left ? <><span aria-hidden="true" className="size-1.5 rounded-full bg-review" />확인할 곳 {left}군데</> : "모두 확인했어요 ✓"}
+        {otherLeft > 0 ? <><span aria-hidden="true" className="size-1.5 rounded-full bg-review" />확인할 곳 {otherLeft}군데</> : !left && "모두 확인했어요 ✓"}
       </span>
+      {supposedLeft.length > 0 && <span role="status" className="inline-flex items-center gap-1.5 text-note font-medium text-body tabular-nums">
+        <span aria-hidden="true" className="h-2 w-3 rounded-[2px] bg-surface-strong outline-1 outline-muted-soft" />AI 가정 {supposedLeft.length}곳
+      </span>}
       <span className="-ml-2 mr-auto inline-flex items-center"><InfoTip label="차곡이 초안">차곡이 초안이에요. 바로 고쳐 쓰고, 밑줄 · 빈칸을 누르면 근거와 이유가 보여요. 최종 문장은 직접 정해요.</InfoTip></span>
       {left > 0 && <Button variant="secondary" size="sm" className="min-h-11 lg:min-h-10" title="Alt + ↓" onClick={() => editor.current?.next()}>다음 확인할 곳 →</Button>}
     </div>}
@@ -187,7 +208,7 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
       <DraftEditor handleRef={editor} inputId={`answer-${questionId}`} question={question} draft={ready} analysis={analysis} local={box.local}
         text={text} onText={g.setText} placeholder="여기에 답을 쓰거나, 차곡이에게 초안을 부탁해 보세요."
         disabled={g.loading || g.busy || analyzing || !g.initialized || locked} cardsDisabled={draftBusy || locked}
-        selected={selected} onSelect={setSelected} onRemove={m => void remove(m)} onConfirm={confirm} onActorDecided={onRefresh}
+        selected={selected} onSelect={setSelected} onConfirm={confirm} onActorDecided={onRefresh} onSupposed={settleSupposed} onRemove={removeSentence}
         onConfirmOwn={o => setBox(b => ({ ...b, seen: new Set(b.seen).add(o.text) }))}
         onAnswer={async (chip, answer) => {
           await onAnswer(chip.omission.clarificationId!, answer);
@@ -204,37 +225,38 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
         }} />
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-hairline-soft px-3.5 py-2.5">
         {/* 왼쪽은 글을 살피는 일, 오른쪽은 다음 행동 — 초안 부탁을 더 많이 쓴다(FE#215). 「다 썼어요」가 줄 끝이다.
-            「분석 1회」는 줄에 한 번, 「다 썼어요」 바로 앞에(S-15 · #217) — 「초안 부탁하기」는 분석을 쓰지 않아 그 옆에 두지 않는다(FE#249) */}
+            「분석 1회」는 분석을 쓰는 「근거 점검」 옆에만(S-15) — 「다 썼어요」는 저장만 하고(FE#270), 「초안 부탁하기」는 분석을 쓰지 않는다(FE#249) */}
         <div className="flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-1 text-xs text-muted tabular-nums">{text.length.toLocaleString()}자 /{" "}
             <TargetLengthField value={target} onSave={onTargetLength} />
             {marked && target !== null && text.length < target && <InfoTip label="목표 글자 수" align="start">자료에 있는 내용으로만 써서 목표보다 짧을 수 있어요. 빈칸 · 빠진 사실에 답하면 다음 초안이 길어져요.</InfoTip>}</span>
+          <SaveState status={autosave.status} onRetry={() => void autosave.retry()} />
           {/* 같은 글은 다시 점검하지 않는다 — 분석 1회를 아끼고 판정이 오락가락하지 않게(FE#317). 실패한 점검은 아래 「같은 글로 다시 시도」 */}
           <Button variant="ghost" className="min-h-11 lg:min-h-10" title={checkedSame ? "이미 점검한 글이에요 — 고치면 다시 점검할 수 있어요" : "분석 1회를 써요"}
             disabled={!valid || g.loading || g.busy || analyzing || !g.initialized || checkedSame} onClick={() => void g.submit(text)}>
             {g.busy || analyzing ? "근거 점검 중…" : checkedSame ? "점검했어요" : "근거 점검"}
           </Button>
-          <Button variant="ghost" className="min-h-11 lg:min-h-10" disabled={!text.trim()} onClick={() => { if (blanksLeft) setAsk("copy"); else void copy(); }}>복사</Button>
+          {!checkedSame && <AnalysisCost running={g.busy || analyzing} className="-ml-1.5" />}
+          <Button variant="ghost" className="min-h-11 lg:min-h-10" disabled={!text.trim()} onClick={() => { if (warnFirst) setAsk("copy"); else void copy(); }}>복사</Button>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {draftLabel && <Button variant="secondary" className="min-h-11 lg:min-h-10" onClick={onAskDraft}>{draftLabel}</Button>}
-          <AnalysisCost running={g.busy || analyzing || locked} />
-          <Button className="min-h-11 lg:min-h-10" disabled={!valid || g.loading || g.busy || analyzing || !g.initialized || locked} onClick={() => { if (blanksLeft) setAsk("confirm"); else finish(); }}>{a.busy ? "처리 중…" : "다 썼어요"}</Button>
+          <Button className="min-h-11 lg:min-h-10" title={same ? "다 쓴 답과 같은 글이에요 — 고치면 다시 누를 수 있어요" : undefined}
+            disabled={!valid || g.loading || g.busy || analyzing || !g.initialized || locked || same} onClick={() => { if (warnFirst) setAsk("confirm"); else finish(); }}>{a.busy ? "처리 중…" : "다 썼어요"}</Button>
         </div>
       </div>
     </div>
-    {removedList.length > 0 && <details className="grid gap-2 rounded-sm bg-surface-soft px-3.5 py-2.5 text-sm">
-      <summary className="min-h-11 lg:min-h-10 cursor-pointer content-center font-medium text-body">뺀 문장 {removedList.length}개 — 다시 넣을 수 있어요</summary>
-      <ul aria-label="뺀 문장" className="m-0 grid list-none gap-2 p-0 pt-1">
-        {removedList.map(({ s, i }) => <li key={i} className="flex flex-wrap items-center justify-between gap-2">
-          <span className="min-w-0 flex-1 break-words text-muted line-through decoration-hairline">{s.text}</span>
-          <Button variant="secondary" size="sm" className="min-h-11 lg:min-h-10" disabled={draftBusy || locked} onClick={() => void restore(i)}>다시 넣기</Button>
-        </li>)}
-      </ul>
-    </details>}
+    {autosave.status === "error" && <p role="alert" className="m-0 text-sm text-error">쓰는 글을 저장하지 못했어요. {autosave.error} 글은 이 화면에 그대로 있어요 — 「다시 저장」을 눌러 주세요.</p>}
     {marked && ready && <DraftGuidance draft={ready} />}
     {a.answer && text !== a.answer.text && <Button variant="link" size="sm" className="min-h-11 lg:min-h-10 justify-self-start" onClick={() => { if (edited) setAsk("load"); else loadConfirmed(); }}>다 쓴 답 불러오기</Button>}
-    {a.answer && <p role="status" className="m-0 text-sm text-muted">{text === a.answer.text ? "다 쓴 답으로 저장했어요" : "고친 내용이 있어요 · 「다 썼어요」를 다시 눌러 주세요"}</p>}
+    {a.failure && <div className="grid justify-items-start gap-2">
+      <p role="alert" className="m-0 text-sm text-error">{a.failure.message}{a.pollFailures >= 3 && " 자동 확인을 멈췄어요."}</p>
+      <Button variant="secondary" className="min-h-11 lg:min-h-10" disabled={a.busy} onClick={() => void (a.failure?.action === "confirm" ? a.confirm(a.failure.text!) : a.failure?.action === "find" ? a.retryFind() : a.refresh())}>
+        {a.failure.action === "confirm" ? "같은 답으로 다시 저장" : a.failure.action === "find" ? "다시 찾기" : "저장 상태 다시 확인"}
+      </Button>
+    </div>}
+    {a.answer && (same ? <SavedLine answer={a.answer} onNewFacts={onNewFacts} />
+      : <p role="status" className="m-0 text-sm text-muted">고친 내용이 있어요 · 「다 썼어요」를 다시 눌러 주세요</p>)}
     {g.loading && <p role="status" className="m-0 text-sm text-muted">마지막 근거 점검을 불러오고 있어요…</p>}
     {analyzing && <p role="status" className="m-0 text-sm text-muted">문장을 근거와 대조하고 있어요. 새로고침해도 점검한 글과 진행 상태를 이어서 확인해요.</p>}
     {g.failure && <div className="grid justify-items-start gap-2">
@@ -271,7 +293,7 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
           <DialogDescription>고친 내용이 근거와 맞는지는 「근거 점검」(분석 1회)으로 볼 수 있어요.</DialogDescription>
           <DialogFooter>
             <Button className="min-h-11 lg:min-h-10" variant="secondary" onClick={() => { setAsk(null); void g.submit(text); }}>근거 점검하기</Button>
-            <Button className="min-h-11 lg:min-h-10" onClick={confirmAnswer}>그냥 다 썼어요</Button>
+            <Button className="min-h-11 lg:min-h-10" onClick={() => void confirmAnswer()}>그냥 다 썼어요</Button>
           </DialogFooter>
         </> : ask === "load" ? <>
           <DialogTitle>다 쓴 답을 불러올까요?</DialogTitle>
@@ -279,6 +301,17 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
           <DialogFooter>
             <Button className="min-h-11 lg:min-h-10" variant="secondary" onClick={() => setAsk(null)}>취소</Button>
             <Button className="min-h-11 lg:min-h-10" onClick={loadConfirmed}>불러오기</Button>
+          </DialogFooter>
+        </> : supposedLeft.length > 0 ? <>
+          {/* AI 가정이 남았으면 한 번 알린다 — 막지 않는다(S-79 · ADR-014). 빈칸도 남았으면 한 줄 더 */}
+          <DialogTitle>AI 가정 {supposedLeft.length}곳{specificLeft ? ` · 구체 값 ${specificLeft}곳` : ""}이 확인 전이에요</DialogTitle>
+          <DialogDescription>
+            회색 문장은 자료에 없어 차곡이가 그럴 법하게 쓴 것이에요. {ask === "copy" ? "그대로 복사하면 확인하지 않은 문장이 글에 남아요." : "그대로 저장하면 확인하지 않은 문장이 답에 남아요."}
+            {blanksLeft > 0 && ` 빈칸 ${blanksLeft}개도 남았어요.`}
+          </DialogDescription>
+          <DialogFooter>
+            <Button className="min-h-11 lg:min-h-10" variant="secondary" onClick={() => { setAsk(null); editor.current?.next(); }}>확인하러 가기</Button>
+            <Button className="min-h-11 lg:min-h-10" onClick={() => { if (ask === "copy") void copy(); else finish(); }}>그대로 둘게요</Button>
           </DialogFooter>
         </> : <>
           <DialogTitle>빈칸 {blanksLeft}개가 남았어요</DialogTitle>
@@ -292,4 +325,29 @@ function AnswerEditor({ question, confirmed: a, checks, draftLabel, onAskDraft, 
     </Dialog>
     <Toast toast={toast} />
   </>;
+}
+
+/** 다 쓴 답 저장 뒤 한 줄(S-48 · FE#270) — 저장된 걸 분명히 보이고, 바로 옆에서 새 경험 후보 찾기로 잇는다. 찾기 · 고르기는 차곡이 패널에서 */
+function SavedLine({ answer, onNewFacts }: { answer: Answer; onNewFacts: (find: boolean) => void }) {
+  const facts = answer.newFacts;
+  const pending = facts?.status === "COMPLETED" ? facts.candidates.filter(c => c.status === "PENDING").length : 0;
+  const show = <Button variant="link" size="sm" className="min-h-11 lg:min-h-10" onClick={() => onNewFacts(false)}>차곡이에서 보기</Button>;
+  return <div role="status" className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-sm bg-surface-soft px-3.5 py-2 text-sm text-body">
+    <span className="inline-flex items-center gap-1.5 font-medium text-positive"><CheckIcon aria-hidden="true" weight="bold" />다 쓴 답으로 저장했어요</span>
+    <span aria-hidden="true" className="text-muted">·</span>
+    {!facts ? <span className="inline-flex flex-wrap items-center gap-x-1.5">
+      <Button variant="link" size="sm" className="min-h-11 lg:min-h-10" onClick={() => onNewFacts(true)}>새 경험 후보 찾기</Button>
+      <AnalysisCost />
+    </span>
+      : facts.status === "ANALYZING" ? <span className="inline-flex items-center gap-x-1.5">새 경험 후보를 찾고 있어요 {show}</span>
+      : facts.status === "FAILED" ? <span className="inline-flex items-center gap-x-1.5 text-error">새 경험 후보를 찾지 못했어요 {show}</span>
+      : <span className="inline-flex items-center gap-x-1.5">{!facts.candidates.length ? "새로 쓴 사실이 없어요" : pending ? `새 경험 후보 ${pending}개를 골라 주세요` : "새 경험 후보를 모두 정했어요"} {facts.candidates.length > 0 && show}</span>}
+  </div>;
+}
+
+/** 답칸 줄의 자동 저장 상태(S-72) — 저장 중 · 저장됨 · 실패면 다시 저장 */
+function SaveState({ status, onRetry }: { status: ReturnType<typeof useAnswerAutosave>["status"]; onRetry: () => void }) {
+  if (status === "idle") return null;
+  if (status === "error") return <Button variant="ghost" size="sm" className="min-h-11 lg:min-h-10 text-error" onClick={onRetry}>다시 저장</Button>;
+  return <span role="status" className="text-xs text-muted">{status === "saved" ? "저장됨" : "저장 중…"}</span>;
 }

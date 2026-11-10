@@ -2,23 +2,27 @@
 
 import { InfoTip } from "@/components/ui/info-tip";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnalysisCost } from "@/components/auth/analysis-cost";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { fetchActivities } from "@/lib/api/experience";
+import { scrollWithinContainer } from "@/lib/scroll";
 import type { NewFactCandidate, SaveNewFactRequest } from "@/lib/api/question-types";
 import type { ActivitySummary, Actor } from "@/lib/api/types";
 import type { useConfirmedAnswer } from "./use-confirmed-answer";
 
 type Confirmed = ReturnType<typeof useConfirmedAnswer>;
-const field = "min-h-11 lg:min-h-10 w-full min-w-0 rounded-sm border border-hairline bg-canvas p-3 text-sm";
+const field = "min-h-11 lg:min-h-10 w-full min-w-0 rounded-sm border border-hairline bg-canvas p-3 text-sm text-ink";
 
-export function NewFactCandidates({ confirmed: a }: { confirmed: Confirmed }) {
+/** 새 경험 후보(S-48) — 차곡이 패널에서 찾고 고른다(FE#270). 답칸에는 저장했다는 것과 찾기 한 줄만 둔다.
+ *  findRequested — 답칸의 「새 경험 후보 찾기」로 패널이 열렸다. 한 번만 시작하고 onFindStarted 로 지운다(시트를 다시 열어도 또 찾지 않게) */
+export function NewFactCandidates({ confirmed: a, findRequested, onFindStarted }: { confirmed: Confirmed; findRequested: boolean; onFindStarted: () => void }) {
   const [activities, setActivities] = useState<ActivitySummary[]>([]);
   const [activityError, setActivityError] = useState("");
   const [loading, setLoading] = useState(true);
   const [attempt, setAttempt] = useState(0);
+  const section = useRef<HTMLElement>(null);
   const needsActivities = a.answer?.newFacts?.candidates.some(c => c.status === "PENDING") ?? false;
   useEffect(() => {
     if (!needsActivities) return;
@@ -28,28 +32,37 @@ export function NewFactCandidates({ confirmed: a }: { confirmed: Confirmed }) {
     }).catch(e => { if (!disposed) { setActivityError(e instanceof Error ? e.message : "활동을 불러오지 못했어요."); setLoading(false); } });
     return () => { disposed = true; };
   }, [needsActivities, attempt]);
+  const { retryFind } = a;
+  useEffect(() => {
+    if (!findRequested) return;
+    onFindStarted();
+    if (section.current) scrollWithinContainer(section.current);
+    void retryFind();
+  }, [findRequested, onFindStarted, retryFind]);
   const facts = a.answer?.newFacts;
-  return <div className="grid min-w-0 gap-4">
+  if (!a.answer) return null;
+  return <section ref={section} aria-label="새 경험 후보" className="grid min-w-0 gap-3 rounded-sm border border-hairline bg-canvas px-3.5 py-3 text-sm">
+    <div className="flex items-center gap-0.5"><h4 className="m-0 text-sm font-semibold">새 경험 후보</h4><InfoTip label="새 경험 후보">다 쓴 답에서 새로 쓴 사실을 찾아요. 경험은 저장을 눌러야 쌓여요.</InfoTip></div>
     {a.failure && <div className="grid justify-items-start gap-2">
       <p role="alert" className="m-0 text-sm text-error">{a.failure.message}{a.pollFailures >= 3 && " 자동 확인을 멈췄어요."}</p>
-      <Button variant="secondary" disabled={a.busy} onClick={() => void (a.failure?.action === "confirm" ? a.confirm(a.failure.text!) : a.failure?.action === "find" ? a.retryFind() : a.refresh())}>
-        {a.failure.action === "confirm" ? "같은 답으로 다시 저장" : a.failure.action === "find" ? "다시 찾기" : "저장 상태 다시 확인"}
+      <Button variant="secondary" disabled={a.busy} onClick={() => void (a.failure?.action === "find" ? a.retryFind() : a.refresh())}>
+        {a.failure.action === "find" ? "다시 찾기" : "상태 다시 확인"}
       </Button>
     </div>}
-    {a.answer && <section aria-label="새 경험 후보" className="grid min-w-0 gap-3">
-      <div className="flex items-center gap-0.5"><h4 className="m-0 text-sm font-semibold">새 경험 후보</h4><InfoTip label="새 경험 후보">다 쓴 글에서 새로 쓴 사실을 찾아요. 경험은 저장을 눌러야 쌓여요.</InfoTip></div>
-      <p className="m-0 text-sm text-muted">AI 제안이니 확인하고 고쳐 주세요.</p>
-      {facts?.status === "ANALYZING" && <p role="status" className="m-0 text-sm text-muted">새 경험 후보를 찾고 있어요… 새로고침해도 이어서 확인해요.</p>}
-      {facts?.status === "FAILED" && !a.failure && <div className="grid justify-items-start gap-2">
-        <p role="alert" className="m-0 text-sm text-error">답은 저장했어요 · {facts.error?.message || "후보를 찾지 못했어요."}</p>
-        <Button variant="secondary" disabled={a.busy} onClick={() => void a.retryFind()}>다시 찾기</Button>
-      </div>}
-      {!facts && !a.failure && <div className="flex flex-wrap items-center gap-2"><Button variant="secondary" disabled={a.busy} onClick={() => void a.retryFind()}>새 경험 후보 찾기</Button><AnalysisCost running={a.busy} /></div>}
-      {facts?.status === "COMPLETED" && !facts.candidates.length && <p role="status" className="m-0 text-sm text-muted">새로 쓴 사실이 없어요</p>}
-      {activityError && needsActivities && <div className="grid justify-items-start gap-2"><p role="alert" className="m-0 text-sm text-error">{activityError}</p><Button variant="secondary" onClick={() => { setLoading(true); setAttempt(n => n + 1); }}>활동 다시 불러오기</Button></div>}
-      {facts?.status === "COMPLETED" && <ol className="m-0 grid list-none gap-4 p-0">{facts.candidates.map(c => <CandidateCard key={c.id} candidate={c} activities={activities} unavailable={loading || !!activityError} busy={a.busy} decide={a.decide} questionId={a.answer!.questionId} />)}</ol>}
-    </section>}
-  </div>;
+    {!facts && !a.failure && <>
+      <p className="m-0 text-body">다 쓴 답에서 내가 새로 쓴 사실을 찾아 경험으로 쌓을 수 있어요.</p>
+      <div className="flex flex-wrap items-center gap-2"><Button variant="secondary" disabled={a.busy} onClick={() => void a.retryFind()}>{a.busy ? "찾기 시작하는 중…" : "새 경험 후보 찾기"}</Button><AnalysisCost running={a.busy} /></div>
+    </>}
+    {facts?.status === "ANALYZING" && <p role="status" className="m-0 text-muted">새 경험 후보를 찾고 있어요… 새로고침해도 이어서 확인해요.</p>}
+    {facts?.status === "FAILED" && !a.failure && <div className="grid justify-items-start gap-2">
+      <p role="alert" className="m-0 text-error">답은 저장했어요 · {facts.error?.message || "후보를 찾지 못했어요."}</p>
+      <div className="flex flex-wrap items-center gap-2"><Button variant="secondary" disabled={a.busy} onClick={() => void a.retryFind()}>다시 찾기</Button><AnalysisCost running={a.busy} /></div>
+    </div>}
+    {facts?.status === "COMPLETED" && !facts.candidates.length && <p role="status" className="m-0 text-muted">새로 쓴 사실이 없어요</p>}
+    {facts?.status === "COMPLETED" && facts.candidates.length > 0 && <p className="m-0 text-muted">AI 제안이니 확인하고 고쳐 주세요.</p>}
+    {activityError && needsActivities && <div className="grid justify-items-start gap-2"><p role="alert" className="m-0 text-error">{activityError}</p><Button variant="secondary" onClick={() => { setLoading(true); setAttempt(n => n + 1); }}>활동 다시 불러오기</Button></div>}
+    {facts?.status === "COMPLETED" && facts.candidates.length > 0 && <ol className="m-0 grid list-none gap-3 p-0">{facts.candidates.map(c => <CandidateCard key={c.id} candidate={c} activities={activities} unavailable={loading || !!activityError} busy={a.busy} decide={a.decide} questionId={a.answer!.questionId} />)}</ol>}
+  </section>;
 }
 
 function CandidateCard({ candidate: c, activities, unavailable, busy, decide, questionId }: {
@@ -67,12 +80,12 @@ function CandidateCard({ candidate: c, activities, unavailable, busy, decide, qu
     try { await decide(c.id, data); }
     catch (e) { setError(e instanceof Error ? e.message : "저장하지 못했어요. 다시 시도해 주세요."); }
   };
-  return <li className="grid min-w-0 gap-3 rounded-md border border-hairline p-4">
+  return <li className="grid min-w-0 gap-3 rounded-md border border-hairline p-3">
     <p className="m-0 text-xs font-semibold text-muted">AI 제안</p>
     <div className="grid gap-1"><p className="m-0 text-xs text-muted">다 쓴 답의 원래 문장</p><blockquote className="m-0 whitespace-pre-wrap break-words border-l-2 border-hairline pl-3 text-sm leading-relaxed">{c.sentence}</blockquote></div>
     {c.status === "PENDING" ? <>
       <label className="grid min-w-0 gap-1 text-xs text-muted">경험 문장<textarea rows={3} className={field} value={content} disabled={busy} onChange={e => setContent(e.target.value)} /></label>
-      <div className="grid min-w-0 gap-3 sm:grid-cols-[1fr_2fr]">
+      <div className="grid min-w-0 gap-3">
         <label className="grid min-w-0 gap-1 text-xs text-muted">수행 주체<Select<Actor> value={actor} disabled={busy} onChange={next => { if (next) setActor(next); }} className="min-h-10" options={[{ value: "ME", label: "나" }, { value: "TEAM", label: "팀" }, { value: "UNKNOWN", label: "알 수 없음" }]} /></label>
         <label className="grid min-w-0 gap-1 text-xs text-muted">붙일 활동<Select value={validActivity ? activity : ""} disabled={busy || unavailable} onChange={setActivity} className="min-h-10" placeholder="활동을 골라 주세요" options={activities.map(a => ({ value: String(a.id), label: a.name }))} /></label>
       </div>

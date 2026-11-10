@@ -66,12 +66,12 @@ test("고치기 — 보기 · 고치기 상태 없이 초안 글이 바로 입�
   await shot(page, "edit-mode");
 });
 
-test("초안 설정 — 보조 재료 체크와 다시 만들기 전 경고", async ({ page }) => {
+test("초안 설정 — 보조 재료 토글 없음 · 다시 만들기 전 경고", async ({ page }) => {
   await open(page);
   const ask = page.getByRole("button", { name: "초안 설정 열기" });
   await ask.click();
   const composer = page.getByRole("region", { name: "초안 설정", exact: true });
-  await expect(composer.getByRole("checkbox", { name: /같은 활동의 다른 경험도 뒷받침 재료로 쓰기/ })).toBeChecked();
+  await expect(composer.getByRole("checkbox")).toHaveCount(0); // 같은 활동의 다른 경험은 늘 재료로(ADR-014)
   await composer.scrollIntoViewIfNeeded();
   await shot(page, "composer");
   await composer.getByRole("button", { name: "다시 만들기", exact: true }).click();

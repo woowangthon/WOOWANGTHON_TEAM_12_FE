@@ -1,9 +1,10 @@
 // 지원 · 문항 · 추천 · 되묻기 — ETC docs/contracts/question-api.md. 실제 BE 만 부른다(FE#32).
 // API 주소가 없는 목 모드에선 request 가 API_NOT_CONFIGURED 로 실패한다 — 정해진 결과로 대신 채우지 않는다(대회 규칙 2).
-import type { Answer, SaveNewFactRequest, SimilarAnswer } from "./question-types";
+import type { Answer, AnswerDraft, SaveNewFactRequest, SimilarAnswer } from "./question-types";
 import type { Experience } from "./types";
 import { ApiError } from "./errors";
 import { request } from "./http";
+import { DRAFT_FRAMES } from "../draft-frames";
 import { MAX_GROUNDING_TEXT_LENGTH, type GroundingCheck, type CreateDraftRequest, type Draft } from "./question-types";
 import {
   MAX_ANSWER_LENGTH, MAX_ORGANIZATION_LENGTH, MAX_QUESTION_LENGTH, MAX_QUESTIONS_PER_SUBMIT,
@@ -114,7 +115,7 @@ export async function createQuestionDraft(question: QuestionDetail, req: CreateD
     throw new ApiError("INVALID_REQUEST", "이 문항의 추천 경험을 1 ~ 3개 골라 주세요.", 400);
   }
   if (question.status !== "COMPLETED") throw new ApiError("QUESTION_NOT_COMPLETED", "문항 분석이 끝난 뒤 초안을 만들 수 있어요.", 409);
-  if (req.frame !== undefined && !['STAR', 'CARL', 'PREP', 'NONE'].includes(req.frame)) throw new ApiError('INVALID_REQUEST', '구성 틀을 골라 주세요.', 400);
+  if (req.frame !== undefined && !(Object.keys(DRAFT_FRAMES) as string[]).includes(req.frame)) throw new ApiError('INVALID_REQUEST', '구성 틀을 골라 주세요.', 400);
   return request(`/questions/${question.id}/draft`, {
     experienceIds: ids, ...(req.frame === undefined ? {} : { frame: req.frame }), ...(req.useContext === undefined ? {} : { useContext: req.useContext }),
   }, "POST");
@@ -123,11 +124,6 @@ export async function createQuestionDraft(question: QuestionDetail, req: CreateD
 /** POST /api/draft-sentences/{id}/confirm — 카드의 「맞아요」(S-79). 204, 다시 눌러도 같다. 다시 만들어 사라진 문장이면 404 */
 export function confirmDraftSentence(sentenceId: number): Promise<void> {
   return request(`/draft-sentences/${sentenceId}/confirm`, undefined, "POST");
-}
-
-/** PUT /api/draft-sentences/{id}/removed — 카드의 「빼기」 · 답칸 아래 「다시 넣기」(S-79). 204 */
-export function setDraftSentenceRemoved(sentenceId: number, removed: boolean): Promise<void> {
-  return request(`/draft-sentences/${sentenceId}/removed`, { removed }, "PUT");
 }
 
 /** S-45: 실패를 고정 결과로 대체하지 않고, 공백과 길이는 HTTP 전에 확인한다. */
@@ -139,6 +135,12 @@ export async function createGroundingCheck(questionId: number, req: { text: stri
 
 export async function fetchGroundingCheck(questionId: number): Promise<GroundingCheck | null> {
   return (await request<{ groundingCheck: GroundingCheck | null }>(`/questions/${questionId}/grounding-check`)).groundingCheck;
+}
+
+/** PUT /api/questions/{id}/answer-draft — 쓰는 중인 답 자동 저장(S-72). AI 를 부르지 않는다. 빈 글도 저장한다 */
+export async function saveAnswerDraft(questionId: number, req: { text: string; state: Record<string, unknown> | null }): Promise<AnswerDraft> {
+  if (req.text.length > MAX_GROUNDING_TEXT_LENGTH) throw new ApiError("TEXT_TOO_LONG", "답이 5,000자를 넘어 저장하지 못했어요.");
+  return (await request<{ answerDraft: AnswerDraft }>(`/questions/${questionId}/answer-draft`, req, "PUT")).answerDraft;
 }
 
 /** S-48: 먼저 답을 저장하고, 성공한 뒤에만 후보 찾기를 시작한다. */

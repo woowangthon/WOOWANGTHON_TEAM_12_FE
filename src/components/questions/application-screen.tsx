@@ -2,7 +2,7 @@
 
 import { InfoTip } from "@/components/ui/info-tip";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { peekApplicationText, takeApplicationText } from "@/lib/application-handoff";
 import { ArrowSquareOutIcon, ArrowsClockwiseIcon, MagnifyingGlassIcon, PlusIcon, WarningCircleIcon } from "@phosphor-icons/react";
@@ -15,7 +15,7 @@ import { CenterState } from "@/components/center-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { MAX_QUESTIONS_PER_APPLICATION, type Answer, type Application, type QuestionDetail, type QuestionSummary, type QuestionType, type UpdateApplicationRequest } from "@/lib/api/question-types";
+import { MAX_QUESTIONS_PER_APPLICATION, type Answer, type AnswerDraft, type Application, type QuestionDetail, type QuestionSummary, type QuestionType, type UpdateApplicationRequest } from "@/lib/api/question-types";
 import { markPrefilled, targetLengthFromText, wasPrefilled } from "@/lib/target-length";
 import { AddQuestionForm, ApplicationForm } from "./application-form";
 import { overlapsOf, sameExperienceElsewhere, type Overlap } from "./overlap";
@@ -130,6 +130,14 @@ export function ApplicationScreen() {
     setPanelChoice(true);
     setDraftFocus(previous => ({ questionId: selected.id, request: (previous?.request ?? 0) + 1 }));
   };
+  // 새 경험 후보(S-48)는 패널에서 찾고 고른다 — 답칸 한 줄에서 누르면 패널을 열고, find 면 그 문항의 찾기를 한 번 시작한다(FE#270)
+  const [findFor, setFindFor] = useState<number | null>(null);
+  const onFindStarted = useCallback(() => setFindFor(null), []);
+  const openNewFacts = (find: boolean) => {
+    if (!selected) return;
+    setPanelChoice(true);
+    if (find) setFindFor(selected.id);
+  };
   const originOf: SupplementOrigin = supplement => {
     const owner = matching.applications.find(a => a.questions.some(q => q.id === supplement.questionId));
     if (!owner) return "지난 문항";
@@ -141,6 +149,7 @@ export function ApplicationScreen() {
   const panel = <ChagokPanel question={panelQuestion} index={selectedIndex} originOf={originOf} control={chagok}
     onAnswer={(clarificationId, answer) => selected ? matching.answer(selected.id, clarificationId, answer) : Promise.resolve()}
     draftActions={{ ...draftActions, focusRequest: draftFocus?.questionId === selected?.id ? draftFocus?.request ?? 0 : 0 }}
+    newFacts={{ onAnswerChange: matching.keepAnswer, findRequested: findFor !== null && findFor === selected?.id, onFindStarted }}
     onClose={() => setPanelChoice(false)} />;
   const startNew = () => { setPasted(takeApplicationText()); setComposing(true); setAdding(false); setListShown(false); scrollToDetail(); };
   const pick = (a: Application) => {
@@ -214,8 +223,8 @@ export function ApplicationScreen() {
                 if (saved) setAdding(false);
               }} /> : <SelectedQuestion key={matching.questionId} summary={summary} question={selected} application={open.application} index={selectedIndex}
                 loadError={matching.detailError} onReload={matching.reloadQuestion}
-                overlaps={overlaps} onPickOverlap={id => { matching.selectQuestion(id); scrollToDetail(); }} onRetry={id => matching.retry(id)} onTypeChange={(id, type) => matching.updateQuestionType(id, type)} onTargetLengthChange={(id, length) => matching.updateTargetLength(id, length)} onAnswerChange={matching.keepAnswer} groundingChecks={groundingChecks}
-                {...draftActions} onPick={picks.toggle} onOpenOmissions={openDraftQuestions}
+                overlaps={overlaps} onPickOverlap={id => { matching.selectQuestion(id); scrollToDetail(); }} onRetry={id => matching.retry(id)} onTypeChange={(id, type) => matching.updateQuestionType(id, type)} onTargetLengthChange={(id, length) => matching.updateTargetLength(id, length)} onAnswerChange={matching.keepAnswer} onAnswerDraftChange={matching.keepAnswerDraft} groundingChecks={groundingChecks}
+                {...draftActions} onPick={picks.toggle} onOpenOmissions={openDraftQuestions} onNewFacts={openNewFacts}
                 onAnswerClarification={(clarificationId, answer) => selected ? matching.answer(selected.id, clarificationId, answer) : Promise.resolve()} />}
             </div>
           </> : null}
@@ -344,9 +353,9 @@ function useTargetLengthPrefill(question: QuestionSummary | null, save: (id: num
 }
 
 /** 고른 문항 — 받아 둔 내용이 있으면 바로, 처음 보는 문항이면 받는 동안 자리만(FE#60). 문항 글 · 상태는 지원 목록에 이미 있다 */
-function SelectedQuestion({ summary, question, application, index, loadError, onReload, overlaps, onPickOverlap, onRetry, onTypeChange, onTargetLengthChange, onAnswerChange, onAnswerClarification, groundingChecks, onOpenOmissions, onRefresh, savingAnswer, requestingDraft, picks, onPick }: {
+function SelectedQuestion({ summary, question, application, index, loadError, onReload, overlaps, onPickOverlap, onRetry, onTypeChange, onTargetLengthChange, onAnswerChange, onAnswerDraftChange, onAnswerClarification, groundingChecks, onOpenOmissions, onNewFacts, onRefresh, savingAnswer, requestingDraft, picks, onPick }: {
   summary: QuestionSummary | null; question: QuestionDetail | null; application: Application; index: number; loadError: string | null; onReload: (id: number) => void;
-  overlaps: Overlap[]; onPickOverlap: (questionId: number) => void; onRetry: (id: number) => Promise<unknown>; onTypeChange: (id: number, type: QuestionType) => Promise<void>; onTargetLengthChange: (id: number, targetLength: number | null) => Promise<void>; onAnswerChange: (id: number, answer: Answer | null) => void; groundingChecks: GroundingChecks; onPick: (experienceId: number, on: boolean) => void; onAnswerClarification: AnswerHandler;
+  overlaps: Overlap[]; onPickOverlap: (questionId: number) => void; onRetry: (id: number) => Promise<unknown>; onTypeChange: (id: number, type: QuestionType) => Promise<void>; onTargetLengthChange: (id: number, targetLength: number | null) => Promise<void>; onAnswerChange: (id: number, answer: Answer | null) => void; onAnswerDraftChange: (id: number, draft: AnswerDraft | null) => void; groundingChecks: GroundingChecks; onPick: (experienceId: number, on: boolean) => void; onAnswerClarification: AnswerHandler; onNewFacts: (find: boolean) => void;
 } & DraftActions) {
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
@@ -362,7 +371,7 @@ function SelectedQuestion({ summary, question, application, index, loadError, on
       </div>
       <h3 className="m-0 max-h-36 overflow-y-auto whitespace-pre-wrap text-xl leading-relaxed font-[650] tracking-[-0.3px]">{summary.text}</h3>
     </header>
-    <AnswerInput key={`answer-${summary.id}`} questionId={summary.id} question={question} loadFailed={!!loadError} onAnswerChange={onAnswerChange} checks={groundingChecks} onAskDraft={onOpenOmissions}
+    <AnswerInput key={`answer-${summary.id}`} questionId={summary.id} question={question} loadFailed={!!loadError} onAnswerChange={onAnswerChange} onAnswerDraftChange={onAnswerDraftChange} checks={groundingChecks} onAskDraft={onOpenOmissions} onNewFacts={onNewFacts}
       onAnswer={onAnswerClarification} onRefresh={onRefresh} draftBusy={savingAnswer || requestingDraft} onTargetLength={length => onTargetLengthChange(summary.id, length)} />
     {question && <SimilarAnswers question={question} application={application} />}
     {!question ? loadError ? <div role="alert" className="grid justify-items-start gap-3 py-8">

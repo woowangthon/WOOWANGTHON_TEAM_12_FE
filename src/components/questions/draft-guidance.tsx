@@ -3,7 +3,7 @@
 import { InfoTip } from "@/components/ui/info-tip";
 import Link from 'next/link';
 import { Select } from '@/components/ui/select';
-import { DRAFT_FRAMES, type DraftFrame } from '@/lib/draft-frames';
+import { DRAFT_FRAMES, frameOptions, type DraftFrame } from '@/lib/draft-frames';
 import type { Draft } from '@/lib/api/question-types';
 
 export function FrameDescription({ frame }: { frame: DraftFrame }) {
@@ -11,11 +11,9 @@ export function FrameDescription({ frame }: { frame: DraftFrame }) {
   return <p className="m-0 min-w-0 text-note leading-relaxed text-muted">{info.steps}</p>;
 }
 
-const FRAME_OPTIONS = (Object.keys(DRAFT_FRAMES) as DraftFrame[]).map(value => ({ value, label: DRAFT_FRAMES[value].name }));
-
-export function FramePicker({ frame, onChange, disabled, proposed }: { frame: DraftFrame; onChange: (frame: DraftFrame) => void; disabled: boolean; proposed: boolean }) {
+export function FramePicker({ frame, suggested, onChange, disabled, proposed }: { frame: DraftFrame; suggested: DraftFrame; onChange: (frame: DraftFrame) => void; disabled: boolean; proposed: boolean }) {
   return <div className="grid min-w-0 gap-2 border-t border-hairline pt-4">
-    <label className="grid gap-2 text-sm font-semibold">구성 틀<Select<DraftFrame> aria-label="구성 틀" value={frame} disabled={disabled} onChange={next => { if (next) onChange(next); }} className="sm:max-w-80" options={FRAME_OPTIONS} /></label>
+    <label className="grid gap-2 text-sm font-semibold">구성 틀<Select<DraftFrame> aria-label="구성 틀" value={frame} disabled={disabled} onChange={next => { if (next) onChange(next); }} className="sm:max-w-80" options={frameOptions(suggested)} /></label>
     {proposed && <p className="m-0 text-note text-muted">문항 유형에 맞춘 제안 · 바꿔도 괜찮아요.</p>}
     <FrameDescription frame={frame} />
     <Link href="/guidelines" className="inline-flex min-h-11 lg:min-h-10 items-center justify-self-start text-sm text-evidence underline underline-offset-3">작성 지침 관리 →</Link>

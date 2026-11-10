@@ -24,7 +24,7 @@ const draftChecked = (): Sentence[] => DRAFT_S79.sentences.map((s, i) => ({ text
 const own = (): Sentence => ({ text: OWN, status: "UNSUPPORTED", evidence: [], note: "문장의 숫자(100)가 받치는 근거가 없어요" });
 async function closeCard(page: Page) {
   if (narrow(page)) { await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toHaveCount(0); }
-  else await sentenceCard(page).getByRole("button", { name: "닫기", exact: true }).click();
+  else { await page.keyboard.press("Escape"); await expect(sentenceCard(page)).toHaveCount(0); }
 }
 
 type Options = { draft?: boolean; answer?: string; saved?: Sentence[]; responses?: Sentence[][] };
@@ -142,20 +142,16 @@ test("꼬리표 — 확인 필요(주황) → 맞아요 뒤 확인함(초록)", 
   await expect(sentenceCard(page).getByText("✓ 확인함", { exact: true })).toBeVisible();
 });
 
-test("ⓘ — 점검 설명 · 빼기 설명 · 주체 설명 · 목표 글자 수 설명에 부가 문구가 들어 있다", async ({ page }) => {
+test("ⓘ — 점검 설명 · 주체 설명 · 목표 글자 수 설명에 부가 문구가 들어 있다", async ({ page }) => {
   await setup(page, { draft: true, responses: [draftChecked()] });
   await runCheck(page, COMPOSED.replace("자주", "종종"));
-  await clickMark(page, "s-1"); // 고친 문장 — 근거 점검 · 빼기 설명이 있다
+  await clickMark(page, "s-1"); // 고친 문장 — 근거 점검 설명이 있다
   const card = sentenceCard(page);
   await expect(card.getByText("점검 판정은 AI 해석이에요.", { exact: true })).toHaveCount(0); // 떠 있던 바닥 줄은 없다
   await card.getByRole("button", { name: "근거 점검 설명" }).click();
   await expect(page.getByRole("dialog", { name: "근거 점검 설명" })).toContainText("점검 판정은 AI 해석이에요. 근거 없음은 거짓이라는 뜻이 아니에요.");
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "근거 점검 설명" })).toHaveCount(0);
-  await card.getByRole("button", { name: "빼기 설명" }).click();
-  await expect(page.getByRole("dialog", { name: "빼기 설명" })).toContainText("빼고 다시 넣으면 원래 문장으로 돌아가요.");
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog", { name: "빼기 설명" })).toHaveCount(0);
   if (narrow(page)) { await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toHaveCount(0); }
   await clickMark(page, "s-3"); // 주체를 모르는 AI 보탬
   await sentenceCard(page).getByRole("button", { name: "주체 설명" }).click();

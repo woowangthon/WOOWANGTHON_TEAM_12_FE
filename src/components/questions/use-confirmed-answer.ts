@@ -9,18 +9,19 @@ type Failure = { message: string; action: "read" | "confirm" | "find"; text?: st
 const message = (e: unknown) => e instanceof Error ? e.message : "처리하지 못했어요. 다시 시도해 주세요.";
 
 /** 문항별로 마운트한다. 조회 재시도는 분석을 다시 시작하지 않는다.
- *  saved 는 화면이 받아 둔 문항의 답이다 — 탭 전환에 요청을 더 보내지 않는다(FE#60). 바뀐 답은 onChange 로 돌려줘 다시 올 때도 맞게 한다 */
-export function useConfirmedAnswer(questionId: number, saved: Answer | null, onChange: (id: number, answer: Answer | null) => void) {
-  const [answer, setAnswer] = useState(saved);
+ *  saved 는 화면이 받아 둔 문항의 답이다 — 탭 전환에 요청을 더 보내지 않는다(FE#60). 바뀐 답은 onChange 로 돌려준다.
+ *  답칸(확정)과 차곡이 패널(후보 찾기 · 고르기 — FE#270)이 따로 마운트하므로 답은 늘 saved 를 따른다. 진행 중 확인(poll)은 답칸 한 곳만 한다 */
+export function useConfirmedAnswer(questionId: number, saved: Answer | null, onChange: (id: number, answer: Answer | null) => void, { poll = true } = {}) {
+  const answer = saved;
   const [initialText] = useState(saved?.text);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<Failure | null>(null);
   const [pollFailures, setPollFailures] = useState(0);
   const mounted = useRef(false), pending = useRef(false), latest = useRef(saved);
+  useEffect(() => { latest.current = saved; }, [saved]);
   const keep = useCallback((next: Answer | null) => {
     latest.current = next;
     onChange(questionId, next);
-    if (mounted.current) setAnswer(next);
   }, [onChange, questionId]);
   const read = useCallback(async () => {
     const question = await fetchQuestion(questionId);
@@ -33,7 +34,7 @@ export function useConfirmedAnswer(questionId: number, saved: Answer | null, onC
   }, []);
 
   useEffect(() => {
-    if (answer?.newFacts?.status !== "ANALYZING" || busy || pollFailures >= 3) return;
+    if (!poll || answer?.newFacts?.status !== "ANALYZING" || busy || pollFailures >= 3) return;
     let disposed = false;
     const timer = setTimeout(async () => {
       try {
@@ -44,7 +45,7 @@ export function useConfirmedAnswer(questionId: number, saved: Answer | null, onC
       }
     }, 2000);
     return () => { disposed = true; clearTimeout(timer); };
-  }, [answer, busy, pollFailures, questionId, keep]);
+  }, [poll, answer, busy, pollFailures, questionId, keep]);
 
   const run = async (action: () => Promise<void>) => {
     if (pending.current) return;
@@ -67,11 +68,12 @@ export function useConfirmedAnswer(questionId: number, saved: Answer | null, onC
         : "답은 저장했어요 · " + message(e), action: "find" });
     }
   };
-  const confirm = (text: string) => run(async () => {
+  /** 「다 썼어요」는 저장만 한다 — 후보 찾기는 사용자가 따로 누른다(ETC#250 · 분석 횟수를 쓰지 않는다).
+   *  onConfirmed — 확정이 서버에 들어간 뒤(그 문항의 임시 글은 서버가 지웠다 · S-72) */
+  const confirm = (text: string, onConfirmed?: () => void) => run(async () => {
     try {
       keep(await confirmAnswer(questionId, text));
-      // 문항을 떠났어도 확정 한 번의 후보 찾기는 끝까지 시작한다.
-      await find();
+      onConfirmed?.();
     } catch (e) {
       if (!mounted.current) return;
       if (e instanceof ApiError && e.code === "NEW_FACTS_IN_PROGRESS") {

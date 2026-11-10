@@ -93,10 +93,10 @@ test("목표 글자 수는 100 ~ 5000 만 저장하고, 문항에 「N자」가 
   expect(patches(api)).toEqual([{ targetLength: 800 }]);
 });
 
-test("재료가 목표의 절반이 안 되면 알리되 막지 않고, 무료 다시 만들기엔 「분석 1회」를 숨긴다", async ({ page }) => {
+test("재료가 모자라도 경고하지 않고(ADR-014), 무료 다시 만들기엔 「분석 1회」를 숨긴다", async ({ page }) => {
   await openQuestion(page, q => { q.targetLength = 1000; q.draft = draft({ freeRegenerate: true }); });
   const composer = await openDraftComposer(page);
-  await expect(composer).toContainText("목표 1,000자의 절반이 안 돼요");
+  await expect(composer).not.toContainText("절반이 안 돼요");
   await expect(composer.getByRole("button", { name: "다시 만들기", exact: true })).toBeEnabled();
   await expect(composer).toContainText("이번 다시 만들기는 분석 횟수를 쓰지 않아요");
   await expect(composer).not.toContainText("분석 1회");
@@ -104,7 +104,7 @@ test("재료가 목표의 절반이 안 되면 알리되 막지 않고, 무료 �
   await shot(page, "composer-free-thin", async () => (await openDraftComposer(page)).scrollIntoViewIfNeeded());
 });
 
-test("무료가 아니면 「분석 1회」를 그대로 보이고, 재료가 넉넉하면 안내하지 않는다", async ({ page }) => {
+test("무료가 아니면 「분석 1회」를 그대로 보인다", async ({ page }) => {
   await openQuestion(page, q => { q.targetLength = 100; q.draft = draft({ freeRegenerate: false }); });
   const composer = await openDraftComposer(page);
   await expect(composer).toContainText("분석 1회");

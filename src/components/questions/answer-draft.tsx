@@ -1,8 +1,9 @@
 "use client";
 
 // 답칸 한 화면 편집(S-79 · FE#283). 글은 늘 입력칸에서 고치고, 뒤에 같은 글을 그린 표시 층이 밑줄 · 칩을 칠한다.
-// 근거 문장은 조용히 · AI 보탬은 밑줄 · 생각은 점선 밑줄 · 빈칸은 칩. 고친 문장도 원래와 절반 이상 닮으면 표시 · 카드가 남는다(draft-match).
-// 표시를 누르면 카드(넓은 폭은 글 아래, 좁은 폭은 하단 시트)에 근거 · 이유 · 주체와 맞아요 · 빼기가 보인다. 빈칸은 눌러서만 답한다
+// 근거 문장은 조용히 · AI 보탬은 밑줄 · 생각은 점선 밑줄 · 빈칸은 칩 · AI 가정은 회색 바탕 물결 밑줄(구체 값은 진하게 — ADR-014). 고친 문장도 원래와 절반 이상 닮으면 표시 · 카드가 남는다(draft-match).
+// 표시를 누르면 카드(넓은 폭은 글 아래, 좁은 폭은 하단 시트)에 근거 · 이유 · 주체와 맞아요가 보인다. 빈칸은 눌러서만 답한다.
+// 문장을 빼려면 글에서 지운다(Ctrl+Z 로 되돌린다 — 글은 자동 저장 S-72). 카드는 바깥을 누르거나 Esc 로 닫는다(FE#337)
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode, type RefObject } from "react";
 import { CheckIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { createPortal } from "react-dom";
@@ -29,6 +30,15 @@ const keyOf = (s: NonNullable<Selection>) => s.kind === "blank" ? `b-${s.at}` : 
 
 const marked = (s: DraftSentence) => (s.kind === "ELABORATED" || s.kind === "OPINION") && !s.confirmed;
 
+/** AI 가정 문장의 짝 omitted(S-78 · ADR-014) — 자리 표시 없이 그 문장 순번을 가리킨다 */
+export const pairOf = (draft: Draft, index: number) =>
+  draft.sentences[index]?.kind === "SUPPOSED" ? draft.omitted.find(o => o.placeholder == null && o.sentenceIndex === index) ?? null : null;
+/** 이 omitted 가 AI 가정의 짝인가 — 빠진 사실 목록이 아니라 그 문장 카드에서 확인한다 */
+export const isSupposedPair = (draft: Draft, o: DraftOmission) =>
+  o.placeholder == null && o.sentenceIndex != null && draft.sentences[o.sentenceIndex]?.kind === "SUPPOSED";
+/** 짝이 보완으로 답할 수 있나 — 경험에 붙은 되묻기 ID 가 있을 때만(없으면 「비슷했어요」는 맞아요로만 저장) */
+export const pairLinked = (o: DraftOmission | null): o is DraftOmission & { clarificationId: number } => o?.clarificationId != null;
+
 export function blanksOf(draft: Draft): Blank[] {
   return draft.omitted.flatMap((omission, at) => omission.placeholder && omission.sentenceIndex != null ? [{ omission, at }] : []);
 }
@@ -44,7 +54,7 @@ export function blankAnswer(question: QuestionDetail, omission: DraftOmission, l
   return null;
 }
 
-const answered = (o: DraftOmission, local: Record<number, string>) => o.supplementId != null || (o.clarificationId != null && !!local[o.clarificationId]);
+export const answered = (o: DraftOmission, local: Record<number, string>) => o.supplementId != null || (o.clarificationId != null && !!local[o.clarificationId]);
 
 // 칩에 넣는 답 — 끝 마침표를 걷어 문장이 쪼개지지 않게 한다
 const fillText = (answer: string) => answer.trim().replace(/[.!?。]+$/, "");
@@ -72,7 +82,7 @@ export type Ground = GroundingCheck["sentences"][number] & { stale: boolean };
 /** 지금 글에 남은 초안 문장 — 왜 확인할 곳인지(need) · 채운 빈칸 값이 바뀌었나(filled) · 그 문장의 근거 점검(ground) */
 export type Mark = {
   index: number; start: number; end: number; text: string; edited: boolean; original: string;
-  need: "marked" | "numbers" | "filled" | "unsupported" | null;
+  need: "marked" | "supposed" | "numbers" | "filled" | "unsupported" | null;
   filled: { omission: DraftOmission; answer: string } | null;
   ground: Ground | null;
   /** 왜 세지 않나 — 이 화면에서 맞아요(seen) · 다 쓴 답에 그대로(settled) · 서버에 저장된 맞아요(server) */
@@ -128,11 +138,14 @@ export function analyze(question: QuestionDetail, draft: Draft | null, removed: 
       if (answer && original.includes(fillText(answer)) && !m.text.includes(fillText(answer))) filled ??= { omission: b.omission, answer };
     }
     const ground = groundIn(m.start, m.end);
-    // 확인할 곳은 한 번만 — 채운 빈칸 → AI 보탬 · 생각 → 숫자 → 근거 없음. 고치지 않은 AI 보탬은 다 쓴 답(settled)으로 끝나지 않는다
-    const candidate = filled ? "filled" : marked(s) ? "marked" : m.edited && !sameNumbers(original, m.text) ? "numbers" : unsupported(ground) ? "unsupported" : null;
-    const by = candidate === "marked" ? (seen.has(m.text) ? "seen" : m.edited ? doneBy(m.text) : null) : candidate ? doneBy(m.text) : null;
+    // AI 가정은 짝에 보완으로 답했거나(비슷했어요 · 고치기) 서버 맞아요(짝이 경험에 안 붙음)면 확인 끝 — 표시가 근거처럼 조용해진다(S-79)
+    const pair = pairOf(draft!, m.index);
+    const supposedDone = s.kind === "SUPPOSED" && (!!s.confirmed || (!!pair && answered(pair, local)));
+    // 확인할 곳은 한 번만 — 채운 빈칸 → AI 가정 → AI 보탬 · 생각 → 숫자 → 근거 없음. 고치지 않은 AI 보탬 · 가정은 다 쓴 답(settled)으로 끝나지 않는다
+    const candidate = filled ? "filled" : s.kind === "SUPPOSED" ? (supposedDone ? null : "supposed") : marked(s) ? "marked" : m.edited && !sameNumbers(original, m.text) ? "numbers" : unsupported(ground) ? "unsupported" : null;
+    const by = candidate === "marked" || candidate === "supposed" ? (seen.has(m.text) ? "seen" : m.edited ? doneBy(m.text) : null) : candidate ? doneBy(m.text) : null;
     const need = by ? null : candidate;
-    const done: Done = by ?? (s.confirmed && s.kind !== "FACT" ? "server" : null);
+    const done: Done = by ?? (supposedDone || (s.confirmed && s.kind !== "FACT") ? "server" : null);
     marks.push({ ...m, original, need, filled: need === "filled" ? filled : null, ground, done, changed: changedSince(m.text, ground) });
   }
   const own: Own[] = grounds.filter(g => !marks.some(m => m.start < g.end && g.start < m.end))
@@ -152,19 +165,22 @@ export function analyze(question: QuestionDetail, draft: Draft | null, removed: 
 }
 
 // 카드 머리줄 왼쪽 — 누가 쓴 문장 · 무슨 종류인가. 초안 생각과 근거 점검의 생각은 같은 범주라 같은 이름이다
-const LABEL: Record<DraftSentence["kind"], string> = { FACT: "AI 초안 · 근거", ELABORATED: "AI 초안 · 보탬", OPINION: "AI 초안 · 생각" };
+const LABEL: Record<DraftSentence["kind"], string> = { FACT: "AI 초안 · 근거", ELABORATED: "AI 초안 · 보탬", OPINION: "AI 초안 · 생각", SUPPOSED: "AI 가정" };
 const wide = () => matchMedia("(min-width: 64rem)").matches;
 
 type EditorProps = {
   question: QuestionDetail; draft: Draft | null; analysis: Analysis | null; local: Record<number, string>;
   text: string; onText: (text: string) => void; placeholder: string; disabled: boolean; cardsDisabled: boolean;
   selected: Selection; onSelect: (next: Selection) => void;
-  onRemove: (mark: Mark) => void;
   onAnswer: (chip: Chip, answer: string) => Promise<void>;
   onConfirm: (mark: Mark) => Promise<void>;
   onConfirmOwn: (own: Own) => void;
   onFilledFixed: (omission: DraftOmission, answer: string) => Promise<void>;
   onActorDecided: () => Promise<void>;
+  /** AI 가정 확인(S-79 · ADR-014) — value 가 null 이면 「비슷했어요」(문장 그대로), 글이면 「고치기」 */
+  onSupposed: (mark: Mark, value: string | null) => Promise<void>;
+  /** 문장을 글에서 지운다 — AI 가정 카드의 「빼기」 */
+  onRemove: (mark: Mark) => void;
   inputId: string;
 };
 
@@ -303,6 +319,7 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
   };
   const keyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.altKey && e.key === "ArrowDown") { e.preventDefault(); next(); return; }
+    if (e.key === "Escape" && selected) { e.preventDefault(); open(null, false); return; }
     const el = e.currentTarget;
     if (el.selectionStart !== el.selectionEnd) return;
     // 백스페이스 · Delete — 처음엔 칩 전체를 고르고, 한 번 더 누르면 지운다
@@ -380,8 +397,12 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
       inner.push(text.slice(k, m.end));
       const key = `s-${m.index}`;
       const strong = m.need === "marked" || m.need === "numbers" || m.need === "filled";
+      // AI 가정은 회색 바탕 + 물결 밑줄(색에만 기대지 않게 다른 표시와 모양이 다르다). 구체 값(specific)은 한 단계 진하게
+      const supposed = m.need === "supposed";
       out.push(<span key={key} data-mark={key} className={cn("rounded-sm decoration-2 underline-offset-[5px]",
         strong && "underline decoration-review",
+        supposed && "underline decoration-wavy",
+        supposed && (s.specific ? "bg-supposed-strong decoration-muted" : "bg-surface-strong decoration-muted-soft"),
         m.need === "marked" && s.kind === "OPINION" && "decoration-dashed",
         m.need === "unsupported" && "bg-review-soft",
         !m.need && m.changed && dotted,
@@ -392,9 +413,34 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
     return out;
   };
 
+  // 넓은 폭 카드는 「내가 쓴 답」 칸 밖을 누르거나 Esc 로 닫는다(FE#337 — 닫기 버튼 없음). 좁은 폭은 시트가 스스로 닫는다.
+  // 칸 안(답칸 줄 · 다음 확인할 곳)은 그 버튼이 할 일을 하고, 글의 빈 곳은 입력칸이 닫는다. 떠 있는 설명 · 고르기 · 창은 바깥이 아니다.
+  // 누른 뒤(click)에 닫는다 — 누르는 순간 닫으면 카드가 사라지며 화면이 밀려 그 클릭이 다른 곳에 떨어진다
+  const wrap = useRef<HTMLDivElement>(null);
+  const closeOutside = useRef<() => void>(() => {});
+  useEffect(() => { closeOutside.current = () => { onSelect(null); setPrefill(null); }; });
+  const cardOpen = !!selected && !sheet;
+  useEffect(() => {
+    if (!cardOpen) return;
+    const floating = "[data-radix-popper-content-wrapper],[role=dialog],[role=alertdialog]";
+    const click = (e: globalThis.MouseEvent) => {
+      const t = e.target instanceof Element ? e.target : null;
+      const region = wrap.current?.closest("section") ?? wrap.current;
+      if (!t || !t.isConnected || region?.contains(t) || t.closest(floating)) return;
+      closeOutside.current();
+    };
+    const key = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "Escape" && !e.defaultPrevented && !document.querySelector(floating)) closeOutside.current();
+    };
+    document.addEventListener("click", click);
+    document.addEventListener("keydown", key);
+    return () => { document.removeEventListener("click", click); document.removeEventListener("keydown", key); };
+  }, [cardOpen]);
+
   const card = selected && <DraftCard {...props} onFlash={key => { setFlash(key); setAnnounce("확인했어요"); }} prefill={prefill} onWrite={chip => { open(null, false); select(chip.start, chip.end); }}
     onClose={() => { onSelect(null); setSheet(false); setPrefill(null); }} />;
   return <>
+    <div ref={wrap} className="contents">
     <div className="relative min-w-0">
       {/* 표시 층 — 입력칸과 같은 글꼴 · 여백 · 줄바꿈. 글자는 투명하고 밑줄 · 칩 · 배경만 보인다 */}
       <div ref={layer} aria-hidden="true" className="absolute inset-0 overflow-hidden p-5 text-ui leading-[1.9] break-words whitespace-pre-wrap text-transparent select-none">
@@ -414,6 +460,7 @@ export function DraftEditor({ handleRef, ...props }: EditorProps & { handleRef: 
     <p aria-live="polite" className="sr-only">{announce}</p>
     {/* 카드는 한 곳에만 그린다 — 넓은 폭은 글 아래, 좁은 폭은 하단 시트(두 곳에 그리면 입력칸 id 가 겹친다) */}
     {card && !sheet && <div className="border-t border-hairline-soft">{card}</div>}
+    </div>
     <Sheet open={sheet && !!selected} onOpenChange={o => { if (!o) { setSheet(false); onSelect(null); setPrefill(null); } }}>
       <SheetContent side="bottom" className="max-h-[78dvh] gap-3 overflow-auto rounded-t-lg border-t-0 px-5 pt-2.5 pb-7 lg:hidden">
         <span className="h-1 w-9 self-center justify-self-center rounded-full bg-hairline" aria-hidden="true" />
@@ -460,8 +507,8 @@ function PeekBubble({ layer, target, onOpen }: { layer: RefObject<HTMLDivElement
   </div>, document.body);
 }
 
-/** 표시 하나의 카드 — 문장이면 근거 · 이유 · 주체 · 맞아요 · 빼기, 빈칸이면 질문과 답 칸 */
-function DraftCard({ question, draft, analysis, local, selected, onRemove, onAnswer, onConfirm, onConfirmOwn, onFilledFixed, onActorDecided, cardsDisabled: disabled, prefill, onWrite, onClose, onFlash }: CardProps) {
+/** 표시 하나의 카드 — 문장이면 근거 · 이유 · 주체 · 맞아요, 빈칸이면 질문과 답 칸. 닫기 버튼은 없다 — 바깥 누름 · Esc(FE#337) */
+function DraftCard({ question, draft, analysis, local, selected, onAnswer, onConfirm, onConfirmOwn, onFilledFixed, onActorDecided, onSupposed, onRemove, cardsDisabled: disabled, prefill, onWrite, onClose, onFlash }: CardProps) {
   const close = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
   if (!analysis) return null;
   if (selected?.kind === "own") {
@@ -473,10 +520,9 @@ function DraftCard({ question, draft, analysis, local, selected, onRemove, onAns
       {o.done && o.ground.note && <p className="m-0 text-note text-muted">AI 해석 — {o.ground.note}</p>}
       {o.ground.evidence.length > 0 && <div className={cn("grid min-w-0 gap-2", o.ground.stale && "opacity-60")}>
         {o.ground.evidence.map((e, j) => <AnswerEvidence key={`${e.type}-${e.id}-${j}`} evidence={e} questionId={question.id} />)}</div>}
-      <div className="flex flex-wrap gap-2">
-        {o.need && <Button size="sm" className={inlineAction} disabled={disabled} onClick={() => { onConfirmOwn(o); onFlash(`g-${o.index}`); }}>맞아요</Button>}
-        <Button size="sm" variant="ghost" className="ml-auto hidden min-h-11 lg:min-h-10 lg:inline-flex" onClick={onClose}>닫기</Button>
-      </div>
+      {o.need && <div className="flex flex-wrap gap-2">
+        <Button size="sm" className={inlineAction} disabled={disabled} onClick={() => { onConfirmOwn(o); onFlash(`g-${o.index}`); }}>맞아요</Button>
+      </div>}
     </div>;
   }
   if (!draft) return null;
@@ -494,7 +540,11 @@ function DraftCard({ question, draft, analysis, local, selected, onRemove, onAns
   const mark = analysis.marks.find(m => m.index === selected.index);
   const s = draft.sentences[selected.index];
   if (!s || !mark) return null;
-  const title = s.confirmed && s.kind !== "FACT" && !mark.need ? `${LABEL[s.kind]} · 맞아요 눌렀어요` : LABEL[s.kind];
+  if (s.kind === "SUPPOSED") return <div role="group" aria-label="AI 가정 카드" onKeyDown={close} className="grid gap-3 p-4 lg:px-5">
+    <SupposedCard key={`${mark.index}-${mark.text}`} question={question} sentence={s} mark={mark} pair={pairOf(draft, mark.index)} local={local} disabled={disabled}
+      onSupposed={async value => { await onSupposed(mark, value); onFlash(`s-${mark.index}`); }} onRemove={() => { onRemove(mark); onClose(); }} />
+  </div>;
+  const title =s.confirmed && s.kind !== "FACT" && !mark.need ? `${LABEL[s.kind]} · 맞아요 눌렀어요` : LABEL[s.kind];
   // 근거는 한 목록 — 초안 근거에 근거 점검이 더 찾은 것을 붙인다(같은 근거는 한 번). 고친 뒤의 점검 근거는 붙이지 않는다
   const evidence = [...s.evidence, ...(mark.ground && !mark.ground.stale ? mark.ground.evidence : [])]
     .filter((e, i, all) => all.findIndex(x => x.type === e.type && x.id === e.id) === i);
@@ -515,14 +565,9 @@ function DraftCard({ question, draft, analysis, local, selected, onRemove, onAns
         {evidence.map((e, j) => <AnswerEvidence key={`${e.type}-${e.id}-${j}`} evidence={e} questionId={question.id} question={question} />)}</div>
       : <p className="m-0 text-note text-muted">연결된 근거가 지금은 없어요. 문장은 만들었을 때 그대로예요.</p>)}
     {s.kind !== "OPINION" && <ActorLine sentence={s} edited={mark.edited} onDecided={onActorDecided} />}
-    <div className="flex flex-wrap gap-2">
-      {mark.need && <ConfirmButton onConfirm={async () => { await onConfirm(mark); onFlash(`s-${mark.index}`); }} disabled={disabled} />}
-      <span className="inline-flex items-center">
-        <Button size="sm" variant="ghost" className="min-h-11 lg:min-h-10" disabled={disabled} onClick={() => { onRemove(mark); onClose(); }}>빼기</Button>
-        {mark.edited && <InfoTip label="빼기">빼고 다시 넣으면 원래 문장으로 돌아가요.</InfoTip>}
-      </span>
-      <Button size="sm" variant="ghost" className="ml-auto hidden min-h-11 lg:min-h-10 lg:inline-flex" onClick={onClose}>닫기</Button>
-    </div>
+    {mark.need && <div className="flex flex-wrap gap-2">
+      <ConfirmButton onConfirm={async () => { await onConfirm(mark); onFlash(`s-${mark.index}`); }} disabled={disabled} />
+    </div>}
   </div>;
 }
 
@@ -607,6 +652,62 @@ function FilledLine({ filled, onFixed, disabled }: { filled: NonNullable<Mark["f
     </form> : canFix && <Button size="sm" variant="secondary" className="min-h-11 lg:min-h-10 justify-self-start" disabled={disabled} onClick={() => setEditing(true)}>경험 고치기</Button>}
     {error && <p role="alert" className="m-0 text-note text-error">{error}</p>}
   </div>;
+}
+
+/** AI 가정 카드(S-79 · ADR-014) — 붙은 질문과 「비슷했어요 · 고치기 · 빼기」.
+ *  짝이 경험에 붙었으면 비슷했어요(문장 그대로) · 고치기(고친 글)가 그 경험의 보완이 된다(빈칸 답과 같은 경로 · S-23) */
+function SupposedCard({ question, sentence, mark, pair, local, disabled, onSupposed, onRemove }: {
+  question: QuestionDetail; sentence: DraftSentence; mark: Mark; pair: DraftOmission | null; local: Record<number, string>; disabled: boolean;
+  onSupposed: (value: string | null) => Promise<void>; onRemove: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(mark.text);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inputId = useId();
+  const linked = pairLinked(pair) && pair.question != null;
+  const answer = pair ? blankAnswer(question, pair, local) : null;
+  const run = async (next: string | null) => {
+    if (next !== null && !next.trim()) { setError("고친 글을 적어 주세요."); return; }
+    setBusy(true); setError(null);
+    try { await onSupposed(next === null ? null : next.trim()); setEditing(false); }
+    catch (e) { setError(e instanceof Error ? e.message : "저장하지 못했어요. 다시 시도해 주세요."); }
+    finally { setBusy(false); }
+  };
+  const done = !mark.need;
+  return <>
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <p className="m-0 hidden text-xs font-semibold text-muted lg:block">{LABEL.SUPPOSED}{sentence.specific ? " · 구체 값" : ""}{mark.edited ? " · 고친 문장" : ""}</p>
+      <span className={cn("ml-auto inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold", done ? "bg-evidence-soft text-evidence" : "bg-surface-strong text-body")}>
+        {done ? "✓ 확인함" : "확인 전"}</span>
+    </div>
+    {mark.edited && <p className="m-0 text-note leading-relaxed break-words text-muted">원래 문장 — {mark.original}</p>}
+    {done ? <p className="m-0 flex items-start gap-1.5 text-note leading-relaxed text-evidence">
+      <CheckIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+      {answer ? <span className="min-w-0 break-words">경험에 보완으로 쌓였어요 — 「{answer}」. 다시 만들면 근거로 쓰여요.</span> : "확인했어요 — 이대로 둘게요."}
+    </p> : <>
+      <p className="m-0 text-note leading-relaxed text-body">자료에 없는 장면이라 차곡이가 그럴 법하게 쓴 문장이에요. 실제와 비슷했는지 확인해 주세요.</p>
+      {sentence.specific && <p className="m-0 flex items-start gap-1.5 text-note leading-relaxed text-body">
+        <WarningCircleIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />수치 · 이름 같은 구체 값이 들어 있어요. 특히 실제와 맞는지 봐 주세요.</p>}
+      {pair?.question && <p className="m-0 text-sm font-semibold break-words">{pair.question}</p>}
+      {editing ? <form className="grid gap-2" onSubmit={e => { e.preventDefault(); void run(value); }}>
+        <label className="sr-only" htmlFor={inputId}>실제 있었던 대로 고치기</label>
+        <textarea id={inputId} rows={3} value={value} maxLength={MAX_ANSWER_LENGTH} disabled={disabled || busy} autoFocus
+          onChange={e => { setValue(e.target.value); setError(null); }}
+          className="min-w-0 resize-y rounded-md bg-surface-soft px-3.5 py-2.5 text-base leading-relaxed text-body outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--ink)] sm:text-sm" />
+        <div className="flex flex-wrap gap-2">
+          <Button type="submit" size="sm" className={inlineAction} disabled={disabled || busy}>{busy ? "저장하고 있어요…" : linked ? "고쳐서 경험에 저장" : "고치기"}</Button>
+          <Button type="button" size="sm" variant="secondary" className="min-h-11 lg:min-h-10" disabled={busy} onClick={() => { setEditing(false); setValue(mark.text); }}>취소</Button>
+        </div>
+      </form> : <div className="flex flex-wrap gap-2">
+        <Button size="sm" className={inlineAction} disabled={disabled || busy} onClick={() => void run(null)}>{busy ? "저장하고 있어요…" : "비슷했어요"}</Button>
+        <Button size="sm" variant="secondary" className="min-h-11 lg:min-h-10" disabled={disabled || busy} onClick={() => setEditing(true)}>고치기</Button>
+        <Button size="sm" variant="ghost" className="min-h-11 lg:min-h-10" disabled={disabled || busy} onClick={onRemove}>빼기</Button>
+      </div>}
+      <p className="m-0 text-note text-muted">{linked ? "비슷했어요 · 고치기는 그 경험의 보완으로 쌓여 다른 지원서에서도 근거로 쓰여요." : "경험에 붙은 문장이 아니라 보완으로 저장하지 않아요."}</p>
+    </>}
+    {error && <p role="alert" className="m-0 text-note text-error">{error}</p>}
+  </>;
 }
 
 /** 주체 줄(S-79) — 근거 경험의 지금 주체. 확인 안 된(UNKNOWN) 경험이 있으면 경험마다 정한다(ETC#249) */
