@@ -247,3 +247,30 @@ test('draft snapshot stays on left, panel owns generation controls and text copy
   await chip.click();
   await expect(snapshot).toContainText('멘토 피드백');
 });
+
+// FE#375 — 하단 목록의 켬/끔을 조작해도 상단 「지침 더하기」에는 처리 중 안내가 뜨지 않는다. 한 줄 저장 때만 뜬다
+test('list toggle does not show the composer processing notice; composer save does', async ({ page }) => {
+  const api = new GuidelineApi();
+  api.items = [{ id: 901, text: '결론을 먼저 쓴다', source: '', enabled: true, createdAt: '', updatedAt: '' }];
+  await api.install(page);
+  let release!: () => void; const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/api/guidelines/901', async route => { await gate; await route.fallback(); });
+  await page.goto('/guidelines');
+  const compose = page.getByRole('region', { name: '지침 더하기', exact: true });
+  const notice = compose.getByText('요청을 처리하고 있어요', { exact: false });
+  const toggle = page.getByRole('listitem', { name: '작성 지침 901', exact: true }).getByRole('switch');
+  await toggle.click();
+  await expect(toggle).toBeDisabled();
+  await expect(notice).toHaveCount(0);
+  release();
+  await expect(toggle).not.toBeChecked();
+  await expect(notice).toHaveCount(0);
+
+  let releasePost!: () => void; const postGate = new Promise<void>(resolve => { releasePost = resolve; });
+  await page.route('**/api/guidelines', async route => { if (route.request().method() === 'POST') await postGate; await route.fallback(); });
+  await compose.getByLabel('지침 한 줄 또는 요점 · 자막').fill('첫 문장에 결론을 쓴다');
+  await compose.getByRole('button', { name: '한 줄 저장', exact: true }).click();
+  await expect(notice).toBeVisible();
+  releasePost();
+  await expect(notice).toHaveCount(0);
+});
