@@ -75,7 +75,14 @@ export function TimelineScreen() {
   // 거르기 칩(S-57) — 받은 목록에서 FE 가 거른다. 저장하지 않아 새로고침하면 「전체」로 돌아간다
   const [categoryFilter, setCategoryFilter] = useState<ActivityCategory | null>(null);
   // 통계(S-83) — 홈 쌓인 블록의 「통계 보기」(?view=stats)로 들어오면 통계부터
-  const [listView, setListView] = useState<ExperienceView>(params.get("view") === "stats" ? "stats" : "timeline");
+  const viewParam = params.get("view");
+  const [listView, setListView] = useState<ExperienceView>(viewParam === "stats" ? "stats" : "timeline");
+  // 내 경험 화면이 이미 떠 있는 채로 ?view=stats 로 들어와도(마운트 초깃값만으로는 놓친다) 통계로 바꾼다 (#393)
+  const [seenViewParam, setSeenViewParam] = useState(viewParam);
+  if (seenViewParam !== viewParam) {
+    setSeenViewParam(viewParam);
+    if (viewParam === "stats") setListView("stats");
+  }
   // 경험 내용이 바뀌면 통계가 출처 상태 · 역량을 다시 센다
   const [statsVersion, setStatsVersion] = useState(0);
   const refreshStats = () => setStatsVersion((n) => n + 1);
