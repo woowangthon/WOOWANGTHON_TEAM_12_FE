@@ -81,11 +81,9 @@ test("desktop collapse survives reload and navigation; the application list rema
   await expect(expand.locator("svg")).toHaveCSS("opacity", "0");
   const logoBounds = (await brand.boundingBox())!;
   const toggleBounds = (await expand.boundingBox())!;
-  // 펼침 버튼(40px 원)은 로고 칸(44 × 40) 안에 같은 높이로 겹친다 — 칸 가장자리에 붙어 가로로 4px 작다
-  expect(toggleBounds.y).toBe(logoBounds.y);
-  expect(toggleBounds.height).toBe(logoBounds.height);
-  expect(toggleBounds.x).toBeGreaterThanOrEqual(logoBounds.x);
-  expect(toggleBounds.x + toggleBounds.width).toBeLessThanOrEqual(logoBounds.x + logoBounds.width);
+  // 펼침 버튼(40px 원)은 로고 칸(44 × 40)의 한가운데에 놓여 마스코트와 중심이 같다(FE#418)
+  const center = (b: typeof logoBounds) => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
+  expect(center(toggleBounds)).toEqual(center(logoBounds));
   await brand.hover();
   await expect(mascot(brand)).toBeHidden();
   await expect(expand.locator("svg")).toHaveCSS("opacity", "1");
