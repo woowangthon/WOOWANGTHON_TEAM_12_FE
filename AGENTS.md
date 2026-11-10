@@ -113,6 +113,7 @@ SPEC 항목 → plan-feature 로 이슈 → implement-issue: 읽기 → (모르�
 - 스택: Next.js 16(App Router) · React 19 · TypeScript · Tailwind CSS 4 · Vercel(PR 미리보기). 이유는 ETC ADR-005
 - 실행: `npm install` → `npm run dev` (http://localhost:3000). 자세한 건 README
 - 검증 명령: `npm run check` (= `lint` → `typecheck` → `build`). CI 가 PR 마다 같은 것을 돌린다
+  - 화면 · 문구를 바꾼 PR 은 Playwright 시험도 돌린다 — CI 는 안 돌려서 낡아도 안 잡힌다(FE#449). 바꾼 문구 · `aria-label` · 컴포넌트 이름으로 `tests/` 를 찾아 걸리는 파일을 `npx playwright test <파일…> --project=desktop --project=mobile`. 여러 화면이 같이 쓰는 컴포넌트(`components/ui` · 답 카드 등)면 `--project=desktop` 전체
 - 미리보기: PR 을 열면 Vercel 봇 댓글에 URL 이 뜬다 — UI PR 본문에 그 링크를 붙인다
 - 영역 담당(논의 상대 — 이슈 담당은 시작하는 사람): @Zino03 프론트 주력 · @Rulrudino0911 디자인 주력 · @wjstpdnjs25-oss
 
