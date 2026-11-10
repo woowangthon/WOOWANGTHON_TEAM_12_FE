@@ -139,9 +139,14 @@ export function ApplicationScreen() {
   // 새 경험 후보(S-48)는 패널에서 찾고 고른다 — 답칸 한 줄에서 누르면 패널을 열고, find 면 그 문항의 찾기를 한 번 시작한다(FE#270)
   const [findFor, setFindFor] = useState<number | null>(null);
   const onFindStarted = useCallback(() => setFindFor(null), []);
+  // 「차곡이에서 보기」 · 「새 경험 후보 찾기」는 누를 때마다 패널의 새 경험 후보로 데려간다 — 패널이 이미 열려 있어도(FE#390).
+  // 요청은 문항마다 따로 두고, 한 번 데려가면 done — 다른 문항을 보다 돌아와 다시 그려져도 저절로 또 움직이지 않는다
+  const [factsFocus, setFactsFocus] = useState<{ questionId: number; request: number; done: boolean } | null>(null);
+  const onFactsFocused = useCallback((request: number) => setFactsFocus(prev => (prev && prev.request === request ? { ...prev, done: true } : prev)), []);
   const openNewFacts = (find: boolean) => {
     if (!selected) return;
     setPanelChoice(true);
+    setFactsFocus(prev => ({ questionId: selected.id, request: (prev?.request ?? 0) + 1, done: false }));
     if (find) setFindFor(selected.id);
   };
   const originOf: SupplementOrigin = supplement => {
@@ -155,7 +160,8 @@ export function ApplicationScreen() {
   const panel = <ChagokPanel question={panelQuestion} index={selectedIndex} originOf={originOf} control={chagok}
     onAnswer={(clarificationId, answer) => selected ? matching.answer(selected.id, clarificationId, answer) : Promise.resolve()}
     draftActions={{ ...draftActions, focusRequest: draftFocus?.questionId === selected?.id ? draftFocus?.request ?? 0 : 0 }}
-    newFacts={{ onAnswerChange: matching.keepAnswer, findRequested: findFor !== null && findFor === selected?.id, onFindStarted }}
+    newFacts={{ onAnswerChange: matching.keepAnswer, findRequested: findFor !== null && findFor === selected?.id, onFindStarted,
+      focusRequest: factsFocus && !factsFocus.done && factsFocus.questionId === selected?.id ? factsFocus.request : 0, onFocused: onFactsFocused }}
     onClose={() => setPanelChoice(false)} />;
   const startNew = () => { setPasted(takeApplicationText()); setComposing(true); setAdding(false); setListShown(false); scrollToDetail(); };
   const pick = (a: Application) => {

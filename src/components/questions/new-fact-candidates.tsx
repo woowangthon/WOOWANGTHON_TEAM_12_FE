@@ -10,14 +10,18 @@ import { fetchActivities } from "@/lib/api/experience";
 import { scrollWithinContainer } from "@/lib/scroll";
 import type { NewFactCandidate, SaveNewFactRequest } from "@/lib/api/question-types";
 import type { ActivitySummary, Actor } from "@/lib/api/types";
+import { cn } from "@/lib/utils";
 import type { useConfirmedAnswer } from "./use-confirmed-answer";
 
 type Confirmed = ReturnType<typeof useConfirmedAnswer>;
 const field = "min-h-11 lg:min-h-10 w-full min-w-0 rounded-sm border border-hairline bg-canvas p-3 text-sm text-ink";
 
 /** 새 경험 후보(S-48) — 차곡이 패널에서 찾고 고른다(FE#270). 답칸에는 저장했다는 것과 찾기 한 줄만 둔다.
- *  findRequested — 답칸의 「새 경험 후보 찾기」로 패널이 열렸다. 한 번만 시작하고 onFindStarted 로 지운다(시트를 다시 열어도 또 찾지 않게) */
-export function NewFactCandidates({ confirmed: a, findRequested, onFindStarted }: { confirmed: Confirmed; findRequested: boolean; onFindStarted: () => void }) {
+ *  findRequested — 답칸의 「새 경험 후보 찾기」로 패널이 열렸다. 한 번만 시작하고 onFindStarted 로 지운다(시트를 다시 열어도 또 찾지 않게)
+ *  focusRequest — 답칸의 「차곡이에서 보기」 · 「새 경험 후보 찾기」를 누를 때마다 오르는 번호(0 이면 없음). 받으면 onFocused 로 알린다(FE#390) */
+export function NewFactCandidates({ confirmed: a, findRequested, onFindStarted, focusRequest, onFocused }: {
+  confirmed: Confirmed; findRequested: boolean; onFindStarted: () => void; focusRequest: number; onFocused: (request: number) => void;
+}) {
   const [activities, setActivities] = useState<ActivitySummary[]>([]);
   const [activityError, setActivityError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -36,12 +40,29 @@ export function NewFactCandidates({ confirmed: a, findRequested, onFindStarted }
   useEffect(() => {
     if (!findRequested) return;
     onFindStarted();
-    if (section.current) scrollWithinContainer(section.current);
     void retryFind();
   }, [findRequested, onFindStarted, retryFind]);
+  // 「초안 부탁하기」(FE#249)와 같은 반응 — 패널 안에서만 이 칸으로 옮기고, 초점을 칸에 두고, 테두리를 한 번 강조한다. 메인 페이지는 움직이지 않는다.
+  // 받은 뒤 요청이 0 으로 바뀌어도 강조는 끝까지 — 타이머는 이 칸이 사라질 때만 지운다
+  const [highlight, setHighlight] = useState(false);
+  const highlightTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => () => highlightTimers.current.forEach(clearTimeout), []);
+  useEffect(() => {
+    if (!focusRequest || !section.current) return;
+    const target = section.current;
+    scrollWithinContainer(target);
+    target.focus({ preventScroll: true });
+    onFocused(focusRequest);
+    highlightTimers.current.forEach(clearTimeout);
+    // 렌더 중이 아니라 효과 안에서 한 번 켰다가 끈다 — 같은 요청을 여러 번 눌러도 다시 강조한다
+    highlightTimers.current = [setTimeout(() => setHighlight(true), 0), setTimeout(() => setHighlight(false), 1200)];
+  }, [focusRequest, onFocused]);
   const facts = a.answer?.newFacts;
   if (!a.answer) return null;
-  return <section ref={section} aria-label="새 경험 후보" className="grid min-w-0 gap-3 rounded-sm border border-hairline bg-canvas px-3.5 py-3 text-sm">
+  return <section ref={section} tabIndex={-1} aria-label="새 경험 후보" data-highlight={highlight || undefined}
+    // 강조는 테두리 한 번 — 움직임 줄이기면 서서히 사라지지 않고 바로 켜졌다 꺼진다
+    className={cn("grid min-w-0 gap-3 rounded-sm border border-hairline bg-canvas px-3.5 py-3 text-sm outline-2 outline-offset-4 motion-safe:transition-[outline-color] motion-safe:duration-700",
+      highlight ? "outline-ink" : "outline-transparent")}>
     <div className="flex items-center gap-0.5"><h4 className="m-0 text-sm font-semibold">새 경험 후보</h4><InfoTip label="새 경험 후보">다 쓴 답에서 새로 쓴 사실을 찾아요. 경험은 저장을 눌러야 쌓여요.</InfoTip></div>
     {a.failure && <div className="grid justify-items-start gap-2">
       <p role="alert" className="m-0 text-sm text-error">{a.failure.message}{a.pollFailures >= 3 && " 자동 확인을 멈췄어요."}</p>

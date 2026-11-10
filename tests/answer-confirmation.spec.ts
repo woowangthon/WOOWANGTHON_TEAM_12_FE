@@ -297,3 +297,47 @@ test("autosave: failure keeps text and retries; switching question tabs keeps th
   await tabs.first().click();
   await expect(input).toHaveValue("탭을 바꾸기 직전 글");
 });
+
+// FE#390 — 「차곡이에서 보기」는 「초안 부탁하기」(FE#249)처럼 누를 때마다 패널의 새 경험 후보로 간다: 패널 안에서만 옮기고 · 칸에 초점 · 테두리 한 번 강조.
+// 패널이 닫혀 있어도 · 이미 열려 있어도. 한 번 데려간 요청은 다른 문항을 보다 돌아와도 저절로 다시 움직이지 않는다
+test("차곡이에서 보기 moves to the new-fact candidates in the panel every time, open or closed, without moving the page", async ({ page }) => {
+  await setup(page, answer(facts("COMPLETED")));
+  const wide = page.viewportSize()!.width >= 1280; // 1280 부터 옆 패널(처음부터 열림), 그 아래는 시트
+  const show = screen(page).getByRole("button", { name: "차곡이에서 보기", exact: true });
+  const panelBody = () => panel(page).locator(".overflow-y-auto").first();
+  const goesToFacts = async () => {
+    await expect(factsBox(page)).toBeFocused();
+    await expect(factsBox(page)).toBeInViewport();
+    await expect(factsBox(page)).toHaveAttribute("data-highlight", "true");
+    await expect(factsBox(page)).not.toHaveAttribute("data-highlight", "true"); // 강조는 한 번 — 곧 사라진다
+  };
+  await show.scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollBy(0, 80));
+  const before = await page.evaluate(() => window.scrollY);
+
+  // 닫힌 패널 — 열면서 간다(넓은 화면은 먼저 닫는다)
+  if (wide) { await page.getByRole("button", { name: "차곡이 닫기", exact: true }).click(); await expect(panel(page)).toHaveCount(0); }
+  await show.click();
+  await goesToFacts();
+  expect(await page.evaluate(() => window.scrollY)).toBe(before);
+
+  // 이미 열린 패널 — 위로 올려 둔 패널에서 다시 누르면 또 간다(시트는 닫고 다시 누른다)
+  await panelBody().evaluate(el => { el.scrollTop = 0; });
+  if (!wide) await closeSheet(page);
+  await show.click();
+  await goesToFacts();
+  expect(await page.evaluate(() => window.scrollY)).toBe(before);
+
+  // 다른 문항을 보다 돌아오면 저절로 움직이지 않는다 — 요청은 문항마다, 한 번만
+  await closeSheet(page);
+  const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab");
+  await tabs.nth(1).click();
+  await tabs.nth(0).click();
+  await expect(show).toBeVisible();
+  if (wide) {
+    await expect(factsBox(page)).toBeVisible();
+    await page.waitForTimeout(300);
+    await expect(factsBox(page)).not.toHaveAttribute("data-highlight", "true");
+    await expect(factsBox(page)).not.toBeFocused();
+  }
+});
