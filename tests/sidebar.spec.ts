@@ -55,7 +55,8 @@ test("icons stay in place throughout collapse and expansion while width and labe
         expect(icon.y).toBeCloseTo(before.icons[i].y, 2);
       });
     }
-    expect(frames.at(-1)!.width).toBe(label === "사이드바 접기" ? 72 : 248);
+    // 전환이 늦게 시작해 450ms 표본이 아직 전환 중일 수 있다(FE#417) — 끝 너비는 기다려서 본다
+    await expect.poll(() => sidebar(page).evaluate(el => el.getBoundingClientRect().width)).toBe(label === "사이드바 접기" ? 72 : 248);
   }
   await page.emulateMedia({ reducedMotion: "reduce" });
   await sidebar(page).getByRole("button", { name: "사이드바 접기", exact: true }).click();
