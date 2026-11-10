@@ -60,16 +60,23 @@ export function ApplicationScreen() {
   const [composing, setComposing] = useState(useSearchParams().get("new") === "1");
   // 빠른 찾기의 「지원으로 만들기」(S-61)가 넘긴 글 — 지원 넣기 입력칸에 넣어 둔다
   const [pasted, setPasted] = useState(peekApplicationText);
+  const [adding, setAdding] = useState(false);
+  // 좁은 화면은 목록과 세부를 나눠 보인다 — 지원을 열면 세부부터, 「지원 목록으로」를 누르면 목록(FE#159)
+  const [listShown, setListShown] = useState(false);
+  // 방문한 화면은 숨겨 두었다가 상태째 다시 보인다(cacheComponents) — 그때도 `new=1` 이면 새 지원서를 연다(FE#412).
+  // 주소에서 `new` 를 먼저 지워 한 요청은 한 번만 연다(개발 모드에서 효과가 두 번 돌아도). 다시 받는 목록이 주소를 덮지 않게 알린다
+  const newRequested = params.get("new") === "1";
+  const { keepComposing } = matching;
   useEffect(() => {
-    takeApplicationText();
+    const text = takeApplicationText();
     const url = new URL(window.location.href);
     if (!url.searchParams.has("new")) return;
     url.searchParams.delete("new");
     window.history.replaceState(window.history.state, "", url);
-  }, []);
-  const [adding, setAdding] = useState(false);
-  // 좁은 화면은 목록과 세부를 나눠 보인다 — 지원을 열면 세부부터, 「지원 목록으로」를 누르면 목록(FE#159)
-  const [listShown, setListShown] = useState(false);
+    keepComposing();
+    // 처음 그릴 때는 초깃값이 이미 같다. 떠나도 지우지 않는다 — 두 번째 효과는 `new` 가 없어 다시 열지 않는다
+    setTimeout(() => { setPasted(text); setComposing(true); setAdding(false); setListShown(false); }, 0);
+  }, [newRequested, keepComposing]);
   const open = matching.open;
   const overlaps = useMemo(() => (open ? overlapsOf(open.details) : []), [open]);
   const scrollToDetail = () => requestAnimationFrame(() => document.getElementById("selected-application")?.scrollIntoView({ block: "start" }));

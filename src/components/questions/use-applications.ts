@@ -109,8 +109,10 @@ export function useApplications(composingAtStart = false) {
   }, []);
 
   /** 처음 들어올 때 · 「다시 불러오기」 — 지원 목록과 주소의 문항을 동시에 받는다. 같은 지원의 나머지 문항은 아래 효과가 이어 받는다 */
+  const loading = useRef(false);
   const load = useCallback(async () => {
     const version = ++generation.current;
+    loading.current = true;
     try {
       const wanted = questionInUrl();
       const [applications, first] = await Promise.all([fetchApplications(), wanted ? fetchQuestion(wanted).catch(() => null) : null]);
@@ -127,8 +129,13 @@ export function useApplications(composingAtStart = false) {
       setState({ loading: false, applications: patch(applications, Object.values(details)), details, detailErrors: {}, pollFailures: {}, questionId, error: null });
     } catch (e) {
       if (version === generation.current) setState(prev => ({ ...prev, loading: false, error: message(e, "지원을 불러오지 못했어요.") }));
+    } finally {
+      if (version === generation.current) loading.current = false;
     }
   }, []);
+  /** 「새 지원서」(`?new=1`)를 받았다 — 숨겨 둔 화면이 다시 보이며 목록을 다시 받는 중이어도 그 결과로 주소를 `?question=` 으로 덮지 않는다(FE#412).
+   *  받는 중이 아니면 표시하지 않는다 — 다음 「다시 불러오기」가 주소를 못 고치는 일이 없게 */
+  const keepComposing = useCallback(() => { if (loading.current) composingAtStartRef.current = true; }, []);
 
   /** 화면을 떠나면 오가던 응답을 버린다 */
   const invalidate = useCallback(() => { ++generation.current; }, []);
@@ -214,6 +221,7 @@ export function useApplications(composingAtStart = false) {
     setState(prev => ({ ...prev, questionId: id }));
   };
   return {
+    keepComposing,
     loading: state.loading,
     savingAnswer: state.questionId !== null && answeringIds.includes(state.questionId),
     requestingDraft: state.questionId !== null && draftingIds.includes(state.questionId),

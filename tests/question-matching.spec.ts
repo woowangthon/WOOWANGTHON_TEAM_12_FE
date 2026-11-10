@@ -895,6 +895,47 @@ test("a new application starts with one input and opens the fields only after sp
   expect(parses.at(-1)).toEqual({ url: "https://www.example.com/recruit/1234" });
 });
 
+// FE#412 — 본 지원 화면은 숨겨 두었다가 상태째 다시 보인다(cacheComponents). 거기로 돌아와도 「새 지원서」는 새 지원 입력을 연다(FE#374 후속)
+test("new application opens the input even when the visited application screen comes back from the cache", async ({ page }) => {
+  await fake(page);
+  const section = page.locator("#selected-application");
+  const narrow = page.viewportSize()!.width < 1024;
+  const tabBar = page.getByRole("navigation", { name: "주 메뉴", exact: true });
+  const sidebar = page.getByRole("complementary", { name: "사이드바", exact: true });
+  // 새로고침 없이 내 지원서로 — 넓으면 사이드바 「내 지원서」, 좁으면 아래 탭 「지원서」
+  const toApplications = async () => {
+    await (narrow ? tabBar.getByRole("link", { name: "지원서", exact: true }) : sidebar.getByRole("link", { name: "내 지원서", exact: true })).click();
+    await expect(page.getByRole("heading", { level: 1, name: /^내 지원서/ })).toBeVisible();
+  };
+  const composingFresh = async () => {
+    await expect(page).toHaveURL(/\/questions/);
+    await expect(section).toHaveAttribute("aria-label", "새 지원 입력");
+    await expect(page.getByLabel("공고 · 문항 글이나 공고 링크")).toHaveValue("");
+    await page.waitForTimeout(500); // 다시 받는 목록이 1번 지원서로 덮지 않는지
+    await expect(section).toHaveAttribute("aria-label", "새 지원 입력");
+    await expect(page).not.toHaveURL(/new=1|question=/);
+  };
+  await page.goto("/questions");
+  await expect(section).toHaveAttribute("aria-label", "선택한 지원");
+
+  // 내 지원서의 「+ 새 지원서」
+  await toApplications();
+  await page.getByRole("main").getByRole("button", { name: "새 지원서", exact: true }).click();
+  await composingFresh();
+
+  // 지원으로 돌아간 뒤 「추가 → 새 지원서」 — 같은 화면이 또 다시 보여도 한 번 더 연다
+  await page.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(section).toHaveAttribute("aria-label", "선택한 지원");
+  await toApplications();
+  await (narrow ? tabBar : sidebar).getByRole("button", { name: "추가", exact: true }).click();
+  await page.getByRole("menuitem", { name: /^새 지원서/ }).click();
+  await composingFresh();
+
+  // 새로고침해도 작성 화면이 다시 뜨지 않는다
+  await page.reload();
+  await expect(section).toHaveAttribute("aria-label", "선택한 지원");
+});
+
 test("write questions opens the fields at once, keeping a pasted link as the original link", async ({ page }) => {
   await fake(page);
   await page.goto("/questions");
