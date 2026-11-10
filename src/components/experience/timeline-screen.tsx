@@ -3,7 +3,7 @@
 // 첫 화면 — 연도별 타임라인 + 활동 세부 (SPEC F-03) · 자료 넣기 + 분석 상태 (F-01)
 // PC 는 타임라인 옆 패널, 모바일은 목록 → 전체 화면 세부
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowsClockwiseIcon, ChartBarHorizontalIcon, ChartPieSliceIcon, PlusIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { Tooltip } from "radix-ui";
@@ -34,6 +34,8 @@ import { fetchQuestions } from "@/lib/api/questions";
 import { useAuth } from "@/components/auth/auth-gate";
 import { rememberActivity } from "@/lib/home-overview";
 import { SourceWorkDetail } from "@/components/work/source-work-detail";
+import { useWorkRefresh } from "@/components/work/work-provider";
+import { SameActivityDialog, SuggestionLines, suggestionPairs } from "./merge-suggestion";
 
 type ListState =
   | { status: "loading" }
@@ -67,6 +69,10 @@ export function TimelineScreen() {
   const [moving, setMoving] = useState<Experience | null>(null);
   const [mergingExperience, setMergingExperience] = useState<Experience | null>(null);
   const [mergeOpen, setMergeOpen] = useState(false);
+  // 같은 활동 비교 창(S-44 · FE#246) — 연 쌍의 새 활동 id
+  const [compareId, setCompareId] = useState<number | null>(null);
+  const closeCompare = useCallback(() => setCompareId(null), []);
+  const refreshWork = useWorkRefresh();
   // 거르기 칩(S-57) — 받은 목록에서 FE 가 거른다. 저장하지 않아 새로고침하면 「전체」로 돌아간다
   const [categoryFilter, setCategoryFilter] = useState<ActivityCategory | null>(null);
   // 통계(S-83) — 홈 쌓인 블록의 「통계 보기」(?view=stats)로 들어오면 통계부터
@@ -381,8 +387,11 @@ export function TimelineScreen() {
 
   /** 활동 합치기(S-13) — 확인 창에서 응답을 기다린다. 실패하면 던져서 창에 이유를 남기고 화면은 그대로 둔다 */
   const merge = async (keepId: number, fromId: number) => {
-    const kept = await mergeActivities(keepId, fromId);
+    const result = await mergeActivities(keepId, fromId);
+    // 지운 활동을 가리키던 제안은 더 쓸 데가 없다 — 남긴 쪽이 새 활동이었어도
+    const kept = result.mergeSuggestion?.activityId === fromId ? { ...result, mergeSuggestion: null } : result;
     refreshStats();
+    refreshWork();
     periodSaves.current.delete(keepId);
     periodSaves.current.delete(fromId);
     ++listRequest.current;
@@ -421,6 +430,7 @@ export function TimelineScreen() {
   const dismissSuggestion = async (id: number) => {
     const previousDetailRequest = detailRequest.current;
     await dismissMergeSuggestion(id);
+    refreshWork();
     ++listRequest.current;
     const reopened = selectedRef.current === id && previousDetailRequest !== detailRequest.current;
     if (selectedRef.current === id) ++detailRequest.current;
@@ -440,6 +450,21 @@ export function TimelineScreen() {
     // 다른 활동을 보고 있어도 삭제는 계속된다. 진행 중이던 GET 이 삭제 전 응답을 덮지 않게 다시 조회한다.
     if (selectedRef.current === experience.activityId && detail.status !== "ready") loadDetail(experience.activityId);
   });
+
+  const pairs = useMemo(() => list.status === "ready" ? suggestionPairs(list.activities) : [], [list]);
+  // 종 「할 일」의 「같아 보이는 활동」(?tidy=1) — 목록을 받은 뒤 첫 쌍부터 연다. 새로고침에 다시 열리지 않게 주소에서 지운다
+  const tidyRequested = params.get("tidy") != null;
+  const listReady = list.status === "ready";
+  useEffect(() => {
+    if (!tidyRequested || !listReady) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("tidy");
+    window.history.replaceState(null, "", url);
+    // 주소를 지운 뒤 다음 틱에 연다 — 같은 화면에서 다시 눌러도 열리게
+    const timer = setTimeout(() => pairs[0] ? setCompareId(pairs[0].newId) : showToast("정할 같은 활동 제안이 없어요."), 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tidyRequested, listReady]);
 
   const hiddenIds = new Set(deletion.pending.map((item) => item.experience.id));
   const visibleDetail: DetailState = detail.status === "ready"
@@ -482,7 +507,8 @@ export function TimelineScreen() {
     activities: ready?.activities,
   };
   const batchStatus = analysis.jobs.length > 1 && (
-    <AnalysisBatch jobs={analysis.jobs} activities={ready?.activities} onRetry={analysis.retryJob} onRecheck={analysis.recheckJob} onDismiss={analysis.dismiss} onOpenActivity={select} />
+    <AnalysisBatch jobs={analysis.jobs} activities={ready?.activities} onRetry={analysis.retryJob} onRecheck={analysis.recheckJob} onDismiss={analysis.dismiss} onOpenActivity={select}
+      onTidy={(ids) => { const first = pairs.find((p) => ids.includes(p.newId)); if (first) setCompareId(first.newId); }} />
   );
   // 「자료 더하기」의 상태는 그 활동 세부에 보인다. 세부를 닫았으면 평소처럼 목록 위에
   const shownInDetail = selected != null && analysis.tracked?.targetActivityId === selected.id;
@@ -597,8 +623,7 @@ export function TimelineScreen() {
               onExperienceMerge={setMergingExperience}
               onDragChange={setDragging}
               draggingId={dragging?.id ?? null}
-              onSuggestedMerge={merge}
-              onSuggestionDismiss={dismissSuggestion}
+              suggestions={<SuggestionLines activityId={selected.id} activities={ready.activities} onCompare={setCompareId} />}
               onOpenActivity={select}
               onMergeRequest={ready.activities.length > 1 ? () => setMergeOpen(true) : undefined}
               onAddSource={() => setAddToActivity(true)}
@@ -617,6 +642,8 @@ export function TimelineScreen() {
       {selected && ready && (
         <MergeActivityDialog key={selected.id} activity={selected} activities={ready.activities} open={mergeOpen} onOpenChange={setMergeOpen} onMerge={merge} />
       )}
+
+      <SameActivityDialog pairs={pairs} startId={compareId} onClose={closeCompare} onMerge={merge} onDismiss={dismissSuggestion} />
 
       <AddSourceDialog
         open={addOpen}

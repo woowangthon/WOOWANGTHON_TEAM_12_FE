@@ -12,6 +12,21 @@ import { isMockMode } from "@/lib/api/http";
 import { cn } from "@/lib/utils";
 import { isUnread, latestFinished, workHref, WORK_KIND, WORK_STATUS, type WorkItem } from "@/lib/api/work";
 import { useWork } from "./use-work";
+import { fetchActivities } from "@/lib/api/experience";
+import { suggestionPairs } from "@/components/experience/merge-suggestion";
+
+/** 아직 정하지 않은 같은 활동 쌍 수(S-44 · FE#246) — 처음 · 종을 열 때 · 작업을 다시 읽어 달라고 할 때(분석 완료 · 붙이기 · 따로 두기) 활동 목록을 읽는다.
+ *  못 읽으면 줄을 숨긴다 — 내 경험 화면에 같은 제안이 그대로 있다 */
+function useSuggestionCount() {
+  const [count, setCount] = useState(0);
+  const request = useRef(0);
+  const load = useCallback(() => {
+    const id = ++request.current;
+    fetchActivities().then((activities) => { if (id === request.current) setCount(suggestionPairs(activities).length); }, () => {});
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  return { count, load };
+}
 
 const ROW = "grid min-h-11 lg:min-h-10 min-w-0 grid-cols-[minmax(0,1fr)] gap-1 rounded-sm border-b border-hairline-soft p-3 text-sm hover:bg-surface-soft focus-visible:outline-2 focus-visible:outline-ink lg:gap-0.5 lg:border-b-0 lg:px-3 lg:py-2.5 lg:text-note";
 const GROUP_TITLE = "mt-0 text-sm font-semibold lg:mb-0 lg:px-2 lg:pt-2 lg:pb-0.5 lg:text-xs lg:leading-[13px] lg:text-muted";
@@ -29,6 +44,8 @@ export function useWorkRefresh() {
 
 export function WorkProvider({ children }: { children: ReactNode }) {
   const work = useWork();
+  const suggestions = useSuggestionCount();
+  const refresh = () => { work.refresh(); suggestions.load(); };
   const { desktop } = useSidebar();
   const [opened, setOpened] = useState(false);
   const trigger = useRef<HTMLButtonElement | null>(null);
@@ -48,6 +65,7 @@ export function WorkProvider({ children }: { children: ReactNode }) {
     navigating.current = false;
     displayedBoundary.current = latestFinished(recent);
     setOpened(true);
+    suggestions.load();
     // 열린 순간 보인 목록까지만. 이후 도착한 소식은 다시 열기 전까지 안 읽음이다.
     void work.markSeen(displayedBoundary.current);
   };
@@ -59,14 +77,19 @@ export function WorkProvider({ children }: { children: ReactNode }) {
   const body = <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 lg:p-0">
     {work.error && <div role="alert" className="mb-4 grid gap-2"><p className="m-0 text-error">{work.error}</p><Button variant="secondary" onClick={work.refresh}>상태 다시 불러오기</Button></div>}
     {work.seenError && <div role="alert" className="mb-4 grid gap-2"><p className="m-0 text-error">읽음 상태를 저장하지 못했어요. {work.seenError}</p><Button variant="secondary" disabled={work.marking} onClick={() => void work.markSeen(displayedBoundary.current)}>읽음 저장 다시 시도</Button></div>}
-    <section aria-label="진행 중인 일"><h3 className={GROUP_TITLE}>할 일 {inProgress.length}</h3>
-      {inProgress.length ? <WorkList items={inProgress} seenAt={snapshot?.seenAt ?? null} onNavigate={onNavigate} /> : <p className="text-sm text-muted lg:my-1 lg:px-3 lg:text-note">진행 중인 일이 없어요.</p>}
+    <section aria-label="진행 중인 일"><h3 className={GROUP_TITLE}>할 일 {inProgress.length + (suggestions.count ? 1 : 0)}</h3>
+      {suggestions.count > 0 && <Link href="/experience?tidy=1" prefetch={false} onClick={onNavigate} className={cn(ROW, "mb-1")}>
+        <span className="justify-self-start rounded-full bg-review-soft px-2 py-px text-xs font-bold text-review">AI 제안 · 정할 것</span>
+        <span className="min-w-0 font-medium">같아 보이는 활동 {suggestions.count}쌍</span>
+        <span className="text-note text-muted">합칠지 따로 둘지 정해 주세요.</span>
+      </Link>}
+      {inProgress.length ? <WorkList items={inProgress} seenAt={snapshot?.seenAt ?? null} onNavigate={onNavigate} /> : !suggestions.count && <p className="text-sm text-muted lg:my-1 lg:px-3 lg:text-note">진행 중인 일이 없어요.</p>}
     </section>
     <section aria-label="최근 소식" className="mt-7 lg:mt-1"><div className="flex items-center gap-0.5"><h3 className={GROUP_TITLE}>소식 {unread > 0 && <span>· 안 읽음 {unread}</span>}</h3><InfoTip label="소식">최근 24시간 · 최대 20개까지 보여요.</InfoTip></div>
       {recent.length ? <WorkList items={recent} seenAt={snapshot?.seenAt ?? null} onNavigate={onNavigate} /> : <p className="text-sm text-muted lg:my-1 lg:px-3 lg:text-note">아직 도착한 소식이 없어요.</p>}
     </section>
   </div>;
-  return <WorkContext value={{ opened, toggle, count: inProgress.length, unread, status, refresh: work.refresh }}>
+  return <WorkContext value={{ opened, toggle, count: inProgress.length + (suggestions.count ? 1 : 0), unread, status, refresh }}>
     {children}
     {desktop ? <Popover.Root open={opened} onOpenChange={setOpened}>
       <Popover.Anchor virtualRef={trigger as RefObject<HTMLButtonElement>} />

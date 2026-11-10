@@ -83,6 +83,12 @@ async function setup(page: Page, suggested = false) {
     if (a) return route.fulfill({ json: a });
     return route.fulfill({ status: 404, json: { error: { code: "ACTIVITY_NOT_FOUND", message: "없음" } } });
   });
+  // 개발 모드의 Next 표시(왼쪽 아래)가 모바일 시트의 아래 버튼을 덮는다 — 운영엔 없다
+  await page.addInitScript(() => {
+    document.addEventListener("DOMContentLoaded", () => {
+      const style = document.createElement("style"); style.textContent = "nextjs-portal { pointer-events: none !important; }"; document.head.appendChild(style);
+    });
+  });
   await page.goto("/experience");
   return state;
 }
@@ -92,59 +98,114 @@ const isMobile = (page: Page) => page.viewportSize()!.width < 1024;
 const row = (page: Page, name: string) => page.getByRole("button", { name: new RegExp(name) }).filter({ hasText: "경험" }).first();
 const detail = (page: Page) => page.getByRole("complementary");
 
-test("같은 활동 제안 — 새로고침 · 합치기 실패와 재시도 · 기존 활동 보존", async ({ page }) => {
-  const state = await setup(page, true);
+// FE#246 — 같은 활동 제안(S-44). 결정은 비교 창 하나, 입구는 양쪽 세부 · 종 「할 일」
+const lines = (page: Page) => detail(page).getByRole("list", { name: "같은 활동 제안" });
+const compare = (page: Page) => page.getByRole("dialog", { name: "같은 활동인가요?" });
+
+test("같은 활동 제안 — 새 활동 · 기존 활동 세부 양쪽에 보이고 같은 비교 창을 연다", async ({ page }) => {
+  await setup(page, true);
   await expect(row(page, "Swap deploy")).toContainText("AI 제안");
   await page.reload();
   await open(page, "Swap deploy");
-  const suggestion = page.getByRole("region", { name: "같은 활동 제안" });
-  await expect(suggestion).toContainText("Swap app");
-  await expect(suggestion).toContainText("2025.03");
+  await expect(lines(page)).toContainText("기존 활동 「Swap app」과 같아 보여요");
+  await backToTimeline(page);
+  await open(page, "Swap app");
+  await expect(lines(page)).toContainText("새 활동 「Swap deploy」이 이 활동과 같아 보여요");
+  await lines(page).getByRole("button", { name: "비교하기" }).click();
+  await expect(compare(page)).toContainText("AI 제안");
+  await expect(compare(page)).toContainText("Chat fix"); // 경험 몇 줄로 같은지 판단한다
+  await expect(compare(page)).toContainText("AWS setup");
+  // 기본은 경험이 많은 쪽(Swap app 3 · Swap deploy 1)
+  await expect(compare(page)).toContainText("합치면 「Swap app」 하나에 경험 4개");
+  await page.keyboard.press("Escape");
+  await expect(compare(page)).toHaveCount(0);
+  await backToTimeline(page);
+  await open(page, "Algo study");
+  await expect(lines(page)).toHaveCount(0); // 제안이 없는 활동엔 아무것도 없다
+});
+
+test("같은 활동 제안 — 합치기 실패와 재시도 · 기존 활동 보존 · 양쪽 안내가 사라진다", async ({ page }) => {
+  const state = await setup(page, true);
+  await open(page, "Swap app");
+  await lines(page).getByRole("button", { name: "비교하기" }).click();
   const original = structuredClone(state.activities[0]);
   const incoming = structuredClone(state.activities[2].experiences[0]);
   state.fail = 500;
-  await suggestion.getByRole("button", { name: "붙이기", exact: true }).click();
-  await expect(suggestion.getByRole("alert")).toContainText("Server rejected");
+  await compare(page).getByRole("button", { name: "하나로 합치기" }).click();
+  await expect(compare(page).getByRole("alert")).toContainText("Server rejected");
   expect(state.activities).toHaveLength(3);
   state.fail = 0;
   state.delay = 300;
-  await suggestion.getByRole("button", { name: "다시 시도" }).click();
-  await expect(suggestion.getByRole("button", { name: "따로 두기" })).toBeDisabled();
+  await compare(page).getByRole("button", { name: "하나로 합치기" }).click();
+  await expect(compare(page).getByRole("button", { name: "따로 두기" })).toBeDisabled();
+  await expect(compare(page)).toHaveCount(0); // 남은 쌍이 없으면 닫힌다
   await expect(detail(page).getByRole("heading", { name: "Swap app", exact: true })).toBeVisible();
+  await expect(lines(page)).toHaveCount(0);
   expect(state.merges).toEqual([{ keep: 7, body: { fromActivityId: 9 } }, { keep: 7, body: { fromActivityId: 9 } }]);
   expect(state.activities[0]).toEqual({ ...original, experiences: [...original.experiences, { ...incoming, activityId: 7 }] });
   await page.reload();
   await expect(row(page, "Swap deploy")).toHaveCount(0);
 });
 
-test("같은 활동 제안 — 따로 두기 실패는 유지하고 성공 뒤 새로고침에도 사라진다", async ({ page }) => {
+test("같은 활동 제안 — 새 활동의 이름 · 기간을 남길 수도 있다", async ({ page }) => {
   const state = await setup(page, true);
   await open(page, "Swap deploy");
-  const suggestion = page.getByRole("region", { name: "같은 활동 제안" });
+  await lines(page).getByRole("button", { name: "비교하기" }).click();
+  await compare(page).getByRole("radio").nth(1).check();
+  await expect(compare(page)).toContainText("합치면 「Swap deploy」 하나에 경험 4개");
+  await compare(page).getByRole("button", { name: "하나로 합치기" }).click();
+  await expect(compare(page)).toHaveCount(0);
+  expect(state.merges).toEqual([{ keep: 9, body: { fromActivityId: 7 } }]);
+  await expect(detail(page).getByRole("heading", { name: "Swap deploy", exact: true })).toBeVisible();
+});
+
+test("같은 활동 제안 — 따로 두기 실패는 유지하고 성공 뒤 양쪽에서 사라진다", async ({ page }) => {
+  const state = await setup(page, true);
+  await open(page, "Swap app");
+  await lines(page).getByRole("button", { name: "비교하기" }).click();
   state.fail = 503;
-  await suggestion.getByRole("button", { name: "따로 두기" }).click();
-  await expect(suggestion.getByRole("alert")).toBeVisible();
+  await compare(page).getByRole("button", { name: "따로 두기" }).click();
+  await expect(compare(page).getByRole("alert")).toBeVisible();
   state.fail = 0;
-  await suggestion.getByRole("button", { name: "다시 시도" }).click();
-  await expect(suggestion).toHaveCount(0);
+  await compare(page).getByRole("button", { name: "따로 두기" }).click();
+  await expect(compare(page)).toHaveCount(0);
+  await expect(lines(page)).toHaveCount(0);
   expect(state.dismissals).toEqual([9, 9]);
   expect(state.activities).toHaveLength(3);
   await page.reload();
   await expect(row(page, "Swap deploy")).not.toContainText("AI 제안");
   await open(page, "Swap deploy");
-  await expect(suggestion).toHaveCount(0);
+  await expect(lines(page)).toHaveCount(0);
+});
+
+test("같은 활동 제안 — 종 「할 일」에 남은 쌍이 보이고 누르면 비교 창이 열린다", async ({ page }) => {
+  const state = await setup(page, true);
+  await page.getByRole("button", { name: /진행 중인 일/ }).first().click();
+  const todo = page.getByRole("link", { name: /같아 보이는 활동 1쌍/ });
+  await expect(todo).toContainText("AI 제안 · 정할 것");
+  await todo.click();
+  await expect(compare(page)).toContainText("Swap deploy");
+  await compare(page).getByRole("button", { name: "따로 두기" }).click();
+  await expect(compare(page)).toHaveCount(0);
+  expect(state.dismissals).toEqual([9]);
+  await page.getByRole("button", { name: /진행 중인 일/ }).first().click();
+  await expect(page.getByRole("link", { name: /같아 보이는 활동/ })).toHaveCount(0);
 });
 
 test("같은 활동 제안 — 세 폭에서 배치 확인", async ({ page }, testInfo) => {
   test.skip(isMobile(page), "한 프로젝트에서 세 폭을 확인");
   await setup(page, true);
-  await open(page, "Swap deploy");
+  await open(page, "Swap app");
   for (const width of [1440, 1024, 390]) {
-    await page.setViewportSize({ width, height: 1000 });
-    await expect(page.getByRole("region", { name: "같은 활동 제안" })).toBeVisible();
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
+    await expect(lines(page)).toBeVisible();
+    await lines(page).getByRole("button", { name: "비교하기" }).click();
+    await expect(compare(page).getByRole("button", { name: "하나로 합치기" })).toBeInViewport();
+    await expect(compare(page).getByRole("button", { name: "따로 두기" })).toBeInViewport();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    await page.screenshot({ path: `docs/fe-84/suggestion-${width}.png`, fullPage: true });
-    await testInfo.attach(`suggestion-${width}`, { path: `docs/fe-84/suggestion-${width}.png`, contentType: "image/png" });
+    await page.screenshot({ path: `artifacts/same-activity-${width}.png`, style: "nextjs-portal { display: none !important; }" });
+    await testInfo.attach(`same-activity-${width}`, { path: `artifacts/same-activity-${width}.png`, contentType: "image/png" });
+    await page.keyboard.press("Escape");
   }
 });
 
