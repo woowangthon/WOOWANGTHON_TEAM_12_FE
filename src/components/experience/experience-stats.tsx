@@ -203,7 +203,7 @@ function ActivityDrawer({ activities, onOpenActivity }: { activities: ActivitySu
                 <span className="relative block">
                   <span aria-hidden="true" className="absolute inset-0 rounded-md rounded-tl-none bg-category-soft" />
                   <span aria-hidden="true" className="absolute inset-x-4 top-0.5 h-6 rounded-sm bg-canvas opacity-0 motion-safe:transition-opacity motion-safe:duration-200 motion-safe:ease-out group-hover:opacity-100" />
-                  <span className="relative flex min-h-28 origin-bottom flex-col rounded-md bg-category-soft p-4 @xl:p-5 motion-safe:transition-[transform,box-shadow] motion-safe:duration-200 motion-safe:ease-out group-hover:shadow-mode group-hover:[transform:perspective(900px)_rotateX(-8deg)_scaleY(0.92)] group-focus-visible:outline-2 group-focus-visible:outline-ink sm:min-h-40">
+                  <span className="relative flex aspect-[5/3] min-h-28 origin-bottom flex-col rounded-md bg-category-soft p-4 @xl:p-5 motion-safe:transition-[transform,box-shadow] motion-safe:duration-200 motion-safe:ease-out group-hover:shadow-mode group-hover:[transform:perspective(900px)_rotateX(-8deg)_scaleY(0.92)] group-focus-visible:outline-2 group-focus-visible:outline-ink">
                     <span className="truncate text-sm font-bold text-ink @xl:text-base">{a.name}</span>
                     <span className="mt-1 text-xs text-category-ink tabular-nums @xl:text-sm">경험 {a.experienceCount}</span>
                     <span className="mt-auto pt-4 text-xs text-body tabular-nums sm:pt-6 @xl:text-sm"><PeriodLabel period={a.period} /></span>

@@ -28,7 +28,6 @@ import { useQuickFindOpen } from "@/components/quick-find/quick-find";
 import { DeleteActivityDialog, MergeActivityDialog, MergeExperienceDialog, MoveExperienceDialog } from "./regroup-dialogs";
 import { Timeline } from "./timeline";
 import { useExperienceDeletion } from "./use-experience-deletion";
-import { useTimelineApplications, type TimelineApplicationsState } from "./use-timeline-applications";
 import { SupplementSourceContext, supplementSource } from "./supplement-list";
 import { fetchQuestions } from "@/lib/api/questions";
 import { useAuth } from "@/components/auth/auth-gate";
@@ -58,8 +57,6 @@ export function TimelineScreen() {
   const params = useSearchParams();
   const mock = toMockMode(params.get("mock"));
   const mockAnalysis = toMockAnalysis(params.get("analysis"));
-  const applications = useTimelineApplications(params.get("applications") === "error");
-  const appItems = applications.state.status === "ready" ? applications.state.items : null;
   const [list, setList] = useState<ListState>({ status: "loading" });
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detail, setDetail] = useState<DetailState>({ status: "loading" });
@@ -556,14 +553,12 @@ export function TimelineScreen() {
       const s = spanOf(a.period, ready.now);
       if (s) spans.set(a.id, s);
     }
-    // 지원만 있는 해도 연도로 세운다 — 낸 지원이 사라져 보이지 않게
-    const marks = (appItems ?? []).map((a) => ({ start: a.month, end: a.month }));
-    // 미분류는 「전체」에만. 거른 동안엔 지원 한 줄은 그대로 두고, 아무것도 없는 해의 머리는 세우지 않는다
+    // 미분류는 「전체」에만. 거른 동안엔 아무것도 없는 해의 머리는 세우지 않는다
     const activities = categoryFilter ? ready.activities.filter((a) => categoryOf(a) === categoryFilter) : ready.activities;
-    const shown = [...activities.flatMap((a) => spans.get(a.id) ?? []), ...marks];
+    const shown = activities.flatMap((a) => spans.get(a.id) ?? []);
     const years = yearsOf(shown).filter((y) => !categoryFilter || shown.some((s) => Math.floor(s.start / 12) <= y && y <= Math.floor(s.end / 12)));
     return { spans, activities, years };
-  }, [ready, appItems, categoryFilter]);
+  }, [ready, categoryFilter]);
 
   const selected = ready?.activities.find((a) => a.id === selectedId) ?? null;
   const hasActivities = !!ready && ready.activities.length > 0;
@@ -644,10 +639,6 @@ export function TimelineScreen() {
               {/* 분류 칩은 타임라인 · 서랍 둘 다 — 서랍은 고른 분류의 활동만 센다(FE#368) */}
               <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1.5">
                 <CategoryChips value={categoryFilter} onChange={setCategoryFilter} />
-                {listView === "timeline" && <>
-                  <span className="mx-1 hidden h-4 w-px bg-hairline sm:block" aria-hidden="true" />
-                  <ApplicationsToggle shown={applications.shown} onChange={applications.setShown} state={applications.state} onRetry={applications.retry} />
-                </>}
               </div>
               {categoryFilter && timeline.activities.length === 0 && (
                 <div role="status" className="mt-6 grid justify-items-start gap-2 rounded-md bg-surface-soft px-4.5 py-5">
@@ -661,7 +652,6 @@ export function TimelineScreen() {
               {listView === "timeline" && (
                 <>
                   <Timeline
-                    applications={appItems ?? undefined}
                     activities={timeline.activities}
                     spans={timeline.spans}
                     years={timeline.years}
@@ -818,33 +808,6 @@ function CategoryChips({ value, onChange }: { value: ActivityCategory | null; on
     <div role="group" aria-label="분류로 거르기" className="flex flex-wrap items-center gap-2">
       {chip(null, "전체")}
       {CATEGORY_KEYS.map((c) => chip(c, ACTIVITY_CATEGORIES[c]))}
-    </div>
-  );
-}
-
-/** 「지원도 같이 보기」(S-37) — 기본 꺼짐. 켠 동안 지원을 못 받으면 활동은 그대로 두고 여기에만 오류 · 다시 시도 */
-function ApplicationsToggle({ shown, onChange, state, onRetry }: {
-  shown: boolean; onChange: (next: boolean) => void; state: TimelineApplicationsState; onRetry: () => void;
-}) {
-  return (
-    <div className="flex min-h-11 lg:min-h-10 flex-wrap items-center gap-x-3 gap-y-1">
-      <label className="inline-flex min-h-11 lg:min-h-10 cursor-pointer items-center gap-2 text-note text-muted">
-        <input type="checkbox" checked={shown} onChange={(e) => onChange(e.target.checked)} className="size-4 accent-record-pink" />
-        지원도 같이 보기
-      </label>
-      {state.status === "loading" && <span className="text-note text-muted" role="status">지원을 불러오고 있어요…</span>}
-      {state.status === "ready" && state.items.length === 0 && (
-        <span className="text-note text-muted" role="status">낸 지원이 아직 없어요. 작성 중인 지원은 내면 그 달에 놓여요.</span>
-      )}
-      {state.status === "error" && (
-        <span className="inline-flex flex-wrap items-center gap-2 text-note text-error" role="alert">
-          지원을 불러오지 못했어요. {state.message}
-          <Button variant="secondary" size="sm" onClick={onRetry}>
-            <ArrowsClockwiseIcon />
-            다시 시도
-          </Button>
-        </span>
-      )}
     </div>
   );
 }
