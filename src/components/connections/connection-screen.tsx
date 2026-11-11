@@ -13,19 +13,22 @@ import { createMcpConnection, deleteMcpConnection, fetchMcpConnection, setMcpWri
 import { isMockMode } from "@/lib/api/http";
 import { McpChangeLog, timestamp } from "./mcp-changes";
 import { PublicProfileSection } from "./public-profile-section";
+import { CONNECTION_CARD, FoldCard } from "./fold-card";
 import { ExportStatus, useMarkdownExport } from "@/components/export/markdown-export";
 
 const ALL = { scope: "all" } as const;
 
-/** 전체 경험을 Markdown 파일 한 장으로(S-33 · export-api) — 지원은 지원 화면에서 하나씩 */
+/** 전체 경험을 Markdown 파일 한 장으로(S-33 · export-api) — 지원은 지원 화면에서 하나씩.
+ *  버튼 하나뿐이라 접지 않고 제목 + 버튼 한 줄(FE#516) */
 function MarkdownExportSection() {
   const exporter = useMarkdownExport();
-  return <section aria-labelledby="markdown-export-title" className={cn(CONNECTION_CARD, "mt-4")}>
-    <div className="flex items-center gap-0.5"><h2 id="markdown-export-title" className="text-lg font-bold tracking-tight">파일로 내려받기</h2><InfoTip label="파일로 내려받기">출처 상태 · AI 해석 표시가 글자로 같이 들어가서, 다른 AI 에 붙여 넣어도 무엇이 확인된 사실인지 그대로 남아요.</InfoTip></div>
-    <p className="text-sm leading-relaxed text-muted">쌓은 활동 · 경험 전체를 Markdown(.md) 파일 한 장으로 받아요.</p>
-    <Button className="min-h-11 lg:min-h-10 justify-self-start" variant="secondary" disabled={exporter.busy} onClick={() => void exporter.run(ALL)}>
-      <DownloadSimpleIcon aria-hidden="true" />전체 내보내기 (.md)
-    </Button>
+  return <section aria-labelledby="markdown-export-title" className={cn(CONNECTION_CARD, "mt-4 grid gap-3")}>
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+      <div className="flex items-center gap-0.5"><h2 id="markdown-export-title" className="text-lg font-bold tracking-tight">파일로 내려받기</h2><InfoTip label="파일로 내려받기">쌓은 활동 · 경험 전체를 Markdown(.md) 파일 한 장으로 받아요. 출처 상태 · AI 해석 표시가 글자로 같이 들어가서, 다른 AI 에 붙여 넣어도 무엇이 확인된 사실인지 그대로 남아요.</InfoTip></div>
+      <Button className="min-h-11 lg:min-h-10" variant="secondary" disabled={exporter.busy} onClick={() => void exporter.run(ALL)}>
+        <DownloadSimpleIcon aria-hidden="true" />Markdown 으로 내려받기
+      </Button>
+    </div>
     <ExportStatus exporter={exporter} target={ALL} />
   </section>;
 }
@@ -44,8 +47,6 @@ const CONFIRM = {
     action: "쓰기 켜기",
   },
 };
-
-const CONNECTION_CARD = "grid gap-4 rounded-md border border-hairline-soft p-4 sm:p-5";
 
 /** 연결하면 무엇을 할 수 있는지 보이는 그림(시안 6) — 실제 대화가 아니라 예시라고 밝힌다 */
 function ChatExample() {
@@ -157,6 +158,12 @@ export function ConnectionScreen() {
     }
   }
 
+  // 접혀 있어도 보이는 한 줄 — 짐작하지 않고 서버가 준 값만 글자로 쓴다
+  const status = error ? "확인하지 못했어요 · 펼쳐서 다시 확인"
+    : !connection ? "확인하는 중…"
+    : connection.connected ? `연결됨 · 쓰기 ${connection.writeEnabled ? "켜짐" : "꺼짐"}`
+    : "연결 안 함";
+
   async function copy() {
     if (!url) return;
     const current = generation.current;
@@ -176,9 +183,8 @@ export function ConnectionScreen() {
       {mock && <p role="note" className="mt-6 rounded-sm border border-hairline bg-surface-soft p-4 text-sm leading-relaxed">
         목 모드 · 연결 관리 화면을 미리 보는 중이에요. 표시되는 임시 주소는 Claude에서 사용할 수 없어요. 실제 연결은 만들어지지 않아요.
       </p>}
-      <section aria-labelledby="mcp-title" className={cn(CONNECTION_CARD, "mt-6")}>
-        <div className="flex items-center gap-0.5"><h2 id="mcp-title" className="text-lg font-bold tracking-tight">다른 AI 에서 내 경험 쓰기</h2><InfoTip label="다른 AI 에서 내 경험 쓰기">Claude 같은 AI 에 차곡을 연결하면, 거기서 「차곡에서 협업 경험 찾아 줘」라고 해도 근거와 함께 꺼내 와요.</InfoTip></div>
-
+      <FoldCard id="mcp" className="mt-6" title="다른 AI 에서 내 경험 쓰기" status={status} statusTone={error ? "error" : undefined}
+        tip="Claude 같은 AI 에 차곡을 연결하면, 거기서 「차곡에서 협업 경험 찾아 줘」라고 해도 근거와 함께 꺼내 와요.">
         {error && <div role="alert" className="space-y-3">
           <p className="text-sm leading-relaxed text-error">{error}</p>
           <Button className="min-h-11 lg:min-h-10" disabled={busy} onClick={() => { setBusy(true); setError(null); void load(); }}>연결 상태 다시 확인</Button>
@@ -238,12 +244,9 @@ export function ConnectionScreen() {
             <p className="mt-2 text-sm text-muted">&lt;주소&gt; 자리에 복사한 연결 주소를 넣으세요.</p>
           </div>
         </details>
-      </section>
+      </FoldCard>
       <McpChangeLog writeEnabled={!!connection?.writeEnabled} />
-      <section aria-labelledby="export-title" className={cn(CONNECTION_CARD, "mt-4")}>
-        <h2 id="export-title" className="text-lg font-bold tracking-tight">꺼내서 보여 주기</h2>
-        <PublicProfileSection />
-      </section>
+      <PublicProfileSection />
       <MarkdownExportSection />
     </main>
     <Dialog open={confirm !== null} onOpenChange={(open) => { if (!open) setConfirm(null); }}>

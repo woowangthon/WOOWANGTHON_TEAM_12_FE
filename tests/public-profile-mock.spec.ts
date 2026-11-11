@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { openCard, PROFILE_CARD } from "./fold-card";
 
 // 목 모드(MOCK(public-profile)) 흐름 — 고르기 → 켜기 → 로그인 없는 페이지 → 끄기. 화면 확인용 사진도 여기서 찍는다(FE#133).
 const shot = (page: Page, name: string) => page.screenshot({ path: `docs/fe-133/${name}.png`, fullPage: true, style: "nextjs-portal { display: none !important; }" });
@@ -27,6 +28,7 @@ test("pick, publish, read without login, then turn off", async ({ page, context 
   await shot(page, `experience-${width}`);
 
   await page.goto("/connections");
+  await openCard(page, PROFILE_CARD);
   await expect(page.getByText("고른 경험 2개")).toBeVisible();
   await page.getByLabel("제목 한 줄").fill("백엔드를 공부하는 대학생의 경험");
   await page.getByRole("button", { name: "제목 저장" }).click();

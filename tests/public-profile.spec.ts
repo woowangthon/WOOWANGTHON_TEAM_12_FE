@@ -3,6 +3,7 @@ import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import type { ActivityDetail, Experience } from "../src/lib/api/types";
 import type { PublicProfile, PublicProfileSettings } from "../src/lib/api/share";
+import { openCard, PROFILE_CARD } from "./fold-card";
 
 const exp = (id: number, content: string, sourceStatus: Experience["sourceStatus"], shared = false): Experience => ({
   id, activityId: 7, content, competencies: ["PROBLEM_SOLVING"], competenciesBy: "AI", actor: "ME", sourceStatus, citations: [], shared,
@@ -125,9 +126,25 @@ async function connections(page: Page, initial: Partial<PublicProfileSettings>) 
     return route.fulfill(fail(404, "NOT_FOUND"));
   });
   await page.goto("/connections");
-  await expect(page.getByRole("heading", { name: "공개 프로필" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: PROFILE_CARD })).toBeVisible();
+  await openCard(page, PROFILE_CARD);
   return state;
 }
+
+// FE#516 — 카드는 접힌 한 줄로 시작하고 상태가 글자로 보인다. 주소 해시(#public-profile)로 들어오면 펼쳐진다
+test("card starts folded with its state in words, and opens from the #public-profile address", async ({ page }) => {
+  await connections(page, { sharedCount: 3, visibleCount: 2 });
+  const toggle = page.getByRole("button", { name: PROFILE_CARD, exact: true });
+  await page.goto("/connections");
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(toggle).toHaveAccessibleDescription("꺼짐");
+  await expect(page.getByRole("button", { name: "링크 켜기" })).toBeHidden();
+  await page.goto("/connections#public-profile");
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("button", { name: "링크 켜기" })).toBeVisible();
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+});
 
 test("link cannot be turned on with nothing visible, and says why", async ({ page }) => {
   await connections(page, {});
