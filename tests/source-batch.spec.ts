@@ -203,7 +203,9 @@ test("자료 더하기 — 못 찾으면 그렇다고 보이고 새 활동으로
     await page.screenshot({ path: "test-results/source-add-missed-1024.png", style: "nextjs-portal { display: none !important; }" });
   }
   await page.reload();
-  await expect(detail.getByText("이 활동 내용을 찾지 못했어요")).toBeVisible();
-  await detail.getByRole("button", { name: "다른 활동 보기" }).click();
+  // 새로고침 뒤에는 타임라인 위 알림 줄에 남는다 — 세부가 아니라 화면 머리의 상태 줄
+  const notice = page.getByRole("status").filter({ hasText: "이 활동 내용을 찾지 못했어요" });
+  await expect(notice).toBeVisible();
+  await notice.getByRole("button", { name: "다른 활동 보기" }).click();
   await expect(page.getByRole("heading", { name: "다른 활동" })).toBeVisible();
 });
