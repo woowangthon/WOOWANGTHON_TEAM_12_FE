@@ -299,11 +299,11 @@ test("ASK 면 꺼내기로 경험 카드 · 근거 · AI 해석을 보이고 활
   await expect(card).toContainText("2025.03 – 2025.06");
   await expect(card).toContainText("매주 금요일 스프린트 회고를 했다");
   await expect(card).toContainText("AI 해석");
-  await expect(card).toContainText("팀은 매주 금요일 스프린트 회고를 했다.");
-  await expect(card).toContainText("회고 안건을 모았다");
+  await expect(card).toContainText("바꿔요-회고.md"); // 근거는 발췌문 대신 파일 · 줄 한 줄(e8bb013 · FE#363)
+  await expect(card.getByTitle("회고 안건을 모았다")).toContainText("내가 입력한 보완");
   expect(calls.asks).toEqual([{ text: "동아리에서 의견 모아 본 적 있었나?" }]);
   expect(calls.applications).toHaveLength(0);
-  await expect(card.getByRole("link", { name: "활동 세부 보기 →" })).toHaveAttribute("href", "/experience?activity=7");
+  await expect(card.getByRole("link", { name: /활동 세부 보기$/ })).toHaveAttribute("href", "/experience?activity=7"); // 활동 이름이 곧 링크다(e8bb013)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
   await page.screenshot({ path: `artifacts/ask-answer-${info.project.name}.png`, fullPage: true });

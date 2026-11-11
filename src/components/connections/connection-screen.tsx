@@ -172,7 +172,6 @@ export function ConnectionScreen() {
           {connection.connected ? <>
             <b className="font-semibold">연결됨</b>
             <span className="text-muted">· {connection.lastUsedAt ? <>마지막 사용 <time dateTime={connection.lastUsedAt}>{timestamp(connection.lastUsedAt)}</time></> : "Claude에서 아직 안 쓰임"}</span>
-            <span className="text-muted">· 만든 시각 <time dateTime={connection.createdAt}>{timestamp(connection.createdAt)}</time> (한국 시간)</span>
           </> : <b className="font-semibold">아직 연결이 없어요</b>}
         </p>}
 
@@ -183,8 +182,8 @@ export function ConnectionScreen() {
             <Button className="min-h-11 lg:min-h-10" onClick={() => void copy()}>주소 복사</Button>
           </div>
           <p className="text-sm leading-relaxed text-muted">지금 복사해 두세요. 화면을 떠나거나 새로고침하면 다시 볼 수 없어요.</p>
-        </div> : connection?.connected && <p className="inline-flex items-center gap-0.5 text-sm text-muted">주소는 만들 때 한 번만 보여요<InfoTip label="연결 주소">잃어버렸다면 「다시 만들기」로 새 주소를 받으세요.</InfoTip></p>}
-        <p className="text-note leading-relaxed text-muted">연결하면 내 경험 · 근거가 연결한 AI(Claude 등)로 전송돼요 · 주소는 비밀번호처럼 남에게 보여 주지 마세요<InfoTip label="전송" className="align-middle">기본은 읽기만 해요. 쓰기는 따로 켜야 해요.</InfoTip></p>
+        </div> : connection?.connected && <p className="text-sm text-muted">주소는 만들 때 한 번만 보여요. 잃어버렸으면 「다시 만들기」로 새 주소를 받아 주세요.</p>}
+        <p className="text-note leading-relaxed text-muted">연결하면 내 경험 · 근거가 연결한 AI(Claude 등)로 전송돼요 · 주소는 비밀번호처럼 남에게 보여 주지 마세요.</p>
 
         {connection && (connection.connected
           ? <div className="flex flex-wrap gap-2">
@@ -196,7 +195,7 @@ export function ConnectionScreen() {
         {connection?.connected && <div className="flex items-center justify-between gap-4 border-t border-hairline-soft pt-4">
           <div className="min-w-0">
             <p id="mcp-write" className="text-sm font-semibold">외부 AI 쓰기</p>
-            <p id="mcp-write-hint" className="mt-1 text-sm leading-relaxed text-muted">{connection.writeEnabled ? "외부 AI가 확인 없이 자료를 넣고 경험 본문을 고칠 수 있어요. 지원을 만들고 되묻기에 답할 수도 있어요." : "꺼져 있어요. 외부 AI는 읽기만 해요."}</p>
+            <p id="mcp-write-hint" className="mt-1 text-sm leading-relaxed text-muted">{connection.writeEnabled ? "켜져 있어요. 외부 AI가 확인 없이 자료 · 경험 본문 · 지원 · 되묻기 답을 바꿀 수 있어요." : "꺼져 있어요. 외부 AI는 읽기만 해요."}</p>
           </div>
           <button type="button" role="switch" aria-checked={connection.writeEnabled} aria-labelledby="mcp-write" aria-describedby="mcp-write-hint" disabled={busy}
             onClick={() => { if (connection.writeEnabled) void setWrite(false); else setConfirm("write"); }}
