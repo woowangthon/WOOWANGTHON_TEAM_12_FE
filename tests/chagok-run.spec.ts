@@ -151,13 +151,16 @@ test("FAILED 는 이유와 다시 시도 — 같은 부탁으로 새 일", async
   expect([...chagok.runs.keys()]).toEqual([55, 56]);
 });
 
-test("429 는 이유와 다시 시도 · 쓴 글은 남는다", async ({ page }) => {
+test("429 는 이유를 보이고 다시 시도는 막는다 · 쓴 글은 남는다 (FE#391)", async ({ page }) => {
   const chagok = await open(page);
   chagok.startErrors = [{ status: 429, code: "DAILY_LIMIT_EXCEEDED" }];
   await ask(page, "찾아 줘");
   await expect(panel(page).getByText("오늘 쓸 수 있는 분석을 다 썼어요.")).toBeVisible();
   await expect(panel(page).getByLabel("차곡이에게 부탁하기")).toHaveValue("찾아 줘");
-  await panel(page).getByRole("button", { name: "다시 시도" }).click();
+  // 0회면 분석을 다시 쓰는 「다시 시도」를 두지 않는다(01a79e9 · FE#391) — 자정에 채워지면 같은 글로 다시 보낸다
+  await expect(panel(page).getByRole("button", { name: "다시 시도" })).toHaveCount(0);
+  chagok.startErrors = [];
+  await ask(page, "찾아 줘");
   await expect(panel(page).getByText("차곡이가 일하고 있어요")).toBeVisible();
   await expect(panel(page).getByLabel("차곡이에게 부탁하기")).toHaveValue("");
 });
