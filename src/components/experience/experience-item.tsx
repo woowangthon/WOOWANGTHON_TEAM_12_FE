@@ -131,9 +131,9 @@ type Props = {
   starOpen?: boolean;
   onToggleStar?: () => void;
   onShowStar?: () => void;
-  /** STALE · FAILED 펼침의 「다시 정리」 — 활동 단위 */
-  onOrganizeStar?: () => void;
-  organizingStar?: boolean;
+  /** FAILED 「다시 시도」 — 활동 단위(계약) */
+  onRetryStar?: () => void;
+  retryingStar?: boolean;
   onSaved: (experience: Experience) => void;
   onDelete: (experience: Experience) => void;
   /** 메뉴 「다른 활동으로 옮기기」 — 모바일 · 끌기 어려운 곳 (S-12) */
@@ -145,7 +145,7 @@ type Props = {
   dragging: boolean;
 };
 
-export function ExperienceItem({ experience, citationsOpen, onToggleCitations, onShowCitations, starOpen = false, onToggleStar, onShowStar, onOrganizeStar, organizingStar, onSaved, onDelete, onMove, onMerge, onDragChange, dragging, readOnly = false }: Props) {
+export function ExperienceItem({ experience, citationsOpen, onToggleCitations, onShowCitations, starOpen = false, onToggleStar, onShowStar, onRetryStar, retryingStar, onSaved, onDelete, onMove, onMerge, onDragChange, dragging, readOnly = false }: Props) {
   const [editing, setEditing] = useState(false);
   const [usedInOpen, setUsedInOpen] = useState(false);
   const e = experience;
@@ -237,8 +237,8 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
         )}
         {/* STAR 점 넷 — 근거 열기 옆, 줄 높이 그대로(DESIGN.md 「경험 줄 — STAR 칸」). PC 는 아래로 펼치고 모바일은 시트 */}
         {!readOnly && onToggleStar && onShowStar && <>
-          <span className="hidden lg:inline-flex"><StarToggle star={e.star} open={starOpen} onClick={onToggleStar} /></span>
-          <span className="inline-flex lg:hidden"><StarToggle star={e.star} open={false} onClick={onShowStar} /></span>
+          <span className="hidden lg:inline-flex"><StarToggle star={e.star} open={starOpen} onClick={onToggleStar} onRetry={onRetryStar} retrying={retryingStar} /></span>
+          <span className="inline-flex lg:hidden"><StarToggle star={e.star} open={false} onClick={onShowStar} onRetry={onRetryStar} retrying={retryingStar} /></span>
         </>}
         </span>
       </div>
@@ -252,7 +252,7 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
       )}
       {starOpen && !readOnly && (
         <div className="mt-1.5 hidden lg:block">
-          <StarPanel experience={e} onSaved={keepUsedIn} onShowCitations={onToggleCitations} onOrganize={onOrganizeStar} organizing={organizingStar} />
+          <StarPanel experience={e} onSaved={keepUsedIn} onShowCitations={onToggleCitations} onRetry={onRetryStar} retrying={retryingStar} />
         </div>
       )}
       {(readOnly ? <SupplementList supplements={e.supplements ?? []} /> : <SupplementList supplements={e.supplements ?? []}

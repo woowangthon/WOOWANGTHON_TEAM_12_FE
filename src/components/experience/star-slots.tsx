@@ -5,9 +5,9 @@
 import { useRef, useState } from "react";
 import { CaretDownIcon } from "@phosphor-icons/react";
 import { InfoTip } from "@/components/ui/info-tip";
-import { AnalysisButton } from "@/components/auth/analysis-cost";
+import { Button } from "@/components/ui/button";
 import { InlineTextarea } from "./inline-edit";
-import { answerStarSlot, updateStarSlot } from "@/lib/api/experience";
+import { answerStarSlot, resortStar, updateStarSlot } from "@/lib/api/experience";
 import type { Experience, Star, StarSlot, StarSlotName } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
@@ -19,14 +19,16 @@ export const STAR_MAX = 1000;
 
 /** 칸을 보일 상태인가 — NONE · ANALYZING 은 칸이 없고, FAILED 는 이전 칸이 있을 때만 */
 export const hasStarSlots = (star: Star | undefined): star is Star => !!star && star.slots.length === 4 && star.status !== "NONE" && star.status !== "ANALYZING";
-/** 「STAR 로 정리」 대상 — 정리 안 함 · 실패 · 근거가 바뀜 */
-export const needsStar = (e: Experience) => !!e.star && (e.star.status === "NONE" || e.star.status === "STALE" || e.star.status === "FAILED");
-
-/** 메타 줄 오른쪽 — S● T○ A● R○. 글자와 점을 함께(색만으로 가르지 않는다). 정리 중이면 그 자리에 글자 */
-export function StarToggle({ star, open, onClick }: { star: Star | undefined; open: boolean; onClick: () => void }) {
+/** 메타 줄 오른쪽 — S● T○ A● R○. 글자와 점을 함께(색만으로 가르지 않는다). 정리 중이면 그 자리에 글자.
+ * 정리 안 한(NONE) 경험은 BE 가 알아서 나누니 아무것도 안 그린다(ADR-018). 칸이 없는 FAILED 만 「다시 시도」 */
+export function StarToggle({ star, open, onClick, onRetry, retrying = false }: { star: Star | undefined; open: boolean; onClick: () => void; onRetry?: () => void; retrying?: boolean }) {
   if (star?.status === "ANALYZING") return <span role="status" className="inline-flex items-center gap-1 text-xs text-muted">
     <span aria-hidden="true" className="size-1.5 animate-pulse rounded-full bg-muted" />STAR 정리 중
   </span>;
+  if (star?.status === "FAILED" && !hasStarSlots(star)) return onRetry ? <button type="button" onClick={onRetry} disabled={retrying}
+    className="inline-flex min-h-8 items-center rounded-md px-1 py-0.5 text-xs font-medium text-error hover:bg-surface-soft disabled:opacity-50">
+    STAR 정리하지 못했어요 · 다시 시도
+  </button> : null;
   if (!hasStarSlots(star)) return null;
   const filled = star.slots.filter((s) => s.text !== null).length;
   return <button type="button" onClick={onClick} aria-expanded={open}
@@ -46,23 +48,38 @@ type PanelProps = {
   onSaved: (experience: Experience) => void;
   /** 「원문」 — 그 경험의 근거를 연다 */
   onShowCitations: () => void;
-  /** STALE · FAILED 의 「다시 정리」 — 활동 단위(계약). 없으면 버튼을 숨긴다 */
-  onOrganize?: () => void;
-  organizing?: boolean;
+  /** FAILED 의 「다시 시도」 — 활동 단위(계약). 없으면 버튼을 숨긴다 */
+  onRetry?: () => void;
+  retrying?: boolean;
 };
 
 /** 펼친 네 칸 — 근거 펼침과 같은 면(surface-soft). 줄 사이는 여백만(상자 안 상자 없음) */
-export function StarPanel({ experience: e, onSaved, onShowCitations, onOrganize, organizing = false }: PanelProps) {
+export function StarPanel({ experience: e, onSaved, onShowCitations, onRetry, retrying = false }: PanelProps) {
   const star = e.star;
+  const [resorting, setResorting] = useState(false);
+  const [resortError, setResortError] = useState<string | null>(null);
   if (!hasStarSlots(star)) return null;
+  // 「다시 나누기」 — 이 경험 하나만(세지 않는다). 응답은 ANALYZING 이라 이 패널은 접히고 점 자리에 「STAR 정리 중」이 뜬다
+  const resort = async () => {
+    if (resorting) return;
+    setResorting(true); setResortError(null);
+    try { onSaved(await resortStar(e.id)); }
+    catch (err) { setResortError(`다시 나누지 못했어요. ${errorText(err)}`); }
+    finally { setResorting(false); }
+  };
   return <div className="grid gap-3.5 rounded-sm bg-surface-soft px-3.5 py-3" aria-label="STAR 칸">
-    {(star.status === "STALE" || star.status === "FAILED") && <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-      <p className={cn("m-0 text-note", star.status === "FAILED" ? "font-medium text-error" : "text-muted")}>
-        {star.status === "FAILED" ? "정리하지 못했어요" : "근거가 바뀌었어요"}
-      </p>
-      {onOrganize && <AnalysisButton variant="secondary" size="sm" className="min-h-11 lg:min-h-8" running={organizing} disabled={organizing} onClick={onOrganize}>다시 정리</AnalysisButton>}
+    {star.status === "FAILED" && <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+      <p className="m-0 text-note font-medium text-error">정리하지 못했어요</p>
+      {onRetry && <Button variant="secondary" size="sm" className="min-h-11 lg:min-h-8" disabled={retrying} onClick={onRetry}>다시 시도</Button>}
     </div>}
     {star.slots.map((slot) => <StarRow key={`${slot.slot}-${slot.text === null}`} experience={e} slot={slot} onSaved={onSaved} onShowCitations={onShowCitations} />)}
+    {star.hasNew && star.status !== "FAILED" && <div className="grid justify-items-start gap-1">
+      <button type="button" onClick={() => void resort()} disabled={resorting}
+        className="-mx-1 rounded-md px-1 py-0.5 text-note font-medium text-muted underline-offset-3 hover:bg-surface-strong hover:text-ink hover:underline disabled:opacity-50 max-lg:min-h-11">
+        {resorting ? "다시 나누는 중…" : "새 답 넣어 다시 나누기"}
+      </button>
+      {resortError && <p role="alert" className="m-0 text-note text-error">{resortError}</p>}
+    </div>}
   </div>;
 }
 

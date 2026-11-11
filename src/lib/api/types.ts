@@ -103,7 +103,7 @@ export type ActivitySummary = {
   mergeSuggestion?: MergeSuggestion | null;
   /** S-97 — 이 활동 경험들의 STAR 빈칸 수. 이전 응답엔 없을 수 있다 */
   starGapCount?: number;
-  /** STAR 를 정리하지 않았거나(NONE) 실패했거나(FAILED) 다시 정리할(STALE) 경험 수 */
+  /** STAR 를 아직 정리하지 않았거나(NONE) 실패한(FAILED) 경험 수 — 정리는 BE 가 알아서 해서 화면은 이 수로 버튼을 띄우지 않는다 */
   starUnsortedCount?: number;
 };
 
@@ -161,7 +161,8 @@ export type StarSlot = {
   sourceId: number | null;
   question: string | null;
 };
-export type Star = { status: StarStatus; slots: StarSlot[] };
+/** hasNew — 마지막 정리 뒤 칸 밖에 새 답 · 근거가 생겼나(BE#184). true 일 때만 「다시 나누기」를 보인다. STALE 은 더 오지 않는다(ADR-019) */
+export type Star = { status: StarStatus; slots: StarSlot[]; hasNew?: boolean };
 
 /** GET /api/experiences 의 경험 — activityId 대신 activity, usedIn 은 없다(S-58) */
 export type ExperienceResult = Omit<Experience, "activityId" | "usedIn"> & {

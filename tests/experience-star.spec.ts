@@ -1,4 +1,4 @@
-// 경험 STAR 칸 — 펼치기 · 빈칸 답하기 · 찬 칸 고치기 · STAR 로 정리 (FE#497 · SPEC S-95 · S-96 · experience-api.md 「STAR 칸」)
+// 경험 STAR 칸 — 펼치기 · 빈칸 답하기 · 찬 칸 고치기 · FAILED 다시 시도 · 다시 나누기 (FE#497 · FE#515 · SPEC S-95 · S-96 · experience-api.md 「STAR 칸」)
 // Test-only HTTP fixture; this is not a deployed backend or persistence verification.
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
@@ -7,8 +7,9 @@ import type { ActivityDetail, Experience, Star, StarSlotName } from "../src/lib/
 const T_QUESTION = "이 버그는 누가 맡았나요?";
 const R_QUESTION = "고친 뒤 무엇이 달라졌나요?";
 
-const readyStar = (): Star => ({
+const readyStar = (hasNew = false): Star => ({
   status: "READY",
+  hasNew,
   slots: [
     { slot: "S", text: "자식 프로세스가 좀비로 남는 버그", sourceType: "CITATION", sourceId: 201, question: null },
     { slot: "T", text: null, sourceType: null, sourceId: null, question: T_QUESTION },
@@ -49,6 +50,11 @@ async function setup(page: Page, star: Star) {
       state.calls.push({ method: req.method(), path, body });
       fill((answer ?? put)![1] as StarSlotName, answer ? body.answer : body.text);
       return route.fulfill({ json: experience });
+    }
+    if (path === "/api/experiences/101/star") {
+      state.calls.push({ method: req.method(), path, body });
+      experience.star = { status: "ANALYZING", slots: [], hasNew: false };
+      return route.fulfill({ status: 202, json: experience });
     }
     if (path === "/api/activities/7/star") {
       state.calls.push({ method: req.method(), path, body });
@@ -122,14 +128,71 @@ test("근거 펼침과 STAR 펼침은 한 번에 하나다", async ({ page }) =>
   await expect(page.getByText("fork/exec 흐름에서 자식 프로세스가 좀비로 남는 버그")).toHaveCount(0);
 });
 
-test("정리 안 한 경험은 점 대신 목록 머리 「STAR 로 정리」 — 누르면 정리 중을 따라가 칸이 생긴다", async ({ page }) => {
+// FE#515 — 「STAR 로 정리」 · 「다시 정리」 버튼은 없다. 정리 안 한 경험은 BE 가 알아서 나눈다(ADR-018)
+test("정리 안 한 경험은 조용하다 — 정리 버튼 · 점 · 글자가 어디에도 없다", async ({ page }) => {
   const state = await setup(page, { status: "NONE", slots: [] });
   await expect(page.getByRole("button", { name: /^STAR 칸 — / })).toHaveCount(0);
-  await page.getByRole("button", { name: "STAR 로 정리", exact: true }).click();
+  await expect(page.getByRole("button", { name: /STAR 로 정리|다시 정리|다시 시도|다시 나누기/ })).toHaveCount(0);
+  await expect(page.getByText(/STAR 정리/)).toHaveCount(0);
+  expect(state.calls).toEqual([]);
+});
+
+test("실패한 경험(칸 없음)만 「다시 시도」 — 누르면 정리 중을 따라가 칸이 생긴다", async ({ page }) => {
+  const state = await setup(page, { status: "FAILED", slots: [] });
+  await page.getByRole("button", { name: /STAR 정리하지 못했어요 · 다시 시도/ }).locator("visible=true").click();
   expect(state.calls).toEqual([{ method: "POST", path: "/api/activities/7/star", body: null }]);
   await expect(page.getByText("STAR 정리 중", { exact: true }).locator("visible=true")).toBeVisible();
   await expect(starButton(page)).toHaveAccessibleName(/찬 칸 2 · 빈칸 2/, { timeout: 15000 });
-  await expect(page.getByRole("button", { name: /STAR 로 정리/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /다시 시도/ })).toHaveCount(0);
+});
+
+test("실패했지만 앞 칸이 있으면 펼친 칸 위에 「다시 시도」", async ({ page }) => {
+  const state = await setup(page, { ...readyStar(), status: "FAILED" });
+  await starButton(page).click();
+  const panel = page.getByLabel("STAR 칸", { exact: true }).locator("visible=true");
+  await expect(panel.getByText("정리하지 못했어요")).toBeVisible();
+  await panel.getByRole("button", { name: "다시 시도" }).click();
+  expect(state.calls).toEqual([{ method: "POST", path: "/api/activities/7/star", body: null }]);
+});
+
+test("새 답이 있을 때만 펼친 칸 아래 「다시 나누기」 — 그 경험만 다시 나뉜다", async ({ page }) => {
+  const state = await setup(page, readyStar(true));
+  // 접힌 줄 · 활동 상단엔 없다
+  await expect(page.getByRole("button", { name: /다시 나누기/ })).toHaveCount(0);
+  await starButton(page).click();
+  const panel = page.getByLabel("STAR 칸", { exact: true }).locator("visible=true");
+  await panel.getByRole("button", { name: "새 답 넣어 다시 나누기" }).click();
+  expect(state.calls).toEqual([{ method: "POST", path: "/api/experiences/101/star", body: null }]);
+  await expect(page.getByText("STAR 정리 중", { exact: true }).locator("visible=true")).toBeVisible();
+  // 끝나면 펼친 자리(PC 패널 · 모바일 시트)에 칸이 돌아오고 버튼은 사라진다
+  await expect(page.getByLabel("STAR 칸", { exact: true }).locator("visible=true")).toBeVisible({ timeout: 15000 });
+  await expect(page.getByRole("button", { name: /다시 나누기/ })).toHaveCount(0);
+});
+
+test("새 답이 없으면 펼쳐도 「다시 나누기」가 없다", async ({ page }) => {
+  await setup(page, readyStar(false));
+  await starButton(page).click();
+  await expect(page.getByLabel("STAR 칸", { exact: true }).locator("visible=true")).toBeVisible();
+  await expect(page.getByRole("button", { name: /다시 나누기/ })).toHaveCount(0);
+});
+
+// FE#515 PR 스크린샷 — UPDATE_STAR_SCREENSHOTS=1 일 때만. 활동 세부: 접힘(버튼 없음) · 펼침 · 새 답이 있어 「다시 나누기」 보임
+test("활동 세부 접힘 · 펼침 · 다시 나누기 스크린샷", async ({ page }, info) => {
+  test.skip(process.env.UPDATE_STAR_SCREENSHOTS !== "1", "스크린샷을 새로 찍을 때만");
+  await setup(page, readyStar(false));
+  const style = "nextjs-portal { display: none !important; }";
+  const width = info.project.name === "desktop" ? 1440 : 390;
+  await page.screenshot({ path: `docs/fe-515/collapsed-${width}.png`, style });
+  await starButton(page).click();
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: `docs/fe-515/expanded-${width}.png`, style });
+  if (width === 390) await page.keyboard.press("Escape");
+  await page.unroute("**/api/**");
+  await setup(page, readyStar(true));
+  await starButton(page).click();
+  await expect(page.getByRole("button", { name: "새 답 넣어 다시 나누기" })).toBeVisible();
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: `docs/fe-515/resort-${width}.png`, style });
 });
 
 // FE#512 PR 스크린샷 — UPDATE_STAR_SCREENSHOTS=1 일 때만. STAR 펼침 · 빈칸 쓰는 중 · 보완 줄(답 글만)
