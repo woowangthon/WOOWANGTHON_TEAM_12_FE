@@ -5,12 +5,19 @@
     {
       "name": "보기 전환",
       "design": ".vt",
-      "app": "[data-slot=view-switch]"
+      "app": "[data-slot=view-switch]",
+      "intent": {
+        "너비": "시안은 타임라인 · 목록 · 자료별 세 보기, 앱은 타임라인 · 서랍 둘(S-83)이라 버튼 하나만큼 좁다",
+        "바깥 여백": "시안은 부모 space-between 으로 오른쪽에 붙이고, 앱은 ml-auto 로 붙인다 — 놓이는 자리는 같다"
+      }
     },
     {
       "name": "보기 전환 버튼",
       "design": ".vt button",
-      "app": "[data-slot=view-switch] button"
+      "app": "[data-slot=view-switch] button",
+      "intent": {
+        "간격": "1024 미만에서 아이콘 옆에 보이는 이름과의 간격. 1024 이상은 이름이 sr-only 라 화면에 차이가 없다"
+      }
     },
     {
       "name": "저장 상태 · 최근 수정",
