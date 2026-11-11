@@ -143,6 +143,7 @@ test.describe("글 만들기", () => {
         "# chagok/bakkwoyo — GitHub",
         "링크: https://github.com/chagok/bakkwoyo",
         "설명: 캠퍼스 중고거래 앱",
+        "기간: 2025-05-03 ~ 2025-05-10 (내 커밋 · PR 날짜)",
         "",
         "## README",
         "# 바꿔요",
@@ -164,6 +165,24 @@ test.describe("글 만들기", () => {
     const zero = buildGitHubSource({ ...data, commits: [], pulls: [] });
     expect(zero.text).not.toContain("## 내가");
     expect(zero).toMatchObject({ commitCount: 0, pullCount: 0 });
+    // 기간 줄도 커밋 · PR 이 있을 때만 — 아이디를 비우면 쓰지 않는다
+    expect(readmeOnly.text).not.toContain("기간:");
+    expect(zero.text).not.toContain("기간:");
+    expect(buildGitHubSource({ ...data, login: null }).text).not.toContain("기간:");
+  });
+
+  test("기간은 커밋 · PR 날짜 중 가장 이른 날 ~ 가장 늦은 날 — 하루뿐이면 그날 하나 (FE#485)", () => {
+    const many = buildGitHubSource({
+      ...data,
+      commits: [
+        { date: "2026-01-16", title: "rds 적용" },
+        { date: "2025-11-09", title: "프로젝트 시작" },
+      ],
+      pulls: [{ date: "2025-12-01", number: 3, title: "로그인", state: "merged" }],
+    });
+    expect(many.text).toContain("\n기간: 2025-11-09 ~ 2026-01-16 (내 커밋 · PR 날짜)\n");
+    const one = buildGitHubSource({ ...data, pulls: [] });
+    expect(one.text).toContain("\n기간: 2025-05-03 (내 커밋 · PR 날짜)\n");
   });
 
   test("50000자를 넘으면 README 뒤를 잘라 맞추고 잘랐다는 줄을 글에 남긴다 — 커밋 · PR 절은 남는다", () => {
