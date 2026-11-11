@@ -381,8 +381,8 @@ export function useApplications(composingAtStart = false) {
         throw e;
       } finally { drafting.current.delete(question.id); setDraftingIds([...drafting.current]); }
     },
-    submit: (req: CreateApplicationRequest) => once(async () => {
-      const { applicationId, questionIds } = await submitApplication(req);
+    submit: (req: CreateApplicationRequest, targetLengths?: (number | null)[]) => once(async () => {
+      const { applicationId, questionIds } = await submitApplication(req, targetLengths);
       await reloadAfter(async version => {
         const [applications, fresh] = await Promise.all([fetchApplications(), Promise.all(questionIds.map(fetchQuestion))]);
         // 문항 없이 공고 줄만 넣었으면(S-18) 「공고」 탭을 연다

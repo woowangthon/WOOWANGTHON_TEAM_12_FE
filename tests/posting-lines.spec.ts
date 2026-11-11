@@ -20,7 +20,7 @@ async function splitPosting(page: Page) {
   await page.route("**/api/entrance/parse-application", r => r.fulfill({ json: PARSED }));
   await page.goto("/questions");
   await page.getByLabel("공고 · 문항 글이나 공고 링크").fill(POSTING);
-  await page.getByRole("button", { name: "AI 로 나누기", exact: true }).click();
+  await page.getByRole("button", { name: "읽기", exact: true }).click();
 }
 
 test("a posting without questions shows its lines in sections, lets me fix them, and goes in with zero questions", async ({ page }) => {
@@ -87,12 +87,13 @@ test("with no posting lines and no questions the submit button stays off with a 
     const group = review.getByRole("group", { name });
     while (await group.count()) await group.getByRole("button", { name: /줄 빼기/ }).first().click();
   }
-  await expect(review.getByText("공고 요건을 찾지 못했어요.")).toBeVisible();
-  await expect(page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true })).toBeDisabled();
+  // 공고 요건은 있을 때만 보인다(FE#508)
+  await expect(review).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "문항 1개로 경험 찾기", exact: true })).toBeDisabled();
   await expect(page.getByText("문항이나 공고 요건을 하나 이상 넣어 주세요.")).toBeVisible();
   // 문항을 고르면 다시 켜지고 지금 문구로
   await page.getByRole("region", { name: "자주 나오는 문항" }).getByRole("checkbox").first().check();
   await page.getByRole("region", { name: "자주 나오는 문항" }).getByRole("button", { name: "고른 문항 1개 넣기", exact: true }).click();
-  await expect(page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "문항 1개로 경험 찾기", exact: true })).toBeEnabled();
   expect(api.calls.filter(c => c.call === "POST /api/applications")).toEqual([]);
 });

@@ -14,6 +14,26 @@ export function targetLengthFromText(text: string): number | null {
   return null;
 }
 
+// 문항 글 끝의 글자 수 표기 — 「(1000자)」 「(공백 포함 500자 이내)」 「[700자]」 「500자 이내」 「최대 1,000자.」
+const NUM = String.raw`(\d{1,2},\d{3}|\d{2,5})`;
+const TAIL_BRACKET = new RegExp(String.raw`\s*[(\[（［][^()\[\]（）［］]*?${NUM}\s*자(?!리)[^()\[\]（）［］]*[)\]）］]\s*[.。]?\s*$`);
+const TAIL_PLAIN = new RegExp(String.raw`\s*[-–—·,:]?\s*(?:최대\s*)?${NUM}\s*자\s*(?:이내|내외|이하|미만|까지|정도)?\s*[.。]?\s*$`);
+
+/** 문항 글 끝의 글자 수 표기를 떼어 목표 글자 수로(FE#508). 끝에 없으면 글은 그대로 두고, 글 안에 「N자」가 있으면 그 값을 목표로 */
+export function splitTargetLength(text: string): { text: string; target: number | null } {
+  for (const tail of [TAIL_BRACKET, TAIL_PLAIN]) {
+    const match = text.match(tail);
+    if (!match || match.index === undefined) continue;
+    const value = Number(match[1].replace(",", ""));
+    const rest = text.slice(0, match.index).trimEnd();
+    if (isTargetLength(value) && rest) return { text: rest, target: value };
+  }
+  return { text, target: targetLengthFromText(text) };
+}
+
+/** 같은 문항인지 견주는 열쇠 — 공백 · 글자 수 표기를 뺀 글(FE#508) */
+export const questionKey = (text: string) => splitTargetLength(text).text.replace(/\s+/g, "");
+
 export function isTargetLength(value: number) {
   return Number.isInteger(value) && value >= MIN_TARGET_LENGTH && value <= MAX_TARGET_LENGTH;
 }

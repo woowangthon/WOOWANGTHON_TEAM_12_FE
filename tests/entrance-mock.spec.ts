@@ -45,7 +45,8 @@ test("목 지원 나누기는 글에 적힌 문항만 규칙으로 나누고 목
   await page.getByRole("button", { name: "지원 문항 붙여 넣어 보기", exact: true }).click();
   await page.getByRole("button", { name: "보내기", exact: true }).click();
   const dialog = page.getByRole("dialog");
-  await expect(page.getByLabel("문항 2", { exact: true })).toHaveValue("지원 동기와 수료 후 목표를 적어 주세요. (500자)");
+  await expect(page.getByLabel("문항 2", { exact: true })).toHaveValue("지원 동기와 수료 후 목표를 적어 주세요.");
+  await expect(page.getByLabel("문항 2 목표 글자 수", { exact: true })).toHaveValue("500");
   await expect(page.getByLabel("지원처 이름", { exact: true })).toHaveValue("OO 부트캠프 백엔드 과정 지원서");
   await expect(dialog.getByText("목 규칙으로 채움", { exact: true })).toHaveCount(3);
   await expect(dialog.getByTitle("AI 가 채운 값이에요. 원문 사실이 아니에요 — 고쳐도 돼요.")).toHaveCount(0);
@@ -91,8 +92,9 @@ test("목 모드는 캡처를 읽지 않는다 — 목 결과로 칸을 채우�
   const dialog = page.getByRole("dialog");
   await expect(page.getByLabel("문항 2", { exact: true })).toBeVisible();
   const png = await page.evaluate(() => { const c = document.createElement("canvas"); c.width = 200; c.height = 100; return c.toDataURL("image/png").split(",")[1]; });
-  await dialog.getByLabel("캡처 고르기").setInputFiles([{ name: "capture.png", mimeType: "image/png", buffer: Buffer.from(png, "base64") }]);
-  await dialog.getByRole("button", { name: "캡처 1장 AI 로 나누기" }).click();
+  await dialog.getByRole("button", { name: "원문 보기", exact: true }).click();
+  await dialog.getByLabel("캡처 파일").setInputFiles([{ name: "capture.png", mimeType: "image/png", buffer: Buffer.from(png, "base64") }]);
+  await dialog.getByRole("button", { name: "캡처 1장 읽기" }).click();
   await expect(dialog.getByRole("alert").filter({ hasText: "목 모드에선 캡처를 읽지 않아요" })).toBeVisible();
   await expect(dialog.getByRole("region", { name: "읽은 캡처" })).toHaveCount(0);
 });
