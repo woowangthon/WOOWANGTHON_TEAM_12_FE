@@ -190,7 +190,7 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
               ? `넣을 노트를 ${maxFiles}개까지 골라 주세요. 하나씩 차례로 분석해요.`
               : target
               ? "이 활동의 새 자료를 넣으면 경험과 근거를 더해요."
-              : "한 줄 기록도, 회고 · 노트 전체도 괜찮아요. 활동과 한 일을 찾아 정리해 둘게요."}
+              : "넣은 글에서 활동과 한 일을 찾아 정리해 둘게요."}
           </DialogDescription>
         </DialogHeader>
 
@@ -223,7 +223,8 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
             {usingFiles ? (
               text.trim() && <p className="m-0 text-note text-muted">파일을 빼면 적어 둔 글을 넣을 수 있어요.</p>
             ) : (
-              <div className="flex items-start justify-between gap-3 text-note">
+              // 글자 수는 한도에 가까울 때만(FE#466) — 빈 창에서 「0 / 50,000자」가 줄 하나를 차지하지 않게
+              (pasteError || text.length > MAX_TEXT_LENGTH * 0.8) && <div className="flex items-start justify-between gap-3 text-note">
                 <span className="text-error">{pasteError}</span>
                 <span className={cn("shrink-0 tabular-nums", pasteError ? "text-error" : "text-muted")}>
                   {text.length.toLocaleString()} / {MAX_TEXT_LENGTH.toLocaleString()}자
@@ -300,19 +301,15 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
         )}
 
         {/* S-16 — 분석을 시작하기 전에, 외부 AI 로 보내진다는 것을 보인다 */}
-        {/* 제공사 · 비공개 자료 주의는 늘 보이고, 학습에 쓰지 않는다는 설명만 ⓘ 로 접는다(FE#364) */}
+        {/* 홈과 같은 한 문장 — 접지 않는다(S-16 · FE#466). 학습에 쓰지 않는다는 것까지 한 줄에 */}
         <p className="m-0 flex items-start gap-2 text-note leading-relaxed text-muted">
           <LockSimpleIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-          <span>
-            분석을 위해 외부 AI(<b className="font-semibold text-body">OpenAI</b>)로 보내져요. 회사 · 고객의 비공개 자료는 빼 주세요.
-            <InfoTip label="외부 AI 전송" className="align-middle">OpenAI API 는 보낸 내용을 AI 학습에 쓰지 않아요.</InfoTip>
-          </span>
+          <span>분석을 위해 외부 AI(<b className="font-semibold text-body">OpenAI</b>)로 보내져요 · 학습엔 안 쓰여요. 회사 · 고객의 비공개 자료는 빼 주세요.</span>
         </p>
-        {left !== null && (
-          <p className="m-0 text-note text-muted tabular-nums">
-            오늘 남은 분석 {left}회{left === 0 ? " — 한국 시간 자정에 다시 채워져요" : requests.length > left && ` — 파일 ${requests.length}개를 넣기엔 모자라요`}
-            {/* ✦ 의 뜻을 처음 배우는 자리 — 남은 횟수가 늘 보이는 곳은 여기뿐이다(FE#434) */}
-            <span className="block"><AnalysisMark className="inline size-[1.1em] align-[-0.15em]" /> 표시가 있는 버튼은 누를 때마다 분석 횟수를 써요.</span>
+        {/* 남은 횟수는 넣기 버튼 옆에 — 모자랄 때만 여기서 이유를 펼친다(FE#466) */}
+        {left !== null && (left === 0 || requests.length > left) && (
+          <p className="m-0 text-note text-review tabular-nums">
+            오늘 남은 분석 {left}회{left === 0 ? " — 한국 시간 자정에 다시 채워져요" : ` — 파일 ${requests.length}개를 넣기엔 모자라요`}
           </p>
         )}
 
@@ -333,6 +330,12 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
           </DialogFooter>
         ) : (
         <DialogFooter>
+          {/* ✦ 의 뜻을 처음 배우는 자리(FE#434) — 남은 횟수 옆 ⓘ 하나 */}
+          {/* 모자라면 위 경고 줄이 같은 숫자를 말한다 — 여기선 숨긴다 */}
+          {left !== null && left > 0 && requests.length <= left && <span className="inline-flex items-center gap-1 text-note text-muted tabular-nums sm:mr-auto">
+            <AnalysisMark className="size-[1.1em]" />오늘 {left}회 남음
+            <InfoTip label="분석 횟수">✦ 가 붙은 버튼은 누를 때마다 분석 횟수를 1회 써요. 한국 시간 자정에 다시 채워져요.</InfoTip>
+          </span>}
           {github && <Button variant="link" onClick={() => { clearNotice(); setGithub(false); }} disabled={submitting}>돌아가기</Button>}
           {onMoveToApplication && !usingFiles && !github && <Button variant="link" disabled={submitting || !text.trim()} onClick={() => onMoveToApplication(text)}>지원으로 만들기</Button>}
           <Button variant="link" onClick={() => changeOpen(false)} disabled={submitting}>

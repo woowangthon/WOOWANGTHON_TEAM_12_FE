@@ -84,12 +84,14 @@ test("existing connection timestamps and responsive captures", async ({ page }, 
   const state = await setup(page, true);
   state.lastUsedAt = "2026-11-04T10:12:30+09:00";
   await page.reload();
-  await expect(page.locator("time")).toHaveCount(2);
-  await expect(page.locator("time").first()).toContainText("오전 10:12");
-  await expect(page.locator("time").last()).toContainText("오전 10:00");
+  // 상태 줄은 「연결됨 · 마지막 사용」만 — 만든 시각은 뺐다(FE#466)
+  await expect(page.locator("time")).toHaveCount(1);
+  await expect(page.locator("time")).toContainText("오전 10:12");
+  await expect(page.getByText("만든 시각")).toHaveCount(0);
   await expect(page.getByLabel("연결 주소", { exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: `artifacts/mcp-${info.project.name}-connected.png`, fullPage: true, style: "nextjs-portal { display: none !important; }" });
+  await page.screenshot({ path: `docs/fe-466/connection-${info.project.name}.png`, style: "nextjs-portal { display: none !important; }" });
   if (info.project.name === "mcp-desktop") {
     await page.setViewportSize({ width: 1024, height: 900 });
     await page.screenshot({ path: "artifacts/mcp-1024-connected.png", fullPage: true, style: "nextjs-portal { display: none !important; }" });

@@ -257,6 +257,7 @@ test("a one-line record goes through the source dialog like pasted text", async 
   const dialog = page.getByRole("dialog", { name: "자료 쌓기" });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText(/외부 AI\(OpenAI\)로 보내져요/)).toBeVisible(); // S-16 — 접지 않고 보인다
+  await page.screenshot({ path: "docs/fe-466/add-source-desktop.png", animations: "disabled", style: "nextjs-portal { display: none !important; }" });
   await dialog.getByLabel("붙여넣을 자료").fill("오늘 스터디에서 처음 발표했다");
   await dialog.getByRole("button", { name: "넣기", exact: true }).click();
   await expect(page.getByRole("progressbar", { name: "분석 중" })).toBeVisible();

@@ -24,13 +24,13 @@ export function HomeMascot({ overview, onRefresh, mode }: { overview: HomeOvervi
   return <>
     <Popover.Root>
       <Popover.Trigger asChild><button type="button" aria-label="차곡이 — 쌓인 경험 보기" className="rounded-md p-1.5 transition-transform hover:-translate-y-0.5 hover:-rotate-3 hover:bg-surface-soft"><Mascot size={72} animate className="max-lg:h-15 max-lg:w-auto" /></button></Popover.Trigger>
-      <Popover.Portal><Popover.Content side={desktop ? "right" : "bottom"} align="center" sideOffset={12} collisionPadding={16} aria-label="쌓인 블록" className="z-40 w-72 max-w-[calc(100vw-2rem)] rounded-md border border-hairline bg-canvas p-4 text-ink shadow-float">
-        <div className="mb-2 flex items-center gap-0.5"><p className="m-0 text-sm font-semibold">쌓인 블록</p><InfoTip label="쌓인 블록">활동 시작 연도별 경험 수예요. 점선은 확인이 필요한 경험이에요.</InfoTip></div>
+      <Popover.Portal><Popover.Content side={desktop ? "right" : "bottom"} align="center" sideOffset={12} collisionPadding={16} aria-label="쌓인 블록" className="z-40 w-80 max-w-[calc(100vw-2rem)] rounded-md border border-hairline bg-canvas p-4 text-ink shadow-float">
+        <div className="mb-3 flex items-center gap-0.5"><p className="m-0 text-sm font-semibold">쌓인 블록</p><InfoTip label="쌓인 블록">활동 시작 연도별 경험 수예요. 점선은 확인이 필요한 경험이에요.</InfoTip>{!!total && <span className="ml-auto text-xs text-muted tabular-nums"><b className="text-base font-bold text-ink">{total}</b>개의 경험이 차곡차곡</span>}</div>
         {overview.activityError ? <p className="m-0 text-sm text-error">{overview.activityError} <Button variant="link" onClick={onRefresh}>다시 시도</Button></p>
           : total === undefined ? <p role="status" className="m-0 text-sm text-muted">경험을 불러오고 있어요…</p>
-          : <Link href={STATS_HREF} className="flex items-end gap-3" aria-label={`쌓인 경험 ${total}개 — 서랍 열기`}>
-            <ExperienceBlocks years={years} className="max-h-52 min-h-16 flex-1 overflow-y-auto py-1" />
-            <span className="shrink-0 self-center text-right text-xs leading-relaxed text-muted"><b className="text-2xl text-ink">{total}</b>개의 경험이<br />차곡차곡</span>
+          // 창 안에 스크롤을 두지 않는다(DESIGN.md 「떠 있는 것」) — 기둥을 서랍 카드처럼 8칸으로 낮춰 옆으로 잇는다
+          : <Link href={STATS_HREF} className="block" aria-label={`쌓인 경험 ${total}개 — 서랍 열기`}>
+            <ExperienceBlocks years={years} perColumn={8} className="min-h-16 py-1" />
           </Link>}
         {total === 0 && <p className="mt-2 mb-0 text-note text-muted">자료를 넣으면 경험 하나가 블록 하나로 쌓여요.</p>}
         {!!total && <Link href={STATS_HREF} className="mt-2 inline-flex min-h-11 items-center gap-1 text-note font-medium text-ink underline underline-offset-4 lg:min-h-0">내 경험 서랍 열기<ArrowRightIcon className="size-3.5" aria-hidden="true" /></Link>}
