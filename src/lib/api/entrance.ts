@@ -5,6 +5,7 @@ import {
   type JobRole, type Ksa, type OrganizationType, type PostingSection, type ReadFrom,
 } from "./question-types";
 import { MAX_TEXT_LENGTH } from "./types";
+import { MAX_CAPTURE_DATA, MAX_CAPTURES, type CaptureImage } from "../capture-image";
 import { mockParseApplication, mockParseApplicationUrl } from "../mock/application-parse";
 import { mockAsk, type MockAskResult } from "../mock/ask";
 import type { Recommendation } from "./question-types";
@@ -46,6 +47,8 @@ export async function routeEntrance(text: string, mockKind: EntranceKind = "UNSU
   return result;
 }
 
+/** 캡처 한도 안내 — 계약 INVALID_IMAGE 와 같은 기준 */
+export const CAPTURE_LIMIT = "캡처는 png · jpg · webp 로 5장까지, 한 장 4MB 까지 넣을 수 있어요.";
 /** 공고 원문 링크 최대 길이(자) — parse-application `url` · applications `postingUrl` */
 export const MAX_POSTING_URL_LENGTH = 2000;
 /** `http(s)://` 링크 하나인가 — 계약의 INVALID_URL 과 같은 기준(공백이 없는 주소 하나) */
@@ -56,18 +59,25 @@ export function singleLink(text: string): string | null {
   return isPostingUrl(value) ? value : null;
 }
 
-/** S-30 · S-46: 붙여 넣은 글(또는 공고 링크)을 지원 칸 값으로 나눈다. 저장하지 않는다 — 사용자가 고친 뒤 POST /api/applications 로 넣는다.
- *  링크를 못 읽으면 422(URL_BLOCKED · URL_UNREADABLE)를 그대로 올린다 — 정해진 값으로 채우지 않는다 */
-export async function parseApplication(input: string | { url: string }): Promise<ParsedApplication> {
-  const body: { text: string } | { url: string } = typeof input === "string" ? { text: input } : { url: input.url.trim() };
+/** S-30 · S-46 · S-92: 붙여 넣은 글(또는 공고 링크 · 캡처)을 지원 칸 값으로 나눈다. 저장하지 않는다 — 사용자가 고친 뒤 POST /api/applications 로 넣는다.
+ *  링크 · 캡처를 못 읽으면 422(URL_BLOCKED · URL_UNREADABLE · IMAGE_UNREADABLE)를 그대로 올린다 — 정해진 값으로 채우지 않는다 */
+export async function parseApplication(input: string | { url: string } | { images: CaptureImage[] }): Promise<ParsedApplication> {
+  const body: { text: string } | { url: string } | { images: CaptureImage[] } = typeof input === "string" ? { text: input }
+    : "url" in input ? { url: input.url.trim() } : { images: input.images.map(({ mediaType, data }) => ({ mediaType, data })) };
   if ("text" in body) {
     if (!body.text.trim()) throw new ApiError("EMPTY_TEXT", "글을 입력해 주세요.");
     if (body.text.length > MAX_PARSE_TEXT_LENGTH) throw new ApiError("TEXT_TOO_LONG", "지원 칸 채우기는 한 번에 20,000자까지 읽어요. 줄여서 다시 넣어 주세요.");
-  } else if (!isPostingUrl(body.url)) throw new ApiError("INVALID_URL", "http:// 나 https:// 로 시작하는 링크 하나를 넣어 주세요(2,000자까지).");
+  } else if ("url" in body) {
+    if (!isPostingUrl(body.url)) throw new ApiError("INVALID_URL", "http:// 나 https:// 로 시작하는 링크 하나를 넣어 주세요(2,000자까지).");
+  } else {
+    if (!body.images.length || body.images.length > MAX_CAPTURES || body.images.some(i => i.data.length > MAX_CAPTURE_DATA)) throw new ApiError("INVALID_IMAGE", CAPTURE_LIMIT);
+    // 목 모드는 캡처를 읽지 않는다 — 목 결과로 칸을 채우지 않고 글로 돌려보낸다(대회 규칙 1)
+    if (isMockMode()) throw new ApiError("MOCK_NO_CAPTURE", "목 모드에선 캡처를 읽지 않아요 — 글로 붙여 넣어 주세요.");
+  }
   if (isMockMode()) {
     // MOCK(application-parse): API 주소가 없을 때만 규칙으로 나눈다. 실제 실패 대체용이 아니다.
     await new Promise(resolve => setTimeout(resolve, 400));
-    return "text" in body ? mockParseApplication(body.text) : mockParseApplicationUrl(body.url);
+    return "text" in body ? mockParseApplication(body.text) : mockParseApplicationUrl((body as { url: string }).url);
   }
   const result = await request<Omit<ParsedApplication, "postingLines"> & { postingLines?: unknown }>("/entrance/parse-application", body, "POST");
   if (!Array.isArray(result?.questions)) throw new ApiError("INVALID_RESPONSE", "지원 나누기 결과를 읽지 못했어요. 다시 시도해 주세요.");
@@ -78,7 +88,7 @@ export async function parseApplication(input: string | { url: string }): Promise
     jobRole: result.jobRole && result.jobRole in JOB_ROLE_LABEL ? result.jobRole : null,
     questions: result.questions.filter(q => typeof q === "string" && q.trim()),
     postingLines: postingLinesOf(result.postingLines),
-    readFrom: READ_FROM.includes(result.readFrom) ? result.readFrom : "url" in body ? "URL" : "TEXT",
+    readFrom: READ_FROM.includes(result.readFrom) ? result.readFrom : "url" in body ? "URL" : "images" in body ? "IMAGE" : "TEXT",
   };
 }
 
