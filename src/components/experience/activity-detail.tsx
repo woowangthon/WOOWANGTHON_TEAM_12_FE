@@ -105,9 +105,9 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
               </DropdownMenu.Portal>
             </DropdownMenu.Root>
           )}
-          {activity && !readOnly && <RevisionDialog open={historyOpen} onOpenChange={setHistoryOpen} target={{ type: "ACTIVITY", id: activity.id }} title="수정 이력"
-            description={`이 활동의 이름 · 기간을 고친 기록이에요. 경험의 기록은 경험 메뉴에 있어요.`}
-            onRestored={(result) => { if (result.activity) onActivitySaved({ ...summary, name: result.activity.name, period: result.activity.period }); }} />}
+          {/* 활동과 지금 속한 경험의 기록을 한 곳에서(FE#467 · BE#168). 되돌리면 연 세부 · 경험 줄이 그 자리에서 바뀐다(restore-bus) */}
+          {activity && !readOnly && <RevisionDialog open={historyOpen} onOpenChange={setHistoryOpen} target={null} activityId={activity.id} title="수정 이력"
+            description="이 활동의 이름 · 기간과 경험을 고친 기록이에요." />}
           <Button variant="ghost" size="icon" className="hidden lg:inline-flex" onClick={onClose} aria-label="세부 닫기">
             <XIcon />
           </Button>
