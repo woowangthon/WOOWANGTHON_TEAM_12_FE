@@ -1,6 +1,6 @@
 "use client";
 
-// 내 경험 서랍(S-83) — 쌓인 블록(+출처 상태) · 분류 · 나를 보여 주는 역량(역량별 경험 수) 카드 세 장 + 활동 서랍(FE#365 · FE#368). 숫자는 모두 받은 활동 · 경험에서 센다(대회 규칙 1). AI 를 부르지 않는다
+// 내 경험 서랍(S-83) — 쌓인 블록(+출처 상태) · 분류 · 나를 보여 주는 역량(역량별 경험 수) 카드 세 장 + 활동 폴더(FE#365 · FE#368). 숫자는 모두 받은 활동 · 경험에서 센다(대회 규칙 1). AI 를 부르지 않는다
 import { InfoTip } from "@/components/ui/info-tip";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ArrowsClockwiseIcon, FoldersIcon } from "@phosphor-icons/react";
@@ -172,7 +172,7 @@ function CompetencyChips({ counts }: { counts: [Competency, number][] }) {
 type Sort = "latest" | "oldest";
 const SORTS: [Sort, string][] = [["latest", "최신순"], ["oldest", "오래된순"]];
 
-/** 활동 서랍 — 활동 하나가 폴더 하나. 누르면 활동 세부(S-08). 시작을 모르는 활동은 순서와 상관없이 맨 뒤 */
+/** 활동 폴더 — 활동 하나가 폴더 하나. 구역 이름은 「활동」만 — 앱 이름 「내 서랍」 · 탭 「서랍」과 겹치지 않게(FE#462 후속). 누르면 활동 세부(S-08). 시작을 모르는 활동은 순서와 상관없이 맨 뒤 */
 function ActivityDrawer({ activities, onOpenActivity }: { activities: ActivitySummary[]; onOpenActivity: (id: number) => void }) {
   const [sort, setSort] = useState<Sort>("latest");
   const sorted = [...activities].sort((a, b) => {
@@ -183,9 +183,9 @@ function ActivityDrawer({ activities, onOpenActivity }: { activities: ActivitySu
   return (
     <section aria-labelledby="activity-drawer" className="grid gap-4">
       <div className="flex items-center justify-between gap-3">
-        <h2 id="activity-drawer" className="m-0 text-base font-bold text-ink">활동 서랍 <span className="font-normal text-muted tabular-nums">{activities.length}</span></h2>
+        <h2 id="activity-drawer" className="m-0 text-base font-bold text-ink">활동 <span className="font-normal text-muted tabular-nums">{activities.length}</span></h2>
         {/* 칩 모양 고르기 — 다른 칩형 선택 메뉴와 같은 부품 */}
-        <Select<Sort> variant="chip" aria-label="활동 서랍 정렬" value={sort} onChange={(next) => { if (next) setSort(next); }}
+        <Select<Sort> variant="chip" aria-label="활동 정렬" value={sort} onChange={(next) => { if (next) setSort(next); }}
           options={SORTS.map(([value, label]) => ({ value, label }))} />
       </div>
       <ul className="m-0 grid list-none grid-cols-2 gap-x-3 gap-y-4 p-0 @xl:gap-x-5 @xl:gap-y-6 @3xl:grid-cols-3 @5xl:grid-cols-4">

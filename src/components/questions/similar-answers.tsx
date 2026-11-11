@@ -28,7 +28,7 @@ export function SimilarAnswers({ question, application }: { question: QuestionDe
 }
 
 function SimilarAnswerCard({ answer }: { answer: SimilarAnswer }) {
-  return <li><details className="group rounded-[18px] border border-hairline-soft bg-surface-soft">
+  return <li><details className="group rounded-md border border-hairline-soft bg-surface-soft">
     <summary className="grid cursor-pointer list-none grid-cols-[auto_minmax(0,1fr)] items-start gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
       <CaretRightIcon aria-hidden="true" className="mt-1 size-4 text-muted transition-transform group-open:rotate-90" />
       <span className="grid min-w-0 gap-1">

@@ -121,7 +121,7 @@ function SupplementItem({ supplement: s, handlers, onDelete, onDecided }: {
     } finally { pending.current = false; setSaving(false); }
   };
 
-  return <li className="grid gap-1 rounded-[14px] border border-hairline px-3.5 py-2.5 text-note leading-relaxed">
+  return <li className="grid gap-1 rounded-sm border border-hairline px-3.5 py-2.5 text-note leading-relaxed">
     <div className="flex flex-wrap items-center gap-x-2">
       <SupplementLabel supplement={s}> · {sourceOf(s) ?? "되묻기에 답함"}</SupplementLabel>
       {handlers && mode === "view" && <span className="ml-auto flex">

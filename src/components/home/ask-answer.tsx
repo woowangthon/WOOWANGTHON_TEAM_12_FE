@@ -69,7 +69,7 @@ export function AskAnswer({ answer, onMakeApplication, busy, onOpenActivity }: {
         <p className="m-0 text-sm text-body">쌓인 경험에서 {list.length}개를 찾았어요</p>
         <InfoTip label="찾은 경험">경험 아래 글은 <b className="font-semibold">AI 해석</b>으로 고른 이유예요. 근거는 원문 · 내가 입력한 그대로고, 파일을 누르면 원문에서 그 줄을 보여 줘요.</InfoTip>
       </div>
-      <ol className="m-0 grid list-none gap-2 p-0">{list.map((r, i) => <li key={r.experience.id} aria-label={`꺼낸 경험 ${i + 1}`} className="grid gap-1.5 rounded-[18px] bg-mark-soft px-4 py-3 sm:px-4.5">
+      <ol className="m-0 grid list-none gap-2 p-0">{list.map((r, i) => <li key={r.experience.id} aria-label={`꺼낸 경험 ${i + 1}`} className="grid gap-1.5 rounded-md bg-surface-soft px-4 py-3 sm:px-4.5">
         <div className="flex flex-wrap items-baseline gap-x-2">
           <Link href={`/experience?activity=${r.activity.id}`} onClick={onOpenActivity && (event => { event.preventDefault(); onOpenActivity(r.activity.id); })}
             title="활동 세부 보기" className="inline-flex min-h-11 items-center gap-0.5 text-sm font-semibold text-ink underline-offset-3 hover:underline lg:min-h-6">
