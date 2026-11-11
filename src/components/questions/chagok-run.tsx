@@ -2,8 +2,8 @@
 
 // 차곡이 일(S-31 · ETC ADR-007) — 시안 6 mock.js 의 mate__foot(부탁 칩 + 입력) · msg--me(내 부탁) · msg--ask(묻는 카드) · chagok.css .steps(단계).
 // 보이는 단계는 전부 BE 의 Run 그대로다 — 지어낸 진행을 보이지 않고, 실패를 정해진 답으로 채우지 않는다(대회 규칙 1 · 2). 채팅창이 아니라 일 하나만 보인다
-import { useState, type KeyboardEvent } from "react";
-import { ArrowUpIcon, CheckIcon, XIcon } from "@phosphor-icons/react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { ArrowUpIcon, CaretDownIcon, CheckIcon, XIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { ANALYSIS_EXHAUSTED_NOTE, LowAnalysisNotice, useAnalysisExhausted } from "@/components/auth/analysis-cost";
 import { ExperienceMeta } from "@/components/experience/experience-item";
@@ -14,11 +14,13 @@ import { ActivityChip, RecommendationEvidence } from "./question-result";
 import { RematchButton, type Rematch } from "./rematch-button";
 import { whyFailed, type ChagokRunControl } from "./use-chagok-run";
 
-/** 시안의 부탁 칩 중 도구가 있는 것 — 근거 점검 · 초안은 그 도구가 생긴 뒤(S-45 · S-27).
+/** 부탁 칩 — 지금 도구 목록(읽기 도구 · search_experiences 등) 안에서만, 문항이 어디까지 왔는지에 맞춰 보인다(FE#338).
+ *  초안이 아직 없으면 쓸 경험을 찾는 부탁, 초안이 있으면 그 초안에 더 쓸 근거를 찾는 부탁이다. 초안 · 근거 점검 도구는 생긴 뒤(S-45 · S-27).
  *  「다른 경험으로」는 두지 않는다 — 문항에 맞는 다른 경험은 「경험 다시 찾기」(S-90)가 /match 로 찾는다(ETC#300) */
-const PRESETS = [
-  { label: "근거 찾기", text: "이 문항에 쓸 경험의 근거를 찾아 줘" },
-];
+const PRESETS = {
+  beforeDraft: [{ label: "근거 찾기", text: "이 문항에 쓸 경험의 근거를 찾아 줘" }],
+  afterDraft: [{ label: "초안 근거 더 찾기", text: "이 문항 초안에 더 쓸 만한 경험의 근거를 찾아 줘" }],
+};
 const CARDS_AT_FIRST = 3;
 const card = "m-0 grid gap-3 rounded-[4px_16px_16px_16px] border border-hairline bg-canvas p-3.5 text-sm leading-relaxed";
 const notice = "m-0 grid gap-2 rounded-md border border-hairline bg-canvas p-3 text-note leading-relaxed";
@@ -38,25 +40,59 @@ function ExperienceCard({ found: { activityName, experience } }: { found: FoundE
   </li>;
 }
 
+/** 끝난 단계 — 성공이면 「✓ 한 줄」로 접고 찾은 경험이 있으면 눌러 펼친다. 실패는 펼친 채 오류를 보인다(FE#338) */
 function ToolStep({ step }: { step: ChagokToolCallStep }) {
   const [all, setAll] = useState(false);
+  const [open, setOpen] = useState(false);
   const found = foundExperiences(step.result);
-  return <li className="grid min-w-0 grid-cols-[18px_minmax(0,1fr)] gap-x-2 gap-y-2">
+  const expandable = step.ok && found.length > 0;
+  const shown = !step.ok || open;
+  const line = <>
     <span className={`${mark} ${step.ok ? "bg-primary" : "bg-error"}`}>
       {step.ok ? <CheckIcon aria-hidden="true" className="size-3" weight="bold" /> : <XIcon aria-hidden="true" className="size-3" weight="bold" />}
     </span>
-    <div className="min-w-0 text-note leading-relaxed">
-      <p className="m-0 font-medium break-words text-ink">{step.label}</p>
-      {step.summary && <p className="m-0 break-words text-muted">{step.summary}</p>}
-      {!step.ok && step.error && <p className="m-0 break-words text-error">{step.error.message}</p>}
-    </div>
-    {found.length > 0 && <div className="col-span-2 grid min-w-0 gap-2">
+    <span className="min-w-0 text-note leading-relaxed break-words">
+      <span className="font-medium text-ink">{step.label}</span>
+      {step.ok && step.summary && <span className="text-muted"> · {step.summary}</span>}
+    </span>
+  </>;
+  return <li className="grid min-w-0 grid-cols-[18px_minmax(0,1fr)] gap-x-2 gap-y-2">
+    {expandable
+      ? <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)}
+        className="col-span-2 grid min-w-0 grid-cols-[18px_minmax(0,1fr)_auto] items-start gap-x-2 rounded-sm text-left">
+        {line}
+        <CaretDownIcon aria-hidden="true" className={`mt-1 size-3.5 shrink-0 text-muted transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      : <div className="col-span-2 grid min-w-0 grid-cols-[18px_minmax(0,1fr)] items-start gap-x-2">{line}</div>}
+    {!step.ok && step.error && <p className="col-start-2 m-0 text-note break-words text-error">{step.error.message}</p>}
+    {shown && found.length > 0 && <div className="col-span-2 grid min-w-0 gap-2">
       <ul aria-label="찾은 경험" className="m-0 grid list-none gap-2 p-0">
         {(all ? found : found.slice(0, CARDS_AT_FIRST)).map(f => <ExperienceCard key={f.experience.id} found={f} />)}
       </ul>
       {!all && found.length > CARDS_AT_FIRST && <Button variant="ghost" size="sm" className="justify-self-start" onClick={() => setAll(true)}>{found.length - CARDS_AT_FIRST}개 더 보기</Button>}
     </div>}
   </li>;
+}
+
+/** 일하는 동안 맨 아래 한 줄 — 회전 · 받은 마지막 단계 이름(없으면 일하는 중이라고만) · 시작부터 지난 초. 글만 알림으로 읽고 초는 읽지 않는다 */
+function RunningLine({ run, canceling, onCancel }: { run: ChagokRun; canceling: boolean; onCancel: () => void }) {
+  const mounted = useRef(Date.now());
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 100);
+    return () => clearInterval(timer);
+  }, []);
+  const created = run.createdAt ? Date.parse(run.createdAt) : NaN;
+  const seconds = Math.max(0, now - (Number.isNaN(created) ? mounted.current : created)) / 1000;
+  const last = run.steps.findLast(step => step.type === "TOOL_CALL");
+  return <div className="flex items-center gap-2 text-note font-medium text-ink">
+    <span aria-hidden="true" className="size-[18px] shrink-0 rounded-full border-2 border-ink border-r-transparent motion-safe:animate-spin" />
+    <span className="min-w-0 flex-1 break-words">
+      <span role="status">{last?.label ?? "차곡이가 일하고 있어요"}</span>
+      <span aria-hidden="true" className="font-normal text-muted tabular-nums"> · {seconds.toFixed(1)}초</span>
+    </span>
+    <Button size="sm" variant="secondary" disabled={canceling} onClick={onCancel}>그만</Button>
+  </div>;
 }
 
 /** 확인하면 BE 가 실행할 내용 — 사용자는 고칠 수 없으니(1차) 빠짐없이 보인다 */
@@ -135,11 +171,7 @@ export function ChagokRunFeed({ control, currentQuestionId, rematch }: {
       <RematchButton questionId={currentQuestionId} onRematch={rematch.onRematch} busy={rematch.busy} label="이 문항에서 경험 다시 찾기" />
     </div>}
     {run.status === "RUNNING" && <div className="grid gap-2">
-      <div role="status" className="flex items-center gap-2 text-note font-medium text-ink">
-        <span aria-hidden="true" className="size-[18px] shrink-0 rounded-full border-2 border-ink border-r-transparent motion-safe:animate-spin" />
-        <span className="min-w-0 flex-1">차곡이가 일하고 있어요</span>
-        <Button size="sm" variant="secondary" disabled={!!acting} onClick={() => void control.cancel()}>그만</Button>
-      </div>
+      <RunningLine run={run} canceling={!!acting} onCancel={() => void control.cancel()} />
       {actionError && <p role="alert" className="m-0 text-note text-error">{actionError}</p>}
       {pollState === "retrying" && <p className="m-0 text-note text-muted">진행 상황을 불러오지 못했어요. 다시 시도하고 있어요.</p>}
       {pollState === "stopped" && <div role="alert" className={notice}>
@@ -156,7 +188,7 @@ export function ChagokRunFeed({ control, currentQuestionId, rematch }: {
   </section>;
 }
 
-export function ChagokComposer({ control, hasQuestion }: { control: ChagokRunControl; hasQuestion: boolean }) {
+export function ChagokComposer({ control, hasQuestion, hasDraft }: { control: ChagokRunControl; hasQuestion: boolean; hasDraft: boolean }) {
   const { run, draft, starting, failure, conflict, conflictError } = control;
   const waitingConfirm = run?.status === "WAITING_CONFIRM";
   // 0회면 보내기 · 칩을 막는다(S-15 · FE#391). 채팅처럼 연달아 쓰는 곳이라 「분석 1회」는 늘 보이지 않고 3회 이하일 때만 경고한다(FE#434)
@@ -183,7 +215,7 @@ export function ChagokComposer({ control, hasQuestion }: { control: ChagokRunCon
     </div>}
     {waitingConfirm && <p className="m-0 text-note text-muted">확인 카드에 답하면 새 부탁을 할 수 있어요.</p>}
     {hasQuestion && <div className="flex flex-wrap gap-1.5">
-      {PRESETS.map(p => <button key={p.label} type="button" title="분석 1회" disabled={blocked} onClick={() => void control.send(p.text)}
+      {PRESETS[hasDraft ? "afterDraft" : "beforeDraft"].map(p => <button key={p.label} type="button" title="분석 1회" disabled={blocked} onClick={() => void control.send(p.text)}
         className="rounded-full border border-hairline-soft bg-surface-soft px-2.5 py-1 text-xs text-ink transition-colors hover:bg-surface-strong disabled:opacity-50">{p.label}</button>)}
     </div>}
     <form className="flex items-end gap-1.5 rounded-md border border-hairline py-1 pr-1 pl-3.5" onSubmit={e => { e.preventDefault(); submit(); }}>

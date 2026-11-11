@@ -83,7 +83,12 @@ test("부탁하면 단계 · 경험 카드 · 확인 카드가 쌓이고 만들�
   expect(chagok.calls[0]).toEqual({ call: "POST /", body: { text: "WebSocket 경험으로 OO 부트캠프 지원 만들어 줘", questionId: 41 } });
   await expect(panel(page).getByLabel("차곡이에게 부탁하기")).toHaveValue("");
   await expect(panel(page).getByText("경험 1개를 찾았어요")).toBeVisible();
+  // 끝난 단계는 한 줄로 접힌다 — 누르면 찾은 경험 카드가 펼쳐진다(FE#338)
   const cards = panel(page).getByRole("list", { name: "찾은 경험" });
+  const searched = panel(page).getByRole("button", { name: /「WebSocket」으로 경험 찾는 중/ });
+  await expect(searched).toHaveAttribute("aria-expanded", "false");
+  await expect(cards).toHaveCount(0);
+  await searched.click();
   await expect(cards.getByText("채팅 메시지가 늦게 도착하는")).toBeVisible();
   await expect(cards.getByText("원문 확인")).toBeVisible();
   await expect(cards.getByText("내가 폴링을 WebSocket 으로 바꿔 해결했다.")).toBeVisible();
@@ -110,6 +115,7 @@ test("문항에서 찾은 경험 아래 「이 문항에서 경험 다시 찾기
   const again = panel(page).getByRole("button", { name: "이 문항에서 경험 다시 찾기" });
   chagok.script = [{ steps: [SEARCH] }, { steps: [SEARCH, SAID], status: "DONE" }];
   await panel(page).getByRole("button", { name: "근거 찾기" }).click();
+  await panel(page).getByRole("button", { name: /「WebSocket」으로 경험 찾는 중/ }).click();
   await expect(panel(page).getByRole("list", { name: "찾은 경험" })).toBeVisible();
   await expect(again).toBeVisible();
   await again.click();
@@ -201,4 +207,18 @@ test("진행 읽기가 계속 실패하면 멈추고 다시 불러온다", async
   chagok.script = [{ steps: [SAID], status: "DONE" }];
   await panel(page).getByRole("button", { name: "다시 불러오기" }).click();
   await expect(panel(page).getByText("「바꿔요」의 WebSocket 경험이 맞아요.")).toBeVisible();
+});
+
+test("진행 중에는 받은 마지막 단계 이름과 지난 초가 보이고, 실패한 단계는 펼친 채 오류 (FE#338)", async ({ page }) => {
+  const chagok = await open(page);
+  const failed: ChagokStep = { ...SEARCH, seq: 2, label: "「Kafka」로 경험 찾는 중", ok: false, summary: null, result: null, error: { code: "MCP_UNAVAILABLE", message: "경험을 읽지 못했어요" } };
+  chagok.script = [{ steps: [] }, { steps: [SEARCH] }, { steps: [SEARCH, failed] }, { steps: [SEARCH, failed] }, { steps: [SEARCH, failed] }];
+  await ask(page, "WebSocket 이랑 Kafka 경험 찾아 줘");
+  const status = panel(page).getByRole("status").filter({ hasText: "「Kafka」로 경험 찾는 중" });
+  await expect(status).toBeVisible();
+  await expect(panel(page).getByText(/· \d+\.\d초$/)).toBeVisible();
+  // 실패 단계는 버튼이 아니라 펼친 채 오류를 보인다
+  await expect(panel(page).getByText("경험을 읽지 못했어요")).toBeVisible();
+  await expect(panel(page).getByRole("button", { name: /「Kafka」로 경험 찾는 중/ })).toHaveCount(0);
+  await expect(panel(page).getByRole("button", { name: /「WebSocket」으로 경험 찾는 중/ })).toHaveAttribute("aria-expanded", "false");
 });
