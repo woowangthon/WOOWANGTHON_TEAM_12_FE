@@ -77,18 +77,18 @@ test("종료 끝을 끌면 바뀔 기간이 보이고, 놓으면 저장돼 새�
 test("시작 끝은 종료를 넘지 못하고, 진행 중이면 종료 끝이 없다", async ({ page }) => {
   const state = await setup(page);
   await drag(page, "band-start-7-2025", 11);
-  expect(state.patches.at(-1)).toEqual({ id: 7, body: { period: { start: "2025-06", end: "2025-06", ongoing: false } } });
+  await expect.poll(() => state.patches.at(-1)).toEqual({ id: 7, body: { period: { start: "2025-06", end: "2025-06", ongoing: false } } });
   await expect(page.getByTestId("band-end-8-2025")).toHaveCount(0);
   await expect(page.getByTestId("band-end-8-2026")).toHaveCount(0);
   await expect(page.getByTestId("band-start-8-2025")).toHaveCount(0); // 앞 해에서 이어진 흐린 줄
   await drag(page, "band-start-8-2024", 3);
-  expect(state.patches.at(-1)).toEqual({ id: 8, body: { period: { start: "2024-03", end: null, ongoing: true } } });
+  await expect.poll(() => state.patches.at(-1)).toEqual({ id: 8, body: { period: { start: "2024-03", end: null, ongoing: true } } });
 });
 
 test("종료가 비어 있던 한 달짜리 활동은 시작을 당기면 원래 달을 종료로 남긴다", async ({ page }) => {
   const state = await setup(page);
   await drag(page, "band-start-9-2023", 2);
-  expect(state.patches.at(-1)).toEqual({ id: 9, body: { period: { start: "2023-02", end: "2023-05", ongoing: false } } });
+  await expect.poll(() => state.patches.at(-1)).toEqual({ id: 9, body: { period: { start: "2023-02", end: "2023-05", ongoing: false } } });
 });
 
 test("저장이 실패하면 원래 띠 · 기간으로 돌리고 알린다", async ({ page }) => {
