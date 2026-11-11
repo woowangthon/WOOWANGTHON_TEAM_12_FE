@@ -75,7 +75,8 @@ export function CommonQuestionPicker({ open, onOpenChange, room, onPick }: {
 
   return (
     <Dialog open={open} onOpenChange={change}>
-      <DialogContent>
+      {/* 스크롤은 목록 하나로 — 창은 넘치지 않게 세로로 나눈다(FE#508) */}
+      <DialogContent className="flex flex-col overflow-hidden">
         <DialogHeader className="pr-10">
           <DialogTitle>문항 고르기</DialogTitle>
           <DialogDescription className="text-ui text-body">
@@ -83,7 +84,7 @@ export function CommonQuestionPicker({ open, onOpenChange, room, onPick }: {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="-mx-1 grid max-h-[55dvh] gap-5 overflow-auto px-1">
+        <div className="-mx-1 grid min-h-0 flex-1 gap-5 overflow-auto px-1">
           <fieldset className="m-0 grid gap-1 border-0 p-0">
             <legend className="mb-1.5 p-0 text-sm font-semibold text-ink">내가 넣었던 문항</legend>
             {/* 고를 문항 줄 자리 — 체크 칸 · 문항 글 · 지원처(FE#402) */}

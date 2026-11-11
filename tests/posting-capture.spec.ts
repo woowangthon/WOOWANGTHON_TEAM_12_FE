@@ -31,17 +31,19 @@ test("two captures are shrunk, read, and shown beside the fields with a check-me
   // S-16 — 캡처도 외부 AI 로 간다는 한 줄이 나누기 전에 보인다
   await expect(page.getByText(/캡처는 분석을 위해 외부 AI 제공사\(OpenAI\)로 보내져요/)).toBeVisible();
 
-  await page.getByLabel("캡처 고르기").setInputFiles([await drawCapture(page, "문항 1", 600), await drawCapture(page, "문항 2", 3000)]);
+  await page.getByLabel("캡처 파일").setInputFiles([await drawCapture(page, "문항 1", 600), await drawCapture(page, "문항 2", 3000)]);
   const thumbs = page.getByRole("list", { name: "넣은 캡처" });
   await expect(thumbs.getByRole("img")).toHaveCount(2);
   // 한 장 빼고 다시 넣을 수 있다
   await page.getByRole("button", { name: "캡처 2 빼기" }).click();
   await expect(thumbs.getByRole("img")).toHaveCount(1);
-  await page.getByLabel("캡처 고르기").setInputFiles([await drawCapture(page, "문항 2", 3000)]);
+  await page.getByLabel("캡처 파일").setInputFiles([await drawCapture(page, "문항 2", 3000)]);
   await expect(thumbs.getByRole("img")).toHaveCount(2);
 
-  await page.getByRole("button", { name: "캡처 2장 AI 로 나누기" }).click();
-  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(PARSED.questions[0]);
+  await page.getByRole("button", { name: "캡처 2장 읽기" }).click();
+  // 글 끝 「(500자)」는 목표 글자 수 칸으로 뗀다(FE#508)
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(PARSED.questions[0].replace(/\s*\(500자\)$/, ""));
+  await expect(page.getByLabel("문항 1 목표 글자 수", { exact: true })).toHaveValue("500");
   // 보낸 것 — images 만, base64(머리 없이), 긴 변 2000px 이하로 줄였다
   expect(sent).not.toBeNull();
   expect(Object.keys(sent!)).toEqual(["images"]);
@@ -54,7 +56,7 @@ test("two captures are shrunk, read, and shown beside the fields with a check-me
   expect(sizes).toEqual([[800, 600], [533, 2000]]);
 
   // 문항만 찬다 — 지원처는 빈 채로 사용자가 칩으로
-  await expect(page.getByLabel("문항 2", { exact: true })).toHaveValue(PARSED.questions[1]);
+  await expect(page.getByLabel("문항 2", { exact: true })).toHaveValue(PARSED.questions[1].replace(/\s*\(700자\)$/, ""));
   await expect(page.getByLabel("지원처 이름")).toHaveValue("");
   await expect(page.getByText("캡처에서 읽음 — 확인해 주세요")).toHaveCount(2);
   await expect(thumbs).toHaveCount(0);
@@ -76,8 +78,8 @@ test("a capture the AI cannot read shows why and goes back to pasting text", asy
   await new FakeQuestionApi({ empty: true }).install(page);
   await page.route("**/api/entrance/parse-application", r => r.fulfill({ status: 422, json: { error: { code: "IMAGE_UNREADABLE", message: "캡처에서 글자를 거의 찾지 못했어요 — 글자가 작거나 흐릴 수 있어요" } } }));
   await page.goto("/questions");
-  await page.getByLabel("캡처 고르기").setInputFiles([await drawCapture(page, "흐린 화면", 400)]);
-  await page.getByRole("button", { name: "캡처 1장 AI 로 나누기" }).click();
+  await page.getByLabel("캡처 파일").setInputFiles([await drawCapture(page, "흐린 화면", 400)]);
+  await page.getByRole("button", { name: "캡처 1장 읽기" }).click();
   const alert = page.getByRole("alert").filter({ hasText: "캡처에서 글자를 읽지 못했어요" });
   await expect(alert).toContainText("글자가 작거나 흐릴 수 있어요");
   // 정해진 결과로 칸을 채우지 않는다
@@ -85,4 +87,62 @@ test("a capture the AI cannot read shows why and goes back to pasting text", asy
   await alert.getByRole("button", { name: "글로 붙여 넣기" }).click();
   await expect(page.getByRole("list", { name: "넣은 캡처" })).toHaveCount(0);
   await expect(page.getByLabel("공고 · 문항 글이나 공고 링크")).toBeFocused();
+});
+
+// FE#508 — 지원서 추가 두 단계: 넣기(칸 하나 · 「읽기」 하나) → 확인(원문 접힘 · 주 버튼 하나). 같은 문항은 하나로, 글 끝 「(N자)」는 목표 글자 수로
+test("adding an application is two steps: one box and one button, then a review that merges the same question and keeps the panel closed", async ({ page }) => {
+  await new FakeQuestionApi().install(page);
+  const common = "다양한 IT 동아리 중에서 우리 동아리를 선택하고 지원하시게 된 이유를 작성해 주세요.";
+  let parsed: unknown = {
+    organization: "OO 연합 동아리", organizationType: "CLUB", jobRole: null, postingLines: [], readFrom: "TEXT",
+    questions: [`${common} (1000자)`, "팀 프로젝트에서 맡은 역할과 협업 방식을 적어 주세요. (공백 포함 700자 이내)"],
+  };
+  await page.route("**/api/entrance/parse-application", r => r.fulfill({ json: parsed }));
+  const widths = test.info().project.name === "desktop" ? [1440, 1024, 390] : [page.viewportSize()!.width];
+  for (const width of widths) {
+    await page.setViewportSize({ width, height: width < 1024 ? 844 : 1000 });
+    await page.goto("/questions?new=1");
+    const input = page.getByLabel("공고 · 문항 글이나 공고 링크");
+    await expect(input).toBeVisible();
+    await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
+    // 넣는 동안 차곡이 패널은 열리지 않고 위 「+ 지원 넣기」는 숨는다
+    await expect(page.locator("#chagok-panel")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "지원 넣기", exact: true })).toHaveCount(0);
+    await page.screenshot({ path: `artifacts/fe-508/input-${width}.png`, fullPage: true });
+
+    // 넣었던 · 자주 나오는 문항 고르기는 확인 단계로 바로 간다
+    await page.getByRole("button", { name: "넣었던 · 자주 나오는 문항에서 고르기", exact: true }).click();
+    const picker = page.getByRole("dialog", { name: "문항 고르기" });
+    await picker.getByRole("checkbox", { name: new RegExp(`^${common.slice(0, 20)}`) }).check();
+    await picker.getByRole("button", { name: "고른 문항 1개 넣기", exact: true }).click();
+    await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(common);
+    await expect(page.getByLabel("문항 1 목표 글자 수", { exact: true })).toHaveValue("500");
+    await expect(input).toHaveCount(0);
+
+    // 원문을 펼쳐 같은 문항이 든 글을 읽으면 하나로 합치고 목표는 새로 읽은 쪽
+    await page.getByRole("button", { name: "글 · 링크 · 캡처로 채우기", exact: true }).click();
+    await input.fill("[OO 연합 동아리 12기]\n1. 지원 동기 (1000자)\n2. 팀 프로젝트 (공백 포함 700자 이내)");
+    await page.getByRole("button", { name: "읽기", exact: true }).click();
+    await expect(page.getByLabel("문항 2", { exact: true })).toHaveValue("팀 프로젝트에서 맡은 역할과 협업 방식을 적어 주세요.");
+    await expect(page.getByLabel("문항 3", { exact: true })).toHaveCount(0);
+    await expect(page.getByLabel("문항 1 목표 글자 수", { exact: true })).toHaveValue("1000");
+    await expect(page.getByLabel("문항 2 목표 글자 수", { exact: true })).toHaveValue("700");
+    await expect(input).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "공고 요건" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /나누기|^읽기$/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "문항 2개로 경험 찾기", exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: `artifacts/fe-508/review-${width}.png`, fullPage: true });
+
+    // 캡처 확인 — 같은 칸에 고르면 캡처로 읽고, 확인 단계에서 캡처와 칸을 나란히
+    parsed = PARSED;
+    await page.goto("/questions?new=1");
+    await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
+    await page.getByLabel("캡처 파일").setInputFiles([await drawCapture(page, "문항 1", 600), await drawCapture(page, "문항 2", 1200)]);
+    await page.getByRole("button", { name: "캡처 2장 읽기", exact: true }).click();
+    await expect(page.getByLabel("문항 2", { exact: true })).toHaveValue("팀에서 갈등을 풀어 본 경험을 적어 주세요.");
+    await page.screenshot({ path: `artifacts/fe-508/capture-${width}.png`, fullPage: true });
+    parsed = { ...(PARSED as object), organization: "OO 연합 동아리", organizationType: "CLUB", readFrom: "TEXT",
+      questions: [`${common} (1000자)`, "팀 프로젝트에서 맡은 역할과 협업 방식을 적어 주세요. (공백 포함 700자 이내)"] };
+  }
 });

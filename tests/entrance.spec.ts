@@ -108,7 +108,7 @@ test("지원 분류는 나눈 값으로 칸을 채우고, 고친 칸의 꼬리�
   await page.getByRole("button", { name: "문항 2 위로", exact: true }).click();
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(PARSED.questions[1]);
   await expect(dialog.getByTitle("AI 가 채운 값이에요. 원문 사실이 아니에요 — 고쳐도 돼요.")).toHaveCount(2);
-  await page.getByRole("button", { name: "문항 2개 넣고 경험 찾기", exact: true }).click();
+  await page.getByRole("button", { name: "문항 2개로 경험 찾기", exact: true }).click();
   await expect(page).toHaveURL(/\/questions\?question=41/);
   expect(calls.applications).toEqual([{ organization: "고친 이름", organizationType: "BOOTCAMP", jobRole: "BACKEND", questions: [{ text: PARSED.questions[1] }, { text: "고친 문항" }] }]);
 });
@@ -122,9 +122,10 @@ test("문항을 못 찾으면 입력 글을 문항으로 지어 넣지 않고 �
   await expect(dialog.getByText(/이 글엔 자소서 문항이 없어요/)).toBeVisible();
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("");
   await expect(page.getByLabel("지원처 이름", { exact: true })).toHaveValue("OO 동아리");
-  await expect(page.getByLabel("직무", { exact: true })).toHaveText("+ 직무");
+  await expect(page.getByLabel("직무", { exact: true })).toHaveText("직무");
   await expect(dialog.getByTitle("AI 가 채운 값이에요. 원문 사실이 아니에요 — 고쳐도 돼요.")).toHaveCount(1);
   // 다른 쪽으로 보낼 땐 원문이 그대로 간다
+  await page.addStyleTag({ content: "nextjs-portal { display: none; }" }); // 390 에선 버튼 줄이 개발 도구 배지(개발 서버에만 있다) 자리에 온다
   await page.getByRole("button", { name: "자료로 쌓기", exact: true }).click();
   await expect(page.getByLabel("붙여넣을 자료")).toHaveValue("OO 동아리 모집 안내입니다.");
 });
@@ -161,13 +162,15 @@ test("문항을 못 찾으면 그 자리에 자주 나오는 문항이 펼쳐지
   const firstText = await group("SW 교육 프로그램").locator("label").first().innerText();
   const secondText = await group("IT 연합 동아리").locator("label").first().innerText();
   await common.getByRole("button", { name: "고른 문항 2개 넣기", exact: true }).click();
-  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(firstText.trim());
-  await expect(page.getByLabel("문항 2", { exact: true })).toHaveValue(secondText.trim());
+  // 글 끝 글자 수 표기는 목표 글자 수 칸으로 뗀다(FE#508)
+  const stripped = (text: string) => text.trim().replace(/\s*\([^()]*\d+자[^()]*\)$/, "");
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(stripped(firstText));
+  await expect(page.getByLabel("문항 2", { exact: true })).toHaveValue(stripped(secondText));
   // 문항이 생기면 자리를 비운다 · 찾은 칸은 그대로
   await expect(common).toHaveCount(0);
   await expect(page.getByLabel("지원처 이름", { exact: true })).toHaveValue("OO 동아리");
-  await page.getByRole("button", { name: "문항 2개 넣고 경험 찾기", exact: true }).click();
-  await expect.poll(() => calls.applications).toEqual([{ organization: "OO 동아리", organizationType: "CLUB", questions: [{ text: firstText.trim() }, { text: secondText.trim() }] }]);
+  await page.getByRole("button", { name: "문항 2개로 경험 찾기", exact: true }).click();
+  await expect.poll(() => calls.applications).toEqual([{ organization: "OO 동아리", organizationType: "CLUB", questions: [{ text: stripped(firstText) }, { text: stripped(secondText) }] }]);
 });
 
 for (const status of [502, 504]) {
@@ -205,8 +208,10 @@ test("지원 넣기 화면에서 공고를 붙여 칸을 채우고, 직접 넣�
   expect(calls.parses).toHaveLength(0);
   await expect(page.getByRole("dialog").getByText("AI 가 나눠 채웠어요 · 고쳐도 돼요", { exact: true })).toHaveCount(0);
   await page.getByLabel("지원처 이름", { exact: true }).fill("내가 쓴 이름");
+  // 확인 단계로 바로 왔다 — 원문 칸은 접혀 있어 펼쳐서 채운다(FE#508)
+  await page.getByRole("button", { name: "글 · 링크 · 캡처로 채우기", exact: true }).click();
   await page.getByLabel("공고 · 문항 글이나 공고 링크").fill("붙인 공고");
-  await page.getByRole("button", { name: "AI 로 나누기", exact: true }).click();
+  await page.getByRole("button", { name: "읽기", exact: true }).click();
   await expect(page.getByLabel("문항 3", { exact: true })).toHaveValue(PARSED.questions[1]);
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("직접 넣은 문항");
   await expect(page.getByLabel("지원처 이름", { exact: true })).toHaveValue("내가 쓴 이름");
@@ -214,14 +219,15 @@ test("지원 넣기 화면에서 공고를 붙여 칸을 채우고, 직접 넣�
   expect(calls.parses).toEqual([{ text: "붙인 공고" }]);
   // 다시 채우면 지난번 AI 값은 바뀌고 직접 넣은 칸은 남는다
   calls.parsed = { organization: null, organizationType: null, jobRole: null, questions: [] };
-  await page.getByRole("button", { name: "AI 로 나누기", exact: true }).click();
+  await page.getByRole("button", { name: "원문 보기", exact: true }).click();
+  await page.getByRole("button", { name: "다시 읽기", exact: true }).click();
   await expect(page.getByLabel("문항 2", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("직접 넣은 문항");
-  await expect(page.getByLabel("지원처 종류", { exact: true })).toHaveText("+ 종류");
+  await expect(page.getByLabel("지원처 종류", { exact: true })).toHaveText("종류");
   await expect(page.getByText(/이 글엔 자소서 문항이 없어요/)).toHaveCount(0);
   // 실패면 그 글을 문항 칸으로 옮길 수 있다
   calls.parseStatus = 502;
-  await page.getByRole("button", { name: "AI 로 나누기", exact: true }).click();
+  await page.getByRole("button", { name: "다시 읽기", exact: true }).click();
   await page.getByRole("button", { name: "직접 채우기", exact: true }).click();
   await expect(page.getByLabel("문항 2", { exact: true })).toHaveValue("붙인 공고");
 });
@@ -281,9 +287,10 @@ test("긴 글은 자르지 않고 한도 안내 뒤 자료 쪽으로 그대로 �
   calls.parsed = { ...PARSED, questions: [text] };
   await page.getByRole("button", { name: "보내기", exact: true }).click();
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(text);
-  await page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true }).click();
+  await page.getByRole("button", { name: "문항 1개로 경험 찾기", exact: true }).click();
   await expect(page.getByRole("dialog").getByRole("alert")).toContainText("5,000자");
   expect(calls.applications).toHaveLength(0);
+  await page.addStyleTag({ content: "nextjs-portal { display: none; }" }); // 390 에선 버튼 줄이 개발 도구 배지(개발 서버에만 있다) 자리에 온다
   await page.getByRole("button", { name: "자료로 쌓기", exact: true }).click();
   await expect(page.getByLabel("붙여넣을 자료")).toHaveValue(text);
 });
@@ -393,14 +400,14 @@ test("링크만 넣은 홈 입력은 가르지 않고 링크로 칸을 채우고
   await expect(page.getByRole("status").filter({ hasText: "링크를 읽고" })).toBeVisible();
   const dialog = page.getByRole("dialog");
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(PARSED.questions[0]);
-  await expect(page.getByRole("button", { name: `원문 링크 ${LINK} — 고치기`, exact: true })).toBeVisible();
+  await expect(page.getByLabel("원문 링크", { exact: true })).toHaveValue(LINK);
   await expect(dialog.getByText("링크를 읽어 AI 가 나눠 채웠어요 · 고쳐도 돼요", { exact: true })).toBeVisible();
   await expect(dialog.getByTitle("AI 가 채운 값이에요. 원문 사실이 아니에요 — 고쳐도 돼요.")).toHaveCount(3);
   expect(calls.routes).toHaveLength(0);
   expect(calls.parses).toEqual([{ url: LINK }]);
   await page.getByLabel("문항 1", { exact: true }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: `artifacts/posting-link-filled-${test.info().project.name}.png`, animations: "disabled", caret: "hide", style: "nextjs-portal { visibility: hidden; }" });
-  await page.getByRole("button", { name: "문항 2개 넣고 경험 찾기", exact: true }).click();
+  await page.getByRole("button", { name: "문항 2개로 경험 찾기", exact: true }).click();
   await expect(page).toHaveURL(/\/questions\?question=41/);
   expect(calls.applications).toEqual([{ organization: PARSED.organization, organizationType: "BOOTCAMP", jobRole: "BACKEND", postingUrl: LINK, questions: PARSED.questions.map(text => ({ text })) }]);
 });
@@ -413,7 +420,7 @@ test("링크와 다른 글이 섞이면 지금처럼 가르기로 보낸다", as
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(PARSED.questions[0]);
   expect(calls.routes).toEqual([{ text }]);
   expect(calls.parses).toEqual([{ text }]);
-  await expect(page.getByRole("button", { name: "원문 링크 더하기", exact: true })).toBeVisible();
+  await expect(page.getByLabel("원문 링크", { exact: true })).toHaveValue("");
 });
 
 for (const code of ["URL_UNREADABLE", "URL_BLOCKED"]) {
@@ -426,7 +433,8 @@ for (const code of ["URL_UNREADABLE", "URL_BLOCKED"]) {
     const alert = dialog.getByRole("alert");
     await expect(alert).toContainText("이 링크는 읽지 못했어요 — 공고 본문을 붙여 넣어 주세요");
     await expect(alert).toContainText("글이 거의 없는 페이지예요");
-    await expect(page.getByRole("button", { name: `원문 링크 ${LINK} — 고치기`, exact: true })).toBeVisible();
+    // 넣기 단계에 머문다 — 원문 링크는 남겨 둔다고 한 줄(FE#508)
+    await expect(dialog.getByText(/^원문 링크 .+ 는 남겨 둘게요$/)).toBeVisible();
     await expect(page.getByLabel("문항 1", { exact: true })).toHaveCount(0);
     await expect(dialog.getByTitle("AI 가 채운 값이에요. 원문 사실이 아니에요 — 고쳐도 돼요.")).toHaveCount(0);
     await expect(dialog.getByRole("button", { name: "다시 시도", exact: true })).toHaveCount(code === "URL_UNREADABLE" ? 1 : 0);
@@ -443,11 +451,11 @@ for (const code of ["URL_UNREADABLE", "URL_BLOCKED"]) {
     await expect(page.getByLabel("공고 · 문항 글이나 공고 링크")).toBeFocused();
     calls.parseStatus = 200;
     await page.getByLabel("공고 · 문항 글이나 공고 링크").fill("붙인 공고 본문");
-    await page.getByRole("button", { name: "AI 로 나누기", exact: true }).click();
+    await page.getByRole("button", { name: "읽기", exact: true }).click();
     await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(PARSED.questions[0]);
     expect(calls.parses.at(-1)).toEqual({ text: "붙인 공고 본문" });
     expect(calls.routes).toHaveLength(0);
-    await page.getByRole("button", { name: "문항 2개 넣고 경험 찾기", exact: true }).click();
+    await page.getByRole("button", { name: "문항 2개로 경험 찾기", exact: true }).click();
     await expect(page).toHaveURL(/\/questions\?question=41/);
     expect((calls.applications[0] as { postingUrl: string }).postingUrl).toBe(LINK);
   });
@@ -459,8 +467,9 @@ test("링크에서 문항을 못 찾으면 지원 양식 안내와 붙여 넣기
   await page.getByLabel("홈에 넣을 글").fill("직접 넣은 문항");
   await page.getByRole("button", { name: "보내기", exact: true }).click();
   await page.getByRole("button", { name: "지원으로 만들기", exact: true }).click();
+  await page.getByRole("button", { name: "글 · 링크 · 캡처로 채우기", exact: true }).click();
   await page.getByLabel("공고 · 문항 글이나 공고 링크").fill(LINK);
-  await page.getByRole("button", { name: "AI 로 나누기", exact: true }).click();
+  await page.getByRole("button", { name: "읽기", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(page.getByLabel("지원처 이름", { exact: true })).toHaveValue("OO 연합 동아리");
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("직접 넣은 문항");

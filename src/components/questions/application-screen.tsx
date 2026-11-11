@@ -76,6 +76,7 @@ export function ApplicationScreen() {
   const [adding, setAdding] = useState(false);
   // 좁은 화면은 목록과 세부를 나눠 보인다 — 지원을 열면 세부부터, 「지원 목록으로」를 누르면 목록(FE#159)
   const [listShown, setListShown] = useState(false);
+  const [panelChoice, setPanelChoice] = useState<boolean | null>(null);
   // 방문한 화면은 숨겨 두었다가 상태째 다시 보인다(cacheComponents) — 그때도 `new=1` 이면 새 지원서를 연다(FE#412).
   // 주소에서 `new` 를 먼저 지워 한 요청은 한 번만 연다(개발 모드에서 효과가 두 번 돌아도). 다시 받는 목록이 주소를 덮지 않게 알린다
   const newRequested = params.get("new") === "1";
@@ -88,7 +89,7 @@ export function ApplicationScreen() {
     window.history.replaceState(window.history.state, "", url);
     keepComposing();
     // 처음 그릴 때는 초깃값이 이미 같다. 떠나도 지우지 않는다 — 두 번째 효과는 `new` 가 없어 다시 열지 않는다
-    setTimeout(() => { setPasted(text); setComposing(true); setAdding(false); setListShown(false); }, 0);
+    setTimeout(() => { setPasted(text); setComposing(true); setAdding(false); setListShown(false); setPanelChoice(null); }, 0);
   }, [newRequested, keepComposing]);
   const open = matching.open;
   const overlaps = useMemo(() => (open ? overlapsOf(open.details) : []), [open]);
@@ -102,8 +103,8 @@ export function ApplicationScreen() {
   const empty = !matching.loading && !matching.error && matching.applications.length === 0;
   const ready = !empty && !matching.loading && !matching.error;
   const { wide, collapsed } = useSidebar();
-  const [panelChoice, setPanelChoice] = useState<boolean | null>(null);
-  const panelOpen = panelChoice ?? (restoreRun !== null || wide);
+  // 지원서를 넣는 동안엔 패널을 저절로 열지 않는다 — 이 단계엔 보일 게 없다(FE#508). 사용자가 열면 열린다
+  const panelOpen = panelChoice ?? (restoreRun !== null || (wide && !composing));
   const [draftFocus, setDraftFocus] = useState<{ questionId: number; request: number } | null>(null);
   const selectedIndex = open?.application.questions.findIndex(q => q.id === matching.questionId) ?? -1;
   const summary = open?.application.questions[selectedIndex] ?? null;
@@ -184,7 +185,7 @@ export function ApplicationScreen() {
     newFacts={{ onAnswerChange: matching.keepAnswer, findRequested: findFor !== null && findFor === selected?.id, onFindStarted,
       focusRequest: factsFocus && !factsFocus.done && factsFocus.questionId === selected?.id ? factsFocus.request : 0, onFocused: onFactsFocused }}
     onClose={() => setPanelChoice(false)} />;
-  const startNew = () => { setPasted(takeApplicationText()); setComposing(true); setAdding(false); setListShown(false); scrollToDetail(); };
+  const startNew = () => { setPasted(takeApplicationText()); setComposing(true); setAdding(false); setListShown(false); setPanelChoice(null); scrollToDetail(); };
   const pick = (a: Application) => {
     setComposing(false); setAdding(false); setListShown(false); matching.selectApplication(a);
     if (listShown) revealPane("selected-application"); else scrollToDetail();
@@ -216,7 +217,8 @@ export function ApplicationScreen() {
     <div className="flex-1 xl:flex xl:items-start">
     <div className="min-w-0 flex-1">
     <main className="mx-auto max-w-[1280px] px-4.5 py-5 lg:px-8 lg:py-6">
-      {working ? <h1 className="sr-only">지원</h1> : <div className="mb-7 flex items-start justify-between gap-3">
+      {/* 지원서를 넣는 동안엔 제목 · ⓘ · 「+ 지원 넣기」를 숨긴다 — 넣기 칸이 제목을 단다(FE#508) */}
+      {working || composing || (empty && restoreRun === null) ? <h1 className="sr-only">지원</h1> : <div className="mb-7 flex items-start justify-between gap-3">
         <div className="flex items-center gap-1"><h1 className="m-0 text-display leading-snug font-bold tracking-[-0.4px]">지원</h1><InfoTip label="지원">지원서의 문항마다 꺼내 볼 경험을 찾아요. 같은 경험도 문항마다 다른 점을 보여 줄 수 있어요.</InfoTip></div>
         {(empty || matching.error) && restoreRun !== null && <Button variant="secondary" onClick={() => setPanelChoice(!panelOpen)} aria-expanded={panelOpen}>차곡이</Button>}
         {!empty && <Button className="min-h-11 lg:min-h-10" disabled={composing || !!matching.error} onClick={startNew}><PlusIcon aria-hidden="true" />지원 넣기</Button>}
@@ -232,14 +234,14 @@ export function ApplicationScreen() {
       {matching.loading ? <LoadingApplications /> : matching.error ? <div role="alert" className="grid justify-items-start gap-3 py-8">
         <p className="m-0 text-error">{matching.error}</p><Button variant="secondary" onClick={() => { void matching.refresh(); }}>다시 불러오기</Button>
       </div> : empty ? <section id="selected-application" className="max-w-2xl" aria-label="새 지원 입력">
-        <ApplicationForm key={pasted} pastedText={pasted} onSubmit={req => matching.submit(req)} />
+        <ApplicationForm key={pasted} pastedText={pasted} onSubmit={(req, targetLengths) => matching.submit(req, targetLengths)} />
       </section> : <div className={cn("grid items-start gap-7 lg:gap-10", collapsed && "lg:grid-cols-[240px_minmax(0,1fr)]")}>
         {collapsed && <aside id="application-list" className={cn("min-w-0 scroll-mt-4 lg:sticky lg:top-20 lg:scroll-mt-20", !listFirst && "max-lg:hidden")} aria-label="지원 목록">
           <ApplicationList {...list} />
         </aside>}
         <section id="selected-application" className={cn("min-w-0 scroll-mt-5 lg:scroll-mt-20", listFirst && "max-lg:hidden")} aria-label={composing ? "새 지원 입력" : "선택한 지원"}>
-          {composing ? <ApplicationForm key={pasted} pastedText={pasted} onCancel={() => setComposing(false)} onSubmit={async req => {
-            const saved = await matching.submit(req);
+          {composing ? <ApplicationForm key={pasted} pastedText={pasted} onCancel={() => setComposing(false)} onSubmit={async (req, targetLengths) => {
+            const saved = await matching.submit(req, targetLengths);
             if (saved) { setComposing(false); scrollToDetail(); }
           }} /> : open ? <>
             <button type="button" onClick={showList} className="mb-1 inline-flex min-h-11 lg:min-h-10 items-center text-sm text-muted underline underline-offset-4 lg:hidden">지원 목록으로</button>

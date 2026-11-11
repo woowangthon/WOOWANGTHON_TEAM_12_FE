@@ -66,7 +66,7 @@ export function retryPostingMatch(id: number): Promise<Application> {
 }
 
 /** POST /api/applications — 지원 + 문항 0 ~ 10개 · 공고 요건 줄 0 ~ 40줄(둘 다 비면 안 된다, S-18 · S-91). 문항마다 추천, 줄이 있으면 공고 기준 경험 찾기 시작 */
-export async function submitApplication(req: CreateApplicationRequest): Promise<ApplicationSubmitted> {
+export async function submitApplication(req: CreateApplicationRequest, targetLengths: (number | null)[] = []): Promise<ApplicationSubmitted> {
   const lines = req.postingLines ?? [];
   if (req.questions.length > MAX_QUESTIONS_PER_SUBMIT) throw new ApiError("INVALID_REQUEST", "문항은 한 번에 10개까지 넣을 수 있어요.");
   if (!req.questions.length && !lines.length) throw new ApiError("INVALID_REQUEST", "문항이나 공고 요건을 하나 이상 넣어 주세요.");
@@ -74,7 +74,11 @@ export async function submitApplication(req: CreateApplicationRequest): Promise<
     throw new ApiError("INVALID_REQUEST", "공고 요건은 40줄까지, 줄마다 300자까지 넣을 수 있어요.");
   req.questions.forEach(q => checkText(q.text));
   checkOrganization(req.organization);
-  return request("/applications", req, "POST");
+  const submitted = await request<ApplicationSubmitted>("/applications", req, "POST");
+  // 확인 단계에서 문항 글 끝의 「(N자)」를 목표 글자 수로 떼었다(FE#508) — 만들기 계약엔 칸이 없어 문항 PATCH(S-77)로 남긴다.
+  // 못 남겨도 지원은 들어갔다 — 목표는 문항 머리에서 다시 넣을 수 있다
+  await Promise.allSettled(submitted.questionIds.map((id, i) => targetLengths[i] ? updateQuestionTargetLength(id, targetLengths[i]) : null));
+  return submitted;
 }
 
 /** PATCH /api/applications/{id} — 지원처 이름(S-73) · 종류 · 직무(S-42) · 상태(S-36) · 낸 달(S-37) 바꾸기. 추천은 다시 돌지 않는다 */
