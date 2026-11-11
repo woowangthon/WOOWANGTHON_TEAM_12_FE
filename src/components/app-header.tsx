@@ -271,7 +271,7 @@ function Brand({ collapsed, onNavigate }: { collapsed?: boolean; onNavigate?: ()
   </Link>;
 }
 
-function SidebarBackground() {
+export function SidebarBackground() {
   // 번짐 그림은 overflow-clip 안에 둔다. 계정 메뉴 초점 때문에 사이드바가 밀리지 않도록(FE#37).
   return <Image src="/brand/bg-blur.svg" alt="" aria-hidden="true" className="pointer-events-none absolute -top-75 -left-90 max-w-none" width={1500} height={1630} priority />;
 }

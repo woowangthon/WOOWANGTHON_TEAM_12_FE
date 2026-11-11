@@ -3,6 +3,7 @@
 import { InfoTip } from "@/components/ui/info-tip";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { COMMON_QUESTIONS } from "@/lib/common-questions";
 import { fetchQuestions } from "@/lib/api/questions";
@@ -71,7 +72,11 @@ export function CommonQuestionPicker({ open, onOpenChange, room, onPick }: {
         <div className="-mx-1 grid max-h-[55dvh] gap-5 overflow-auto px-1">
           <fieldset className="m-0 grid gap-1 border-0 p-0">
             <legend className="mb-1.5 p-0 text-sm font-semibold text-ink">내가 넣었던 문항</legend>
-            {past.state === "loading" && <p className="m-0 px-3 text-sm text-muted" role="status">넣었던 문항을 불러오고 있어요…</p>}
+            {/* 고를 문항 줄 자리 — 체크 칸 · 문항 글 · 지원처(FE#402) */}
+            {past.state === "loading" && <div role="status" className="grid gap-1"><span className="sr-only">넣었던 문항을 불러오고 있어요</span>
+              {[0, 1, 2].map(i => <div key={i} className="flex items-start gap-3 px-3 py-2.5"><Skeleton className="mt-1 size-4 shrink-0" />
+                <div className="grid flex-1 gap-1.5"><Skeleton className={i === 1 ? "h-4 w-2/3" : "h-4 w-5/6"} /><Skeleton className="h-3 w-28" /></div></div>)}
+            </div>}
             {past.state === "error" && (
               <div role="alert" className="flex flex-wrap items-center gap-x-2 px-3 text-sm text-error">
                 {past.message}

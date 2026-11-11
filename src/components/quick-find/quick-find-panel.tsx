@@ -12,6 +12,7 @@ import { AskAnswer, AskFailureNotice } from "@/components/home/ask-answer";
 import type { useAsk } from "@/components/home/use-ask";
 import { Mascot } from "@/components/questions/chagok-panel";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { handOffApplicationText } from "@/lib/application-handoff";
 import { fetchActivities } from "@/lib/api/experience";
 import type { ExperienceResult, ExperienceSearch } from "@/lib/api/types";
@@ -161,12 +162,15 @@ export function QuickFindPanel({ asked, addSourceBusy, initial, onGo }: { asked:
       </OptionList>
     </div> : <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
       <div ref={resultList} className="min-h-0 overflow-y-auto p-2.5" aria-busy={refreshing}>
-        {state.status === "loading" && <p role="status" className="p-3 text-sm text-muted">경험을 찾고 있어요…</p>}
+        {/* 결과 줄 자리 — 분류 점 · 두 줄 글 · 활동 이름(FE#402) */}
+        {(state.status === "loading" || (refreshing && found.length === 0)) && <div role="status" className="grid gap-1 p-1"><span className="sr-only">경험을 찾고 있어요…</span>
+          {[0, 1, 2, 3].map(i => <span key={i} className="flex items-start gap-2.5 rounded-sm px-2.5 py-2"><Skeleton className="mt-1.5 size-2 shrink-0" />
+            <span className="grid flex-1 gap-1.5"><Skeleton className={i % 2 ? "h-4 w-2/3" : "h-4 w-5/6"} /><Skeleton className="h-3 w-24" /></span></span>)}
+        </div>}
         {state.status === "error" && <div role="alert" className="grid justify-items-start gap-2 p-3">
           <p className="m-0 text-sm text-error">경험을 찾지 못했어요. {state.message}</p>
           <Button type="button" variant="secondary" className="min-h-11 lg:min-h-10" onClick={retry}><ArrowsClockwiseIcon aria-hidden="true" />다시 시도</Button>
         </div>}
-        {refreshing && found.length === 0 && <p role="status" className="p-3 text-sm text-muted">경험을 찾고 있어요…</p>}
         {state.status === "ready" && !refreshing && found.length === 0 && <div role="status" className="grid gap-1 p-3 text-sm">
           <p className="m-0 font-medium text-ink">쌓인 자료에서 찾지 못했어요</p>
           <p className="m-0 text-muted">{filtered ? "거르기를 줄이거나, " : ""}뜻으로 찾고 싶다면 「차곡이에게」로 물어보세요.</p>

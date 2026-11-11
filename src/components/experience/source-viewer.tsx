@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowsClockwiseIcon, FileTextIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { fetchSource } from "@/lib/api/experience";
 import type { Citation, SourceText } from "@/lib/api/types";
@@ -44,7 +45,10 @@ function SourceBody({ sourceId, lines }: { sourceId: number; lines?: Lines | nul
   }, [sourceId, attempt]);
   useEffect(() => { if (state.status === "ready") marked.current?.scrollIntoView({ block: "center" }); }, [state.status]);
 
-  if (state.status === "loading") return <p role="status" className="m-0 text-sm text-muted">원문을 불러오고 있어요…</p>;
+  // 원문 면과 같은 바탕 · 여백에 글 줄 자리(FE#402)
+  if (state.status === "loading") return <div role="status" className="grid gap-2.5 rounded-sm bg-surface-soft p-3.5"><span className="sr-only">원문을 불러오고 있어요</span>
+    {["w-full", "w-11/12", "w-4/5", "w-full", "w-2/3"].map((w, i) => <Skeleton key={i} className={`h-4 bg-surface-strong ${w}`} />)}
+  </div>;
   if (state.status === "error") return <div className="grid justify-items-start gap-3">
     <p role="alert" className="m-0 text-sm font-medium text-error">{state.message}</p>
     <Button size="sm" onClick={() => { setState({ status: "loading" }); setAttempt(n => n + 1); }}><ArrowsClockwiseIcon />다시 시도</Button>

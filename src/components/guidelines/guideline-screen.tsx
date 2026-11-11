@@ -7,6 +7,7 @@ import { AppHeader } from '@/components/app-header';
 import { ApiError } from '@/lib/api/errors';
 import { AnalysisButton, AnalysisCost, useAnalysisExhausted } from '@/components/auth/analysis-cost';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Toast, useToast } from '@/components/ui/toast';
 import { deleteGuideline, extractGuidelines, fetchGuidelines, guidelineError, saveGuidelines, updateGuideline, type Guideline, type GuidelineInput } from '@/lib/api/guidelines';
 
@@ -124,7 +125,13 @@ export function GuidelineScreen() {
         </section>}
         <section aria-labelledby="guidelines-title" className={card}>
           <div className="flex items-center gap-0.5"><h2 id="guidelines-title" className="m-0 text-lg font-semibold">내 지침 {items.length} / 50 · 켬 {enabled} / 10</h2><InfoTip label="내 지침">켠 지침은 다음에 만드는 초안부터 반영돼요. 지침이 부딪치면 하나를 꺼 주세요.</InfoTip></div>
-          {loading ? <p role="status" className="m-0 text-sm text-muted">지침을 불러오고 있어요…</p> : loadError ? <div className="grid justify-items-start gap-2"><p role="alert" className="m-0 text-sm text-error">{loadError}</p><Button variant="secondary" onClick={() => { setLoading(true); void load(); }}>다시 불러오기</Button></div> : <>
+          {loading ? <div role="status" className="grid gap-4"><span className="sr-only">지침을 불러오고 있어요</span>
+            {/* 지침 줄 자리 — 한 줄 글 · 출처 · 켜기 · 고치기 · 지우기(FE#402) */}
+            {[0, 1].map(i => <div key={i} className="grid gap-3 border-t border-hairline pt-4">
+              <Skeleton className="h-4 w-3/4" /><Skeleton className="h-3 w-24" />
+              <div className="flex gap-3"><Skeleton className="h-6 w-12 rounded-full" /><Skeleton className="h-6 w-14" /><Skeleton className="h-6 w-14" /></div>
+            </div>)}
+          </div> : loadError ? <div className="grid justify-items-start gap-2"><p role="alert" className="m-0 text-sm text-error">{loadError}</p><Button variant="secondary" onClick={() => { setLoading(true); void load(); }}>다시 불러오기</Button></div> : <>
             {!items.length && <p className="m-0 py-6 text-sm text-muted">아직 작성 지침이 없어요. 위 「지침 더하기」에 한 줄 쓰거나 들었던 작성법을 붙여 넣어 주세요.</p>}
             <ul className="m-0 grid list-none gap-4 p-0">{items.map(g => <li key={g.id} aria-label={'작성 지침 ' + g.id} className="grid min-w-0 gap-3 border-t border-hairline pt-4">
               {editing === g.id ? <form className="grid gap-3" onSubmit={e => { e.preventDefault(); void act(async () => { const updated = await updateGuideline(g.id, edit); setItems(previous => previous.map(item => item.id === g.id ? updated : item)); setEditing(null); showToast('지침을 고쳤어요. 다음에 만드는 초안부터 써요.'); }); }}>
