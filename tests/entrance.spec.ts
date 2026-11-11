@@ -73,6 +73,8 @@ test("자료 분류는 확인 전 저장하지 않고 양쪽 전환에서도 수
   await page.getByRole("button", { name: "지원으로 만들기", exact: true }).click();
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(edited);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  // 390 에선 버튼 줄이 개발 도구 배지(개발 서버에만 있다) 자리로 내려온다
+  await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
   await page.getByRole("button", { name: "자료로 쌓기", exact: true }).click();
   await expect(page.getByLabel("붙여넣을 자료")).toHaveValue(edited);
   expect(calls.applications).toHaveLength(0);
@@ -92,20 +94,20 @@ test("지원 분류는 나눈 값으로 칸을 채우고, 고친 칸의 꼬리�
   const dialog = page.getByRole("dialog");
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(PARSED.questions[0]);
   await expect(page.getByLabel("문항 2", { exact: true })).toHaveValue(PARSED.questions[1]);
-  await expect(page.getByLabel("지원처 이름 (선택)")).toHaveValue(PARSED.organization);
-  await expect(page.getByLabel("지원처 종류 (선택)")).toHaveText("부트캠프 · 교육 과정");
-  await expect(page.getByLabel("직무 (선택)")).toHaveText("백엔드 · 서버");
-  await expect(dialog.getByText("AI 가 채움", { exact: true })).toHaveCount(5);
+  await expect(page.getByLabel("지원처 이름", { exact: true })).toHaveValue(PARSED.organization);
+  await expect(page.getByLabel("지원처 종류", { exact: true })).toHaveText("부트캠프 · 교육 과정");
+  await expect(page.getByLabel("직무", { exact: true })).toHaveText("백엔드 · 서버");
+  await expect(dialog.getByTitle("AI 가 채운 값이에요. 원문 사실이 아니에요 — 고쳐도 돼요.")).toHaveCount(3);
   await expect(dialog.getByText("AI 가 나눠 채웠어요 · 고쳐도 돼요", { exact: true })).toBeVisible();
   expect(calls.parses).toEqual([{ text }]);
   expect(calls.applications).toHaveLength(0);
   // 고치면 그 칸만 꼬리표가 사라지고, 순서를 바꿔도 남은 꼬리표는 문항을 따라간다
-  await page.getByLabel("지원처 이름 (선택)").fill("고친 이름");
+  await page.getByLabel("지원처 이름", { exact: true }).fill("고친 이름");
   await page.getByLabel("문항 1", { exact: true }).fill("고친 문항");
-  await expect(dialog.getByText("AI 가 채움", { exact: true })).toHaveCount(3);
+  await expect(dialog.getByTitle("AI 가 채운 값이에요. 원문 사실이 아니에요 — 고쳐도 돼요.")).toHaveCount(2);
   await page.getByRole("button", { name: "문항 2 위로", exact: true }).click();
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(PARSED.questions[1]);
-  await expect(dialog.getByText("AI 가 채움", { exact: true })).toHaveCount(3);
+  await expect(dialog.getByTitle("AI 가 채운 값이에요. 원문 사실이 아니에요 — 고쳐도 돼요.")).toHaveCount(2);
   await page.getByRole("button", { name: "문항 2개 넣고 경험 찾기", exact: true }).click();
   await expect(page).toHaveURL(/\/questions\?question=41/);
   expect(calls.applications).toEqual([{ organization: "고친 이름", organizationType: "BOOTCAMP", jobRole: "BACKEND", questions: [{ text: PARSED.questions[1] }, { text: "고친 문항" }] }]);
@@ -119,9 +121,9 @@ test("문항을 못 찾으면 입력 글을 문항으로 지어 넣지 않고 �
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByText(/이 글엔 자소서 문항이 없어요/)).toBeVisible();
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("");
-  await expect(page.getByLabel("지원처 이름 (선택)")).toHaveValue("OO 동아리");
-  await expect(page.getByLabel("직무 (선택)")).toHaveText("고르지 않음");
-  await expect(dialog.getByText("AI 가 채움", { exact: true })).toHaveCount(2);
+  await expect(page.getByLabel("지원처 이름", { exact: true })).toHaveValue("OO 동아리");
+  await expect(page.getByLabel("직무", { exact: true })).toHaveText("+ 직무");
+  await expect(dialog.getByTitle("AI 가 채운 값이에요. 원문 사실이 아니에요 — 고쳐도 돼요.")).toHaveCount(1);
   // 다른 쪽으로 보낼 땐 원문이 그대로 간다
   await page.getByRole("button", { name: "자료로 쌓기", exact: true }).click();
   await expect(page.getByLabel("붙여넣을 자료")).toHaveValue("OO 동아리 모집 안내입니다.");
@@ -163,7 +165,7 @@ test("문항을 못 찾으면 그 자리에 자주 나오는 문항이 펼쳐지
   await expect(page.getByLabel("문항 2", { exact: true })).toHaveValue(secondText.trim());
   // 문항이 생기면 자리를 비운다 · 찾은 칸은 그대로
   await expect(common).toHaveCount(0);
-  await expect(page.getByLabel("지원처 이름 (선택)")).toHaveValue("OO 동아리");
+  await expect(page.getByLabel("지원처 이름", { exact: true })).toHaveValue("OO 동아리");
   await page.getByRole("button", { name: "문항 2개 넣고 경험 찾기", exact: true }).click();
   await expect.poll(() => calls.applications).toEqual([{ organization: "OO 동아리", organizationType: "CLUB", questions: [{ text: firstText.trim() }, { text: secondText.trim() }] }]);
 });
@@ -190,7 +192,7 @@ for (const status of [502, 504]) {
     await page.getByRole("button", { name: "보내기", exact: true }).click();
     await page.getByRole("button", { name: "직접 채우기", exact: true }).click();
     await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(text);
-    await expect(page.getByRole("dialog").getByText("AI 가 채움", { exact: true })).toHaveCount(0);
+    await expect(page.getByRole("dialog").getByTitle("AI 가 채운 값이에요. 원문 사실이 아니에요 — 고쳐도 돼요.")).toHaveCount(0);
     expect(calls.applications).toHaveLength(0);
   });
 }
@@ -202,20 +204,20 @@ test("지원 넣기 화면에서 공고를 붙여 칸을 채우고, 직접 넣�
   await page.getByRole("button", { name: "지원으로 만들기", exact: true }).click();
   expect(calls.parses).toHaveLength(0);
   await expect(page.getByRole("dialog").getByText("AI 가 나눠 채웠어요 · 고쳐도 돼요", { exact: true })).toHaveCount(0);
-  await page.getByLabel("지원처 이름 (선택)").fill("내가 쓴 이름");
+  await page.getByLabel("지원처 이름", { exact: true }).fill("내가 쓴 이름");
   await page.getByLabel("공고 · 문항 글이나 공고 링크").fill("붙인 공고");
   await page.getByRole("button", { name: "AI 로 나누기", exact: true }).click();
   await expect(page.getByLabel("문항 3", { exact: true })).toHaveValue(PARSED.questions[1]);
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("직접 넣은 문항");
-  await expect(page.getByLabel("지원처 이름 (선택)")).toHaveValue("내가 쓴 이름");
-  await expect(page.getByLabel("지원처 종류 (선택)")).toHaveText("부트캠프 · 교육 과정");
+  await expect(page.getByLabel("지원처 이름", { exact: true })).toHaveValue("내가 쓴 이름");
+  await expect(page.getByLabel("지원처 종류", { exact: true })).toHaveText("부트캠프 · 교육 과정");
   expect(calls.parses).toEqual([{ text: "붙인 공고" }]);
   // 다시 채우면 지난번 AI 값은 바뀌고 직접 넣은 칸은 남는다
   calls.parsed = { organization: null, organizationType: null, jobRole: null, questions: [] };
   await page.getByRole("button", { name: "AI 로 나누기", exact: true }).click();
   await expect(page.getByLabel("문항 2", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("직접 넣은 문항");
-  await expect(page.getByLabel("지원처 종류 (선택)")).toHaveText("고르지 않음");
+  await expect(page.getByLabel("지원처 종류", { exact: true })).toHaveText("+ 종류");
   await expect(page.getByText(/이 글엔 자소서 문항이 없어요/)).toHaveCount(0);
   // 실패면 그 글을 문항 칸으로 옮길 수 있다
   calls.parseStatus = 502;
@@ -391,9 +393,9 @@ test("링크만 넣은 홈 입력은 가르지 않고 링크로 칸을 채우고
   await expect(page.getByRole("status").filter({ hasText: "링크를 읽고" })).toBeVisible();
   const dialog = page.getByRole("dialog");
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(PARSED.questions[0]);
-  await expect(page.getByLabel("원문 링크 (선택)")).toHaveValue(LINK);
+  await expect(page.getByRole("button", { name: `원문 링크 ${LINK} — 고치기`, exact: true })).toBeVisible();
   await expect(dialog.getByText("링크를 읽어 AI 가 나눠 채웠어요 · 고쳐도 돼요", { exact: true })).toBeVisible();
-  await expect(dialog.getByText("AI 가 채움", { exact: true })).toHaveCount(5);
+  await expect(dialog.getByTitle("AI 가 채운 값이에요. 원문 사실이 아니에요 — 고쳐도 돼요.")).toHaveCount(3);
   expect(calls.routes).toHaveLength(0);
   expect(calls.parses).toEqual([{ url: LINK }]);
   await page.getByLabel("문항 1", { exact: true }).scrollIntoViewIfNeeded();
@@ -411,7 +413,7 @@ test("링크와 다른 글이 섞이면 지금처럼 가르기로 보낸다", as
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(PARSED.questions[0]);
   expect(calls.routes).toEqual([{ text }]);
   expect(calls.parses).toEqual([{ text }]);
-  await expect(page.getByLabel("원문 링크 (선택)")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "원문 링크 더하기", exact: true })).toBeVisible();
 });
 
 for (const code of ["URL_UNREADABLE", "URL_BLOCKED"]) {
@@ -424,9 +426,9 @@ for (const code of ["URL_UNREADABLE", "URL_BLOCKED"]) {
     const alert = dialog.getByRole("alert");
     await expect(alert).toContainText("이 링크는 읽지 못했어요 — 공고 본문을 붙여 넣어 주세요");
     await expect(alert).toContainText("글이 거의 없는 페이지예요");
-    await expect(page.getByLabel("원문 링크 (선택)")).toHaveValue(LINK);
+    await expect(page.getByRole("button", { name: `원문 링크 ${LINK} — 고치기`, exact: true })).toBeVisible();
     await expect(page.getByLabel("문항 1", { exact: true })).toHaveCount(0);
-    await expect(dialog.getByText("AI 가 채움", { exact: true })).toHaveCount(0);
+    await expect(dialog.getByTitle("AI 가 채운 값이에요. 원문 사실이 아니에요 — 고쳐도 돼요.")).toHaveCount(0);
     await expect(dialog.getByRole("button", { name: "다시 시도", exact: true })).toHaveCount(code === "URL_UNREADABLE" ? 1 : 0);
     if (code === "URL_UNREADABLE") {
       await alert.scrollIntoViewIfNeeded();
@@ -460,7 +462,7 @@ test("링크에서 문항을 못 찾으면 지원 양식 안내와 붙여 넣기
   await page.getByLabel("공고 · 문항 글이나 공고 링크").fill(LINK);
   await page.getByRole("button", { name: "AI 로 나누기", exact: true }).click();
   const dialog = page.getByRole("dialog");
-  await expect(page.getByLabel("지원처 이름 (선택)")).toHaveValue("OO 연합 동아리");
+  await expect(page.getByLabel("지원처 이름", { exact: true })).toHaveValue("OO 연합 동아리");
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("직접 넣은 문항");
   expect(calls.parses).toEqual([{ url: LINK }]);
   // 직접 넣은 문항이 있으면 「못 찾음」은 문항 칸이 비었을 때만 — 비우면 보인다

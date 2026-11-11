@@ -101,6 +101,10 @@ export type ActivitySummary = {
   categoryBy?: CategoryBy | null;
   experienceCount: number;
   mergeSuggestion?: MergeSuggestion | null;
+  /** S-97 — 이 활동 경험들의 STAR 빈칸 수. 이전 응답엔 없을 수 있다 */
+  starGapCount?: number;
+  /** STAR 를 정리하지 않았거나(NONE) 실패했거나(FAILED) 다시 정리할(STALE) 경험 수 */
+  starUnsortedCount?: number;
 };
 
 /** GET /api/sources/{sourceId} — 저장된 원문(S-74) */
@@ -141,7 +145,23 @@ export type Experience = {
   shared?: boolean;
   /** 사용자가 저장했나(S-71). 바꾸는 곳은 PUT /api/experiences/{id}/saved 하나 */
   saved?: boolean;
+  /** STAR 칸(S-95). 활동 세부 응답에만 실린다 — 없으면 아무것도 보이지 않는다 */
+  star?: Star;
 };
+
+/** README `starSlot` — R 은 「결과 및 배운 점」 */
+export type StarSlotName = "S" | "T" | "A" | "R";
+/** README `starStatus` */
+export type StarStatus = "NONE" | "ANALYZING" | "READY" | "STALE" | "FAILED";
+/** 칸 하나 — 찬 칸은 근거 발췌 · 보완 글 그대로, 빈칸은 text · sourceType · sourceId 가 null */
+export type StarSlot = {
+  slot: StarSlotName;
+  text: string | null;
+  sourceType: "CITATION" | "SUPPLEMENT" | null;
+  sourceId: number | null;
+  question: string | null;
+};
+export type Star = { status: StarStatus; slots: StarSlot[] };
 
 /** GET /api/experiences 의 경험 — activityId 대신 activity, usedIn 은 없다(S-58) */
 export type ExperienceResult = Omit<Experience, "activityId" | "usedIn"> & {
