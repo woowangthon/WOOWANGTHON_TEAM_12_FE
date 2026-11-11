@@ -5,7 +5,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowsClockwiseIcon, ChartBarHorizontalIcon, ChartPieSliceIcon, PlusIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { ArrowsClockwiseIcon, ChartBarHorizontalIcon, FoldersIcon, PlusIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { Tooltip } from "radix-ui";
 import { AddSourceButton, AppHeader, RailTip, type AddSourceProps } from "@/components/app-header";
 import { useSidebar } from "@/components/sidebar-layout";
@@ -77,16 +77,16 @@ export function TimelineScreen() {
   const refreshWork = useWorkRefresh();
   // 거르기 칩(S-57) — 받은 목록에서 FE 가 거른다. 저장하지 않아 새로고침하면 「전체」로 돌아간다
   const [categoryFilter, setCategoryFilter] = useState<ActivityCategory | null>(null);
-  // 통계(S-83) — 홈 쌓인 블록의 「통계 보기」(?view=stats)로 들어오면 통계부터
+  // 서랍(S-83) — 홈 쌓인 블록의 「서랍 열기」(?view=stats)로 들어오면 서랍부터
   const viewParam = params.get("view");
   const [listView, setListView] = useState<ExperienceView>(viewParam === "stats" ? "stats" : "timeline");
-  // 내 경험 화면이 이미 떠 있는 채로 ?view=stats 로 들어와도(마운트 초깃값만으로는 놓친다) 통계로 바꾼다 (#393)
+  // 내 경험 화면이 이미 떠 있는 채로 ?view=stats 로 들어와도(마운트 초깃값만으로는 놓친다) 서랍으로 바꾼다 (#393)
   const [seenViewParam, setSeenViewParam] = useState(viewParam);
   if (seenViewParam !== viewParam) {
     setSeenViewParam(viewParam);
     if (viewParam === "stats") setListView("stats");
   }
-  // 경험 내용이 바뀌면 통계가 출처 상태 · 역량을 다시 센다
+  // 경험 내용이 바뀌면 서랍이 출처 상태 · 역량을 다시 센다
   const [statsVersion, setStatsVersion] = useState(0);
   const refreshStats = () => setStatsVersion((n) => n + 1);
   const detailRequest = useRef(0);
@@ -641,7 +641,7 @@ export function TimelineScreen() {
                 <AnalysisBanner view={view} tracked={analysis.tracked} {...analysisActions} />
               )}
               {batchStatus}
-              {/* 분류 칩은 타임라인 · 통계 둘 다 — 통계는 고른 분류의 활동만 센다(FE#368) */}
+              {/* 분류 칩은 타임라인 · 서랍 둘 다 — 서랍은 고른 분류의 활동만 센다(FE#368) */}
               <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1.5">
                 <CategoryChips value={categoryFilter} onChange={setCategoryFilter} />
                 {listView === "timeline" && <>
@@ -767,10 +767,10 @@ export function TimelineScreen() {
 
 type ExperienceView = "timeline" | "stats";
 
-/** 타임라인 · 통계(S-83) 전환 — 시안 6 .vt 자리. 경험 찾기는 빠른 찾기 창 하나로 옮겼다(S-58 · FE#274). 1024 미만은 말풍선이 없어 글자를 같이 보인다 */
+/** 타임라인 · 서랍(S-83) 전환 — 시간순으로 보기 · 활동별로 모아 보기. — 시안 6 .vt 자리. 경험 찾기는 빠른 찾기 창 하나로 옮겼다(S-58 · FE#274). 1024 미만은 말풍선이 없어 글자를 같이 보인다 */
 function ViewSwitch({ view, onChange }: { view: ExperienceView; onChange: (next: ExperienceView) => void }) {
   const { desktop } = useSidebar();
-  const tab = (value: ExperienceView, label: string, Icon: typeof ChartPieSliceIcon) => (
+  const tab = (value: ExperienceView, label: string, Icon: typeof FoldersIcon) => (
     <RailTip label={label} enabled={desktop}>
       <button
         type="button"
@@ -790,7 +790,7 @@ function ViewSwitch({ view, onChange }: { view: ExperienceView; onChange: (next:
     <Tooltip.Provider delayDuration={200}>
       <div data-slot="view-switch" className="ml-auto inline-flex gap-0.5 rounded-full bg-surface-soft p-[3px]">
         {tab("timeline", "타임라인", ChartBarHorizontalIcon)}
-        {tab("stats", "통계", ChartPieSliceIcon)}
+        {tab("stats", "서랍", FoldersIcon)}
       </div>
     </Tooltip.Provider>
   );

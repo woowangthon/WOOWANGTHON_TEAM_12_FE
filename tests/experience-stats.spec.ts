@@ -1,4 +1,4 @@
-// FE#274 내 경험 통계(S-83). 시험 전용 HTTP 응답 — 제품용 목이 아니고 실제 BE 결과도 아니다.
+// FE#274 내 경험 서랍(S-83). 시험 전용 HTTP 응답 — 제품용 목이 아니고 실제 BE 결과도 아니다.
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import type { ActivityDetail, ActivitySummary, Experience } from "../src/lib/api/types";
@@ -35,7 +35,7 @@ async function setup(page: Page, activities: Row[] = BASE) {
   return api;
 }
 
-const stats = (page: Page) => page.getByRole("region", { name: "내 경험 통계" });
+const stats = (page: Page) => page.getByRole("region", { name: "쌓인 경험 요약" });
 const card = (page: Page, title: string) => stats(page).getByRole("group", { name: title, exact: true });
 const noOverflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
 const capture = async (page: Page, name: string) => {
@@ -47,8 +47,8 @@ test("the stats tab replaces search and counts blocks, categories, source status
   await setup(page);
   await page.goto("/experience");
   await expect(page.getByRole("button", { name: "경험 찾기", exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "통계", exact: true }).click();
-  await expect(page.getByRole("button", { name: "통계", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "서랍", exact: true }).click();
+  await expect(page.getByRole("button", { name: "서랍", exact: true })).toHaveAttribute("aria-pressed", "true");
 
   await expect(stats(page)).toContainText("4개의 경험이 차곡차곡");
   await expect(stats(page).getByLabel("2025 경험 2개 · 확인 필요 1개", { exact: true })).toBeVisible();
@@ -80,7 +80,8 @@ test("the stats tab replaces search and counts blocks, categories, source status
   await capture(page, `stats-${page.viewportSize()!.width}`);
   expect(await noOverflow(page)).toBe(true);
 
-  await stats(page).getByRole("button", { name: "확인할 경험 보기" }).click();
+  // 따로 있던 「확인할 경험 보기」 줄 대신 「확인 필요」 숫자 자체를 눌러 그 경험으로 간다(FE#461)
+  await source.getByRole("button", { name: "확인 필요 1", exact: true }).click();
   await expect(page.getByRole("complementary", { name: "활동 세부" })).toBeVisible();
 });
 

@@ -13,7 +13,7 @@ import { ApiError } from "@/lib/api/errors";
 import { MAX_QUESTION_LENGTH } from "@/lib/api/question-types";
 import { cn } from "@/lib/utils";
 
-const MENU = "z-50 min-w-44 rounded-md border border-hairline bg-canvas p-1 shadow-float";
+const MENU = "z-50 min-w-44 rounded-md border border-hairline bg-canvas p-2 shadow-float";
 
 /** 지우기 · 고치기 실패를 사용자 말로 — 창은 열어 둔 채 값은 그대로 둔다 */
 function failureText(e: unknown, fallback: string) {

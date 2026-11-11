@@ -25,11 +25,11 @@ export function experienceYears(activities: ActivitySummary[], details: Activity
   return [...years].sort(([a], [b]) => (a === UNKNOWN ? 1 : b === UNKNOWN ? -1 : a.localeCompare(b)));
 }
 
-export function ExperienceBlocks({ years, size = "sm", className }: { years: ReturnType<typeof experienceYears>; size?: "sm" | "md"; className?: string }) {
+export function ExperienceBlocks({ years, size = "sm", perColumn = PER_COLUMN, className }: { years: ReturnType<typeof experienceYears>; size?: "sm" | "md"; /** 한 기둥에 쌓는 블록 수 — 서랍 요약 카드는 낮게 8 */ perColumn?: number; className?: string }) {
   return (
     <span className={cn("flex min-w-0 flex-wrap items-end gap-x-3 gap-y-3", className)}>
       {years.map(([year, blocks]) => {
-        const columns = Array.from({ length: Math.ceil(blocks.length / PER_COLUMN) }, (_, i) => blocks.slice(i * PER_COLUMN, (i + 1) * PER_COLUMN));
+        const columns = Array.from({ length: Math.ceil(blocks.length / perColumn) }, (_, i) => blocks.slice(i * perColumn, (i + 1) * perColumn));
         return (
           <span key={year} className="flex shrink-0 flex-col items-center gap-1.5">
             <span className="flex min-h-8 items-end gap-1" role="img" aria-label={`${year} 경험 ${blocks.length}개${blocks.some((b) => b.review) ? ` · 확인 필요 ${blocks.filter((b) => b.review).length}개` : ""}`}>

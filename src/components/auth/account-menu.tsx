@@ -31,7 +31,7 @@ export function AccountMenu({ variant = "bar" }: { variant?: "bar" | "sidebar" |
           align={variant !== "bar" ? "start" : "end"}
           side={variant !== "bar" ? "top" : "bottom"}
           sideOffset={6}
-          className="z-50 min-w-52 rounded-md border border-hairline bg-canvas p-1 shadow-float"
+          className="z-50 min-w-52 rounded-md border border-hairline bg-canvas p-2 shadow-float"
         >
           <div className="grid gap-0.5 px-3 py-2.5">
             <span className="text-sm font-semibold text-ink">{me.loginId}</span>
