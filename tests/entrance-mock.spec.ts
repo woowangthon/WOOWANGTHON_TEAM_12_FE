@@ -46,9 +46,9 @@ test("목 지원 나누기는 글에 적힌 문항만 규칙으로 나누고 목
   await page.getByRole("button", { name: "보내기", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(page.getByLabel("문항 2", { exact: true })).toHaveValue("지원 동기와 수료 후 목표를 적어 주세요. (500자)");
-  await expect(page.getByLabel("지원처 이름 (선택)")).toHaveValue("OO 부트캠프 백엔드 과정 지원서");
-  await expect(dialog.getByText("목 규칙으로 채움", { exact: true })).toHaveCount(5);
-  await expect(dialog.getByText("AI 가 채움", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("지원처 이름", { exact: true })).toHaveValue("OO 부트캠프 백엔드 과정 지원서");
+  await expect(dialog.getByText("목 규칙으로 채움", { exact: true })).toHaveCount(3);
+  await expect(dialog.getByTitle("AI 가 채운 값이에요. 원문 사실이 아니에요 — 고쳐도 돼요.")).toHaveCount(0);
   await expect(dialog.getByText(/AI 호출 없이/)).toBeVisible();
   await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
   await page.screenshot({ path: `artifacts/parse-application-${info.project.name}.png` });
