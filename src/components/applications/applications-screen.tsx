@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PlusIcon } from "@phosphor-icons/react";
 import { AppHeader } from "@/components/app-header";
-import { monthText, useSidebarApplications } from "@/components/sidebar-applications";
+import { applicationHref, monthText, useSidebarApplications } from "@/components/sidebar-applications";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isMockMode } from "@/lib/api/http";
@@ -98,13 +98,14 @@ function ApplicationRow({ application: a, by, onDelete }: { application: Applica
   const count = (status: Application["questions"][number]["status"]) => a.questions.filter((q) => q.status === status).length;
   const meta = [by !== "type" && a.organizationType && ORGANIZATION_TYPE_LABEL[a.organizationType], a.jobRole && JOB_ROLE_LABEL[a.jobRole]].filter(Boolean);
   const progress = [
-    `문항 ${a.questions.length}`,
+    // 문항 없이 공고 줄만 넣은 지원(S-93)은 공고 줄 수
+    !a.questions.length && a.postingLines?.length ? `공고 ${a.postingLines.length}줄` : `문항 ${a.questions.length}`,
     count("ANALYZING") && `분석 중 ${count("ANALYZING")}`,
     count("FAILED") && `실패 ${count("FAILED")}`,
     by !== "period" && a.submittedMonth && `${monthText(a.submittedMonth)} 냄`,
   ].filter(Boolean).join(" · ");
   const first = a.questions[0];
-  const href = first ? `/questions?question=${first.id}` : "/questions";
+  const href = applicationHref(a);
   return (
     // 링크 안에 버튼을 둘 수 없어 메뉴는 줄의 형제로 오른쪽에 둔다
     <li className="flex items-center gap-1 border-b border-hairline">

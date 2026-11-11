@@ -177,6 +177,8 @@ export type ExperienceSearch = {
   category?: ActivityCategory;
   /** 저장한 경험만(S-71). 빼면 거르지 않는다 */
   saved?: true;
+  /** 1 ~ 200, 빼면 서버 기본 100 */
+  limit?: number;
 };
 
 /** total 은 limit 적용 전 맞은 개수 */

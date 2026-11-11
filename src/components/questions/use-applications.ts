@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { addApplicationQuestion, answerClarification, createQuestionDraft, deleteApplication, deleteQuestion, fetchApplications, fetchQuestion, retryQuestion, submitApplication, updateApplication, updateQuestionTargetLength, updateQuestionText, updateQuestionType } from "@/lib/api/questions";
+import { addApplicationQuestion, answerClarification, createQuestionDraft, deleteApplication, deleteQuestion, fetchApplication, fetchApplications, fetchQuestion, retryPostingMatch, retryQuestion, submitApplication, updateApplication, updateQuestionTargetLength, updateQuestionText, updateQuestionType } from "@/lib/api/questions";
 import { ApiError } from "@/lib/api/errors";
 import type { DraftFrame } from "@/lib/draft-frames";
 import type { Answer, AnswerDraft, Application, CreateApplicationRequest, QuestionDetail, QuestionSummary, QuestionType, UpdateApplicationRequest } from "@/lib/api/question-types";
@@ -19,6 +19,10 @@ type State = {
   /** 상태 확인의 연속 실패 횟수 — 이미 받은 문항 · 추천은 그대로 둔다 */
   pollFailures: Record<number, number>;
   questionId: number | null;
+  /** 「공고」 탭(S-93)을 연 지원 — 열었으면 questionId 는 null. 문항 0개 지원은 늘 이것이다 */
+  postingFor: number | null;
+  /** 공고 기준 경험 찾기 상태 확인의 연속 실패 횟수 — 지원 ID 로 */
+  postingPollFailures: Record<number, number>;
   error: string | null;
 };
 const POLL_MS = 2000;
@@ -35,17 +39,36 @@ function applicationInUrl(): number | null {
   const id = Number(new URLSearchParams(window.location.search).get("application"));
   return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
+/** 「공고」 탭을 연 주소 — `?application=21&tab=posting` */
+function postingInUrl(): number | null {
+  return new URLSearchParams(window.location.search).get("tab") === "posting" ? applicationInUrl() : null;
+}
 function keepInUrl(id: number) {
   const url = new URL(window.location.href);
-  if (url.searchParams.get("question") === String(id)) return;
+  if (url.searchParams.get("question") === String(id) && !url.searchParams.has("tab")) return;
   url.searchParams.set("question", String(id));
+  // 「공고」 탭에서 문항 탭으로 — 공고 탭 주소만 지운다(그 밖의 `?application=` 은 지금처럼 둔다)
+  if (url.searchParams.has("tab")) { url.searchParams.delete("tab"); url.searchParams.delete("application"); }
   window.history.replaceState(window.history.state, "", url);
 }
-/** 지운 지원 · 문항을 가리키는 주소를 바로잡는다(S-89) — 남은 문항이 없으면 `?question=` · `?application=` 을 지워 새로고침이 「문항을 불러오지 못했어요」가 되지 않게 */
-function moveUrlTo(id: number | null) {
-  if (id !== null) { keepInUrl(id); return; }
+function keepPostingInUrl(applicationId: number) {
   const url = new URL(window.location.href);
-  url.searchParams.delete("question"); url.searchParams.delete("application");
+  url.searchParams.delete("question");
+  url.searchParams.set("application", String(applicationId)); url.searchParams.set("tab", "posting");
+  window.history.replaceState(window.history.state, "", url);
+}
+/** 지원을 열 때의 첫 자리 — 첫 문항, 문항이 없으면 「공고」 탭 */
+const firstView = (a: Application | null | undefined): { questionId: number | null; postingFor: number | null } =>
+  !a ? { questionId: null, postingFor: null } : a.questions[0] ? { questionId: a.questions[0].id, postingFor: null } : { questionId: null, postingFor: a.id };
+/** 공고 줄 · 결과만 옮긴다 — 문항 요약은 문항 폴링이 맞춘다 */
+const withPosting = (applications: Application[], fresh: Application) =>
+  applications.map(a => a.id === fresh.id ? { ...a, postingLines: fresh.postingLines ?? a.postingLines, postingMatch: fresh.postingMatch ?? null } : a);
+/** 지운 지원 · 문항을 가리키는 주소를 바로잡는다(S-89) — 남은 문항이 없으면 `?question=` · `?application=` 을 지워 새로고침이 「문항을 불러오지 못했어요」가 되지 않게 */
+function moveUrlTo(id: number | null, postingFor: number | null = null) {
+  if (id !== null) { keepInUrl(id); return; }
+  if (postingFor !== null) { keepPostingInUrl(postingFor); return; }
+  const url = new URL(window.location.href);
+  url.searchParams.delete("question"); url.searchParams.delete("application"); url.searchParams.delete("tab");
   window.history.replaceState(window.history.state, "", url);
 }
 
@@ -73,7 +96,10 @@ const ownerOf = (applications: Application[], questionId: number | null) =>
  *  - `composingAtStart` — 새 지원서 작성으로 들어왔는가(첫 값만 본다). 이때는 처음 받은 뒤에도 주소의 `?question=` 을 건드리지 않는다 */
 export function useApplications(composingAtStart = false) {
   const composingAtStartRef = useRef(composingAtStart);
-  const [state, setState] = useState<State>({ loading: true, applications: [], details: {}, detailErrors: {}, pollFailures: {}, questionId: null, error: null });
+  const [state, setState] = useState<State>({ loading: true, applications: [], details: {}, detailErrors: {}, pollFailures: {}, questionId: null, postingFor: null, postingPollFailures: {}, error: null });
+  /** 지원마다 공고 결과의 번호표 — 다시 찾기 · 답하기 뒤엔 그보다 먼저 출발한 폴링 응답(옛 결과)을 버린다 */
+  const postingVersions = useRef(new Map<number, number>());
+  const bumpPosting = (id: number) => { const next = (postingVersions.current.get(id) ?? 0) + 1; postingVersions.current.set(id, next); return next; };
   const generation = useRef(0);
   const pending = useRef(false);
   const fetching = useRef(new Set<number>());
@@ -85,16 +111,19 @@ export function useApplications(composingAtStart = false) {
 
   /** 받은 문항을 넣는다. 그새 넣기 · 답하기가 있었으면(번호표가 지났으면) 버린다.
    *  keep 이 있으면 그 밖의 받아 둔 문항은 지운다 — 보완이 생겨 다른 지원의 추천 경험도 바뀌었을 수 있어 다음에 열 때 다시 받는다 */
-  const commit = useCallback((version: number, fresh: QuestionDetail[], next: { applications?: Application[]; questionId?: number; keep?: Set<number> } = {}) => {
+  const commit = useCallback((version: number, fresh: QuestionDetail[], next: { applications?: Application[]; questionId?: number; postingFor?: number; keep?: Set<number> } = {}) => {
     if (version !== generation.current) return;
     if (next.questionId !== undefined) keepInUrl(next.questionId);
+    else if (next.postingFor !== undefined) keepPostingInUrl(next.postingFor);
     setState(prev => {
       const details: Record<number, QuestionDetail> = {};
       for (const [id, d] of Object.entries(prev.details)) if (!next.keep || next.keep.has(+id)) details[+id] = d;
       const detailErrors = { ...prev.detailErrors };
       const pollFailures = { ...prev.pollFailures };
       for (const d of fresh) { details[d.id] = d; delete detailErrors[d.id]; delete pollFailures[d.id]; }
-      return { ...prev, details, detailErrors, pollFailures, applications: patch(next.applications ?? prev.applications, fresh), questionId: next.questionId ?? prev.questionId };
+      const view = next.questionId !== undefined ? { questionId: next.questionId, postingFor: null }
+        : next.postingFor !== undefined ? { questionId: null, postingFor: next.postingFor } : { questionId: prev.questionId, postingFor: prev.postingFor };
+      return { ...prev, details, detailErrors, pollFailures, applications: patch(next.applications ?? prev.applications, fresh), ...view };
     });
   }, []);
 
@@ -129,11 +158,16 @@ export function useApplications(composingAtStart = false) {
       const wantedApplication = applicationInUrl();
       const application = ownerOf(applications, wanted) ?? applications.find(a => a.id === wantedApplication) ?? applications[0] ?? null;
       if (wanted && !first && !ownerOf(applications, wanted)) throw new ApiError("QUESTION_NOT_FOUND", "알림의 문항을 불러오지 못했어요. 다시 불러와 주세요.");
-      const questionId = application ? (application.questions.find(q => q.id === wanted) ?? application.questions[0]).id : null;
+      // 첫 자리 — 주소의 문항, 「공고」 탭 주소면 공고 탭, 아니면 첫 문항(문항이 없으면 공고 탭)
+      const linkedQuestion = application?.questions.find(q => q.id === wanted);
+      const view = linkedQuestion ? { questionId: linkedQuestion.id, postingFor: null }
+        : application && postingInUrl() === application.id && application.postingLines?.length ? { questionId: null, postingFor: application.id }
+        : firstView(application);
+      const { questionId, postingFor } = view;
       // 「새 지원서」로 들어왔으면(`?new=1`, FE#147) 작성 중이다 — 첫 지원서를 골라 주소를 `?question=` 으로 덮지 않는다(FE#374)
-      if (questionId !== null && !composingStart) keepInUrl(questionId);
+      if (!composingStart) { if (questionId !== null) keepInUrl(questionId); else if (postingFor !== null) keepPostingInUrl(postingFor); }
       const details = first && first.id === questionId ? { [first.id]: first } : {};
-      setState({ loading: false, applications: patch(applications, Object.values(details)), details, detailErrors: {}, pollFailures: {}, questionId, error: null });
+      setState({ loading: false, applications: patch(applications, Object.values(details)), details, detailErrors: {}, pollFailures: {}, questionId, postingFor, postingPollFailures: {}, error: null });
     } catch (e) {
       if (version === generation.current) setState(prev => ({ ...prev, loading: false, error: message(e, "지원을 불러오지 못했어요.") }));
     } finally {
@@ -171,7 +205,7 @@ export function useApplications(composingAtStart = false) {
     });
   }, []);
 
-  const open = ownerOf(state.applications, state.questionId);
+  const open = state.postingFor !== null ? state.applications.find(a => a.id === state.postingFor) ?? null : ownerOf(state.applications, state.questionId);
   const missing = open?.questions.filter(q => !state.details[q.id] && !state.detailErrors[q.id]).map(q => q.id).join(",") ?? "";
   useEffect(() => {
     if (missing) void fetchMissing(missing.split(",").map(Number));
@@ -206,6 +240,36 @@ export function useApplications(composingAtStart = false) {
     return () => { disposed = true; clearInterval(timer); };
   }, [analyzing, state.error, commit]);
 
+  /** 공고 기준 경험 찾기(S-93)가 분석 중인 지원만 2초마다 그 지원을 다시 읽는다 — 공고 줄 · 결과만 옮긴다.
+   *  다시 찾기 · 답하기 뒤엔 그보다 먼저 출발한 응답을 버린다. 연속 3회 실패하면 멈춘다(문항 폴링과 같다) */
+  const postingAnalyzing = state.applications
+    .filter(a => a.postingMatch?.status === "ANALYZING" && (state.postingPollFailures[a.id] ?? 0) < MAX_POLL_FAILURES).map(a => a.id).join(",");
+  useEffect(() => {
+    if (!postingAnalyzing || state.error) return;
+    const ids = postingAnalyzing.split(",").map(Number);
+    let busy = false;
+    let disposed = false;
+    const timer = setInterval(async () => {
+      if (busy) return;
+      busy = true;
+      const versions = ids.map(id => postingVersions.current.get(id) ?? 0);
+      const results = await Promise.allSettled(ids.map(fetchApplication));
+      busy = false;
+      if (disposed) return;
+      setState(prev => {
+        let applications = prev.applications;
+        const postingPollFailures = { ...prev.postingPollFailures };
+        results.forEach((r, i) => {
+          if ((postingVersions.current.get(ids[i]) ?? 0) !== versions[i]) return;
+          if (r.status === "fulfilled") { applications = withPosting(applications, r.value); delete postingPollFailures[ids[i]]; }
+          else postingPollFailures[ids[i]] = (postingPollFailures[ids[i]] ?? 0) + 1;
+        });
+        return { ...prev, applications, postingPollFailures };
+      });
+    }, POLL_MS);
+    return () => { disposed = true; clearInterval(timer); };
+  }, [postingAnalyzing, state.error]);
+
   /** 넣기 · 더하기 · 다시 시도는 하나씩만 */
   const once = async <T,>(run: () => Promise<T>) => {
     if (pending.current) return null;
@@ -223,9 +287,15 @@ export function useApplications(composingAtStart = false) {
 
   /** 탭 고르기 — 요청 없이 바로. 같은 탭이면 아무 일도 없다 */
   const selectQuestion = (id: number) => {
-    if (id === state.questionId) return;
+    if (id === state.questionId && state.postingFor === null) return;
     keepInUrl(id);
-    setState(prev => ({ ...prev, questionId: id }));
+    setState(prev => ({ ...prev, questionId: id, postingFor: null }));
+  };
+  /** 「공고」 탭 고르기(S-93) — 요청 없이 바로 */
+  const selectPosting = (applicationId: number) => {
+    if (state.postingFor === applicationId) return;
+    keepPostingInUrl(applicationId);
+    setState(prev => ({ ...prev, questionId: null, postingFor: applicationId }));
   };
   return {
     keepComposing,
@@ -240,6 +310,30 @@ export function useApplications(composingAtStart = false) {
     /** 상태 확인만 다시 시작한다 — 서버의 분석을 다시 돌리거나 추천을 지우지 않는다 */
     resumePolling: (id: number) => setState(prev => { const pollFailures = { ...prev.pollFailures }; delete pollFailures[id]; return { ...prev, pollFailures }; }),
     questionId: state.questionId,
+    /** 「공고」 탭을 연 지원 ID — 문항 탭이면 null */
+    postingFor: state.postingFor,
+    selectPosting,
+    /** 공고 결과 상태 확인을 멈췄나(연속 3회 실패) · 다시 시작 */
+    postingPollStopped: (applicationId: number) => (state.postingPollFailures[applicationId] ?? 0) >= MAX_POLL_FAILURES,
+    resumePostingPoll: (applicationId: number) => setState(prev => { const postingPollFailures = { ...prev.postingPollFailures }; delete postingPollFailures[applicationId]; return { ...prev, postingPollFailures }; }),
+    /** 공고 기준 경험 찾기 다시 시도 · 다시 찾기(S-93 — 분석 1회). 실패는 부르는 쪽에 던진다(429 면 옛 결과가 남는다) */
+    retryPosting: async (applicationId: number) => {
+      const fresh = await retryPostingMatch(applicationId);
+      bumpPosting(applicationId);
+      setState(prev => { const postingPollFailures = { ...prev.postingPollFailures }; delete postingPollFailures[applicationId]; return { ...prev, postingPollFailures, applications: withPosting(prev.applications, fresh) }; });
+    },
+    /** 공고 되묻기에 답하기 — 문항 되묻기와 같은 API. 그 경험의 보완이 되니 공고 결과와 이 지원의 문항을 다시 읽는다. 저장 실패는 부르는 쪽에 던진다 */
+    answerPosting: async (applicationId: number, clarificationId: number, answer: string) => {
+      const { supplement } = await answerClarification(clarificationId, { answer });
+      const version = bumpPosting(applicationId);
+      try {
+        const fresh = await fetchApplication(applicationId);
+        if (postingVersions.current.get(applicationId) === version) setState(prev => ({ ...prev, applications: withPosting(prev.applications, fresh) }));
+        const ids = fresh.questions.map(q => q.id);
+        if (ids.length) await reloadAfter(async v => commit(v, await Promise.all(ids.map(fetchQuestion)), { keep: new Set(ids) }));
+      } catch { /* 답은 저장됐다 — 다시 읽기 실패는 폴링 · 다음 열기가 맞춘다. 입력칸에 오류로 돌려 같은 답을 또 보내지 않게 */ }
+      return supplement;
+    },
     open: open && { application: open, details: open.questions.map(q => state.details[q.id] ?? null) },
     /** 고른 문항을 못 받았을 때의 오류 */
     detailError: state.questionId !== null ? state.detailErrors[state.questionId] ?? null : null,
@@ -255,7 +349,7 @@ export function useApplications(composingAtStart = false) {
       if (state.applications.some(a => a.questions.some(q => q.id === id))) { selectQuestion(id); return; }
       await load();
     },
-    selectApplication: (application: Application) => selectQuestion(application.questions[0].id),
+    selectApplication: (application: Application) => application.questions[0] ? selectQuestion(application.questions[0].id) : selectPosting(application.id),
     /** 문항 응답만 다시 읽는다. 초안 전용 GET/재시도 API나 별도 저장소는 없다. */
     refreshDraft: async (id: number) => {
       const version = ++generation.current;
@@ -288,10 +382,11 @@ export function useApplications(composingAtStart = false) {
       } finally { drafting.current.delete(question.id); setDraftingIds([...drafting.current]); }
     },
     submit: (req: CreateApplicationRequest) => once(async () => {
-      const { questionIds } = await submitApplication(req);
+      const { applicationId, questionIds } = await submitApplication(req);
       await reloadAfter(async version => {
         const [applications, fresh] = await Promise.all([fetchApplications(), Promise.all(questionIds.map(fetchQuestion))]);
-        commit(version, fresh, { applications, questionId: questionIds[0] });
+        // 문항 없이 공고 줄만 넣었으면(S-18) 「공고」 탭을 연다
+        commit(version, fresh, questionIds.length ? { applications, questionId: questionIds[0] } : { applications, postingFor: applicationId });
       });
       return true;
     }),
@@ -352,13 +447,13 @@ export function useApplications(composingAtStart = false) {
       ++generation.current;
       const gone = state.applications.find(a => a.id === applicationId);
       const rest = state.applications.filter(a => a.id !== applicationId);
-      const wasOpen = !!gone?.questions.some(q => q.id === state.questionId);
-      const next = wasOpen ? rest[0]?.questions[0]?.id ?? null : state.questionId;
-      if (wasOpen) moveUrlTo(next);
+      const wasOpen = !!gone?.questions.some(q => q.id === state.questionId) || state.postingFor === applicationId;
+      const next = wasOpen ? firstView(rest[0]) : { questionId: state.questionId, postingFor: state.postingFor };
+      if (wasOpen) moveUrlTo(next.questionId, next.postingFor);
       setState(prev => {
         const details = { ...prev.details };
         gone?.questions.forEach(q => { delete details[q.id]; });
-        return { ...prev, applications: prev.applications.filter(a => a.id !== applicationId), details, questionId: wasOpen ? next : prev.questionId };
+        return { ...prev, applications: prev.applications.filter(a => a.id !== applicationId), details, ...(wasOpen ? next : {}) };
       });
     },
     /** 문항 지우기(S-89) — 그 지원에서 문항을 빼고, 고른 문항이었으면 바로 앞(첫 문항이면 다음) 문항을 고른다. 실패는 부르는 쪽에 던진다 */
@@ -369,11 +464,13 @@ export function useApplications(composingAtStart = false) {
       const index = owner?.questions.findIndex(q => q.id === questionId) ?? -1;
       const left = owner?.questions.filter(q => q.id !== questionId) ?? [];
       const next = state.questionId === questionId ? left[Math.max(0, index - 1)]?.id ?? null : state.questionId;
-      if (state.questionId === questionId) moveUrlTo(next);
+      // 마지막 문항을 지웠는데 공고 줄이 있으면 그 지원의 「공고」 탭으로
+      const postingNext = state.questionId === questionId && next === null && owner?.postingLines?.length ? owner.id : null;
+      if (state.questionId === questionId) moveUrlTo(next, postingNext);
       setState(prev => {
         const details = { ...prev.details }; delete details[questionId];
         const applications = prev.applications.map(a => a.id === owner?.id ? { ...a, questions: a.questions.filter(q => q.id !== questionId) } : a);
-        return { ...prev, applications, details, questionId: next };
+        return { ...prev, applications, details, questionId: next, postingFor: postingNext ?? prev.postingFor };
       });
     },
     retry: (questionId: number) => once(async () => {

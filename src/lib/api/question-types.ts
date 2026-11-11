@@ -30,7 +30,9 @@ export type Recommendation = {
   evidence: RecommendationEvidence[];
   gaps: string[];
 };
-export type Clarification = { id: number; experienceId: number; question: string; supplementId: number | null };
+export type Clarification = { id: number; experienceId: number; question: string; supplementId: number | null;
+  /** 공고 기준 경험 찾기(S-93)의 되묻기면 그 공고 줄 ID, 문항 되묻기면 null. 이전 응답엔 없다 */
+  postingLineId?: number | null };
 /** 문항 유형(S-41) — contracts README 「값 목록」. 문항 하나에 하나 */
 export type QuestionType = "MOTIVATION" | "SELF_INTRO" | "STRENGTH_WEAKNESS" | "ACHIEVEMENT" | "PROBLEM_SOLVING" | "COLLABORATION" | "CONFLICT" | "FAILURE" | "GROWTH" | "IDEA" | "JOB_SKILL" | "OTHER";
 export const QUESTION_TYPE_LABEL: Record<QuestionType, string> = {
@@ -159,6 +161,21 @@ export const APPLICATION_STATUS_LABEL: Record<ApplicationStatus, string> = {
   UNKNOWN: "모름",
 };
 
+/** 공고 요건 줄 칸(S-91) — contracts README `postingSection` */
+export type PostingSection = "DUTY" | "REQUIRED" | "PREFERRED" | "STACK";
+export const POSTING_SECTION_LABEL: Record<PostingSection, string> = { DUTY: "담당업무", REQUIRED: "자격", PREFERRED: "우대", STACK: "기술스택" };
+/** 지식 · 기술 · 태도(S-91) — AI 해석, 없을 수 있다 */
+export type Ksa = "KNOWLEDGE" | "SKILL" | "ATTITUDE";
+export const KSA_LABEL: Record<Ksa, string> = { KNOWLEDGE: "지식", SKILL: "기술", ATTITUDE: "태도" };
+/** 공고 요건 줄(S-91) — 공고 원문 그대로, 넣은 순서. 넣은 뒤엔 고치지 않는다 */
+export type PostingLine = { id: number; section: PostingSection; text: string; ksa: Ksa | null; readFrom: "TEXT" | "URL" | "IMAGE" };
+/** 공고 기준 경험 찾기(S-93 · question-api.md) — 분석 중 · 실패면 lines · clarifications 는 [] */
+export type PostingMatch = {
+  status: JobStatus; error: Job["error"];
+  lines: { postingLineId: number; status: RequirementStatus; experienceIds: number[] }[];
+  clarifications: Clarification[];
+};
+
 /** 지원 = 지원처 하나 + 문항 여러 개. `questions` 는 넣은 순서(지원서의 문항 순서) */
 export type Application = {
   id: number; organization: string | null;
@@ -169,6 +186,11 @@ export type Application = {
   submittedMonth: string | null;
   /** 공고 원문 링크(S-46) — 넣은 뒤엔 고치지 않는다. 없으면 null */
   postingUrl?: string | null;
+  /** 공고 요건 줄(S-91) — 없으면 []. 이전 서버 응답엔 없다 */
+  postingLines?: PostingLine[];
+  /** 공고 기준 경험 찾기 결과(S-93) — 공고 줄이 없으면 null. 이전 서버 응답엔 없다 */
+  postingMatch?: PostingMatch | null;
+  /** 문항 0 ~ 20개(2026-11-11 전엔 1개 이상) — 공고 줄만으로 넣은 지원은 0개다(S-18) */
   questions: QuestionSummary[]; createdAt: string;
 };
 export type CreateApplicationRequest = {

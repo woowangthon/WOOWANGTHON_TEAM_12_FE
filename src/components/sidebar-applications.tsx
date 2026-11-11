@@ -16,7 +16,15 @@ export const monthText = (month: string) => { const [y, m] = month.split("-"); r
 /** 「문항 3 · 분석 중 1」처럼 — 문항 상태를 한 줄로 */
 export function progressText(application: Application) {
   const n = (status: Application["questions"][number]["status"]) => application.questions.filter(q => q.status === status).length;
-  return [`문항 ${application.questions.length}`, n("ANALYZING") && `분석 중 ${n("ANALYZING")}`, n("FAILED") && `실패 ${n("FAILED")}`].filter(Boolean).join(" · ");
+  // 문항 없이 공고 줄만 넣은 지원(S-18 · S-93) — 「문항 0」 대신 공고 줄 수
+  const size = !application.questions.length && application.postingLines?.length ? `공고 ${application.postingLines.length}줄` : `문항 ${application.questions.length}`;
+  return [size, n("ANALYZING") && `분석 중 ${n("ANALYZING")}`, n("FAILED") && `실패 ${n("FAILED")}`].filter(Boolean).join(" · ");
+}
+
+/** 지원으로 가는 주소 — 첫 문항, 문항이 없으면 그 지원의 「공고」 탭(S-93) */
+export function applicationHref(application: Application) {
+  const first = application.questions[0];
+  return first ? `/questions?question=${first.id}` : `/questions?application=${application.id}&tab=posting`;
 }
 
 const LOAD_FAILED = "지원서를 불러오지 못했어요.";
@@ -97,7 +105,7 @@ export function SidebarApplications({ applications, loading, error, onRetry, onN
       </div>
       : !applications.length ? <p className={note}>아직 넣은 지원서가 없어요.</p>
       : rows ?? <ul className="m-0 grid min-h-0 list-none content-start gap-1 overflow-y-auto p-0">{recentApplications(applications).map(a => <li key={a.id} className="relative">
-        <Link href={`/questions?question=${a.questions[0].id}`} className={`${sidebarApplicationRow} hover:bg-canvas/60`}><SidebarApplicationText application={a} /></Link>
+        <Link href={applicationHref(a)} className={`${sidebarApplicationRow} hover:bg-canvas/60`}><SidebarApplicationText application={a} /></Link>
         <span className="pointer-events-none absolute top-2 right-1.5 inline-flex h-6 items-center rounded-full bg-surface-soft px-2.5 text-xs font-medium whitespace-nowrap text-body">{APPLICATION_STATUS_LABEL[a.applicationStatus]}</span>
       </li>)}</ul>}
     {/* 0개로 확인됐으면 넣으러 가는 길(FE#243) — /questions 의 지원서 넣는 칸. 「모든 지원서」는 위 「내 지원서」 메뉴와 겹쳐 뺐다(FE#364) */}
