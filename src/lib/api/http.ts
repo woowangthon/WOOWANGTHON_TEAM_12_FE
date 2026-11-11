@@ -33,36 +33,52 @@ function duplicateSource(code: string, value: unknown): DuplicateSource | undefi
   return { id, name, createdAt };
 }
 
-export async function request<T>(path: string, data?: unknown, method = data === undefined ? "GET" : "PATCH", credentials: RequestCredentials = "include", signal?: AbortSignal): Promise<T> {
+async function send(path: string, init: RequestInit): Promise<Response> {
   const base = process.env.NEXT_PUBLIC_API_BASE_URL?.trim().replace(/\/+$/, "");
   if (!base) throw new ApiError("API_NOT_CONFIGURED", "목 모드에서는 서버에 저장할 수 없어요. API 주소 설정이 필요해요.");
-  let response: Response;
   try {
-    response = await fetch(`${base}${path}`, {
-      method,
-      cache: "no-store",
-      // 로그인 세션 쿠키(auth-api)와, 공개 전 Cloudflare Access 로그인 쿠키(BE#9)를 실어 보낸다. BE 는 CORS_ALLOWED_ORIGINS 의 주소에만 쿠키 요청을 허용한다
-      credentials,
-      signal,
-      ...(data === undefined ? {} : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }),
-    });
+    // 로그인 세션 쿠키(auth-api)와, 공개 전 Cloudflare Access 로그인 쿠키(BE#9)를 실어 보낸다. BE 는 CORS_ALLOWED_ORIGINS 의 주소에만 쿠키 요청을 허용한다
+    return await fetch(`${base}${path}`, { cache: "no-store", ...init });
   } catch (error) {
-    if (signal?.aborted) throw error;
+    if (init.signal?.aborted) throw error;
     throw new ApiError("NETWORK_ERROR", "서버에 연결하지 못했어요. 연결을 확인하고 다시 시도해 주세요.");
   }
+}
+
+type ErrorBody = { error?: { code?: string; message?: string; source?: unknown } } | undefined;
+
+/** 실패 응답(JSON 오류 본문 · 또는 읽지 못한 본문)을 ApiError 로 */
+function failure(response: Response, body: ErrorBody): ApiError {
+  const error = body?.error;
+  if (!error) return new ApiError(`HTTP_${response.status}`, statusMessage(response.status), response.status);
+  const contract = error.code && !isFrameworkError(error.code, error.message);
+  const code = error.code ?? `HTTP_${response.status}`;
+  if (response.status === 401 && code === "UNAUTHENTICATED") unauthenticatedListeners.forEach((listener) => listener());
+  return new ApiError(code, (contract && error.message) || statusMessage(response.status), response.status, duplicateSource(code, error.source));
+}
+
+export async function request<T>(path: string, data?: unknown, method = data === undefined ? "GET" : "PATCH", credentials: RequestCredentials = "include", signal?: AbortSignal): Promise<T> {
+  const response = await send(path, {
+    method,
+    credentials,
+    signal,
+    ...(data === undefined ? {} : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }),
+  });
   // DELETE · 로그아웃 성공은 본문이 없다. 오류 응답은 아래의 공통 처리로 보낸다.
   if (response.status === 204 && response.ok) return undefined as T;
   let body;
   try { body = await response.json(); } catch {
-    throw response.ok
-      ? new ApiError("INVALID_RESPONSE", "서버 응답을 읽지 못했어요.", response.status)
-      : new ApiError(`HTTP_${response.status}`, statusMessage(response.status), response.status);
+    throw response.ok ? new ApiError("INVALID_RESPONSE", "서버 응답을 읽지 못했어요.", response.status) : failure(response, undefined);
   }
-  if (!response.ok) {
-    const contract = body?.error?.code && !isFrameworkError(body.error.code, body.error.message);
-    const code = body?.error?.code ?? `HTTP_${response.status}`;
-    if (response.status === 401 && code === "UNAUTHENTICATED") unauthenticatedListeners.forEach((listener) => listener());
-    throw new ApiError(code, (contract && body.error.message) || statusMessage(response.status), response.status, duplicateSource(code, body.error.source));
-  }
+  if (!response.ok) throw failure(response, body);
   return body as T;
+}
+
+/** 파일로 받는 GET(export-api) — 성공 응답은 그대로 돌려주고, 실패는 request 와 같은 ApiError 로 */
+export async function requestFile(path: string): Promise<Response> {
+  const response = await send(path, { method: "GET", credentials: "include" });
+  if (response.ok) return response;
+  let body: ErrorBody;
+  try { body = await response.json(); } catch { body = undefined; }
+  throw failure(response, body);
 }

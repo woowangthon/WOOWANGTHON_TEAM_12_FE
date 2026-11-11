@@ -24,3 +24,19 @@ test("mock is explicit, stores only metadata and never restores the preview addr
   await expect(page.getByRole("listitem").filter({ hasText: "지원을 만듦" })).toContainText("(예시) OO 백엔드 부트캠프");
   await expect(page.getByRole("listitem").filter({ hasText: "되묻기 답을 전함" })).toContainText("(예시) 로그에 도착 시간을");
 });
+
+// FE#149 — 목 모드는 지어낸 파일을 내려주지 않고 안 되는 이유를 보인다. 다시 시도는 없다(눌러도 같다)
+test("mock export never downloads a made-up file", async ({ page }) => {
+  await page.route("https://cdn.jsdelivr.net/**", route => route.abort());
+  await page.goto("/connections", { waitUntil: "domcontentloaded" });
+  const section = page.getByRole("region", { name: "파일로 내려받기" });
+  let downloaded = false;
+  page.on("download", () => { downloaded = true; });
+  // 화면이 준비되기 전 누른 것은 무시될 수 있다 — 안내가 뜰 때까지 다시 누른다
+  await expect(async () => {
+    await section.getByRole("button", { name: "전체 내보내기 (.md)" }).click();
+    await expect(section.getByRole("alert")).toContainText("목 모드에서는 내보낼 수 없어요", { timeout: 1000 });
+  }).toPass();
+  await expect(section.getByRole("button", { name: "다시 시도" })).toHaveCount(0);
+  expect(downloaded).toBe(false);
+});
