@@ -224,11 +224,11 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     {routing && !parse.parsing && !asking && <p role="status" className="mt-4 text-center text-sm text-muted">글을 읽고 자료인지 지원인지 가르고 있어요…</p>}
     {parse.parsing && <p role="status" className="mt-4 text-center text-sm text-muted">{singleLink(text) ? "링크를 읽고 지원처와 문항을 나누고 있어요…" : "글을 읽고 지원처와 문항을 나누고 있어요…"}</p>}
     {parse.failure && <ParseFailureNotice className="mt-4" failure={parse.failure}
-      onRetry={() => { const input = parse.failure!.input; void ("url" in input ? fillFromLink(input.url) : fillApplication(input.text)); }}
+      onRetry={() => { const input = parse.failure!.input; void ("url" in input ? fillFromLink(input.url) : "text" in input && fillApplication(input.text)); /* 홈은 캡처를 받지 않는다 */ }}
       onManual={() => {
         const input = parse.failure!.input;
         if ("url" in input) { setDestination({ kind: "application", text: "", url: input.url }); setChoosing(false); setError(null); }
-        else openDestination("application", input.text);
+        else if ("text" in input) openDestination("application", input.text);
         parse.clear();
       }} />}
     {tooLong && !file && <p role="alert" className="mt-4 text-sm text-error">한 번에 50,000자까지 넣을 수 있어요. 나눠서 넣어 주세요.</p>}

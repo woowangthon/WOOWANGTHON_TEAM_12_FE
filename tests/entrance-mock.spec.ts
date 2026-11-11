@@ -82,3 +82,17 @@ test("1024 레일에서 내 경험 활동 세부가 넘치지 않는다", async 
   await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
   await page.screenshot({ path: "artifacts/entrance-1024-detail.png", fullPage: true });
 });
+
+test("목 모드는 캡처를 읽지 않는다 — 목 결과로 칸을 채우지 않고 그렇다고 말한다(FE#495)", async ({ page }) => {
+  await page.goto("/?debug=entrance");
+  await pickOption(page.getByRole("combobox", { name: "목 분류 결과", exact: true }), "지원");
+  await page.getByRole("button", { name: "지원 문항 붙여 넣어 보기", exact: true }).click();
+  await page.getByRole("button", { name: "보내기", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(page.getByLabel("문항 2", { exact: true })).toBeVisible();
+  const png = await page.evaluate(() => { const c = document.createElement("canvas"); c.width = 200; c.height = 100; return c.toDataURL("image/png").split(",")[1]; });
+  await dialog.getByLabel("캡처 고르기").setInputFiles([{ name: "capture.png", mimeType: "image/png", buffer: Buffer.from(png, "base64") }]);
+  await dialog.getByRole("button", { name: "캡처 1장 AI 로 나누기" }).click();
+  await expect(dialog.getByRole("alert").filter({ hasText: "목 모드에선 캡처를 읽지 않아요" })).toBeVisible();
+  await expect(dialog.getByRole("region", { name: "읽은 캡처" })).toHaveCount(0);
+});

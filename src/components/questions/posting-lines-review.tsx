@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { CaretDownIcon, PencilSimpleIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { CaptureReviewTag } from "./capture-input";
 import { AiMark } from "@/components/ui/ai-mark";
 import { toastCard, toastStack } from "@/components/ui/toast";
 import { isMockMode } from "@/lib/api/http";
@@ -106,7 +107,11 @@ function PostingSectionBlock({ section, lines, editing, full, onEdit, onSave, on
   const hidden = lines.length - shown.length;
   return (
     <div role="group" aria-label={label} className="grid gap-1">
-      <h4 className="m-0 text-sm font-semibold text-ink">{label}</h4>
+      {/* 캡처에서 읽은 줄이 있는 칸은 칸마다 한 번 「확인해 주세요」 — 대조할 원문 글이 없다(S-92 · DESIGN.md 「지원 넣기 — 공고 확인」) */}
+      <div className="flex flex-wrap items-center gap-2">
+        <h4 className="m-0 text-sm font-semibold text-ink">{label}</h4>
+        {lines.some(l => l.readFrom === "IMAGE") && <CaptureReviewTag />}
+      </div>
       <ul className="m-0 grid list-none border-t border-hairline p-0">
         {shown.map(line => <li key={line.key} className="flex items-start gap-1 border-b border-hairline py-1">
           {editing === line.key
