@@ -11,21 +11,23 @@ export function setEditedAnswer(questionId: number, value: boolean) {
   edited.set(questionId, value);
 }
 
-// 답칸이 다 쓴 답을 보이고 있나(FE#384) — 초안이 있어도 「다 쓴 답 불러오기」로 바꿨으면 패널의 「초안을 답칸에 넣었어요」가 틀린다. 패널이 구독한다
-const showsConfirmed = new Map<number, boolean>();
+// 답칸이 지금 무엇을 보이고 있나(FE#384 · FE#519) — 초안이 있어도 「다 쓴 답 불러오기」로 바꿨거나 답칸을 비웠으면 패널의 「초안을 답칸에 넣었어요」가 틀린다. 패널이 구독한다
+// confirmed: 초안 글이 아닌 다 쓴 답 · empty: 빈 답칸 · null: 그 밖(초안 글이거나 고친 글)
+export type BoxShows = "confirmed" | "empty" | null;
+const shows = new Map<number, BoxShows>();
 const listeners = new Set<() => void>();
 
-export function setShowsConfirmed(questionId: number, value: boolean) {
-  if ((showsConfirmed.get(questionId) ?? false) === value) return;
-  showsConfirmed.set(questionId, value);
+export function setBoxShows(questionId: number, value: BoxShows) {
+  if ((shows.get(questionId) ?? null) === value) return;
+  shows.set(questionId, value);
   listeners.forEach(l => l());
 }
 
-export function subscribeShowsConfirmed(listener: () => void) {
+export function subscribeBoxShows(listener: () => void) {
   listeners.add(listener);
   return () => { listeners.delete(listener); };
 }
 
-export function getShowsConfirmed(questionId: number) {
-  return showsConfirmed.get(questionId) ?? false;
+export function getBoxShows(questionId: number): BoxShows {
+  return shows.get(questionId) ?? null;
 }

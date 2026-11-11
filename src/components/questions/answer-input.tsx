@@ -16,7 +16,7 @@ import { confirmDraftSentence } from "@/lib/api/questions";
 import { updateSupplement } from "@/lib/api/experience";
 import { MAX_GROUNDING_TEXT_LENGTH, type Answer, type AnswerDraft, type QuestionDetail } from "@/lib/api/question-types";
 import { analyze, composeDraft, DraftEditor, pairLinked, pairOf, type EditorHandle, type Mark, type Selection } from "./answer-draft";
-import { setEditedAnswer, setShowsConfirmed } from "./answer-box-state";
+import { setBoxShows, setEditedAnswer } from "./answer-box-state";
 import type { AnswerHandler } from "./clarifications";
 import { DraftGuidance } from "./draft-guidance";
 import { failureReason } from "./draft-errors";
@@ -165,7 +165,9 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
   const draftText = ready ? composeDraft(question, ready, NONE, box.local) : null;
   // 답칸이 초안 글이 아닌 다 쓴 답을 보이나 — 패널 안내가 읽는다. 초안 그대로 확정했으면 초안 글이기도 하다
   const confirmedNotDraft = !!a.answer && text === a.answer.text && draftText !== null && draftText !== text;
-  useEffect(() => { setShowsConfirmed(questionId, confirmedNotDraft); }, [questionId, confirmedNotDraft]);
+  // 비운 답칸도 알린다(FE#519) — 초안이 있는데 비어 있으면 패널이 「넣었어요」라고 하지 않는다. 초안 · 다 쓴 답이 없는 문항은 패널이 말할 거리가 없다
+  const boxShows = confirmedNotDraft ? "confirmed" : ready && !text.trim() ? "empty" : null;
+  useEffect(() => { setBoxShows(questionId, boxShows); }, [questionId, boxShows]);
   const loadDraft = () => {
     if (draftText === null) return;
     g.setText(draftText); setEditBase(draftText); setSelected(null);
@@ -205,7 +207,8 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
   // 근거 점검은 필요할 때만(FE#336) — 손대지 않은 초안은 문장마다 근거가 이미 붙어 있다. 고친 사실 문장 · 초안 밖에서 직접 쓴 문장이 있거나 점검이 진행 · 실패 중일 때 보인다
   const ownText = splitSentences(text).some(p => p.text.trim() && !analysis.marks.some(m => m.start < p.end && p.start < m.end));
   const showGround = editedFacts > 0 || ownText || analyzing || g.busy || !!g.failure || g.check?.status === "FAILED";
-  const canLoadDraft = confirmedNotDraft && !drafting;
+  // 빈 답칸에는 잃을 글이 없으니 초안 글을 다시 넣을 수 있다(FE#519)
+  const canLoadDraft = (confirmedNotDraft || (draftText !== null && !text.trim())) && !drafting;
   const copyAnswer = () => { if (warnFirst) setAsk("copy"); else void copy(); };
   const finish = () => { if (groundFirst) setAsk("ground"); else void confirmAnswer(); };
   return <>
