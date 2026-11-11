@@ -76,7 +76,7 @@ SPEC 항목 → plan-feature 로 이슈 → implement-issue: 읽기 → (모르�
   - 기본 클론이 main 이 아니면: 바꾸지 않은 변경 · push 안 한 커밋이 없고 그 브랜치 PR 이 머지됐을 때만 `git switch main && git pull` 하고 브랜치를 `git branch -d`. 하나라도 아니면 다른 세션이 쓰는 중이니 건드리지 않는다.
 - 할 일의 원본은 **GitHub Issue 하나**다. `TODO.md` 같은 파일을 따로 만들지 않는다.
 - **스프린트**(ADR-002): 사용자 흐름 하나를 모든 레포의 같은 이름 Milestone(`스프린트 N — <흐름>`)으로 묶는다. 기간은 없고, 흐름이 돌면 닫는다. 떠오른 기능은 이슈로(`P1` · `P2`) — 무엇부터 할지는 우선순위 라벨이 정한다(대회 규칙 4).
-- UI 가 바뀌는 PR 에는 스크린샷이나 미리보기 링크를 붙인다. 덜 된 화면이어도 된다.
+- UI 가 바뀌는 PR 에는 스크린샷을 붙인다(FE 는 확인 폭 셋 · Playwright 로 찍어도 된다 — PR 미리보기는 없다, ADR-020). 덜 된 화면이어도 된다.
 - **이슈 담당은 미리 정하지 않는다.** 가져가서 시작하는 사람이 자기를 담당으로 건다(`gh issue edit <번호> --add-assignee @me`). 화면 · API · AI 품질처럼 영역 판단이 필요하면 「이 레포」의 영역 담당에게 묻는다.
 - 그래서 **이슈 본문만으로 시작할 수 있어야 한다** — 의도(왜 · 사용자에게 어떻게 보이나) · SPEC 참조 · 완료 조건 · 읽을 것. Notion 은 못 읽는 에이전트도 있으니 필요한 맥락은 본문에 옮기고 링크는 덧붙이기만 한다.
 - FE · BE · AI 에 걸치는 기능은 ETC 에 부모 이슈(`epic`), 각 레포에 하위 이슈(sub-issue).
@@ -110,11 +110,11 @@ SPEC 항목 → plan-feature 로 이슈 → implement-issue: 읽기 → (모르�
 
 ## 이 레포 — FE (프론트엔드)
 
-- 스택: Next.js 16(App Router) · React 19 · TypeScript · Tailwind CSS 4 · Vercel(PR 미리보기). 이유는 ETC ADR-005
+- 스택: Next.js 16(App Router) · React 19 · TypeScript · Tailwind CSS 4 · Vercel(main 만 배포). 이유는 ETC ADR-005 · ADR-020
 - 실행: `npm install` → `npm run dev` (http://localhost:3000). 자세한 건 README
 - 검증 명령: `npm run check` (= `lint` → `typecheck` → `build`). CI 가 PR 마다 같은 것을 돌린다
   - 화면 · 문구를 바꾼 PR 은 Playwright 시험도 돌린다 — CI 는 안 돌려서 낡아도 안 잡힌다(FE#449). 바꾼 문구 · `aria-label` · 컴포넌트 이름으로 `tests/` 를 찾아 걸리는 파일을 `npx playwright test <파일…> --project=desktop --project=mobile`. 여러 화면이 같이 쓰는 컴포넌트(`components/ui` · 답 카드 등)면 `--project=desktop` 전체
-- 미리보기: PR 을 열면 Vercel 봇 댓글에 URL 이 뜬다 — UI PR 본문에 그 링크를 붙인다
+- 미리보기: **PR 미리보기는 없다** — Vercel 하루 배포 한도 때문에 `vercel.json` 이 main 만 배포한다(ETC ADR-020). UI PR 은 Playwright 시험(가짜 API)으로 확인 폭 셋을 찍어 `docs/fe-<번호>/` 에 두고 본문에 붙인다. 실제 API · AI 결과는 머지 뒤 운영에서
 - 영역 담당(논의 상대 — 이슈 담당은 시작하는 사람): @Zino03 프론트 주력 · @Rulrudino0911 디자인 주력 · @wjstpdnjs25-oss
 
 ### 화면을 만들 때 — 시안 6 임시 기준(FE#43)
@@ -127,7 +127,7 @@ DESIGN.md 를 디자인 담당이 다시 쓰는 동안(ETC#19) 이렇게 한다.
 - **스킬 없이 고쳐도 화면이 바뀌면** `npm run design:diff -- <화면>` 의 차이 표를 PR 「시안 비교」에 붙인다. 표에 없는 화면은 `scripts/design-diff/screens/` 에 짝을 더한다. 표의 차이는 고치거나, 일부러면 DESIGN.md 「시안과 일부러 다른 곳」에 적는다
 - 시안에 있어도 **이슈 범위 밖 기능은 만들지 않는다**(빈 자리 · 가짜 버튼도). 시안과 다르게 한 곳은 PR 본문 「시안과 다른 점」에 이유 한 줄
 - **UI PR 본문에 「새 UI 패턴: 없음 / 있음(DESIGN.md 절 링크)」** 한 줄 — 시안 · DESIGN.md 에 없는 모양(새 부품 · 새 배치 · 새 색 쓰임)을 만들면 「있음」이고, **DESIGN.md 를 먼저 고친다**(ETC PR — 그 절 링크). 기존 부품 · 토큰으로 될 때는 새로 만들지 않는다(ETC#328)
-- **확인 폭 셋**: 1440(PC) · 1024(PC 를 125 ~ 150% 로 확대한 폭 — 72px 아이콘 레일, 세부 패널을 열어 본다) · 390(모바일). 사이드바는 1024 ~ 1279에서 레일(펼치면 내용 위), 1280 이상에서 접기 선택을 브라우저에 저장한다(FE#53). 1024 미만은 위 막대 한 줄 + 아래 탭바(FE#201). 경계는 Tailwind와 같은 rem 기준(FE#61). UI PR 에는 이 폭의 스크린샷 또는 미리보기 링크
+- **확인 폭 셋**: 1440(PC) · 1024(PC 를 125 ~ 150% 로 확대한 폭 — 72px 아이콘 레일, 세부 패널을 열어 본다) · 390(모바일). 사이드바는 1024 ~ 1279에서 레일(펼치면 내용 위), 1280 이상에서 접기 선택을 브라우저에 저장한다(FE#53). 1024 미만은 위 막대 한 줄 + 아래 탭바(FE#201). 경계는 Tailwind와 같은 rem 기준(FE#61). UI PR 에는 이 폭의 스크린샷
 
 <!-- BEGIN:nextjs-agent-rules -->
 
