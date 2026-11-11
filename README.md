@@ -11,7 +11,7 @@
 - Next.js 16 (App Router) · React 19 · TypeScript
 - Tailwind CSS 4
 - ESLint (`eslint-config-next`)
-- 배포: Vercel — main 은 운영, PR 은 미리보기
+- 배포: Vercel — main 만 운영으로 자동 배포. PR 미리보기는 없다(ETC ADR-020)
 
 ## 실행 방법
 
@@ -103,7 +103,7 @@ BE #4·#5의 조회·수정·자료 등록·작업 조회·재시도 연결 코�
 계약: ETC `docs/contracts/auth-api.md`. 아이디 · 비밀번호 + 서버 세션 쿠키(`credentials: "include"`), 인증 헤더 없음.
 
 - **실제 API 모드에서만** 첫 화면 전에 `GET /api/auth/me` 로 로그인했나 본다(`src/components/auth/auth-gate.tsx`, `layout.tsx` 에서 모든 페이지를 감싼다). 401 이면 로그인 · 가입 화면, 200 이면 그대로.
-- **목 모드(API 주소 없음 — PR 미리보기 · `*.vercel.app`)는 로그인이 없다.** 세션 쿠키가 같은 상위 도메인(`app-…` · `api-…`)에서만 실리기 때문(ADR-004).
+- **목 모드(API 주소 없음 — 로컬 · `*.vercel.app`)는 로그인이 없다.** 세션 쿠키가 같은 상위 도메인(`app-…` · `api-…`)에서만 실리기 때문(ADR-004).
 - 쓰는 중 어느 요청이든 401 `UNAUTHENTICATED`(세션 7일 만료 · BE 재시작)를 받으면 「로그인이 끝났어요」 알림과 함께 로그인 화면으로 간다(`src/lib/api/http.ts` 의 `onUnauthenticated`).
 - 가입은 계약 규칙(아이디 영문 · 숫자 · `_` `.` `-` 3 ~ 30자, 비밀번호 8자 이상 · 72바이트까지)을 보내기 전에 검사한다. 가입하면 바로 로그인된다.
 - 계정 메뉴(PC 사이드바 맨 아래 · 좁은 폭은 위 막대 오른쪽): 아이디 · 오늘 분석 `used / limit` · 로그아웃.
@@ -140,8 +140,9 @@ npm run design:diff -- home   # 화면: home · quick-find · add-menu · notifi
 
 ## 배포 · 미리보기
 
-- **PR 을 열면** Vercel 봇이 PR 에 미리보기 URL 을 댓글로 단다. 커밋을 더 올리면 같은 댓글이 새 URL 로 바뀐다.
 - **main 에 머지되면** 운영 URL 이 갱신된다.
+- **PR 미리보기는 없다** — `vercel.json` 의 `git.deploymentEnabled` 가 main 만 배포한다. Vercel Hobby 하루 배포 한도(100)에 PR 미리보기가 쌓여 운영 배포까지 막혔기 때문이다(2026-11-12 · ETC ADR-020). 미리보기는 어차피 목 모드라 지원서 화면을 못 보였다.
+- UI PR 은 Playwright 시험(가짜 API)으로 1440 · 1024 · 390 을 찍어 `docs/fe-<번호>/` 에 두고 PR 본문에 붙인다. 개발 서버 배지는 `nextjs-portal { display: none }` 으로 숨기고 찍는다.
 - 배포 계정 · 도메인 · 환경 변수는 사람만 다룬다. 레포엔 `.env.example` 만 둔다.
 
 ### 운영에서 실제 API 로 보기
@@ -150,7 +151,7 @@ npm run design:diff -- home   # 화면: home · quick-find · add-menu · notifi
 | --- | --- |
 | `https://app-woowang.miroda.live` | 운영 화면. 공개. `NEXT_PUBLIC_API_BASE_URL=https://api-woowang.miroda.live/api` 로 빌드된다 |
 | `https://api-woowang.miroda.live/api` | 실제 BE. **Cloudflare Access 뒤** — 허용 목록의 이메일로 로그인해야 열린다(LLM 비용이 새지 않게) |
-| PR 미리보기 · `*.vercel.app` | API 주소를 비워 둔 **목 모드**. `*.vercel.app` 은 API 와 도메인이 달라 Access 쿠키가 안 실리므로 실제 API 를 못 부른다 |
+| `*.vercel.app`(PR 미리보기는 꺼짐 — ADR-020) | API 주소를 비워 둔 **목 모드**. `*.vercel.app` 은 API 와 도메인이 달라 Access 쿠키가 안 실리므로 실제 API 를 못 부른다 |
 
 1. 같은 브라우저에서 `https://api-woowang.miroda.live/` 를 먼저 연다 → 이메일 입력 → 메일로 온 코드 입력(1주일 유지).
 2. 그다음 `https://app-woowang.miroda.live/` 를 연다.
@@ -168,7 +169,7 @@ npm run design:diff -- home   # 화면: home · quick-find · add-menu · notifi
 2. `woowangthon/WOOWANGTHON_TEAM_12_FE` 를 Import 한다. 목록에 없으면 「Adjust GitHub App Permissions」에서 `woowangthon` 조직에 Vercel 앱을 설치하고 이 레포를 고른다(조직 관리자 승인이 필요할 수 있다).
 3. Framework 는 Next.js 로 자동 인식된다. 설정을 바꾸지 않고 **Deploy**.
 4. 나온 운영 URL(`*.vercel.app`)을 이 README 맨 위와 이슈 #4 에 적는다.
-5. 확인: 아무 PR 이나 열어 Vercel 봇 댓글에 미리보기 URL 이 뜨는지 본다.
-6. 팀원이 미리보기를 열 때 Vercel 로그인 화면이 뜨면 **Settings → Deployment Protection → Vercel Authentication** 을 끈다(공개 레포라 미리보기에 감출 것이 없다).
+5. 확인: main 에 머지하면 운영 URL 이 갱신되는지 본다. PR 은 배포되지 않는다(`vercel.json` — ADR-020).
+6. 팀원이 운영 · 수동 배포를 열 때 Vercel 로그인 화면이 뜨면 **Settings → Deployment Protection → Vercel Authentication** 을 끈다(공개 레포라 감출 것이 없다).
 
 나중에 `app.<도메인>` 을 붙일 땐 Vercel 프로젝트 **Settings → Domains** 에 추가하고, 안내대로 DNS(CNAME)를 건다(ETC ADR-004 — FE · BE 를 같은 상위 도메인 아래에).
