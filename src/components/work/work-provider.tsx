@@ -29,7 +29,9 @@ function useSuggestionCount() {
 }
 
 const ROW = "grid min-h-11 lg:min-h-10 min-w-0 grid-cols-[minmax(0,1fr)] gap-1 rounded-sm border-b border-hairline-soft p-3 text-sm hover:bg-surface-soft focus-visible:outline-2 focus-visible:outline-ink lg:gap-0.5 lg:border-b-0 lg:px-3 lg:py-2.5 lg:text-note";
-const GROUP_TITLE = "mt-0 text-sm font-semibold lg:mb-0 lg:px-2 lg:pt-2 lg:pb-0.5 lg:text-xs lg:leading-[13px] lg:text-muted";
+const GROUP_TITLE = "mt-0 text-sm font-semibold lg:mb-0 lg:text-xs lg:leading-[13px] lg:text-muted";
+/** 묶음 제목 줄의 PC 여백 — 제목 옆에 ⓘ 가 있으면 여백은 줄(div)이 갖는다. 제목(h3)에 두면 ⓘ 가 오른쪽 여백만큼 떨어지고 위 여백만큼 떠 보인다 */
+const GROUP_PAD = "lg:px-2 lg:pt-2 lg:pb-0.5";
 
 const WorkContext = createContext<{ opened: boolean; toggle: (trigger: HTMLButtonElement) => void; count: number; unread: number; status: string; refresh: () => void } | null>(null);
 
@@ -77,7 +79,7 @@ export function WorkProvider({ children }: { children: ReactNode }) {
   const body = <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 lg:p-0">
     {work.error && <div role="alert" className="mb-4 grid gap-2"><p className="m-0 text-error">{work.error}</p><Button variant="secondary" onClick={work.refresh}>상태 다시 불러오기</Button></div>}
     {work.seenError && <div role="alert" className="mb-4 grid gap-2"><p className="m-0 text-error">읽음 상태를 저장하지 못했어요. {work.seenError}</p><Button variant="secondary" disabled={work.marking} onClick={() => void work.markSeen(displayedBoundary.current)}>읽음 저장 다시 시도</Button></div>}
-    <section aria-label="진행 중인 일"><h3 className={GROUP_TITLE}>할 일 {inProgress.length + (suggestions.count ? 1 : 0)}</h3>
+    <section aria-label="진행 중인 일"><h3 className={cn(GROUP_TITLE, GROUP_PAD)}>할 일 {inProgress.length + (suggestions.count ? 1 : 0)}</h3>
       {suggestions.count > 0 && <Link href="/experience?tidy=1" prefetch={false} onClick={onNavigate} className={cn(ROW, "mb-1")}>
         <span className="justify-self-start rounded-full bg-review-soft px-2 py-px text-xs font-bold text-review">AI 제안 · 정할 것</span>
         <span className="min-w-0 font-medium">같아 보이는 활동 {suggestions.count}쌍</span>
@@ -85,7 +87,7 @@ export function WorkProvider({ children }: { children: ReactNode }) {
       </Link>}
       {inProgress.length ? <WorkList items={inProgress} seenAt={snapshot?.seenAt ?? null} onNavigate={onNavigate} /> : !suggestions.count && <p className="text-sm text-muted lg:my-1 lg:px-3 lg:text-note">진행 중인 일이 없어요.</p>}
     </section>
-    <section aria-label="최근 소식" className="mt-7 lg:mt-1"><div className="flex items-center gap-0.5"><h3 className={GROUP_TITLE}>소식 {unread > 0 && <span>· 안 읽음 {unread}</span>}</h3><InfoTip label="소식">최근 24시간 · 최대 20개까지 보여요.</InfoTip></div>
+    <section aria-label="최근 소식" className="mt-7 lg:mt-1"><div className={cn("flex items-center gap-0.5", GROUP_PAD)}><h3 className={GROUP_TITLE}>소식{unread > 0 && <span> · 안 읽음 {unread}</span>}</h3>{/* 13px 제목 줄 옆이라 ⓘ(24) 의 위아래를 줄여 「할 일」 줄과 같은 높이로 */}<InfoTip label="소식" className="lg:-my-1.5">최근 24시간 · 최대 20개까지 보여요.</InfoTip></div>
       {recent.length ? <WorkList items={recent} seenAt={snapshot?.seenAt ?? null} onNavigate={onNavigate} /> : <p className="text-sm text-muted lg:my-1 lg:px-3 lg:text-note">아직 도착한 소식이 없어요.</p>}
     </section>
   </div>;
