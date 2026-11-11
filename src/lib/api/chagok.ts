@@ -23,6 +23,8 @@ export type ChagokRun = {
   steps: ChagokStep[];
   result: ChagokRunResult | null;
   error: { code: string; message: string } | null;
+  /** 일을 시작한 때 — 진행 중 지난 시간(FE#338). 처음 만든 로컬 Run 에는 아직 없다 */
+  createdAt?: string;
 };
 
 function checked(run: ChagokRun | null | undefined): ChagokRun {

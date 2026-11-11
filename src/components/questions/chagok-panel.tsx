@@ -78,7 +78,7 @@ export function ChagokPanel({ question, index, originOf, onAnswer, onClose, draf
       {!control.restoring && !control.restoreError && <ChagokRunFeed control={control} currentQuestionId={question?.id ?? null}
         rematch={question?.status === "COMPLETED" ? { onRematch, busy: draftActions.savingAnswer || draftActions.requestingDraft || question.draft?.status === "ANALYZING" } : null} />}
     </div>
-    <ChagokComposer control={control} hasQuestion={!!question} />
+    <ChagokComposer control={control} hasQuestion={!!question} hasDraft={question?.draft?.status === "COMPLETED"} />
   </div>;
 }
 
