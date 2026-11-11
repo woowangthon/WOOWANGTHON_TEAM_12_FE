@@ -15,6 +15,7 @@ import { SAVE_ERROR, useExperienceSave } from "./experience-save";
 import { MENU_ITEM, MenuCheckBox, ProfileMenuItems, ProfileShareNote, useProfileShare } from "./profile-toggle";
 import { SupplementList } from "./supplement-list";
 import { UsedInChip, UsedInList } from "./used-in";
+import { StarPanel, StarToggle } from "./star-slots";
 import { AiMark } from "@/components/ui/ai-mark";
 import { MENU_CONTENT } from "@/components/ui/menu";
 
@@ -124,6 +125,13 @@ type Props = {
   onToggleCitations: () => void;
   /** 모바일 — 하단 시트로 근거를 띄운다 */
   onShowCitations: () => void;
+  /** STAR 칸(S-95) — PC 는 경험 아래, 모바일은 하단 시트. 근거 펼침과 한 번에 하나 */
+  starOpen?: boolean;
+  onToggleStar?: () => void;
+  onShowStar?: () => void;
+  /** STALE · FAILED 펼침의 「다시 정리」 — 활동 단위 */
+  onOrganizeStar?: () => void;
+  organizingStar?: boolean;
   onSaved: (experience: Experience) => void;
   onDelete: (experience: Experience) => void;
   /** 메뉴 「다른 활동으로 옮기기」 — 모바일 · 끌기 어려운 곳 (S-12) */
@@ -135,7 +143,7 @@ type Props = {
   dragging: boolean;
 };
 
-export function ExperienceItem({ experience, citationsOpen, onToggleCitations, onShowCitations, onSaved, onDelete, onMove, onMerge, onDragChange, dragging, readOnly = false }: Props) {
+export function ExperienceItem({ experience, citationsOpen, onToggleCitations, onShowCitations, starOpen = false, onToggleStar, onShowStar, onOrganizeStar, organizingStar, onSaved, onDelete, onMove, onMerge, onDragChange, dragging, readOnly = false }: Props) {
   const [editing, setEditing] = useState(false);
   const [usedInOpen, setUsedInOpen] = useState(false);
   const e = experience;
@@ -143,6 +151,7 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
   const save = useExperienceSave(e, (saved) => onSaved({ ...e, saved }));
   const usedIn = e.usedIn ?? [];
   const n = e.citations.length;
+  const keepUsedIn = (result: Experience) => onSaved({ ...result, usedIn: result.usedIn ?? e.usedIn });
   const citeBtn =
     "inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-note font-semibold text-evidence hover:bg-evidence-soft";
   return (
@@ -224,6 +233,11 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
             </button>
           </>
         )}
+        {/* STAR 점 넷 — 근거 열기 옆, 줄 높이 그대로(DESIGN.md 「경험 줄 — STAR 칸」). PC 는 아래로 펼치고 모바일은 시트 */}
+        {!readOnly && onToggleStar && onShowStar && <>
+          <span className="hidden lg:inline-flex"><StarToggle star={e.star} open={starOpen} onClick={onToggleStar} /></span>
+          <span className="inline-flex lg:hidden"><StarToggle star={e.star} open={false} onClick={onShowStar} /></span>
+        </>}
         </span>
       </div>
       {<ExperienceMcpChange experience={e} readOnly={readOnly} onSaved={onSaved} />}
@@ -232,6 +246,11 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
       {citationsOpen && (
         <div className="mt-1.5 hidden lg:block">
           <CitationList citations={e.citations} readOnly={readOnly} />
+        </div>
+      )}
+      {starOpen && !readOnly && (
+        <div className="mt-1.5 hidden lg:block">
+          <StarPanel experience={e} onSaved={keepUsedIn} onShowCitations={onToggleCitations} onOrganize={onOrganizeStar} organizing={organizingStar} />
         </div>
       )}
       {(readOnly ? <SupplementList supplements={e.supplements ?? []} /> : <SupplementList supplements={e.supplements ?? []}
