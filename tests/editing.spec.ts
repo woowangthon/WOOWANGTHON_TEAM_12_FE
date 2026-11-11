@@ -162,7 +162,7 @@ test("activity name: click edits in place, Esc cancels, blank is rejected, Enter
   await page.getByText(/이 활동에서 한 일/).click();
   await expect(page.getByRole("heading", { name: "Blur saved" })).toBeVisible();
   expect(state.patches).toHaveLength(2);
-  if (page.viewportSize()!.width < 1024) await page.getByRole("button", { name: "타임라인", exact: true }).click();
+  if (page.viewportSize()!.width < 1024) await page.getByRole("button", { name: "내 경험", exact: true }).click();
   await expect(page.getByRole("button", { name: /Blur saved/ }).first()).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: /Blur saved/ }).first().click();
@@ -450,7 +450,7 @@ test("PATCH response values replace drafts in activity, timeline and experience"
   await expect(page.getByText("Original quote", { exact: true }).filter({ visible: true })).toBeVisible();
   if (page.viewportSize()!.width < 1024) {
     await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: "타임라인", exact: true }).click();
+    await page.getByRole("button", { name: "내 경험", exact: true }).click();
   }
   await expect(page.getByRole("button", { name: /^Server activity/ })).toBeVisible();
 });
@@ -458,7 +458,7 @@ test("PATCH response values replace drafts in activity, timeline and experience"
 test("source HTTP failure keeps the text and never shows mock analysis success", async ({ page }) => {
   await setup(page);
   await page.route("**/api/sources", (route) => route.fulfill({ status: 503, json: { error: { code: "INTERNAL_ERROR", message: "Source unavailable" } } }));
-  if (page.viewportSize()!.width < 1024) await page.getByRole("button", { name: "타임라인", exact: true }).click();
+  if (page.viewportSize()!.width < 1024) await page.getByRole("button", { name: "내 경험", exact: true }).click();
   await openAddSource(page);
   await page.getByRole("dialog").getByRole("textbox").fill("Mock source text");
   await page.getByRole("button", { name: "넣기", exact: true }).click();

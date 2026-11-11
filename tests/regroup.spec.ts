@@ -215,7 +215,7 @@ async function open(page: Page, name: string) {
 }
 
 async function backToTimeline(page: Page) {
-  await page.getByRole("button", { name: isMobile(page) ? "타임라인" : "세부 닫기", exact: true }).click();
+  await page.getByRole("button", { name: isMobile(page) ? "내 경험" : "세부 닫기", exact: true }).click();
 }
 
 async function moveByMenu(page: Page, content: string, to: string) {

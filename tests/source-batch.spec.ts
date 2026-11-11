@@ -138,7 +138,7 @@ test("못 넣는 파일은 이유를 보이고 나머지만 묶음으로 보낸�
   await rows.nth(1).getByRole("button", { name: "바꿔요 README 보기" }).click();
   await expect(page.getByRole("heading", { name: "바꿔요 README" })).toBeVisible();
   await expect(page.getByText("바꿔요 README에서 한 일")).toBeVisible();
-  if (test.info().project.name === "mobile") await page.getByRole("button", { name: "타임라인" }).click();
+  if (test.info().project.name === "mobile") await page.getByRole("button", { name: "내 경험", exact: true }).click();
   await page.getByRole("button", { name: "알림 닫기" }).click();
   await expect(page.getByText("자료 2개 중 2개 분석 완료")).toHaveCount(0);
   expect(await stored(page)).toBe(0);

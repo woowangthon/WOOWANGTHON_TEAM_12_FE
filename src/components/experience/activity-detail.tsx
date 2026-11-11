@@ -85,7 +85,7 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
 
   return (
     <div className="flex min-h-full flex-col">
-      {/* 모바일 — 타임라인으로 돌아가기 */}
+      {/* 모바일 — 내 경험으로 돌아가기(FE#518). 타임라인 · 서랍 어느 뷰에서 왔든 그 뷰로 — 닫기는 고른 활동만 지우고 목록 뷰는 그대로다 */}
       <div className="sticky top-11.25 z-10 flex h-14 items-center border-b border-hairline bg-canvas px-3 lg:hidden">
         <button
           type="button"
@@ -93,7 +93,7 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
           className="inline-flex h-11 lg:h-10 items-center gap-0.5 pr-2 text-ui font-medium text-ink"
         >
           <CaretLeftIcon className="size-[1.15em]" aria-hidden="true" />
-          타임라인
+          내 경험
         </button>
       </div>
 

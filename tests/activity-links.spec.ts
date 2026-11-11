@@ -61,7 +61,7 @@ async function open(page: Page, name: string) {
   await expect(page.getByRole("region", { name: "그때의 나", exact: true })).toBeVisible();
 }
 async function close(page: Page) {
-  await page.getByRole("button", { name: page.viewportSize()!.width < 1024 ? "타임라인" : "세부 닫기", exact: true }).click();
+  await page.getByRole("button", { name: page.viewportSize()!.width < 1024 ? "내 경험" : "세부 닫기", exact: true }).click();
 }
 
 test("no note: no button and nothing nudges", async ({ page }) => {

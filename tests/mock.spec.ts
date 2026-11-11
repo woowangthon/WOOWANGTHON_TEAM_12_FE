@@ -34,7 +34,7 @@ test("mock timeline, competency provenance edits, and source analysis remains mo
   const last = page.getByRole("complementary").locator("li").last();
   await expect(last).toContainText("Manual mock experience");
   await expect(last.getByText("AI 해석", { exact: true })).toHaveCount(0);
-  if (page.viewportSize()!.width < 1024) await page.getByRole("button", { name: "타임라인", exact: true }).click();
+  if (page.viewportSize()!.width < 1024) await page.getByRole("button", { name: "내 경험", exact: true }).click();
   await openAddSource(page);
   await page.getByRole("dialog").getByRole("textbox").fill("Test source text");
   await page.getByRole("button", { name: "넣기", exact: true }).click();
