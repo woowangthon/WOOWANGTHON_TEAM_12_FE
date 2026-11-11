@@ -9,6 +9,7 @@ import { fetchActivities } from "@/lib/api/experience";
 import { isMockMode } from "@/lib/api/http";
 import { fetchApplications } from "@/lib/api/questions";
 import { APPLICATION_STATUS_LABEL, JOB_ROLE_LABEL, type Application } from "@/lib/api/question-types";
+import { applicationHref } from "@/lib/application-href";
 
 export const dateText = (iso: string) => new Date(iso).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" });
 /** 낸 달 "2026-11" → 「2026년 11월」 */
@@ -97,7 +98,7 @@ export function SidebarApplications({ applications, loading, error, onRetry, onN
       </div>
       : !applications.length ? <p className={note}>아직 넣은 지원서가 없어요.</p>
       : rows ?? <ul className="m-0 grid min-h-0 list-none content-start gap-1 overflow-y-auto p-0">{recentApplications(applications).map(a => <li key={a.id} className="relative">
-        <Link href={`/questions?question=${a.questions[0].id}`} className={`${sidebarApplicationRow} hover:bg-canvas/60`}><SidebarApplicationText application={a} /></Link>
+        <Link href={applicationHref(a)} className={`${sidebarApplicationRow} hover:bg-canvas/60`}><SidebarApplicationText application={a} /></Link>
         <span className="pointer-events-none absolute top-2 right-1.5 inline-flex h-6 items-center rounded-full bg-surface-soft px-2.5 text-xs font-medium whitespace-nowrap text-body">{APPLICATION_STATUS_LABEL[a.applicationStatus]}</span>
       </li>)}</ul>}
     {/* 0개로 확인됐으면 넣으러 가는 길(FE#243) — /questions 의 지원서 넣는 칸. 「모든 지원서」는 위 「내 지원서」 메뉴와 겹쳐 뺐다(FE#364) */}

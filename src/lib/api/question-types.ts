@@ -17,6 +17,20 @@ export const MAX_QUESTIONS_PER_APPLICATION = 20;
 export const MAX_ANSWER_LENGTH = 2000;
 /** 초안 요청 experienceIds 상한 — 추천이 문항당 0 ~ 8개(S-84 · question-api.md) */
 export const MAX_DRAFT_EXPERIENCES = 8;
+/** 공고 요건 줄 — 지원 하나에 0 ~ 40줄, 줄마다 300자(question-api.md · S-91) */
+export const MAX_POSTING_LINES = 40;
+export const MAX_POSTING_LINE_LENGTH = 300;
+
+/** 공고 요건 줄의 칸(contracts README `postingSection`) — 화면 순서 그대로 */
+export const POSTING_SECTIONS = ["DUTY", "REQUIRED", "PREFERRED", "STACK"] as const;
+export type PostingSection = typeof POSTING_SECTIONS[number];
+export const POSTING_SECTION_LABEL: Record<PostingSection, string> = { DUTY: "담당업무", REQUIRED: "자격요건", PREFERRED: "우대", STACK: "기술스택" };
+/** 지식 · 기술 · 태도(README `ksa`) — AI 해석, 없을 수 있다 */
+export type Ksa = "KNOWLEDGE" | "SKILL" | "ATTITUDE";
+/** 공고를 어디서 읽었나(README `readFrom`) */
+export type ReadFrom = "TEXT" | "URL" | "IMAGE";
+export type PostingLineInput = { section: PostingSection; text: string; ksa: Ksa | null; readFrom: ReadFrom };
+export type PostingLine = PostingLineInput & { id: number };
 
 export type QuestionExperience = Experience & { supplements: Supplement[] };
 export type RequirementStatus = "SUPPORTED" | "PARTIAL" | "NOT_FOUND";
@@ -169,11 +183,16 @@ export type Application = {
   submittedMonth: string | null;
   /** 공고 원문 링크(S-46) — 넣은 뒤엔 고치지 않는다. 없으면 null */
   postingUrl?: string | null;
+  /** 공고 요건 줄(S-91) — 넣은 순서, 넣은 뒤엔 고치지 않는다. 없으면 [] */
+  postingLines?: PostingLine[];
   questions: QuestionSummary[]; createdAt: string;
 };
 export type CreateApplicationRequest = {
   organization?: string | null; organizationType?: OrganizationType | null; jobRole?: JobRole | null;
   postingUrl?: string | null;
+  /** 확인 단계에서 사용자가 고친 공고 요건 줄 0 ~ 40줄(S-91). questions 와 둘 다 비면 안 된다 */
+  postingLines?: PostingLineInput[];
+  /** 0 ~ 10개(S-18) */
   questions: { text: string }[];
 };
 /** PATCH /api/applications/{id} — 보낸 필드만 바꾼다. 이름 · 종류 · 직무는 null 이면 비우고, 상태 · 낸 달은 null 을 받지 않는다 */

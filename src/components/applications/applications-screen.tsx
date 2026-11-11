@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { deleteApplication } from "@/lib/api/questions";
 import { Toast, useToast } from "@/components/ui/toast";
 import { ApplicationMenu, DeleteApplicationDialog } from "@/components/questions/question-menus";
+import { applicationHref } from "@/lib/application-href";
 
 const GROUP_BY: [GroupBy, string][] = [["period", "시기별"], ["type", "종류별"]];
 const statusTag = "inline-flex h-6 shrink-0 items-center rounded-full bg-surface-soft px-2.5 text-xs font-medium whitespace-nowrap text-body";
@@ -104,7 +105,7 @@ function ApplicationRow({ application: a, by, onDelete }: { application: Applica
     by !== "period" && a.submittedMonth && `${monthText(a.submittedMonth)} 냄`,
   ].filter(Boolean).join(" · ");
   const first = a.questions[0];
-  const href = first ? `/questions?question=${first.id}` : "/questions";
+  const href = applicationHref(a);
   return (
     // 링크 안에 버튼을 둘 수 없어 메뉴는 줄의 형제로 오른쪽에 둔다
     <li className="flex items-center gap-1 border-b border-hairline">

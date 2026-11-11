@@ -8,6 +8,7 @@ import Link from "next/link";
 import { APPLICATION_STATUS_LABEL } from "@/lib/api/question-types";
 import type { UsedIn } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
+import { applicationHref } from "@/lib/application-href";
 
 export function UsedInChip({ usedIn, open, onToggle, controls }: {
   usedIn: UsedIn[];
@@ -32,8 +33,7 @@ export function UsedInList({ usedIn, id }: { usedIn: UsedIn[]; id: string }) {
   return (
     <ul id={id} aria-label="이 경험이 쓰인 지원" className="m-0 grid list-none gap-1 rounded-sm border border-application-line bg-application-soft p-1.5">
       {usedIn.map((u) => {
-        const first = u.questions[0];
-        const href = first ? `/questions?question=${first.id}` : "/questions";
+        const href = applicationHref(u);
         return (
           <li key={u.applicationId} className="grid gap-0.5 rounded-md px-2 py-1.5">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">

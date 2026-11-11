@@ -19,6 +19,8 @@ type State = {
   /** 상태 확인의 연속 실패 횟수 — 이미 받은 문항 · 추천은 그대로 둔다 */
   pollFailures: Record<number, number>;
   questionId: number | null;
+  /** 문항 0개 지원(공고만, S-18)을 열었을 때 그 지원 — 문항을 고르면 questionId 가 먼저다 */
+  applicationId: number | null;
   error: string | null;
 };
 const POLL_MS = 2000;
@@ -38,7 +40,14 @@ function applicationInUrl(): number | null {
 function keepInUrl(id: number) {
   const url = new URL(window.location.href);
   if (url.searchParams.get("question") === String(id)) return;
-  url.searchParams.set("question", String(id));
+  url.searchParams.set("question", String(id)); url.searchParams.delete("application");
+  window.history.replaceState(window.history.state, "", url);
+}
+/** 문항 0개 지원(S-18)은 `?application=` 으로 둔다 — 새로고침해도 그 지원 */
+function keepApplicationInUrl(id: number) {
+  const url = new URL(window.location.href);
+  if (url.searchParams.get("application") === String(id) && !url.searchParams.has("question")) return;
+  url.searchParams.set("application", String(id)); url.searchParams.delete("question");
   window.history.replaceState(window.history.state, "", url);
 }
 /** 지운 지원 · 문항을 가리키는 주소를 바로잡는다(S-89) — 남은 문항이 없으면 `?question=` · `?application=` 을 지워 새로고침이 「문항을 불러오지 못했어요」가 되지 않게 */
@@ -73,7 +82,7 @@ const ownerOf = (applications: Application[], questionId: number | null) =>
  *  - `composingAtStart` — 새 지원서 작성으로 들어왔는가(첫 값만 본다). 이때는 처음 받은 뒤에도 주소의 `?question=` 을 건드리지 않는다 */
 export function useApplications(composingAtStart = false) {
   const composingAtStartRef = useRef(composingAtStart);
-  const [state, setState] = useState<State>({ loading: true, applications: [], details: {}, detailErrors: {}, pollFailures: {}, questionId: null, error: null });
+  const [state, setState] = useState<State>({ loading: true, applications: [], details: {}, detailErrors: {}, pollFailures: {}, questionId: null, applicationId: null, error: null });
   const generation = useRef(0);
   const pending = useRef(false);
   const fetching = useRef(new Set<number>());
@@ -129,11 +138,13 @@ export function useApplications(composingAtStart = false) {
       const wantedApplication = applicationInUrl();
       const application = ownerOf(applications, wanted) ?? applications.find(a => a.id === wantedApplication) ?? applications[0] ?? null;
       if (wanted && !first && !ownerOf(applications, wanted)) throw new ApiError("QUESTION_NOT_FOUND", "알림의 문항을 불러오지 못했어요. 다시 불러와 주세요.");
-      const questionId = application ? (application.questions.find(q => q.id === wanted) ?? application.questions[0]).id : null;
+      const questionId = (application?.questions.find(q => q.id === wanted) ?? application?.questions[0])?.id ?? null;
+      const applicationId = questionId === null && application ? application.id : null;
       // 「새 지원서」로 들어왔으면(`?new=1`, FE#147) 작성 중이다 — 첫 지원서를 골라 주소를 `?question=` 으로 덮지 않는다(FE#374)
       if (questionId !== null && !composingStart) keepInUrl(questionId);
+      if (applicationId !== null && !composingStart) keepApplicationInUrl(applicationId);
       const details = first && first.id === questionId ? { [first.id]: first } : {};
-      setState({ loading: false, applications: patch(applications, Object.values(details)), details, detailErrors: {}, pollFailures: {}, questionId, error: null });
+      setState({ loading: false, applications: patch(applications, Object.values(details)), details, detailErrors: {}, pollFailures: {}, questionId, applicationId, error: null });
     } catch (e) {
       if (version === generation.current) setState(prev => ({ ...prev, loading: false, error: message(e, "지원을 불러오지 못했어요.") }));
     } finally {
@@ -171,7 +182,8 @@ export function useApplications(composingAtStart = false) {
     });
   }, []);
 
-  const open = ownerOf(state.applications, state.questionId);
+  const open = ownerOf(state.applications, state.questionId)
+    ?? (state.questionId === null ? state.applications.find(a => a.id === state.applicationId) ?? null : null);
   const missing = open?.questions.filter(q => !state.details[q.id] && !state.detailErrors[q.id]).map(q => q.id).join(",") ?? "";
   useEffect(() => {
     if (missing) void fetchMissing(missing.split(",").map(Number));
@@ -255,7 +267,11 @@ export function useApplications(composingAtStart = false) {
       if (state.applications.some(a => a.questions.some(q => q.id === id))) { selectQuestion(id); return; }
       await load();
     },
-    selectApplication: (application: Application) => selectQuestion(application.questions[0].id),
+    selectApplication: (application: Application) => {
+      if (application.questions[0]) { selectQuestion(application.questions[0].id); return; }
+      keepApplicationInUrl(application.id);
+      setState(prev => ({ ...prev, questionId: null, applicationId: application.id }));
+    },
     /** 문항 응답만 다시 읽는다. 초안 전용 GET/재시도 API나 별도 저장소는 없다. */
     refreshDraft: async (id: number) => {
       const version = ++generation.current;
@@ -288,10 +304,15 @@ export function useApplications(composingAtStart = false) {
       } finally { drafting.current.delete(question.id); setDraftingIds([...drafting.current]); }
     },
     submit: (req: CreateApplicationRequest) => once(async () => {
-      const { questionIds } = await submitApplication(req);
+      const { applicationId, questionIds } = await submitApplication(req);
       await reloadAfter(async version => {
         const [applications, fresh] = await Promise.all([fetchApplications(), Promise.all(questionIds.map(fetchQuestion))]);
-        commit(version, fresh, { applications, questionId: questionIds[0] });
+        if (questionIds.length) { commit(version, fresh, { applications, questionId: questionIds[0] }); return; }
+        // 문항 0개(공고만) — 그 지원을 연다. 공고 탭은 지원 화면이 그린다(FE#496)
+        commit(version, [], { applications });
+        if (version !== generation.current) return;
+        keepApplicationInUrl(applicationId);
+        setState(prev => ({ ...prev, questionId: null, applicationId }));
       });
       return true;
     }),
@@ -352,13 +373,13 @@ export function useApplications(composingAtStart = false) {
       ++generation.current;
       const gone = state.applications.find(a => a.id === applicationId);
       const rest = state.applications.filter(a => a.id !== applicationId);
-      const wasOpen = !!gone?.questions.some(q => q.id === state.questionId);
+      const wasOpen = !!gone?.questions.some(q => q.id === state.questionId) || (state.questionId === null && state.applicationId === applicationId);
       const next = wasOpen ? rest[0]?.questions[0]?.id ?? null : state.questionId;
       if (wasOpen) moveUrlTo(next);
       setState(prev => {
         const details = { ...prev.details };
         gone?.questions.forEach(q => { delete details[q.id]; });
-        return { ...prev, applications: prev.applications.filter(a => a.id !== applicationId), details, questionId: wasOpen ? next : prev.questionId };
+        return { ...prev, applications: prev.applications.filter(a => a.id !== applicationId), details, questionId: wasOpen ? next : prev.questionId, applicationId: wasOpen ? null : prev.applicationId };
       });
     },
     /** 문항 지우기(S-89) — 그 지원에서 문항을 빼고, 고른 문항이었으면 바로 앞(첫 문항이면 다음) 문항을 고른다. 실패는 부르는 쪽에 던진다 */

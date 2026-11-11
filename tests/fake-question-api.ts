@@ -1,7 +1,7 @@
 // 시험용 가짜 BE — question-api.md 대로 지원 · 문항 · 되묻기 · 보완과, 추천 활동을 여는 타임라인(활동 7)만 흉내 낸다.
 // 화면이 계약대로 부르고 그 응답을 그대로 그리는지 보려는 것이다. 추천 내용은 계약 예시(문항 41 · 42)를 그대로 쓴다 — AI 판단을 흉내 내지 않는다.
 import type { Page, Route } from "@playwright/test";
-import type { Application, ApplicationStatus, Clarification, JobRole, OrganizationType, QuestionDetail, QuestionSummary, SimilarAnswer } from "../src/lib/api/question-types";
+import type { Application, ApplicationStatus, PostingLine, PostingLineInput, Clarification, JobRole, OrganizationType, QuestionDetail, QuestionSummary, SimilarAnswer } from "../src/lib/api/question-types";
 import type { ActivityDetail, Supplement } from "../src/lib/api/types";
 import { QUESTION_EXAMPLES } from "./fixtures/question-examples";
 import { DRAFT_EXAMPLE } from "./fixtures/draft-example";
@@ -45,6 +45,10 @@ export class FakeQuestionApi {
   statuses = new Map<number, { applicationStatus: ApplicationStatus; submittedMonth: string | null }>();
   /** 지원 ID → 공고 원문 링크(S-46) */
   postingUrls = new Map<number, string | null>();
+  /** 지원 ID → 공고 요건 줄(S-91) — 넣은 그대로 */
+  postingLines = new Map<number, PostingLine[]>();
+  private nextPostingLine = 1;
+  private createdAt = new Map<number, string>();
   /** 문항 ID → 앞으로 실패시킬 GET 횟수 — 폴링의 일시 · 연속 연결 실패 */
   questionFailures = new Map<number, number>();
   /** GET similar-answers(S-43)가 돌려줄 목록 */
@@ -147,7 +151,8 @@ export class FakeQuestionApi {
     const questions = this.questions.filter(q => q.detail.applicationId === id).map(q => this.summary(q));
     const { organizationType = null, jobRole = null } = this.types.get(id) ?? {};
     const { applicationStatus = "WRITING", submittedMonth = null } = this.statuses.get(id) ?? {};
-    return { id, organization: this.applications.get(id) ?? null, organizationType, jobRole, postingUrl: this.postingUrls.get(id) ?? null, applicationStatus, submittedMonth, questions, createdAt: questions[0].createdAt };
+    return { id, organization: this.applications.get(id) ?? null, organizationType, jobRole, postingUrl: this.postingUrls.get(id) ?? null,
+      postingLines: this.postingLines.get(id) ?? [], applicationStatus, submittedMonth, questions, createdAt: questions[0]?.createdAt ?? this.createdAt.get(id) ?? new Date().toISOString() };
   }
 
   private push(applicationId: number, text: string) {
@@ -230,10 +235,15 @@ export class FakeQuestionApi {
     }
     if (method === "POST" && path === "/api/applications") {
       if (this.options.limit) return error(route, 429, "DAILY_LIMIT_EXCEEDED", "오늘 분석 횟수를 다 썼습니다");
+      // question-api — 문항 0 ~ 10개 · 공고 요건 줄 0 ~ 40줄, 둘 다 비면 400
+      const lines: PostingLineInput[] = body.postingLines ?? [];
+      if (!Array.isArray(body.questions) || (!body.questions.length && !lines.length)) return error(route, 400, "INVALID_REQUEST");
       const applicationId = this.nextApplication++;
       this.applications.set(applicationId, body.organization ?? null);
       this.types.set(applicationId, { organizationType: body.organizationType ?? null, jobRole: body.jobRole ?? null });
       this.postingUrls.set(applicationId, body.postingUrl ?? null);
+      this.postingLines.set(applicationId, lines.map(l => ({ id: this.nextPostingLine++, ...l })));
+      this.createdAt.set(applicationId, new Date().toISOString());
       const questionIds = body.questions.map((q: { text: string }) => this.push(applicationId, q.text));
       return json(route, { applicationId, questionIds }, 202);
     }

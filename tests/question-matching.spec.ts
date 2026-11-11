@@ -180,8 +180,9 @@ test("question input validates whitespace before calling the server and sends li
   await startApplication(page);
   await page.getByRole("button", { name: "문항 직접 쓰기", exact: true }).click();
   await page.getByLabel("문항 1", { exact: true }).fill(" \n ");
-  await page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true }).click();
-  await expect(page.locator("form").getByRole("alert")).toHaveText("지원 문항을 입력해 주세요.");
+  // 넣을 게 없으면 버튼을 막고 이유 한 줄(FE#494)
+  await expect(page.getByRole("button", { name: "지원 넣고 경험 찾기", exact: true })).toBeDisabled();
+  await expect(page.locator("form").getByText("지원 문항을 입력해 주세요.")).toBeVisible();
   expect(posts(api)).toEqual([]);
   await expect(page.getByLabel("지원처 이름", { exact: true })).toHaveAttribute("maxlength", "100");
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveAttribute("maxlength", "5000");

@@ -263,7 +263,10 @@ export function ApplicationScreen() {
               {adding ? <AddQuestionForm onCancel={() => setAdding(false)} onSubmit={async text => {
                 const saved = await matching.addQuestion(open.application.id, text);
                 if (saved) setAdding(false);
-              }} /> : <SelectedQuestion key={matching.questionId} summary={summary} question={selected} application={open.application} index={selectedIndex}
+              }} /> : !open.application.questions.length ? <p className="m-0 text-sm text-muted">
+                {/* 문항 0개 지원(공고만, S-18) — 공고 줄 · 공고 기준 경험은 공고 탭(FE#496)이 그린다 */}
+                이 지원엔 문항이 없어요{open.application.postingLines?.length ? ` — 공고 요건 ${open.application.postingLines.length}줄로 넣었어요` : ""}. 문항이 생기면 「문항 더하기」로 넣어 주세요.
+              </p> : <SelectedQuestion key={matching.questionId} summary={summary} question={selected} application={open.application} index={selectedIndex}
                 loadError={matching.detailError} onReload={matching.reloadQuestion}
                 overlaps={overlaps} onPickOverlap={id => { matching.selectQuestion(id); scrollToDetail(); }} onRetry={id => matching.retry(id)} onTypeChange={(id, type) => matching.updateQuestionType(id, type)} onTargetLengthChange={(id, length) => matching.updateTargetLength(id, length)} onAnswerChange={matching.keepAnswer} onAnswerDraftChange={matching.keepAnswerDraft} groundingChecks={groundingChecks}
                 {...draftActions} onPick={picks.toggle} onOpenOmissions={openDraftQuestions} onNewFacts={openNewFacts}
@@ -345,7 +348,7 @@ function ApplicationList({ applications, activeId, onPick, onSave, sidebar = fal
             : cn("grid w-full gap-1 rounded-sm px-3.5 py-3 text-left transition-colors", active ? "bg-surface-soft" : "hover:bg-surface-faint")}>{/* 고른 줄은 회색 — 파랑은 로고 · 근거 색(FE#468) */}
           {sidebar ? <SidebarApplicationText application={a} /> : <>
             <span className="pr-16 text-sm font-semibold">{a.organization || "지원처 이름 없음"}</span>
-            <span className="line-clamp-1 text-note text-body">{a.questions[0].text}</span>
+            <span className="line-clamp-1 text-note text-body">{a.questions[0]?.text ?? "공고로 넣은 지원 — 문항 없음"}</span>
             <span className="text-xs text-muted tabular-nums">{progressText(a)} · {a.submittedMonth ? `${monthText(a.submittedMonth)} 냄` : dateText(a.createdAt)}</span>
           </>}
         </button>

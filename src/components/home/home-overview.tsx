@@ -14,6 +14,7 @@ import { periodText } from "@/lib/period";
 import type { HomeOverview } from "./use-home-overview";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "@/components/sidebar-layout";
+import { applicationHref } from "@/lib/application-href";
 
 /** 내 경험 서랍(S-83) — 쌓인 블록을 크게 보는 자리 */
 const STATS_HREF = "/experience?view=stats";
@@ -59,7 +60,7 @@ export function ContinueCards({ overview, onRefresh, onNewApplication }: { overv
     <div className="grid gap-3 sm:grid-cols-3">
       {overview.applicationError ? <div className={card}><FileTextIcon className="size-5 text-record-pink" /><span className="text-note text-error">{overview.applicationError}</span><Button variant="link" onClick={onRefresh}>다시 시도</Button></div>
         : overview.applications === null ? <ContinueCardSkeleton label="최근 지원을 불러오고 있어요" />
-        : recent ? <Link href={`/questions?question=${recent.questions[0].id}`} className={card}><FileTextIcon className="size-5 text-record-pink" /><span className="text-xs text-muted">최근 지원</span><b className="text-sm leading-relaxed font-semibold">{recent.organization || "지원처 이름 없음"}</b><small className="text-xs text-muted">문항 {recent.questions.length}개 · 분석 중 {recent.questions.filter(q => q.status === "ANALYZING").length}개</small></Link>
+        : recent ? <Link href={applicationHref(recent)} className={card}><FileTextIcon className="size-5 text-record-pink" /><span className="text-xs text-muted">최근 지원</span><b className="text-sm leading-relaxed font-semibold">{recent.organization || "지원처 이름 없음"}</b><small className="text-xs text-muted">문항 {recent.questions.length}개 · 분석 중 {recent.questions.filter(q => q.status === "ANALYZING").length}개</small></Link>
         : <button type="button" className={card} onClick={onNewApplication}><FileTextIcon className="size-5 text-record-pink" /><span className="text-xs text-muted">지원 시작하기</span><b className="text-sm leading-relaxed font-semibold">지원 문항을 붙여 넣어 보세요</b><small className="text-note text-muted">어떤 경험을 꺼내 쓸지 찾아요</small></button>}
       {/* 활동을 읽기 전엔 「내 경험 이어 보기」를 그렸다가 마지막 활동으로 바꾸지 않는다 — 뼈대로 자리만 */}
       {overview.activities === null && !overview.activityError ? <ContinueCardSkeleton label="마지막으로 연 활동을 불러오고 있어요" />
