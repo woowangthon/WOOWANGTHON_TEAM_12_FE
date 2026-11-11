@@ -60,6 +60,11 @@ export function fetchApplication(id: number): Promise<Application> {
   return request(`/applications/${id}`);
 }
 
+/** POST /api/applications/{id}/posting-match/retry — 공고 기준 경험 찾기 다시 시도 · 다시 찾기(S-93). 분석 1회, 202 Application */
+export function retryPostingMatch(id: number): Promise<Application> {
+  return request(`/applications/${id}/posting-match/retry`, undefined, "POST");
+}
+
 /** POST /api/applications — 지원 + 문항 0 ~ 10개 · 공고 요건 줄 0 ~ 40줄(둘 다 비면 안 된다, S-18 · S-91). 문항마다 추천, 줄이 있으면 공고 기준 경험 찾기 시작 */
 export async function submitApplication(req: CreateApplicationRequest): Promise<ApplicationSubmitted> {
   const lines = req.postingLines ?? [];

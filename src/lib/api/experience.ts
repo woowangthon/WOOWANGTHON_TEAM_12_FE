@@ -145,7 +145,7 @@ export async function searchExperiences(search: ExperienceSearch, mock: MockMode
     if (mock === "error") throw new ApiError("MOCK_ERROR", "불러오기 실패 화면 확인용");
     return mockSearchExperiences(allActivities(), search);
   }
-  const { query, competencies, year, sourceStatus, category, saved } = search;
+  const { query, competencies, year, sourceStatus, category, saved, limit } = search;
   const params = new URLSearchParams();
   if (query) params.set("query", query);
   if (competencies?.length) params.set("competencies", competencies.join(","));
@@ -153,6 +153,7 @@ export async function searchExperiences(search: ExperienceSearch, mock: MockMode
   if (sourceStatus) params.set("sourceStatus", sourceStatus);
   if (category) params.set("category", category);
   if (saved) params.set("saved", "true");
+  if (limit) params.set("limit", String(limit));
   const qs = params.toString();
   const found = await request<ExperienceSearchResult>(`/experiences${qs ? `?${qs}` : ""}`);
   found.experiences.forEach(checkCompetencies);

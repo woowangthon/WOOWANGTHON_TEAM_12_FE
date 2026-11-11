@@ -9,7 +9,6 @@ import { fetchActivities } from "@/lib/api/experience";
 import { isMockMode } from "@/lib/api/http";
 import { fetchApplications } from "@/lib/api/questions";
 import { APPLICATION_STATUS_LABEL, JOB_ROLE_LABEL, type Application } from "@/lib/api/question-types";
-import { applicationHref } from "@/lib/application-href";
 
 export const dateText = (iso: string) => new Date(iso).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" });
 /** 낸 달 "2026-11" → 「2026년 11월」 */
@@ -17,7 +16,15 @@ export const monthText = (month: string) => { const [y, m] = month.split("-"); r
 /** 「문항 3 · 분석 중 1」처럼 — 문항 상태를 한 줄로 */
 export function progressText(application: Application) {
   const n = (status: Application["questions"][number]["status"]) => application.questions.filter(q => q.status === status).length;
-  return [`문항 ${application.questions.length}`, n("ANALYZING") && `분석 중 ${n("ANALYZING")}`, n("FAILED") && `실패 ${n("FAILED")}`].filter(Boolean).join(" · ");
+  // 문항 없이 공고 줄만 넣은 지원(S-18 · S-93) — 「문항 0」 대신 공고 줄 수
+  const size = !application.questions.length && application.postingLines?.length ? `공고 ${application.postingLines.length}줄` : `문항 ${application.questions.length}`;
+  return [size, n("ANALYZING") && `분석 중 ${n("ANALYZING")}`, n("FAILED") && `실패 ${n("FAILED")}`].filter(Boolean).join(" · ");
+}
+
+/** 지원으로 가는 주소 — 첫 문항, 문항이 없으면 그 지원의 「공고」 탭(S-93) */
+export function applicationHref(application: Application) {
+  const first = application.questions[0];
+  return first ? `/questions?question=${first.id}` : `/questions?application=${application.id}&tab=posting`;
 }
 
 const LOAD_FAILED = "지원서를 불러오지 못했어요.";

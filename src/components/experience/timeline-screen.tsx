@@ -38,6 +38,7 @@ import { useWorkRefresh } from "@/components/work/work-provider";
 import { SameActivityDialog, SuggestionLines, suggestionPairs } from "./merge-suggestion";
 import { closeRevisionPanel } from "@/components/revisions/revision-list";
 import { useRestoreListener } from "@/components/revisions/restore-bus";
+import { takeRecordHint } from "@/lib/record-hint";
 
 type ListState =
   | { status: "loading" }
@@ -213,11 +214,14 @@ export function TimelineScreen() {
   // 다른 화면(지원)의 「자료 넣기」(?add=1, FE#64) — 그 창을 연다. 예전 「직접 기록하기」 주소(?add=line, FE#179)도 같은 창(FE#364). 새로고침에 다시 열리지 않게 주소에서 지운다.
   // 분석이 아직 돌고 있으면 이 화면의 「자료 넣기」처럼 막고 이유만 알린다
   const addRequested = params.get("add");
+  // 공고 탭 「직접 기록하기」(S-93 · FE#496)가 넘긴 공고 줄 — 입력칸은 비운 채 자리 표시로만 보인다
+  const [recordHint, setRecordHint] = useState("");
   useEffect(() => {
     if (addRequested !== "1" && addRequested !== "line") return;
     const timer = setTimeout(() => {
+      const hint = takeRecordHint();
       if (hasPendingAnalysis()) showToast("지금 넣은 자료의 분석이 끝나면 더 넣을 수 있어요.");
-      else setAddOpen(true);
+      else { setRecordHint(hint); setAddOpen(true); }
       const url = new URL(window.location.href);
       url.searchParams.delete("add");
       window.history.replaceState(null, "", url);
@@ -726,8 +730,9 @@ export function TimelineScreen() {
 
       <AddSourceDialog
         open={addOpen}
-        onOpenChange={setAddOpen}
+        onOpenChange={(open) => { setAddOpen(open); if (!open) setRecordHint(""); }}
         mock={mockAnalysis}
+        placeholder={recordHint ? `공고 줄: ${recordHint}\n이 줄과 관련해 해 본 일이 있으면 한 줄이라도 적어 주세요` : undefined}
         onSubmitted={(jobs) => analysis.start(jobs)}
       />
       {selected && (

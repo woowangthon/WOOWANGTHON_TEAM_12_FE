@@ -248,7 +248,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
         {destination?.kind === "application" && <ApplicationForm key={`${destination.prefill ? "filled" : "plain"}:${destination.url ?? ""}`} initialText={destination.text} prefill={destination.prefill} pastedText={destination.prefill ? destination.text : ""}
           initialUrl={destination.url} initialFailure={destination.failure} onSavingChange={setSaving} moveToSourceDisabled={sourceBusy}
           onMoveToSource={value => openDestination("source", value)} onCancel={() => setDestination(null)}
-          onSubmit={async req => { const result = await submitApplication(req); setDestination(null); setText(""); router.push(result.questionIds.length ? `/questions?question=${result.questionIds[0]}` : `/questions?application=${result.applicationId}`); }} />}
+          onSubmit={async req => { const result = await submitApplication(req); setDestination(null); setText(""); router.push(result.questionIds.length ? `/questions?question=${result.questionIds[0]}` : `/questions?application=${result.applicationId}&tab=posting`); }} />}
       </DialogContent>
     </Dialog>
     </section>

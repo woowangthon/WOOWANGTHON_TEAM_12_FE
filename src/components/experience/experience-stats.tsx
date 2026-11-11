@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { CATEGORY_KEYS, CategoryIcon, categoryOf } from "./activity-category";
 import { ExperienceBlocks, experienceYears } from "./experience-blocks";
 import { PeriodLabel } from "./timeline";
+import { starAsk, starAskText } from "@/lib/home-overview";
 
 type DetailState = { status: "loading" } | { status: "ready"; details: ActivityDetail[]; failed: number };
 
@@ -69,6 +70,7 @@ export function ExperienceStats({ activities, version, hiddenIds, addSource, onO
   for (const e of experiences) for (const c of e.competencies) competencyCounts.set(c, (competencyCounts.get(c) ?? 0) + 1);
   const byCompetency = [...competencyCounts].sort((a, b) => b[1] - a[1]);
   const noCompetency = experiences.filter((e) => e.competencies.length === 0).length;
+  const ask = starAsk(activities);
   const reviewFirst = (details ?? []).find((d) => d.experiences.some((e) => e.sourceStatus === "NEEDS_REVIEW" && !hiddenIds.has(e.id)));
 
   if (total === 0) {
@@ -113,6 +115,9 @@ export function ExperienceStats({ activities, version, hiddenIds, addSource, onO
                 </li>
               ))}
             </ul>
+            {/* S-97 — 출처 상태 줄 아래 같은 글자 · 줄 높이. 블록 표시는 붙이지 않는다(블록은 경험 수) */}
+            {ask && <button type="button" onClick={() => onOpenActivity(ask.activityId)} title="차곡이가 물어볼 활동 열기"
+              className="mt-1 block cursor-pointer text-note text-muted underline-offset-3 hover:text-ink hover:underline max-lg:min-h-11">{starAskText(ask)}</button>}
           </>}
         </div>
       </Card>

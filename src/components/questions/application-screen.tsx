@@ -3,7 +3,9 @@
 import { InfoTip } from "@/components/ui/info-tip";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { handOffRecordHint } from "@/lib/record-hint";
+import { PostingTab } from "./posting-tab";
 import { peekApplicationText, takeApplicationText } from "@/lib/application-handoff";
 import { ArrowSquareOutIcon, ArrowsClockwiseIcon, MagnifyingGlassIcon, PlusIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { isPostingUrl } from "@/lib/api/entrance";
@@ -176,6 +178,7 @@ export function ApplicationScreen() {
   const panelQuestion = composing || adding ? null : selected;
   const chagok = useChagokRun(panelQuestion?.id ?? null, restoreRun);
   const panel = <ChagokPanel question={panelQuestion} index={selectedIndex} originOf={originOf} control={chagok} onRematch={id => matching.retry(id)}
+    postingOpen={!composing && !adding && matching.postingFor !== null}
     onAnswer={(clarificationId, answer) => selected ? matching.answer(selected.id, clarificationId, answer) : Promise.resolve()}
     draftActions={{ ...draftActions, focusRequest: draftFocus?.questionId === selected?.id ? draftFocus?.request ?? 0 : 0 }}
     newFacts={{ onAnswerChange: matching.keepAnswer, findRequested: findFor !== null && findFor === selected?.id, onFindStarted,
@@ -199,6 +202,10 @@ export function ApplicationScreen() {
   const [deletingQuestion, setDeletingQuestion] = useState<{ id: number; index: number; text: string; hasAnswer: boolean } | null>(null);
   const [editingQuestion, setEditingQuestion] = useState<{ id: number; index: number; text: string } | null>(null);
   const askDeleteApplication = (a: Application) => setDeletingApplication({ id: a.id, name: a.organization || "지원처 이름 없음", questionCount: a.questions.length });
+  // 공고 탭의 「직접 기록하기」(S-93) — 그 줄 글을 자리 표시로 넘기고 자료 쌓기 창(내 경험 화면)을 연다
+  const router = useRouter();
+  const recordLine = (line: string) => { handOffRecordHint(line); router.push("/experience?add=line"); };
+  const postingOpen = !adding && open !== null && matching.postingFor === open.application.id;
 
   return <ActivityCategoriesProvider><div className="flex min-h-dvh flex-col bg-canvas">
     <AppHeader activePage="questions" onNewApplication={startNew}
@@ -256,17 +263,18 @@ export function ApplicationScreen() {
               </div>
             </header>
             <ExportStatus exporter={exporter} target={{ scope: "application", id: open.application.id }} className="mt-2" />
-            <QuestionTabs questions={open.application.questions} selectedId={adding ? null : matching.questionId} adding={adding}
+            <QuestionTabs questions={open.application.questions} selectedId={adding || postingOpen ? null : matching.questionId} adding={adding}
               canAdd={open.application.questions.length < MAX_QUESTIONS_PER_APPLICATION}
+              posting={open.application.postingLines?.length ? { selected: postingOpen, status: open.application.postingMatch?.status ?? "ANALYZING", onPick: () => { setAdding(false); matching.selectPosting(open.application.id); } } : null}
               onPick={id => { setAdding(false); matching.selectQuestion(id); }} onAdd={() => setAdding(true)} />
             <div className="pt-5">
               {adding ? <AddQuestionForm onCancel={() => setAdding(false)} onSubmit={async text => {
                 const saved = await matching.addQuestion(open.application.id, text);
                 if (saved) setAdding(false);
-              }} /> : !open.application.questions.length ? <p className="m-0 text-sm text-muted">
-                {/* 문항 0개 지원(공고만, S-18) — 공고 줄 · 공고 기준 경험은 공고 탭(FE#496)이 그린다 */}
-                이 지원엔 문항이 없어요{open.application.postingLines?.length ? ` — 공고 요건 ${open.application.postingLines.length}줄로 넣었어요` : ""}. 문항이 생기면 「문항 더하기」로 넣어 주세요.
-              </p> : <SelectedQuestion key={matching.questionId} summary={summary} question={selected} application={open.application} index={selectedIndex}
+              }} /> : postingOpen ? <PostingTab key={`posting-${open.application.id}`} application={open.application}
+                pollStopped={matching.postingPollStopped(open.application.id)} onResumePoll={() => matching.resumePostingPoll(open.application.id)}
+                onRetry={() => matching.retryPosting(open.application.id)} onAnswer={(id, answer) => matching.answerPosting(open.application.id, id, answer)}
+                onRecord={recordLine} /> : <SelectedQuestion key={matching.questionId} summary={summary} question={selected} application={open.application} index={selectedIndex}
                 loadError={matching.detailError} onReload={matching.reloadQuestion}
                 overlaps={overlaps} onPickOverlap={id => { matching.selectQuestion(id); scrollToDetail(); }} onRetry={id => matching.retry(id)} onTypeChange={(id, type) => matching.updateQuestionType(id, type)} onTargetLengthChange={(id, length) => matching.updateTargetLength(id, length)} onAnswerChange={matching.keepAnswer} onAnswerDraftChange={matching.keepAnswerDraft} groundingChecks={groundingChecks}
                 {...draftActions} onPick={picks.toggle} onOpenOmissions={openDraftQuestions} onNewFacts={openNewFacts}
@@ -348,7 +356,7 @@ function ApplicationList({ applications, activeId, onPick, onSave, sidebar = fal
             : cn("grid w-full gap-1 rounded-sm px-3.5 py-3 text-left transition-colors", active ? "bg-surface-soft" : "hover:bg-surface-faint")}>{/* 고른 줄은 회색 — 파랑은 로고 · 근거 색(FE#468) */}
           {sidebar ? <SidebarApplicationText application={a} /> : <>
             <span className="pr-16 text-sm font-semibold">{a.organization || "지원처 이름 없음"}</span>
-            <span className="line-clamp-1 text-note text-body">{a.questions[0]?.text ?? "공고로 넣은 지원 — 문항 없음"}</span>
+            <span className="line-clamp-1 text-note text-body">{a.questions[0]?.text ?? a.postingLines?.[0]?.text ?? ""}</span>
             <span className="text-xs text-muted tabular-nums">{progressText(a)} · {a.submittedMonth ? `${monthText(a.submittedMonth)} 냄` : dateText(a.createdAt)}</span>
           </>}
         </button>
@@ -359,12 +367,18 @@ function ApplicationList({ applications, activeId, onPick, onSave, sidebar = fal
   </>;
 }
 
-/** 문항 탭 — 넣은 순서대로. 좁은 화면에선 가로로 넘긴다 */
-function QuestionTabs({ questions, selectedId, adding, canAdd, onPick, onAdd }: {
+/** 문항 탭 — 넣은 순서대로. 좁은 화면에선 가로로 넘긴다. 공고 줄이 있는 지원이면 맨 앞에 「공고」(S-93) */
+function QuestionTabs({ questions, selectedId, adding, canAdd, posting, onPick, onAdd }: {
   questions: QuestionSummary[]; selectedId: number | null; adding: boolean; canAdd: boolean; onPick: (id: number) => void; onAdd: () => void;
+  posting: { selected: boolean; status: keyof typeof STATUS; onPick: () => void } | null;
 }) {
   return <div className="-mx-4.5 mt-1 overflow-x-auto border-b border-hairline px-4.5 lg:mx-0 lg:px-0">
     <div role="tablist" aria-label="문항" className="flex w-max items-end gap-1">
+      {posting && <button type="button" role="tab" aria-selected={posting.selected} aria-controls="posting-panel"
+        className={cn("inline-flex min-h-11 lg:min-h-10 items-center gap-1.5 border-b-2 px-3 text-ui whitespace-nowrap", posting.selected ? "border-ink font-bold" : "border-transparent text-muted hover:text-ink")}
+        onClick={posting.onPick}>
+        공고<i className={cn("size-1.5 rounded-full", DOT[posting.status])} aria-hidden="true" /><span className="sr-only">{STATUS[posting.status]}</span>
+      </button>}
       {questions.map((q, i) => {
         const active = q.id === selectedId;
         return <button key={q.id} type="button" role="tab" aria-selected={active} aria-controls="question-panel" title={q.text}

@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PlusIcon } from "@phosphor-icons/react";
 import { AppHeader } from "@/components/app-header";
-import { monthText, useSidebarApplications } from "@/components/sidebar-applications";
+import { applicationHref, monthText, useSidebarApplications } from "@/components/sidebar-applications";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isMockMode } from "@/lib/api/http";
@@ -18,7 +18,6 @@ import { cn } from "@/lib/utils";
 import { deleteApplication } from "@/lib/api/questions";
 import { Toast, useToast } from "@/components/ui/toast";
 import { ApplicationMenu, DeleteApplicationDialog } from "@/components/questions/question-menus";
-import { applicationHref } from "@/lib/application-href";
 
 const GROUP_BY: [GroupBy, string][] = [["period", "시기별"], ["type", "종류별"]];
 const statusTag = "inline-flex h-6 shrink-0 items-center rounded-full bg-surface-soft px-2.5 text-xs font-medium whitespace-nowrap text-body";
@@ -99,7 +98,8 @@ function ApplicationRow({ application: a, by, onDelete }: { application: Applica
   const count = (status: Application["questions"][number]["status"]) => a.questions.filter((q) => q.status === status).length;
   const meta = [by !== "type" && a.organizationType && ORGANIZATION_TYPE_LABEL[a.organizationType], a.jobRole && JOB_ROLE_LABEL[a.jobRole]].filter(Boolean);
   const progress = [
-    `문항 ${a.questions.length}`,
+    // 문항 없이 공고 줄만 넣은 지원(S-93)은 공고 줄 수
+    !a.questions.length && a.postingLines?.length ? `공고 ${a.postingLines.length}줄` : `문항 ${a.questions.length}`,
     count("ANALYZING") && `분석 중 ${count("ANALYZING")}`,
     count("FAILED") && `실패 ${count("FAILED")}`,
     by !== "period" && a.submittedMonth && `${monthText(a.submittedMonth)} 냄`,

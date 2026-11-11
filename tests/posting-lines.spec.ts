@@ -69,11 +69,14 @@ test("a posting without questions shows its lines in sections, lets me fix them,
       { section: "REQUIRED", text: "장애를 겪고 원인을 찾아 고친 경험", ksa: "SKILL", readFrom: "TEXT" },
     ],
   });
-  // 넣은 뒤 지원 화면 — 문항이 없으니 그 지원을 `?application=` 으로 연다(공고 탭은 FE#496)
-  await expect(page).toHaveURL(/application=\d+(&|$)/);
-  await expect(page.getByText(/^이 지원엔 문항이 없어요 — 공고 요건 4줄로 넣었어요/)).toBeVisible();
+  // 넣은 뒤 지원 화면 — 문항이 없으니 「공고」 탭이 열린 채로(FE#496), 고친 줄 그대로
+  await expect(page).toHaveURL(/application=\d+&tab=posting/);
+  await expect(page.getByRole("tab", { name: /공고/ })).toHaveAttribute("aria-selected", "true");
+  const panel = page.getByRole("tabpanel", { name: "공고" });
+  await expect(panel.getByText("장애를 겪고 원인을 찾아 고친 경험")).toBeVisible();
+  await expect(panel.getByText("대규모 트래픽 처리 경험")).toHaveCount(0);
   await page.reload();
-  await expect(page.getByText(/^이 지원엔 문항이 없어요/)).toBeVisible();
+  await expect(page.getByRole("tab", { name: /공고/ })).toHaveAttribute("aria-selected", "true");
 });
 
 test("with no posting lines and no questions the submit button stays off with a reason", async ({ page }) => {

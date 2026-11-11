@@ -20,6 +20,8 @@ export const nextLineKey = () => ++lineSeq;
 
 /** 칸마다 처음에 보이는 줄 수 — 공고가 40줄 가까이면 길어서 접는다(FE#494 「위험」 기본값) */
 const SHOWN = 6;
+/** 칸 제목 — 확인 단계는 「자격요건」(DESIGN.md 「지원 넣기 — 공고 확인」), 공고 탭 꼬리표는 짧은 「자격」 */
+const SECTION_TITLE: Record<PostingSection, string> = { ...POSTING_SECTION_LABEL, REQUIRED: "자격요건" };
 const SECTION_AI = "칸 나누기(담당업무 · 자격요건 · 우대 · 기술스택)는 AI 가 했어요. 줄 글은 공고 원문 그대로예요.";
 // MOCK(posting-lines): 목 모드에선 칸 나누기도 규칙이다 — AI 배지 대신 글자로 밝힌다(ai-scope §3)
 const SECTION_MOCK = "목 규칙으로 칸을 나눴어요 — 머리 줄(담당업무 · 자격요건 · 우대 · 기술스택) 아래 글머리 줄만 옮겨요.";
@@ -84,7 +86,7 @@ export function PostingLinesReview({ lines, onChange }: {
         editing={editing} full={full} onEdit={setEditing} onSave={save} onRemove={remove} onAdd={() => add(section)} />)}
       {removed && <div className={toastStack}>
         <div role="status" className={cn(toastCard, "flex items-center gap-3 py-2 pr-2 pl-4")}>
-          <span>{POSTING_SECTION_LABEL[removed.line.section]} 줄을 뺐어요</span>
+          <span>{SECTION_TITLE[removed.line.section]} 줄을 뺐어요</span>
           <button type="button" onClick={undo} className="min-h-9 rounded-sm px-2 font-semibold text-canvas underline underline-offset-3 max-lg:min-h-11">되돌리기</button>
         </div>
       </div>}
@@ -97,7 +99,7 @@ function PostingSectionBlock({ section, lines, editing, full, onEdit, onSave, on
   onEdit: (key: number) => void; onSave: (key: number, text: string) => void; onRemove: (line: DraftPostingLine) => void; onAdd: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const label = POSTING_SECTION_LABEL[section];
+  const label = SECTION_TITLE[section];
   // 고치는 줄은 접힌 쪽에 있어도 보인다
   const editingAt = lines.findIndex(l => l.key === editing);
   const shown = expanded || lines.length <= SHOWN ? lines : lines.slice(0, Math.max(SHOWN, editingAt + 1));

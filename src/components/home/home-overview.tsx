@@ -9,12 +9,12 @@ import { Button } from "@/components/ui/button";
 import { InfoTip } from "@/components/ui/info-tip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ContinueCardSkeleton } from "./home-skeleton";
-import { thisTimeLastYear } from "@/lib/home-overview";
+import { starAsk, starAskText, thisTimeLastYear } from "@/lib/home-overview";
 import { periodText } from "@/lib/period";
 import type { HomeOverview } from "./use-home-overview";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "@/components/sidebar-layout";
-import { applicationHref } from "@/lib/application-href";
+import { applicationHref } from "@/components/sidebar-applications";
 
 /** 내 경험 서랍(S-83) — 쌓인 블록을 크게 보는 자리 */
 const STATS_HREF = "/experience?view=stats";
@@ -23,6 +23,7 @@ export function HomeMascot({ overview, onRefresh, mode }: { overview: HomeOvervi
   const { desktop } = useSidebar();
   const total = overview.activities?.reduce((n, a) => n + a.experienceCount, 0);
   const review = overview.details?.flatMap(a => a.experiences.filter(e => e.sourceStatus === "NEEDS_REVIEW").map(e => ({ activityId: a.id, experience: e })));
+  const ask = starAsk(overview.activities);
   const years = overview.activities ? experienceYears(overview.activities, overview.details) : [];
   return <>
     <Popover.Root>
@@ -44,7 +45,9 @@ export function HomeMascot({ overview, onRefresh, mode }: { overview: HomeOvervi
       {overview.activityError ? <span>{overview.activityError} <Button variant="link" onClick={onRefresh}>다시 시도</Button></span>
         // 불러오는 동안은 글 한 줄 높이의 뼈대 — 아래 질문이 내려앉지 않게(FE#402)
         : total === undefined ? <span role="status" className="inline-flex h-5 items-center align-top"><span className="sr-only">쌓인 경험을 불러오고 있어요</span><Skeleton className="h-4 w-44" /></span>
-        : <>경험 {total}개가 쌓여 있어요{review && !overview.detailError && <> · <Link href={review.length ? `/experience?activity=${review[0].activityId}` : "/experience"} title="확인할 경험 보기" className="underline-offset-4 hover:underline">확인할 것 {review.length}</Link></>}</>}
+        : <>경험 {total}개가 쌓여 있어요{review && !overview.detailError && <> · <Link href={review.length ? `/experience?activity=${review[0].activityId}` : "/experience"} title="확인할 경험 보기" className="underline-offset-4 hover:underline">확인할 것 {review.length}</Link></>}
+          {/* S-97 — 같은 링크 모양. 좁은 폭에선 이 덩어리째 다음 줄로(글자를 줄이지 않는다) */}
+          {ask && <> · <Link href={`/experience?activity=${ask.activityId}`} title="차곡이가 물어볼 활동 열기" className="inline-flex items-center underline-offset-4 hover:underline max-lg:min-h-11">{starAskText(ask)}</Link></>}</>}
     </div>
     <h1 className="m-0 text-hero-sm leading-snug font-bold tracking-[-1px] lg:text-hero">어떤 경험을 {mode === "in" ? "쌓아볼까요" : "꺼내볼까요"}?</h1>
   </>;

@@ -152,7 +152,10 @@ export class FakeQuestionApi {
     const { organizationType = null, jobRole = null } = this.types.get(id) ?? {};
     const { applicationStatus = "WRITING", submittedMonth = null } = this.statuses.get(id) ?? {};
     return { id, organization: this.applications.get(id) ?? null, organizationType, jobRole, postingUrl: this.postingUrls.get(id) ?? null,
-      postingLines: this.postingLines.get(id) ?? [], applicationStatus, submittedMonth, questions, createdAt: questions[0]?.createdAt ?? this.createdAt.get(id) ?? new Date().toISOString() };
+      postingLines: this.postingLines.get(id) ?? [],
+      // 공고 기준 경험 찾기(S-93) — 줄이 있으면 뒤에서 돈다. 결과는 흉내 내지 않고 찾는 중으로 둔다(공고 탭 시험은 posting-tab.spec)
+      postingMatch: this.postingLines.get(id)?.length ? { status: "ANALYZING", error: null, lines: [], clarifications: [] } : null,
+      applicationStatus, submittedMonth, questions, createdAt: questions[0]?.createdAt ?? this.createdAt.get(id) ?? new Date().toISOString() };
   }
 
   private push(applicationId: number, text: string) {

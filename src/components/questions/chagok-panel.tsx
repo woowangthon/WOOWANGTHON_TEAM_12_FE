@@ -17,7 +17,8 @@ import type { ChagokRunControl } from "./use-chagok-run";
 import { NewFactCandidates } from "./new-fact-candidates";
 import { useConfirmedAnswer } from "./use-confirmed-answer";
 
-const JUDGMENT: Record<RequirementStatus, { label: string; icon: typeof CheckIcon; tone: string }> = {
+/** 요구사항 판정(S-19) — 공고 탭의 줄 판정(S-93)도 같은 글자 · 아이콘 · 색 */
+export const JUDGMENT: Record<RequirementStatus, { label: string; icon: typeof CheckIcon; tone: string }> = {
   SUPPORTED: { label: "근거 있음", icon: CheckIcon, tone: "text-evidence" },
   PARTIAL: { label: "일부 확인됨", icon: MinusCircleIcon, tone: "text-muted" },
   NOT_FOUND: { label: "자료에서 확인 안 됨", icon: WarningCircleIcon, tone: "text-muted" },
@@ -52,8 +53,10 @@ export type SupplementOrigin = (supplement: Supplement) => string;
 /** 새 경험 후보(S-48)를 패널에서 찾고 고른다(FE#270) — 답은 화면이 받아 둔 문항의 것을 같이 쓴다 */
 export type NewFactActions = { onAnswerChange: (id: number, answer: Answer | null) => void; findRequested: boolean; onFindStarted: () => void; focusRequest: number; onFocused: (request: number) => void };
 
-export function ChagokPanel({ question, index, originOf, onAnswer, onClose, draftActions, control, newFacts, onRematch }: {
+export function ChagokPanel({ question, index, originOf, onAnswer, onClose, draftActions, control, newFacts, onRematch, postingOpen = false }: {
   question: QuestionDetail | null; index: number; originOf: SupplementOrigin; onAnswer: AnswerHandler; onClose: () => void; draftActions: DraftPanelActions; control: ChagokRunControl; newFacts: NewFactActions; onRematch: Rematch;
+  /** 지원 화면이 「공고」 탭을 보고 있다(S-93) — 공고 되묻기는 탭 안에서 답하니 패널은 그쪽을 가리킨다 */
+  postingOpen?: boolean;
 }) {
   // 단계가 쌓이면 맨 아래를 보인다
   const body = useRef<HTMLDivElement>(null);
@@ -72,7 +75,7 @@ export function ChagokPanel({ question, index, originOf, onAnswer, onClose, draf
     <div ref={body} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
       {control.restoring && <p role="status" className={bubble}>차곡이 일을 다시 열고 있어요…</p>}
       {control.restoreError && <div role="alert" className={bubble}><p>{control.restoreError}</p><Button variant="secondary" onClick={control.restore}>일 다시 불러오기</Button></div>}
-      {question ? <Feed key={question.id} question={question} originOf={originOf} onAnswer={onAnswer} draftActions={draftActions} /> : <p className={bubble}>문항을 고르면 읽어 보고 맞는 경험을 찾아 둘게요.</p>}
+      {question ? <Feed key={question.id} question={question} originOf={originOf} onAnswer={onAnswer} draftActions={draftActions} /> : <p className={bubble}>{postingOpen ? "공고 줄 되묻기는 공고 탭에서 답할 수 있어요. 문항을 더하면 문항도 같이 봐 둘게요." : "문항을 고르면 읽어 보고 맞는 경험을 찾아 둘게요."}</p>}
       {/* 흐름의 끝 — 다 쓴 답에서 새로 쓴 사실을 경험으로(S-48) */}
       {question?.answer && <PanelNewFacts key={`facts-${question.id}`} question={question} {...newFacts} />}
       {!control.restoring && !control.restoreError && <ChagokRunFeed control={control} currentQuestionId={question?.id ?? null}
