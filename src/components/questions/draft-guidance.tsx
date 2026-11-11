@@ -6,6 +6,7 @@ import { InfoTip } from '@/components/ui/info-tip';
 import { Select } from '@/components/ui/select';
 import { DRAFT_FRAMES, frameOptions, type DraftFrame } from '@/lib/draft-frames';
 import type { Draft } from '@/lib/api/question-types';
+import { AiMark } from '@/components/ui/ai-mark';
 
 export function FrameDescription({ frame }: { frame: DraftFrame }) {
   const info = DRAFT_FRAMES[frame];
@@ -42,7 +43,7 @@ export function DraftGuidance({ draft }: { draft: Draft }) {
       <Popover.Content align="start" sideOffset={4} collisionPadding={16} aria-label="초안에 쓴 틀과 지침"
         className="z-50 grid w-[min(22rem,calc(100vw-2rem))] gap-3 rounded-md border border-hairline bg-canvas px-3.5 py-3 text-note leading-relaxed text-body shadow-float">
         <div className="grid gap-0.5"><p className="m-0 text-sm font-semibold">구성 틀 · {info.name}</p><p className="m-0 text-muted">{info.steps}</p></div>
-        {applied.length > 0 && <section aria-label="적용한 지침" className="grid gap-1"><p className="m-0 text-sm font-semibold">적용한 지침 <span className="font-normal text-muted">· AI 해석 · 근거 규칙이 우선</span></p><ul className="m-0 grid gap-1 pl-4">{applied.map(g => <li key={g.id} className="break-words">{g.text}{g.source && <span className="block text-xs text-muted">출처 · {g.source}</span>}</li>)}</ul></section>}
+        {applied.length > 0 && <section aria-label="적용한 지침" className="grid gap-1"><p className="m-0 text-sm font-semibold">적용한 지침 <AiMark className="mx-0.5" /><span className="font-normal text-muted">근거 규칙이 우선</span></p><ul className="m-0 grid gap-1 pl-4">{applied.map(g => <li key={g.id} className="break-words">{g.text}{g.source && <span className="block text-xs text-muted">출처 · {g.source}</span>}</li>)}</ul></section>}
         {unapplied.length > 0 && <section aria-label="이번엔 반영 못 함" className="grid gap-1"><p className="m-0 text-sm font-semibold">이번엔 반영 못 함</p><ul className="m-0 grid gap-1 pl-4">{unapplied.map(g => <li key={g.id} className="break-words">{g.text}<span className="block text-xs text-muted">{g.note}</span></li>)}</ul></section>}
       </Popover.Content>
     </Popover.Portal>

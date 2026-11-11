@@ -37,7 +37,7 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test("지원 — 추천 경험의 활동 칩이 분류색이고 분류 이름도 글자로 있다", async ({ page }) => {
+test("지원 — 추천 카드의 분류색 점이 분류색이고 분류 이름도 글자로 있다", async ({ page }) => {
   const api = new FakeQuestionApi();
   await api.install(page);
   const [example] = QUESTION_EXAMPLES;
@@ -47,8 +47,17 @@ test("지원 — 추천 경험의 활동 칩이 분류색이고 분류 이름도
   await page.goto("/questions");
   const chip = page.getByRole("tabpanel", { name: "선택한 문항", exact: true }).locator("[data-category=STUDY]").first();
   await expect(chip).toBeVisible();
-  // 추천 카드는 회색 면이라 칩 바탕이 흰색(시안 6 .act-chip · onTint)이다 — 글자 색이 분류색이다
-  expect((await painted(chip)).color).toBe((await expected(page, "STUDY")).color);
+  // 추천 카드 머리는 제목과 같은 글자이던 칩 대신 분류색 점이다(FE#464) — 바탕이 분류색(--category)
+  const want = await page.evaluate(() => {
+    const probe = document.createElement("span");
+    probe.dataset.category = "STUDY";
+    probe.style.cssText = "background-color: var(--category)";
+    document.body.append(probe);
+    const color = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return color;
+  });
+  expect((await painted(chip)).backgroundColor).toBe(want);
   await expect(chip).toHaveAttribute("title", "공부 · 성장");
   await expect(chip).toContainText("공부 · 성장"); // sr-only 글자 — 색만으로 구분하지 않는다
   await capture(page, "apply");

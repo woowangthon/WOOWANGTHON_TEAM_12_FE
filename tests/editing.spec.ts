@@ -19,7 +19,7 @@ for (const scenario of [
     await page.reload();
     await page.getByRole("button", { name: /API test activity/ }).click();
     await expect(page.getByText("Original experience", { exact: true })).toBeVisible();
-    await expect(page.getByRole("complementary").getByText("AI", { exact: true })).toHaveCount(scenario.visible ? 1 : 0);
+    await expect(page.getByRole("complementary").getByText("AI 해석", { exact: true })).toHaveCount(scenario.visible ? 1 : 0);
   });
 }
 
@@ -28,7 +28,7 @@ test("AI marker survives content and actor edits, disappears on competency edit"
   state.activity.experiences[0].competencies = ["IMPLEMENTATION"];
   await page.reload();
   await page.getByRole("button", { name: /API test activity/ }).click();
-  const ai = page.getByRole("complementary").getByText("AI", { exact: true });
+  const ai = page.getByRole("complementary").getByText("AI 해석", { exact: true });
   await editContent(page, "Content only edit");
   await expect(ai).toHaveCount(1);
   await pickActor(page, "팀");

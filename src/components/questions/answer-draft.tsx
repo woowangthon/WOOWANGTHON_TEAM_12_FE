@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { AnswerEvidence } from "./answer-evidence";
 import { inlineAction } from "./clarifications";
 import { diff, keepsNumbers, MATCH_THRESHOLD, matchSentences, similarity, splitSentences } from "./draft-match";
+import { AiMark } from "@/components/ui/ai-mark";
 
 export type DraftActions = { onGenerate: (experienceIds: number[], frame?: DraftFrame, useContext?: boolean) => Promise<void>; onRefresh: () => Promise<void>; onOpenOmissions: () => void; picks: number[]; onResetPicks: (questionId: number) => void; savingAnswer: boolean; requestingDraft: boolean };
 
@@ -613,7 +614,7 @@ function DraftCard({ question, draft, analysis, local, selected, onAnswer, onCon
     return <div role="group" aria-label="문장 카드" onKeyDown={close} className="grid gap-3 p-4 lg:px-5">
       <CardHead title="내가 쓴 문장" ground={o.ground} done={o.done} need={!!o.need} />
       {o.done ? <DoneLine done={o.done} /> : <GroundNotes ground={o.ground} />}
-      {o.done && o.ground.note && <p className="m-0 text-note text-muted">AI 해석 — {o.ground.note}</p>}
+      {o.done && o.ground.note && <p className="m-0 text-note text-muted"><AiMark className="mr-1.5" />{o.ground.note}</p>}
       {o.ground.evidence.length > 0 && <div className={cn("grid min-w-0 gap-2", o.ground.stale && "opacity-60")}>
         {o.ground.evidence.map((e, j) => <AnswerEvidence key={`${e.type}-${e.id}-${j}`} evidence={e} questionId={question.id} />)}</div>}
       {o.need && <div className="flex flex-wrap gap-2">
@@ -713,7 +714,7 @@ function GroundNotes({ ground }: { ground: Ground }) {
     {ground.stale ? <p className="m-0 text-note text-muted">고친 뒤로 아직 점검하지 않았어요 — 근거 점검을 다시 눌러 주세요.</p>
       : ground.status === "UNSUPPORTED" ? <p className="m-0 rounded-sm bg-review-soft px-3 py-2.5 text-note text-review">지우거나, 사실이면 근거를 더해 주세요.</p>
         : ground.status === "OPINION" && <p className="m-0 text-note text-body">사실이 아니라 생각 · 포부로 봤어요 — 근거가 없어도 돼요.</p>}
-    {ground.note && <p className="m-0 text-note text-muted">AI 해석 — {ground.note}</p>}
+    {ground.note && <p className="m-0 text-note text-muted"><AiMark className="mr-1.5" />{ground.note}</p>}
   </>;
 }
 

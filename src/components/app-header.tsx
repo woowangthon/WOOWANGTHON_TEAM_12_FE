@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { WorkStatus } from "@/components/work/work-provider";
 import { RecentRevisionsButton } from "@/components/revisions/revision-list";
+import { MENU_CONTENT } from "@/components/ui/menu";
 
 type Page = "home" | "timeline" | "applications" | "questions" | "connections" | "guidelines";
 type HeaderProps = {
@@ -184,7 +185,7 @@ function AddMenu({ side, align, busy, onAddSource, onNewApplication, children }:
   return <DropdownMenu.Root modal={false}>
     {children}
     <DropdownMenu.Portal>
-      <DropdownMenu.Content align={align} side={side} sideOffset={6} className="z-60 grid w-70 gap-0.5 rounded-md border border-hairline bg-canvas p-2 shadow-float">
+      <DropdownMenu.Content align={align} side={side} sideOffset={6} className={cn(MENU_CONTENT, "z-60 grid w-70 gap-0.5")}>
         <DropdownMenu.Label className={label}>쌓기</DropdownMenu.Label>
         <DropdownMenu.Item disabled={busy} onSelect={onAddSource} className={item}>
           <PaperclipIcon className="mt-px size-5 shrink-0" aria-hidden="true" />

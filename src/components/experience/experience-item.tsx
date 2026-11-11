@@ -16,6 +16,8 @@ import { MENU_ITEM, MenuCheckBox, ProfileMenuItems, ProfileShareNote, useProfile
 import { SupplementList } from "./supplement-list";
 import { UsedInChip, UsedInList } from "./used-in";
 import { RevisionDialog } from "@/components/revisions/revision-list";
+import { AiMark } from "@/components/ui/ai-mark";
+import { MENU_CONTENT } from "@/components/ui/menu";
 
 const ACTOR: Record<Actor, string> = { ME: "나", TEAM: "팀", UNKNOWN: "알 수 없음" };
 
@@ -64,21 +66,15 @@ const isAiCompetency = (e: Pick<Experience, "competenciesBy" | "sourceStatus">) 
   e.competenciesBy === undefined ? e.sourceStatus !== "USER_ENTERED" : e.competenciesBy === "AI";
 
 /** 수행 주체 · 출처 상태 · 역량 — AI 표시는 부가 정보라 맨 뒤. 고칠 수 있는 줄(edit)에선 출처 상태를 빼고 근거 옆 아이콘으로(FE#293) */
-export function ExperienceMeta({ experience: e, aiLabel = "AI", edit, noSource }: {
+export function ExperienceMeta({ experience: e, edit, noSource }: {
   experience: Pick<Experience, "actor" | "competencies" | "competenciesBy" | "sourceStatus" | "origin">;
-  aiLabel?: string;
   /** 출처 상태를 근거 옆 아이콘(SourceStatusIcon)으로 따로 둘 때 — 꺼내기 답(FE#363) */
   noSource?: boolean;
   /** 주면 수행 주체 · 역량을 눌러 그 자리에서 고친다 (S-10) */
   edit?: { experience: Experience; onSaved: (experience: Experience) => void };
 }) {
   const sep = <span className="text-hairline">·</span>;
-  const aiMark = isAiCompetency(e) && <span
-    className="ml-1 inline-block rounded-[4px] border border-hairline px-1 align-[1px] text-xs leading-[15px] font-bold tracking-[0.02em]"
-    title="AI 가 붙인 역량 — 해석이에요"
-  >
-    {aiLabel}
-  </span>;
+  const aiMark = isAiCompetency(e) && <AiMark className="ml-1" title="AI 가 붙인 역량 — 해석이에요" />;
   return (
     <>
       {edit ? <ActorField experience={edit.experience} onSaved={edit.onSaved} /> : <span>{ACTOR[e.actor]}</span>}
@@ -109,7 +105,7 @@ export function ExperienceProperties({ experience: e, period }: {
   ];
   if (e.competencies.length > 0) rows.push(["역량", <>
     {e.competencies.map((c) => COMPETENCIES[c]).join(" · ")}
-    {isAiCompetency(e) && <span className="ml-1.5 text-xs text-muted">AI 해석</span>}
+    {isAiCompetency(e) && <AiMark className="ml-1.5" title="AI 가 붙인 역량 — 해석이에요" />}
   </>]);
   return (
     <dl className="m-0 grid w-full grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 py-1 text-note">
@@ -190,7 +186,7 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
             </DropdownMenu.Trigger>
             <DropdownMenu.Portal>
               {/* 순서: 켜고 끄는 것(저장 · 프로필) → 옮기기 · 합치기 → 지우기. 본문 고치기는 본문을 누르면 돼서 메뉴에 없다(FE#293) */}
-              <DropdownMenu.Content align="end" sideOffset={4} className="z-50 min-w-44 rounded-md border border-hairline bg-canvas p-2 shadow-float">
+              <DropdownMenu.Content align="end" sideOffset={4} className={cn(MENU_CONTENT, "z-50 min-w-44")}>
                 <DropdownMenu.CheckboxItem checked={save.saved} disabled={save.busy} onSelect={() => void save.toggle()} className={MENU_ITEM}><MenuCheckBox />저장</DropdownMenu.CheckboxItem>
                 <ProfileMenuItems share={share} />
                 <DropdownMenu.Separator className="my-1 h-px bg-hairline" />

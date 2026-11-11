@@ -19,6 +19,8 @@ import { ActivityLinks } from "./activity-links";
 import { ExperienceEditor } from "./experience-editor";
 import { SourceFileButton } from "./source-viewer";
 import { RevisionDialog } from "@/components/revisions/revision-list";
+import { MENU_CONTENT, MENU_ITEM } from "@/components/ui/menu";
+import { cn } from "@/lib/utils";
 
 const FIRST_COUNT = 3;
 
@@ -95,10 +97,10 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
                 <Button variant="ghost" size="icon" className="size-11 lg:size-9" aria-label="활동 메뉴"><DotsThreeIcon /></Button>
               </DropdownMenu.Trigger>
               <DropdownMenu.Portal>
-                <DropdownMenu.Content align="end" sideOffset={4} className="z-50 min-w-40 rounded-md border border-hairline bg-canvas p-2 shadow-float">
-                  <DropdownMenu.Item onSelect={() => setHistoryOpen(true)} className="flex min-h-11 lg:min-h-10 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">수정 이력</DropdownMenu.Item>
-                  {onMergeRequest && <DropdownMenu.Item onSelect={onMergeRequest} className="flex min-h-11 lg:min-h-10 cursor-pointer items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">다른 활동과 합치기</DropdownMenu.Item>}
-                  {onDeleteRequest && <DropdownMenu.Item onSelect={onDeleteRequest} className="flex min-h-11 lg:min-h-10 cursor-pointer items-center rounded-sm px-3 text-sm text-error outline-none focus:bg-surface-soft">지우기</DropdownMenu.Item>}
+                <DropdownMenu.Content align="end" sideOffset={4} className={cn(MENU_CONTENT, "z-50 min-w-40")}>
+                  <DropdownMenu.Item onSelect={() => setHistoryOpen(true)} className={MENU_ITEM}>수정 이력</DropdownMenu.Item>
+                  {onMergeRequest && <DropdownMenu.Item onSelect={onMergeRequest} className={MENU_ITEM}>다른 활동과 합치기</DropdownMenu.Item>}
+                  {onDeleteRequest && <DropdownMenu.Item onSelect={onDeleteRequest} className={cn(MENU_ITEM, "text-error")}>지우기</DropdownMenu.Item>}
                 </DropdownMenu.Content>
               </DropdownMenu.Portal>
             </DropdownMenu.Root>

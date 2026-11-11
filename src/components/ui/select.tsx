@@ -4,6 +4,7 @@ import { Fragment, type ComponentProps } from "react";
 import { CaretDownIcon, CheckIcon } from "@phosphor-icons/react";
 import { Select as SelectPrimitive } from "radix-ui";
 import { cn } from "@/lib/utils";
+import { MENU_CONTENT } from "@/components/ui/menu";
 
 /** Radix 는 빈 값 항목을 받지 않는다 — 「고르지 않음」 같은 빈 값을 안에서만 이 값으로 바꾼다 */
 const EMPTY = "__empty__";
@@ -55,7 +56,7 @@ export function Select<T extends string>({ value, options, onChange, placeholder
     </SelectPrimitive.Trigger>
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content position="popper" align="start" sideOffset={2} onCloseAutoFocus={onClosed && (e => { e.preventDefault(); onClosed(); })}
-        className="z-60 max-h-[min(20rem,var(--radix-select-content-available-height))] max-w-[calc(100vw-2rem)] min-w-(--radix-select-trigger-width) rounded-md border border-hairline bg-canvas p-2 shadow-float">
+        className={cn(MENU_CONTENT, "z-60 max-h-[min(20rem,var(--radix-select-content-available-height))] max-w-[calc(100vw-2rem)] min-w-(--radix-select-trigger-width)")}>
         <SelectPrimitive.Viewport>{sectionsOf(options).map((section, i) => <Fragment key={i}>
           {i > 0 && <SelectPrimitive.Separator className="mx-2.5 my-1 h-px bg-hairline" />}
           {section.group ? <SelectPrimitive.Group>

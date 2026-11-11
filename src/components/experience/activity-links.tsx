@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { isDailyLimit } from "@/lib/api/auth";
 import { ApiError, decideLink, suggestLinks } from "@/lib/api/experience";
 import type { ActivityDetail, ActivityLink } from "@/lib/api/types";
+import { AiMark } from "@/components/ui/ai-mark";
 
 type Finding =
   | { status: "idle" }
@@ -75,7 +76,7 @@ export function ActivityLinks({ activity, readOnly = false, onOpenActivity }: {
                     {l.fromActivityId === activity.id ? "이 마음이 이어진 곳" : "이 활동을 시작한 마음"} · {otherName}
                     <ArrowRightIcon className="size-[1.1em] shrink-0" aria-hidden="true" />
                   </button>
-                  <p className="m-0 text-note leading-relaxed text-muted">AI 해석 · {l.reason}</p>
+                  <p className="m-0 text-note leading-relaxed text-muted"><AiMark className="mr-1.5" />{l.reason}</p>
                 </li>
               );
             })}

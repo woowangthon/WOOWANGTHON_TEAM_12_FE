@@ -14,6 +14,7 @@ import { periodText } from "@/lib/period";
 import { cn } from "@/lib/utils";
 import { MonthField } from "./activity-editor";
 import { CompetencyPicker } from "./competency-picker";
+import { MENU_CONTENT } from "@/components/ui/menu";
 
 const ACTOR: Record<Actor, string> = { ME: "나", TEAM: "팀", UNKNOWN: "알 수 없음" };
 const HOVER = "cursor-text rounded-sm hover:bg-surface-soft focus-visible:bg-surface-soft";
@@ -237,7 +238,7 @@ export function ActorField({ experience: e, onSaved }: { experience: Experience;
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
-        <DropdownMenu.Content align="start" sideOffset={4} className="z-50 max-w-[calc(100vw-2rem)] min-w-40 rounded-md border border-hairline bg-canvas p-2 shadow-float">
+        <DropdownMenu.Content align="start" sideOffset={4} className={cn(MENU_CONTENT, "z-50 max-w-[calc(100vw-2rem)] min-w-40")}>
           <DropdownMenu.Label className="px-3 pt-1.5 pb-1 text-xs text-muted">누가 한 일인가요?</DropdownMenu.Label>
           <DropdownMenu.RadioGroup value={e.actor} onValueChange={(v) => void save(v as Actor)}>
             {(Object.keys(ACTOR) as Actor[]).map((a) => <DropdownMenu.RadioItem key={a} value={a}
