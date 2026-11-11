@@ -53,18 +53,19 @@ function serveDesign() {
   return new Promise(resolve => server.listen(0, () => resolve({ url: `http://localhost:${server.address().port}`, close: () => server.close() })));
 }
 
-// API 주소를 비운 목 모드로 띄운다 — 실제 서버에 닿지 않는다
+// API 주소를 비운 목 모드로 띄운다 — 실제 서버에 닿지 않는다.
+// 화면에 "api": "fake-question" 이 있으면 API 주소를 앱 자신(/api)으로 두고, 브라우저에서 시험용 가짜 BE(tests/fake-question-api.ts)가 받는다(FE#532)
 async function startApp() {
   if (options["app-url"]) return { url: options["app-url"].replace(/\/+$/, ""), close() {} };
   const port = await freePort();
+  const url = `http://localhost:${port}`;
   const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", "--port", String(port)], {
-    cwd: ROOT, stdio: "ignore", env: { ...process.env, NEXT_PUBLIC_API_BASE_URL: "" },
+    cwd: ROOT, stdio: "ignore", env: { ...process.env, NEXT_PUBLIC_API_BASE_URL: screen.api ? `${url}/api` : "" },
   });
   const close = () => {
     if (process.platform === "win32") spawnSync("taskkill", ["/pid", String(child.pid), "/t", "/f"], { stdio: "ignore" });
     else child.kill();
   };
-  const url = `http://localhost:${port}`;
   for (let tries = 0; tries < 240; tries += 1) {
     if (child.exitCode !== null) throw new Error("next dev 가 멈췄어요. 이 폴더에서 이미 돌고 있다면 --app-url http://localhost:3000 을 쓰세요(목 모드여야 해요).");
     if (await fetch(url).then(() => true, () => false)) return { url, close };
@@ -160,12 +161,22 @@ async function sideBySide(page, design, app, width, file) {
   await page.screenshot({ path: file, fullPage: true });
 }
 
+// 시험과 같은 가짜 BE · 로그인 응답(tests/signed-in.ts) — 계약 예시 지원서 하나를 연다. TS 라 jiti 로 읽는다
+async function installFakeQuestionApi(context, page) {
+  const { createJiti } = await import("jiti");
+  const { FakeQuestionApi } = await createJiti(import.meta.url).import("../../tests/fake-question-api.ts");
+  await context.route("**/api/auth/me", route => route.fulfill({ json: { id: 1, loginId: "test", dailyAnalysis: { used: 3, limit: 200 } } }));
+  await context.route("**/api/work", route => route.fulfill({ json: { seenAt: null, inProgress: [], recent: [] } }));
+  await new FakeQuestionApi({ sameApplication: true }).install(page);
+}
+
 async function compareWidth(browser, urls, width, outDir) {
   const context = await browser.newContext({ viewport: { width, height: 1000 }, reducedMotion: "reduce" });
   // 앱은 1280 미만에서 레일이다 — 시안도 접어서 같은 작업 면을 본다
   if (width < 1280) await context.addInitScript(() => { try { localStorage.setItem("drawer", "collapsed"); } catch { /* 저장소가 없어도 시안은 뜬다 */ } });
   const designPage = await context.newPage();
   const appPage = await context.newPage();
+  if (screen.api === "fake-question") await installFakeQuestionApi(context, appPage);
   await open(designPage, `${urls.design}/${screen.design}`, screen.open?.design);
   await open(appPage, `${urls.app}${screen.app}`, screen.open?.app);
 

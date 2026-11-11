@@ -1,7 +1,10 @@
 {
   "design": "apply.html",
-  "app": "/questions",
+  "app": "/questions?question=41",
+  "api": "fake-question",
   "pairs": [
-    { "name": "제목", "design": "h1", "app": "main h1" }
+    { "name": "지원처 이름", "design": ".ap-head h1", "app": "button[aria-label^='지원처 이름 고치기']" },
+    { "name": "문항 탭", "design": ".qtabs button.is-active", "app": "[role=tablist][aria-label='문항'] [role=tab][aria-selected=true]" },
+    { "name": "문항 글", "design": ".q-text h2", "app": "#question-panel h3" }
   ]
 }
