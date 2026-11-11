@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { CenterState } from "@/components/center-state";
 import { SourceStatusMark } from "@/components/experience/experience-item";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api/errors";
 import { isMockMode } from "@/lib/api/http";
 import { fetchPublicProfile, type PublicActivity, type PublicExperience, type PublicProfile } from "@/lib/api/share";
@@ -58,7 +59,15 @@ export function PublicProfileScreen({ token }: { token: string }) {
       {isMockMode() && <p role="note" className="mb-8 rounded-sm border border-hairline bg-surface-soft p-4 text-sm leading-relaxed">
         목 모드 · 이 브라우저에 저장된 예시 경험이에요. 다른 사람에게는 보이지 않아요.
       </p>}
-      {state.status === "loading" && <p role="status" className="py-24 text-center text-sm text-muted">불러오고 있어요…</p>}
+      {/* 제목 · 활동 묶음 자리(FE#402) */}
+      {state.status === "loading" && <div role="status" className="grid">
+        <span className="sr-only">불러오고 있어요</span>
+        <Skeleton className="h-10 w-56" />
+        {[0, 1].map(i => <div key={i} className="mt-8 grid gap-3 border-t border-hairline pt-6">
+          <Skeleton className="h-6 w-44" /><Skeleton className="h-3.5 w-28" />
+          <Skeleton className="mt-2 h-4 w-full" /><Skeleton className="h-4 w-5/6" /><Skeleton className="h-4 w-2/3" />
+        </div>)}
+      </div>}
       {state.status === "notFound" && <CenterState icon={<FileTextIcon />} title="없는 페이지예요" />}
       {state.status === "error" && <CenterState icon={<WarningCircleIcon className="text-error" />} title="불러오지 못했어요" body="잠시 뒤 다시 시도해 주세요.">
         <Button className="min-h-11 lg:min-h-10" onClick={() => { setState({ status: "loading" }); load(); }}>다시 시도</Button>

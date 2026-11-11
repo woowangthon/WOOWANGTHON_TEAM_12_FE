@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { CaretRightIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { ApiError } from "@/lib/api/errors";
 import { retryJob } from "@/lib/api/experience";
@@ -220,7 +221,12 @@ export function McpChangeLog({ writeEnabled }: { writeEnabled: boolean }) {
         <p className="inline-flex items-center gap-0.5 text-sm text-muted">외부 AI가 바꾼 것을 되돌려요<InfoTip label="변경 기록">외부 AI 가 한 일을 건별로 확인하고 되돌려요. 웹에서 고친 것까지 모두 보려면 위 「최근 수정」이나 경험 메뉴의 「수정 이력」을 열어요 — 외부 AI 가 고친 경험도 거기 같이 보여요.</InfoTip></p>
         {state.status === "ready" && <Button className="min-h-11 lg:min-h-10" variant="ghost" size="sm" onClick={() => void load()}>새로고침</Button>}
       </div>
-      {state.status === "loading" && <p role="status" className="mt-4 text-sm text-muted">변경 기록을 불러오고 있어요…</p>}
+      {/* 변경 기록 줄 자리(FE#402) */}
+      {state.status === "loading" && <div role="status" className="mt-2"><span className="sr-only">변경 기록을 불러오고 있어요</span>
+        {[0, 1].map(i => <div key={i} className="grid gap-2 border-b border-hairline-soft py-4 last:border-b-0">
+          <Skeleton className="h-3.5 w-32" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-3/4" />
+        </div>)}
+      </div>}
       {state.status === "ready" && (changes.length === 0
         ? <p className="mt-4 text-sm text-body">아직 외부 AI가 바꾼 것이 없어요.</p>
         : <ul className="m-0 mt-2 list-none p-0">

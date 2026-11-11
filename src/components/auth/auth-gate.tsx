@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { fetchMe, logout, type Me } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api/errors";
 import { isMockMode, onUnauthenticated } from "@/lib/api/http";
+import { AuthChecking } from "./auth-checking";
 import { LoginScreen } from "./login-screen";
 
 type State =
@@ -89,23 +90,21 @@ export function AuthGate({ children }: { children: ReactNode }) {
   if (state.status === "signedOut") {
     return <LoginScreen notice={state.notice} onSignedIn={(me) => setState({ status: "signedIn", me })} />;
   }
+  // 확인 중엔 흰 화면 대신 앱 틀과 그 화면의 뼈대(FE#402) — 확인이 끝난 뒤의 「불러오는 중」 뼈대와 자리가 같다
+  if (state.status === "checking") return <AuthChecking />;
   return (
     <main className="fixed inset-0 z-40 overflow-auto bg-canvas">
-      {state.status === "checking" ? (
-        <p className="py-24 text-center text-sm text-muted">로그인 상태를 확인하고 있어요…</p>
-      ) : (
-        <CenterState icon={<WarningCircleIcon className="text-error" />} title="로그인 상태를 확인하지 못했어요" body={state.message}>
-          {state.network && <AccessHint />}
-          <Button
-            onClick={() => {
-              setState({ status: "checking" });
-              void check();
-            }}
-          >
-            다시 시도
-          </Button>
-        </CenterState>
-      )}
+      <CenterState icon={<WarningCircleIcon className="text-error" />} title="로그인 상태를 확인하지 못했어요" body={state.message}>
+        {state.network && <AccessHint />}
+        <Button
+          onClick={() => {
+            setState({ status: "checking" });
+            void check();
+          }}
+        >
+          다시 시도
+        </Button>
+      </CenterState>
     </main>
   );
 }

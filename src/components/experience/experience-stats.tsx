@@ -7,6 +7,7 @@ import { ArrowsClockwiseIcon, FoldersIcon } from "@phosphor-icons/react";
 import { AddSourceButton, type AddSourceProps } from "@/components/app-header";
 import { CenterState } from "@/components/center-state";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Select } from "@/components/ui/select";
 import { fetchActivity } from "@/lib/api/experience";
 import { ACTIVITY_CATEGORIES, COMPETENCIES, type ActivityDetail, type ActivitySummary, type Competency, type SourceStatus } from "@/lib/api/types";
@@ -78,8 +79,10 @@ export function ExperienceStats({ activities, version, hiddenIds, addSource, onO
     );
   }
 
-  const detailNote = state.status === "loading"
-    ? <p role="status" className="m-0 text-note text-muted">경험 내용을 불러오고 있어요…</p>
+  const loadingDetails = state.status === "loading";
+  // 출처 상태 줄 자리 — 글 한 줄 높이의 뼈대(FE#402). 역량 카드는 아래에서 칩 자리를 따로 그린다
+  const detailNote = loadingDetails
+    ? <div role="status" className="flex h-5 items-center"><span className="sr-only">경험 내용을 불러오고 있어요</span><Skeleton className="h-3.5 w-56 max-w-full" /></div>
     : state.failed > 0 && (
       <div role="alert" className="flex flex-wrap items-center gap-2 text-note text-error">
         활동 {state.failed}개의 경험을 불러오지 못해 그만큼 빠져 있어요.
@@ -124,7 +127,10 @@ export function ExperienceStats({ activities, version, hiddenIds, addSource, onO
       </Card>
 
       <Card title="나를 보여 주는 역량" info={<>경험에 붙은 역량을 많은 순으로 셌어요. 역량은 AI 해석이 섞여 있고, 경험 하나에 여러 개 붙을 수 있어요{noCompetency ? ` · 역량 없는 경험 ${noCompetency}개` : ""}.</>}>
-        {detailNote || <div className="grid gap-4">
+        {loadingDetails ? <div aria-hidden="true" className="grid gap-2">
+          <Skeleton className="h-3.5 w-20" />
+          <div className="flex flex-wrap gap-2">{["w-24", "w-20", "w-28"].map(w => <Skeleton key={w} className={cn("h-8 rounded-full", w)} />)}</div>
+        </div> : detailNote || <div className="grid gap-4">
           <div className="grid gap-2">
             <p className="m-0 text-note text-muted">많이 해 본 역량</p>
             {byCompetency.length === 0 ? <p className="m-0 text-sm text-muted">아직 역량이 붙은 경험이 없어요.</p> : <CompetencyChips counts={byCompetency} />}

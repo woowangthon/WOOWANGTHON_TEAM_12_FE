@@ -6,6 +6,7 @@ import { useState, type ReactNode } from "react";
 import { ArrowsClockwiseIcon, CaretLeftIcon, DotsThreeIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { DropdownMenu } from "radix-ui";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { InfoTip } from "@/components/ui/info-tip";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { ActivityDetail, ActivitySummary, Experience } from "@/lib/api/types";
@@ -144,7 +145,14 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
 
 
       <div className="px-4.5 pt-2 pb-10 lg:px-7 lg:pb-8">
-        {state.status === "loading" && <p className="pt-4 text-sm text-muted">경험을 불러오고 있어요…</p>}
+        {/* 경험 줄 자리 — 「이 활동에서 한 일」 머리 · 두 줄 글 · 아래 꼬리(FE#402) */}
+        {state.status === "loading" && <div role="status" className="grid pt-4">
+          <span className="sr-only">경험을 불러오고 있어요</span>
+          <Skeleton className="mb-2 h-3.5 w-28" />
+          {[0, 1].map(i => <div key={i} className="grid gap-2 border-b border-hairline py-4">
+            <Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-2/3" /><Skeleton className="mt-1 h-3 w-24" />
+          </div>)}
+        </div>}
         {state.status === "error" && (
           <div className="grid justify-items-start gap-3 pt-4">
             <p role="alert" className="m-0 text-sm font-medium text-error">{state.message}</p>
