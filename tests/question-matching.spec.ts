@@ -37,7 +37,7 @@ async function openList(page: Page) {
   if (page.viewportSize()!.width < 1024) await page.getByRole("button", { name: "지원 목록으로", exact: true }).click();
 }
 const recommendation = (page: Page, n: number) => result(page).getByRole("listitem", { name: `추천 경험 ${n}`, exact: true });
-// 추천은 활동 카드로 묶인다(S-84 · FE#358) — 활동 체크 · 「타임라인에서 활동 보기」는 카드에 있다
+// 추천은 활동 카드로 묶인다(S-84 · FE#358) — 활동 체크 · 「내 경험에서 보기」는 카드에 있다
 const activityCard = (page: Page, n: number) => result(page).getByRole("listitem", { name: `추천 활동 ${n}`, exact: true });
 // 차곡이 패널(FE#51) — 1280 이상은 옆에 붙어 기본으로 열리고, 좁으면 버튼으로 여는 시트
 const chagokPanel = (page: Page) => page.locator("#chagok-panel");
@@ -148,14 +148,21 @@ test("question 41/42 switch shows contract judgments, actors and supplemental ev
   await expect(chagok).toContainText("그 부분은 다시 묻지 않을게요.");
   await closeChagokSheet(page);
   await expand(page, 2);
-  const evidence = result(page).getByRole("region", { name: "추천 경험 2의 근거", exact: true });
-  await expect(evidence.getByText("원문 발췌", { exact: true })).toBeVisible();
-  await expect(evidence.getByText("내가 입력한 보완", { exact: true })).toBeVisible();
-  await expect(evidence).toContainText("서버에 STOMP 엔드포인트를 만들고, 앱의 3초 폴링 코드를 구독 방식으로 바꿨다");
+  // FE#510 — 펼친 줄은 원본 칩만 보인다. 발췌 · 보완 본문 · 「원문 발췌」 · 「빠진 것」 · 출처 글자는 카드에 없다
+  const sources = result(page).getByRole("group", { name: "추천 경험 2의 원본", exact: true });
+  await expect(sources.getByRole("button", { name: "바꿔요-회고.md", exact: true })).toHaveCount(1);
+  await expect(result(page).getByText(/이 문항에 쓸 만한 줄|추천을 뒷받침하는 기록|원문 발췌|내가 입력한 보완|빠진 것/)).toHaveCount(0);
+  await expect(recommendation(page, 2)).not.toContainText("STOMP");
+  await expect(recommendation(page, 2).getByText(/원문 확인|내가 입력/)).toHaveCount(0);
+  await sources.getByRole("button", { name: "바꿔요-회고.md", exact: true }).click();
+  const viewer = page.getByRole("dialog", { name: "바꿔요-회고.md", exact: true });
+  await expect(viewer).toBeVisible();
+  await expect(viewer).not.toContainText("넣을 때 저장한 글자예요");
+  await page.keyboard.press("Escape");
   // S-45의 답 입력칸만 추가된다. 참고 경험과 근거는 계속 읽기 전용이다.
   await expect(result(page).getByRole("textbox", { name: "내가 쓴 답", exact: true })).toBeVisible();
   await expect(result(page).getByRole("textbox")).toHaveCount(1);
-  await expect(evidence.getByRole("textbox")).toHaveCount(0);
+  await expect(sources.getByRole("textbox")).toHaveCount(0);
   if (process.env.UPDATE_QUESTION_SCREENSHOTS === "1") {
     await page.screenshot({ path: `docs/fe-30/questions-${info.project.name}.png`, fullPage: true, style: "nextjs-portal { display: none !important; }" });
   }
@@ -163,7 +170,7 @@ test("question 41/42 switch shows contract judgments, actors and supplemental ev
   await list(page).getByRole("button", { name: /OO 백엔드 부트캠프/ }).click();
   await expect(recommendation(page, 1)).toContainText("WebSocket");
   await expand(page, 1);
-  await expect(recommendation(page, 1).getByText("나", { exact: true })).toBeVisible();
+  await expect(recommendation(page, 1).getByText("나", { exact: true })).toHaveCount(0); // 수행 주체는 팀 · 알 수 없음일 때만(FE#510)
   chagok = await openChagok(page);
   await expect(chagok.getByText("자료에서 확인 안 됨", { exact: true })).toHaveCount(2);
   await expect(chagok.getByText("근거 있음", { exact: true })).toHaveCount(1);
@@ -276,13 +283,14 @@ test("three recommendations, UNKNOWN actor and missing evidence never invent quo
   });
   await page.goto("/questions");
   await expect(result(page).getByRole("listitem", { name: /^추천 경험/ })).toHaveCount(3);
-  await expect(recommendation(page, 1)).toContainText("이 추천에 연결된 원문 근거나 보완이 없어요.");
+  // 근거가 없거나 못 찾은 줄은 원본 칩이 없을 뿐 — 지어 낸 발췌 · 안내 글을 넣지 않는다(FE#510)
+  await expect(recommendation(page, 1).getByRole("button")).toHaveCount(0);
+  await expect(recommendation(page, 1).locator("blockquote")).toHaveCount(0);
   await closeChagokSheet(page);
   await expand(page, 3);
   await expect(recommendation(page, 3).getByText("알 수 없음", { exact: true })).toBeVisible();
   await expect(recommendation(page, 3).getByText("AI 해석", { exact: true })).toHaveCount(0);
-  await expect(recommendation(page, 3)).toContainText("연결된 원문 근거를 찾지 못했어요.");
-  await expect(recommendation(page, 3)).toContainText("연결된 보완을 찾지 못했어요.");
+  await expect(recommendation(page, 3).getByRole("group", { name: "추천 경험 3의 원본" })).toHaveCount(0);
   await expect(recommendation(page, 3).locator("blockquote")).toHaveCount(0);
 });
 
@@ -657,7 +665,7 @@ test("answering a clarification posts it and shows it on the experience as user-
 
   // 활동 세부(실제 타임라인) — 원문 확인 표시는 그대로, 보완은 「내가 입력한 보완」으로 따로 · 어느 지원에서 답했는지
   await expand(page, 1);
-  await activityCard(page, 1).getByRole("link", { name: /타임라인에서 활동 보기/ }).click();
+  await activityCard(page, 1).getByRole("link", { name: /내 경험에서 보기/ }).click();
   await expect(page).toHaveURL(/\/experience\?activity=7&fromQuestion=41/);
   const activity = page.getByRole("complementary", { name: "활동 세부" });
   const first = activity.locator("li").first();
@@ -693,25 +701,25 @@ test("chagok panel toggles; narrow screens start closed and show how many questi
   await expect(chagokPanel(page)).toContainText("「바꿔요」 경험이 가장 잘 맞아요. 「꺼내 쓸 경험」에 2개 골라 뒀어요.");
 });
 
-// FE#65 — 추천은 문항을 넣을 때 한 번 돈다(답해도 그대로). 답한 경험의 카드엔 「답함」과 다음 문항부터 쓰인다는 안내
-test("answering a clarification marks that recommendation as answered without re-running it", async ({ page }, info) => {
+// FE#65 · FE#510 — 추천은 문항을 넣을 때 한 번 돈다(답해도 그대로). 부족한 사실은 차곡이 되묻기에서만 보이고, 카드엔 「빠진 것」 · 「답함」 · 안내가 없다
+test("answering a clarification does not re-run the recommendation and the card shows no gaps or answered notes", async ({ page }, info) => {
   const api = await fake(page);
   await page.goto("/questions");
   const card = recommendation(page, 1);
-  const note = "차곡이 질문에 답했어요";
+  const gap = "회고에서 내가 맡은 몫이 자료에 없다";
   await expect(card).toContainText("매주 금요일");
-  await expect(card.getByText("답함", { exact: true })).toHaveCount(0);
+  await expect(card).not.toContainText(gap);
+  await expect(card.getByText(/빠진 것|답함/)).toHaveCount(0);
   await openChagok(page);
   await openAsks(page);
   const asks = chagokPanel(page).getByRole("list", { name: "차곡이의 질문", exact: true });
+  await expect(asks).toContainText("매주 회고에서 직접 맡은 일이 있었다면 무엇이었나요?");
   await asks.getByRole("textbox", { name: /^답: / }).fill("회고 진행표를 만들고 매주 진행을 맡았다");
   await asks.getByRole("button", { name: "답하기", exact: true }).click();
   await expect(asks.getByRole("textbox")).toHaveCount(0);
   await closeChagokSheet(page);
-  await expect(card.getByText("답함", { exact: true })).toBeVisible();
-  await expect(card).toContainText(note);
-  // 「빠진 것」은 그대로 — 추천을 다시 돌리지 않는다
-  await expect(card).toContainText("회고에서 내가 맡은 몫이 자료에 없다");
+  await expect(card.getByText(/빠진 것|답함/)).toHaveCount(0);
+  await expect(card).not.toContainText("차곡이 질문에 답했어요");
   expect(posts(api).map(p => p.call)).toEqual(["POST /api/clarifications/63/answer"]);
   if (process.env.UPDATE_QUESTION_SCREENSHOTS === "1") await card.screenshot({ path: `docs/fe-65/answered-${info.project.name}.png`, style: "nextjs-portal { display: none !important; }" });
 });

@@ -16,7 +16,7 @@ export function AnswerEvidence({ evidence: e, questionId, question }: { evidence
     <div className="grid gap-2 pt-3">
       {asked && e.type === "SUPPLEMENT" && <p className="m-0 text-note text-muted">질문 · {asked}</p>}
       <blockquote className="m-0 whitespace-pre-wrap break-words border-l-2 border-hairline pl-3 leading-relaxed text-body">{e.text}</blockquote>
-      <a href={`/experience?activity=${e.activityId}&fromQuestion=${questionId}`} className="inline-flex min-h-11 lg:min-h-10 items-center text-xs underline underline-offset-3">타임라인에서 활동 보기 →</a>
+      <a href={`/experience?activity=${e.activityId}&fromQuestion=${questionId}`} className="inline-flex min-h-11 lg:min-h-10 items-center text-xs underline underline-offset-3">내 경험에서 보기 →</a>
     </div>
   </details>;
 }

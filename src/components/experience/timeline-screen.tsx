@@ -151,7 +151,7 @@ export function TimelineScreen() {
     );
   };
 
-  // 다른 화면의 활동 링크(?activity=7 · ?experience=12, 지원의 「타임라인에서 활동 보기」 등) — 사용자가 누른 것이니
+  // 다른 화면의 활동 링크(?activity=7 · ?experience=12, 지원의 「내 경험에서 보기」 등) — 사용자가 누른 것이니
   // 이미 열어 둔 활동보다 우선해서 연다(FE#322). cacheComponents 로 숨겨진 채 남은 selectedRef 가 링크를 막지 않게 한다.
   // 처리한 뒤엔 주소에서 지워 새로고침 · 뒤로 가기에 다시 강제로 열리지 않게 한다. fromQuestion 은 「지원 화면으로 돌아가기」 쪽지에만 쓰여 둔다
   const linkedActivity = Number(params.get("activity")) || null;
