@@ -380,6 +380,12 @@ export function TimelineScreen() {
     setDetail((prev) => prev.status === "ready" && prev.activity.id === experience.activityId ? { ...prev, activity: { ...prev.activity, experiences: prev.activity.experiences.map((e) => e.id === experience.id ? experience : e) } } : prev);
   };
 
+  // 「STAR 로 정리」 응답 · 정리 중 다시 읽기(S-95) — 고치는 중인 기간은 화면 값을 지킨다(loadDetail 과 같다)
+  const activityReplaced = useCallback((activity: ActivityDetail) => {
+    setDetail((prev) => prev.status === "ready" && prev.activity.id === activity.id
+      ? { status: "ready", activity: { ...activity, period: periodSaves.current.get(activity.id)?.latest ?? activity.period } } : prev);
+  }, []);
+
   // 헤더 「최근 수정」에서 되돌리면 그 자리에서 바꾼다(FE#401) — 경험 · 활동 메뉴의 「수정 이력」과 같은 길.
   // 연 세부에 없는 경험은 그 활동을 열 때 새로 받는다
   useRestoreListener({ restored: ({ experience, activity }) => {
@@ -686,6 +692,7 @@ export function TimelineScreen() {
               onCategorySaved={categorySaved}
               onExperienceSaved={experienceSaved}
               onExperienceAdded={experienceAdded}
+              onActivityReplaced={activityReplaced}
               onExperienceDelete={deletion.remove}
               onExperienceMove={setMoving}
               onExperienceMerge={setMergingExperience}

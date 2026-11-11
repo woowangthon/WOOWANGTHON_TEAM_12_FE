@@ -12,7 +12,7 @@ import { mockSharedIds } from "../mock/share";
 import { ApiError } from "./errors";
 import { isMockMode, request } from "./http";
 import { activityNoteError } from "./editing";
-import type { ActivityCategory, ActivityDetail, ActivityLink, ActivitySummary, Job, SourceRequest, SourceText, Experience, ExperienceSearch, ExperienceSearchResult, Supplement, UpdateActivityRequest, UpdateExperienceRequest, CreateExperienceRequest } from "./types";
+import type { ActivityCategory, ActivityDetail, ActivityLink, ActivitySummary, Job, SourceRequest, SourceText, Experience, ExperienceSearch, ExperienceSearchResult, StarSlotName, Supplement, UpdateActivityRequest, UpdateExperienceRequest, CreateExperienceRequest } from "./types";
 import { ACTIVITY_CATEGORIES, COMPETENCIES, MAX_TEXT_LENGTH, type SourceSubmitted } from "./types";
 
 export { ApiError, isMockMode };
@@ -257,4 +257,23 @@ export function updateSupplement(id: number, answer: string): Promise<Supplement
 /** DELETE /api/supplements/{id} — 그 보완을 만든 되묻기는 다시 답할 수 있게 된다 (S-24) */
 export function deleteSupplement(id: number): Promise<void> {
   return request(`/supplements/${id}`, undefined, "DELETE");
+}
+
+/** POST /api/activities/{id}/star — 이 활동의 경험 전부를 STAR 로 다시 정리한다(202 · 분석 1회 · S-95).
+ *  응답은 활동 세부(경험들이 ANALYZING). 진행은 활동 세부를 다시 읽어 본다 — 작업 ID 가 없다 */
+export async function organizeStar(activityId: number): Promise<ActivityDetail> {
+  if (isMockMode()) throw new ApiError("MOCK_UNSUPPORTED", "예시 화면에서는 STAR 로 정리할 수 없어요.");
+  const activity = await request<ActivityDetail>(`/activities/${activityId}/star`, undefined, "POST");
+  activity.experiences.forEach(checkCompetencies);
+  return activity;
+}
+
+/** POST /api/experiences/{id}/star/{slot}/answer — 빈칸에 답하면 보완이 생기고 칸이 찬다. AI 를 부르지 않는다(S-96) */
+export async function answerStarSlot(experienceId: number, slot: StarSlotName, answer: string): Promise<Experience> {
+  return checkCompetencies<Experience>(await request(`/experiences/${experienceId}/star/${slot}/answer`, { answer }, "POST"));
+}
+
+/** PUT /api/experiences/{id}/star/{slot} — 칸 고치기. 원문 칸이면 근거는 남고 새 보완이 덮는다. 빈 글이면 칸을 비운다(S-96 · S-10) */
+export async function updateStarSlot(experienceId: number, slot: StarSlotName, text: string): Promise<Experience> {
+  return checkCompetencies<Experience>(await request(`/experiences/${experienceId}/star/${slot}`, { text }, "PUT"));
 }

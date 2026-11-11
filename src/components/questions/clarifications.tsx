@@ -82,7 +82,7 @@ export function SupplementNote({ supplement, activityId, activityName }: { suppl
  *  답은 선택이라 건너뛰기 버튼이 없다 — 비워 두면 아무것도 보내지 않는다(S-22 · S-23).
  *  보내기는 글을 쓴 칸에만 입력칸 안 오른쪽에 나타난다 — 질문마다 같은 버튼이 줄지어 보이지 않게(FE#320).
  *  onSave 는 오류 문구를 돌려준다(성공이면 null) */
-export function AnswerForm({ head, question, label, disabled, onSave, after }: { head: ReactNode; question: ReactNode; label: string; disabled: boolean; onSave: (text: string) => Promise<string | null>; after?: ReactNode }) {
+export function AnswerForm({ head, question, label, disabled, onSave, after, maxLength = MAX_ANSWER_LENGTH, inputClassName }: { head: ReactNode; question: ReactNode; label: string; disabled: boolean; onSave: (text: string) => Promise<string | null>; after?: ReactNode; maxLength?: number; /** 옅은 면 위에 놓일 때 입력칸 바탕을 바꾼다 */ inputClassName?: string }) {
   const [text, setText] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -98,9 +98,9 @@ export function AnswerForm({ head, question, label, disabled, onSave, after }: {
     <div className="flex min-w-0">{head}</div>
     {question}
     <form className="relative mt-1.5 min-w-0" onSubmit={e => { e.preventDefault(); void save(); }}>
-      <input type="text" maxLength={MAX_ANSWER_LENGTH} value={text} disabled={saving || disabled} onChange={e => { setText(e.target.value); setError(null); }}
+      <input type="text" maxLength={maxLength} value={text} disabled={saving || disabled} onChange={e => { setText(e.target.value); setError(null); }}
         aria-label={`답: ${label}`} placeholder="짧게 답해 주세요"
-        className={cn("h-11 w-full min-w-0 rounded-sm bg-surface-soft pl-3.5 text-base text-body outline-none placeholder:text-muted focus-visible:shadow-[inset_0_0_0_1px_var(--ink)] sm:text-sm lg:h-10", ready ? "pr-12 lg:pr-11" : "pr-3.5")} />
+        className={cn("h-11 w-full min-w-0 rounded-sm bg-surface-soft pl-3.5 text-base text-body outline-none placeholder:text-muted focus-visible:shadow-[inset_0_0_0_1px_var(--ink)] sm:text-sm lg:h-10", ready ? "pr-12 lg:pr-11" : "pr-3.5", inputClassName)} />
       {/* 보내기는 모양 없이 진한 화살표만 — 둥근 입력칸 안에서 혼자 튀지 않게. 올리면 옅은 바탕 */}
       {ready && <Button type="submit" variant="ghost" size="icon" className="absolute top-1 right-1 size-9 rounded-[6px] text-ink after:absolute after:-inset-1 hover:bg-surface-strong lg:size-8" disabled={saving || disabled}
         aria-label={saving ? "쌓는 중" : error ? "다시 시도" : "답하기"} title="답하기">
