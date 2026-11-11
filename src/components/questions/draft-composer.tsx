@@ -11,7 +11,7 @@ import { MAX_DRAFT_EXPERIENCES, type QuestionDetail } from "@/lib/api/question-t
 import { groupByActivity } from "./use-draft-picks";
 import { FramePicker } from "./draft-guidance";
 import { requestError, failureReason } from "./draft-errors";
-import type { DraftActions } from "./answer-draft";
+import { isSupposedPair, type DraftActions } from "./answer-draft";
 import { hasEditedAnswer } from "./answer-box-state";
 
 /** 시안 6 mateFeed: 경험은 참고 카드에서 고르고, 틀을 정해 여기서 부탁한다. 결과는 왼쪽에서 확인한다. */
@@ -40,7 +40,8 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
   const free = !!draft?.freeRegenerate && !analyzing;
   const losses = () => {
     if (!draft) return hasEditedAnswer(question.id) ? ["답칸에 쓴 글이 새 초안으로 바뀌어요."] : [];
-    const open = draft.status === "COMPLETED" ? draft.omitted.filter(o => o.clarificationId !== null && o.supplementId === null).length : 0;
+    // AI 가정의 짝은 답칸 문장 카드에서 맞아요 · 빼기로 처리한다 — 빠진 사실 질문으로 세지 않는다(FE#435 · S-79 · ADR-014)
+    const open = draft.status === "COMPLETED" ? draft.omitted.filter(o => !isSupposedPair(draft, o) && o.clarificationId !== null && o.supplementId === null).length : 0;
     return [
       ...(hasEditedAnswer(question.id) ? ["답칸에서 고친 글이 새 초안으로 바뀌어요."] : []),
       ...(open ? [`답하지 않은 빠진 사실 질문 ${open}개가 사라져요. 새 초안이 필요한 것을 다시 물어요.`] : []),
