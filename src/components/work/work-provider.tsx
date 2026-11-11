@@ -136,12 +136,13 @@ function WorkButton() {
   </button>;
 }
 
-/** 시안 6 .ntag — 실패 · 내가 볼 것 · 끝난 일만 색을 쓴다. 도는 중인 일은 회색 */
-function tagTone({ kind, status }: WorkItem) {
+/** 상태 꼬리표 — 상태는 색으로 가르지 않는다(DESIGN.md 「색의 역할」 · FE#468). 색은 실패(빨강)와 내가 정할 것(호박)만.
+ *  끝난 일은 진한 글자, 도는 중인 일은 옅은 글자 — 초록 · 파랑은 분류 · 근거의 색이라 쓰지 않는다 */
+function tagTone({ status }: WorkItem) {
   if (status === "FAILED") return "bg-error/10 text-error";
   if (status === "WAITING_CONFIRM") return "bg-review-soft text-review";
   if (status !== "COMPLETED" && status !== "DONE") return "bg-surface-soft text-muted";
-  return kind === "SOURCE_ANALYSIS" ? "bg-attach-soft text-positive" : "bg-evidence-soft text-evidence";
+  return "bg-surface-soft text-body";
 }
 
 function WorkList({ items, seenAt, onNavigate }: { items: WorkItem[]; seenAt: string | null; onNavigate: () => void }) {
