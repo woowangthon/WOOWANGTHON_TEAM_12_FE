@@ -10,15 +10,15 @@ const activities: ActivityDetail[] = [
 ];
 
 async function setup(page: Page) {
-  const state = { failActivities: false, failApplications: false, empty: false, posts: 0 };
+  const state = { failActivities: false, failApplications: false, empty: false, noReview: false, posts: 0 };
   await page.clock.setFixedTime(new Date("2026-11-05T03:00:00Z"));
   await page.route("**/api/**", async route => {
     const req = route.request(); const path = new URL(req.url()).pathname;
     if (path.startsWith("/api/auth/") || path === "/api/work") return route.fallback();
     if (req.method() !== "GET") { state.posts++; throw new Error(`Unexpected write ${path}`); }
-    if (path === "/api/activities") return state.failActivities ? route.fulfill({ status: 503, json: { error: { code: "UNAVAILABLE", message: "경험 조회 실패" } } }) : route.fulfill({ json: { activities: state.empty ? [] : activities.map(({ experiences, ...a }) => ({ ...a, experienceCount: experiences.length })) } });
+    if (path === "/api/activities") return state.failActivities ? route.fulfill({ status: 503, json: { error: { code: "UNAVAILABLE", message: "경험 조회 실패" } } }) : route.fulfill({ json: { activities: state.empty ? [] : activities.map(({ experiences, ...a }) => ({ ...a, experienceCount: experiences.length, starGapCount: 3, starUnsortedCount: 2 })) } });
     const activity = activities.find(a => path === `/api/activities/${a.id}`);
-    if (activity) return route.fulfill({ json: activity });
+    if (activity) return route.fulfill({ json: state.noReview ? { ...activity, experiences: activity.experiences.map(e => ({ ...e, sourceStatus: "SOURCE_CONFIRMED" })) } : activity });
     if (path === "/api/applications") return state.failApplications ? route.fulfill({ status: 503, json: { error: { code: "UNAVAILABLE", message: "지원서 조회 실패" } } }) : route.fulfill({ json: { applications: state.empty ? [] : [
       { id: 1, organization: "이전 지원서", createdAt: "2026-11-01T00:00:00Z", questions: [{ id: 41, status: "COMPLETED" }] },
       { id: 2, organization: "최근 부트캠프 지원서", createdAt: "2026-11-04T00:00:00Z", questions: [{ id: 42, status: "COMPLETED" }, { id: 43, status: "ANALYZING" }] },
@@ -27,6 +27,21 @@ async function setup(page: Page) {
   });
   return state;
 }
+
+// FE#514 — STAR 빈칸 수는 홈에 세어 보이지 않고(S-97 폐기), 「확인할 것」은 0 이면 숨긴다
+test("홈 첫 줄에 물어볼 거리 수가 없고 확인할 것은 있을 때만 보인다", async ({ page }) => {
+  const state = await setup(page);
+  await page.goto("/");
+  const line = page.getByText("경험 4개가 쌓여 있어요", { exact: false });
+  await expect(line.getByRole("link", { name: "확인할 것 1" })).toHaveAttribute("href", "/experience?activity=7");
+  await expect(page.getByText(/물어볼 게|STAR 로 정리할 경험/)).toHaveCount(0);
+  await page.screenshot({ path: `docs/fe-514/home-${page.viewportSize()!.width}.png`, animations: "disabled", style: "nextjs-portal { display: none !important; }" });
+  state.noReview = true;
+  await page.reload();
+  await expect(page.getByText("경험 4개가 쌓여 있어요", { exact: false })).toBeVisible();
+  await expect(page.getByRole("link", { name: "1년 전 이맘때", exact: false })).toBeVisible();
+  await expect(page.getByText(/확인할 것/)).toHaveCount(0);
+});
 
 test("시안 6 홈은 타임라인 없이 실제 이어서·쌓인 블록·모델·예시를 보여 준다", async ({ page }, info) => {
   const state = await setup(page);
