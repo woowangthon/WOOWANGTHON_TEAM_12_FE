@@ -104,7 +104,7 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
           {activity && !readOnly && (
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild>
-                <Button variant="ghost" size="icon" className="size-11 lg:size-9" aria-label="활동 메뉴"><DotsThreeIcon /></Button>
+                <Button variant="ghost" size="icon" className="size-11 lg:size-9" title="더 보기" aria-label="활동 메뉴"><DotsThreeIcon /></Button>
               </DropdownMenu.Trigger>
               <DropdownMenu.Portal>
                 <DropdownMenu.Content align="end" sideOffset={4} className={cn(MENU_CONTENT, "z-50 min-w-40")}>

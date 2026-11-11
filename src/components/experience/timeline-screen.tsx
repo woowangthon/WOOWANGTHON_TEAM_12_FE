@@ -29,8 +29,6 @@ import { DeleteActivityDialog, MergeActivityDialog, MergeExperienceDialog, MoveE
 import { Timeline } from "./timeline";
 import { TimelineSkeleton } from "./timeline-skeleton";
 import { useExperienceDeletion } from "./use-experience-deletion";
-import { SupplementSourceContext, supplementSource } from "./supplement-list";
-import { fetchQuestions } from "@/lib/api/questions";
 import { useAuth } from "@/components/auth/auth-gate";
 import { rememberActivity } from "@/lib/home-overview";
 import { SourceWorkDetail } from "@/components/work/source-work-detail";
@@ -121,19 +119,6 @@ export function TimelineScreen() {
       },
     );
   };
-
-  // 보완의 출처 「OO 문항에서 답함」 — 문항에서 답한 보완이 있는 활동을 처음 열 때 문항 목록을 한 번 읽는다.
-  // 못 읽으면 「되묻기에 답함」으로 둔다(표시 문구만 달라진다)
-  const [sourceOf, setSourceOf] = useState<ReturnType<typeof supplementSource>>(() => () => null);
-  const sourceRequested = useRef(false);
-  const needsSource = detail.status === "ready" && detail.activity.experiences.some((e) => e.supplements?.some((s) => s.questionId !== null));
-  useEffect(() => {
-    if (!needsSource || sourceRequested.current || isMockMode()) return;
-    sourceRequested.current = true;
-    fetchQuestions()
-      .then((questions) => setSourceOf(() => supplementSource(new Map(questions.map((q) => [q.id, q.organization])))))
-      .catch(() => { sourceRequested.current = false; });
-  }, [needsSource]);
 
   const loadDetail = (id: number) => {
     const request = ++detailRequest.current;
@@ -683,7 +668,6 @@ export function TimelineScreen() {
             className="min-h-dvh min-w-0 bg-canvas lg:min-h-0 lg:overflow-auto lg:border-l lg:border-hairline"
             aria-label="활동 세부"
           >
-            <SupplementSourceContext value={sourceOf}>
             <ActivityDetailView
               key={selected.id}
               summary={selected}
@@ -710,7 +694,6 @@ export function TimelineScreen() {
               addSourceBusy={analysis.busy}
               addSourceStatus={shownInDetail && view && analysis.tracked && <AnalysisBanner view={view} tracked={analysis.tracked} {...analysisActions} />}
             />
-            </SupplementSourceContext>
           </aside>
         )}
       </div>

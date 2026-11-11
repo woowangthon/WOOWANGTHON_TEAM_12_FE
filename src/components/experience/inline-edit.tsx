@@ -1,12 +1,11 @@
 "use client";
 
 // 세부에서 바로 고친다 (SPEC S-10 · FE#232). 글자는 누르면 그 모양 그대로 입력칸이 되고,
-// 밖을 누르거나 Enter 면 저장, Esc 면 취소. 기간 · 수행 주체 · 역량은 눌러 작은 메뉴로 고친다.
-// 저장이 실패하면 고치던 글을 그대로 두고 오류를 보인다 — Enter(또는 밖을 누르기)로 다시 저장한다
-import { useRef, useState, type ReactNode } from "react";
+// 밖을 누르거나 Enter 면 저장, Esc 면 취소(DESIGN.md 「그 자리 고치기」 — 키 안내 · 저장/취소 버튼 없음). 기간 · 역량은 눌러 작은 메뉴로 고친다.
+// 저장이 실패하면 고치던 글을 그대로 두고 오류를 보인다 — 다시 밖을 누르면 다시 저장한다
+import { useId, useRef, useState, type ReactNode } from "react";
 import { CaretDownIcon, CheckIcon, PencilSimpleIcon } from "@phosphor-icons/react";
 import { DropdownMenu, Popover } from "radix-ui";
-import { Button } from "@/components/ui/button";
 import { updateActivity, updateExperience } from "@/lib/api/experience";
 import { activityError } from "@/lib/api/editing";
 import { COMPETENCIES, type Actor, type ActivitySummary, type Competency, type Experience, type Period, type UpdateExperienceRequest } from "@/lib/api/types";
@@ -22,12 +21,6 @@ const HOVER = "cursor-text rounded-sm hover:bg-surface-soft focus-visible:bg-sur
 const EDITABLE = "underline decoration-hairline decoration-dotted underline-offset-4 group-hover/edit:decoration-ink";
 const MENU_HOVER = "cursor-pointer rounded-sm hover:bg-surface-soft focus-visible:bg-surface-soft data-[state=open]:bg-surface-soft";
 const message = (e: unknown) => e instanceof Error ? e.message : "저장하지 못했어요. 다시 시도해 주세요.";
-
-/** 본문을 고치는 중에 「내가 입력」이 된다는 것을 보인다(S-10). 주체 · 역량은 출처 상태를 바꾸지 않으니 거기엔 없다(ETC#249) */
-function UserEnteredNote({ experience }: { experience: Pick<Experience, "sourceStatus"> }) {
-  if (experience.sourceStatus === "USER_ENTERED") return null;
-  return <>고치면 「내가 입력」이 돼요 · 원래 근거는 남아요</>;
-}
 
 /** 글자를 그 자리에서 고치는 칸 하나 — 활동 이름 · 경험 본문이 같이 쓴다 */
 function useInlineText(saved: string, save: (next: string) => Promise<void>, validate: (next: string) => string | null, onOpenChange?: (open: boolean) => void) {
@@ -89,7 +82,44 @@ export function ActivityNameField({ activity, readOnly, onSaved }: {
   </div>;
 }
 
-/** 경험 본문 — 같은 글꼴의 입력칸. Enter 저장 · Shift+Enter 줄 바꿈 · Esc 취소 */
+/** 그 자리 고치기 입력칸(DESIGN.md 「그 자리 고치기」) — 밖을 누르거나 Enter 면 저장, Shift+Enter 줄 바꿈, Esc 취소.
+ * 키 안내 · 저장/취소 버튼은 두지 않는다. 저장 중 · 실패만 칸 아래 xs 한 줄 — 실패해도 쓴 글은 그대로다 */
+export function InlineTextarea({ value, onChange, onCommit, onCancel, saving, error, label, placeholder, maxLength, singleLine = false, autoFocus = true, className }: {
+  value: string;
+  onChange: (next: string) => void;
+  onCommit: () => void;
+  onCancel: () => void;
+  saving: boolean;
+  error: string | null;
+  label: string;
+  placeholder?: string;
+  maxLength?: number;
+  /** 줄 바꿈 없이 한 줄 — Shift+Enter 도 저장, 붙여 넣은 줄 바꿈은 띄어쓰기로 */
+  singleLine?: boolean;
+  autoFocus?: boolean;
+  className?: string;
+}) {
+  const id = useId();
+  const placed = useRef(false);
+  return <div className="grid min-w-0 flex-1 gap-0.5">
+    <textarea autoFocus={autoFocus} aria-label={label} value={value} placeholder={placeholder} maxLength={maxLength}
+      aria-busy={saving} readOnly={saving} aria-invalid={!!error} aria-describedby={error || saving ? id : undefined}
+      onChange={(ev) => onChange(singleLine ? ev.target.value.replace(/[\r\n]+/g, " ") : ev.target.value)} onBlur={onCommit}
+      // 처음 열릴 때만 글 끝에 커서 — 저장이 실패해 다시 누를 땐 누른 자리 그대로
+      onFocus={(ev) => { if (!autoFocus || placed.current) return; placed.current = true; const el = ev.currentTarget; el.setSelectionRange(el.value.length, el.value.length); }}
+      onKeyDown={(ev) => {
+        if (ev.nativeEvent.isComposing) return;
+        if (ev.key === "Enter" && (singleLine || !ev.shiftKey)) { ev.preventDefault(); ev.currentTarget.blur(); }
+        if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); onCancel(); }
+      }}
+      className={cn("-mx-1.5 -my-0.5 field-sizing-content min-h-[1lh] w-full min-w-0 resize-none rounded-sm border-0 bg-surface-soft px-1.5 py-0.5 outline-none placeholder:text-muted focus-visible:shadow-[inset_0_0_0_1px_var(--ink)]", className)} />
+    {(saving || error) && <p id={id} role={error ? "alert" : "status"} className={cn("m-0 text-xs", error ? "font-medium text-error" : "text-muted")}>
+      {error ? `${error} 쓴 글은 그대로 있어요.` : "저장 중…"}
+    </p>}
+  </div>;
+}
+
+/** 경험 본문 — 같은 글꼴의 입력칸(「그 자리 고치기」) */
 export function ExperienceContentField({ experience: e, readOnly, onEditingChange, onSaved }: {
   experience: Experience;
   readOnly: boolean;
@@ -106,31 +136,11 @@ export function ExperienceContentField({ experience: e, readOnly, onEditingChang
   if (f.text === null) return <button ref={displayRef} type="button" aria-label={`경험 고치기: ${e.content}`} title="눌러서 고치기"
     onClick={() => { if (window.getSelection()?.toString()) return; act.open(); }}
     className={cn(TEXT, HOVER, "-mx-1.5 -my-0.5 min-w-0 px-1.5 py-0.5 text-left break-words")}>{e.content}</button>;
-  // 안내는 두 줄(FE#241) — 위: 출처 상태가 바뀐다는 것(S-10, 이미 「내가 입력」이면 없음), 아래: 키. 한 문장으로 이으면 중간에서 꺾여 지저분했다
-  const note = `experience-note-${e.id}`;
-  const keys = `experience-keys-${e.id}`;
-  const showNote = e.sourceStatus !== "USER_ENTERED";
-  return <div className="grid min-w-0 flex-1 gap-1">
-    <textarea autoFocus aria-label="경험 내용" value={f.text} aria-busy={f.saving} readOnly={f.saving} aria-describedby={showNote ? `${note} ${keys}` : keys} aria-invalid={!!f.error}
-      onChange={(ev) => act.setText(ev.target.value)} onBlur={() => void act.commit()}
-      onFocus={(ev) => { const el = ev.currentTarget; el.setSelectionRange(el.value.length, el.value.length); }}
-      onKeyDown={(ev) => {
-        if (ev.nativeEvent.isComposing) return;
-        if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); act.submit(); }
-        if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); act.cancel(); }
-      }}
-      className={cn(TEXT, "-mx-1.5 -my-0.5 field-sizing-content min-h-[1lh] w-full min-w-0 resize-none rounded-sm border-0 bg-surface-soft px-1.5 py-0.5 outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--ink)]")} />
-    <div className="grid gap-0.5">
-      {showNote && <p id={note} className="m-0 flex items-start gap-1 text-note text-body">
-        <PencilSimpleIcon className="mt-[0.25em] size-[1.1em] shrink-0" aria-hidden="true" /><span><UserEnteredNote experience={e} /></span>
-      </p>}
-      <p id={keys} className="m-0 text-xs text-muted">{f.saving ? "저장 중…" : "Enter 저장 · Shift+Enter 줄 바꿈 · Esc 취소"}</p>
-    </div>
-    {f.error && <p role="alert" className="m-0 text-note font-medium text-error">{f.error} 고친 글은 그대로 있어요 — Enter 로 다시 저장해 주세요.</p>}
-  </div>;
+  return <InlineTextarea label="경험 내용" value={f.text} onChange={act.setText} onCommit={() => void act.commit()} onCancel={act.cancel}
+    saving={f.saving} error={f.error} className={TEXT} />;
 }
 
-/** 작은 메뉴(팝오버)로 값 하나를 고친다 — 밖을 누르거나 「저장」이면 저장, Esc 면 취소. 실패 · 잘못된 값이면 열어 둔다 */
+/** 작은 메뉴(팝오버)로 값 하나를 고친다 — 밖을 누르면 저장, Esc 면 취소(저장/취소 버튼 없음). 실패 · 잘못된 값이면 열어 둔다 */
 function PopoverEdit<T>({ trigger, label, value, same, validate, save, children, footnote, align = "start" }: {
   trigger: ReactNode;
   label: string;
@@ -174,10 +184,7 @@ function PopoverEdit<T>({ trigger, label, value, same, validate, save, children,
         {draft !== null && <fieldset disabled={saving} className="m-0 grid min-w-0 gap-3 border-0 p-0">{children(draft, (next) => { setDraft(next); setError(null); })}</fieldset>}
         {error && <p role="alert" className="m-0 font-medium text-error">{error}</p>}
         {footnote && <p className="m-0 text-note text-muted">{footnote}</p>}
-        <div className="flex items-center justify-end gap-2">
-          <Button size="sm" variant="ghost" disabled={saving} onClick={discard}>취소</Button>
-          <Button size="sm" disabled={saving} onClick={() => void commit()}>{saving ? "저장 중…" : "저장"}</Button>
-        </div>
+        {saving && <p role="status" className="m-0 text-xs text-muted">저장 중…</p>}
       </Popover.Content>
     </Popover.Portal>
   </Popover.Root>;

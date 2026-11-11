@@ -655,7 +655,7 @@ test("answering a clarification posts it and shows it on the experience as user-
   await expect(asks().getByText(stacked, { exact: true })).toHaveCount(2);
   await closeChagokSheet(page);
 
-  // 활동 세부(실제 타임라인) — 원문 확인 표시는 그대로, 보완은 「내가 입력한 보완」으로 따로 · 어느 지원에서 답했는지
+  // 활동 세부(실제 타임라인) — 원문 확인 표시는 그대로, 보완은 「내가 입력한 보완」으로 따로(답 글만)
   await expand(page, 1);
   await activityCard(page, 1).getByRole("link", { name: /타임라인에서 활동 보기/ }).click();
   await expect(page).toHaveURL(/\/experience\?activity=7&fromQuestion=41/);
@@ -665,7 +665,7 @@ test("answering a clarification posts it and shows it on the experience as user-
   await expect(first.getByText("원문 확인", { exact: true })).toBeVisible();
   const supplements = first.getByRole("list", { name: "내가 입력한 보완", exact: true });
   await expect(supplements.getByRole("listitem")).toHaveCount(2);
-  await expect(supplements.getByText("내가 입력 · OO 백엔드 부트캠프 문항에서 답함", { exact: true })).toHaveCount(2);
+  await expect(supplements.getByText(/내가 입력 · |문항에서 답함/)).toHaveCount(0); // 줄엔 답 글만(FE#512)
   await expect(supplements).toContainText("두 기기로 동시에 보내 보며 지연이 사라졌는지 확인했다");
   const detail = shot("activity", info.project.name);
   if (detail) await page.screenshot({ ...detail, fullPage: true });
