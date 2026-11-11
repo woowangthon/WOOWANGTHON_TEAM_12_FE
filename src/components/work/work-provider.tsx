@@ -3,14 +3,14 @@
 import { InfoTip } from "@/components/ui/info-tip";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import Link from "next/link";
-import { BellIcon } from "@phosphor-icons/react";
+import { BellIcon, ChatCircleDotsIcon, FileTextIcon, ListChecksIcon, PencilSimpleIcon, SealCheckIcon, type Icon } from "@phosphor-icons/react";
 import { Dialog as DialogPrimitive, Popover } from "radix-ui";
 import { Dialog, DialogOverlay, DialogPortal, DialogTitle } from "@/components/ui/dialog";
 import { useSidebar } from "@/components/sidebar-layout";
 import { Button } from "@/components/ui/button";
 import { isMockMode } from "@/lib/api/http";
 import { cn } from "@/lib/utils";
-import { isUnread, latestFinished, workHref, WORK_KIND, WORK_STATUS, type WorkItem } from "@/lib/api/work";
+import { isUnread, latestFinished, workHref, WORK_KIND, WORK_STATUS, type WorkItem, type WorkKind } from "@/lib/api/work";
 import { useWork } from "./use-work";
 import { fetchActivities } from "@/lib/api/experience";
 import { suggestionPairs } from "@/components/experience/merge-suggestion";
@@ -53,6 +53,8 @@ export function WorkProvider({ children }: { children: ReactNode }) {
   const trigger = useRef<HTMLButtonElement | null>(null);
   const navigating = useRef(false);
   const displayedBoundary = useRef<string | null>(null);
+  /** 줄의 안 읽음 점은 「이번에 열기 전」 기준 — 열자마자 읽음 POST 가 가도 이번에 처음 본 줄은 점을 단다(FE#483) */
+  const [rowSeenAt, setRowSeenAt] = useState<string | null>(null);
   const { snapshot } = work;
   const inProgress = snapshot?.inProgress ?? [];
   const recent = snapshot?.recent ?? [];
@@ -66,6 +68,7 @@ export function WorkProvider({ children }: { children: ReactNode }) {
     trigger.current = button;
     navigating.current = false;
     displayedBoundary.current = latestFinished(recent);
+    setRowSeenAt(snapshot?.seenAt ?? null);
     setOpened(true);
     suggestions.load();
     // 열린 순간 보인 목록까지만. 이후 도착한 소식은 다시 열기 전까지 안 읽음이다.
@@ -85,10 +88,10 @@ export function WorkProvider({ children }: { children: ReactNode }) {
         <span className="min-w-0 font-medium">같아 보이는 활동 {suggestions.count}쌍</span>
         <span className="text-note text-muted">합칠지 따로 둘지 정해 주세요.</span>
       </Link>}
-      {inProgress.length ? <WorkList items={inProgress} seenAt={snapshot?.seenAt ?? null} onNavigate={onNavigate} /> : !suggestions.count && <p className="text-sm text-muted lg:my-1 lg:px-3 lg:text-note">진행 중인 일이 없어요.</p>}
+      {inProgress.length ? <WorkList items={inProgress} seenAt={rowSeenAt} onNavigate={onNavigate} /> : !suggestions.count && <p className="text-sm text-muted lg:my-1 lg:px-3 lg:text-note">진행 중인 일이 없어요.</p>}
     </section>
     <section aria-label="최근 소식" className="mt-7 lg:mt-1"><div className={cn("flex items-center gap-0.5", GROUP_PAD)}><h3 className={GROUP_TITLE}>소식{unread > 0 && <span> · 안 읽음 {unread}</span>}</h3>{/* 13px 제목 줄 옆이라 ⓘ(24) 의 위아래를 줄여 「할 일」 줄과 같은 높이로 */}<InfoTip label="소식" className="lg:-my-1.5">최근 24시간 · 최대 20개까지 보여요.</InfoTip></div>
-      {recent.length ? <WorkList items={recent} seenAt={snapshot?.seenAt ?? null} onNavigate={onNavigate} /> : <p className="text-sm text-muted lg:my-1 lg:px-3 lg:text-note">아직 도착한 소식이 없어요.</p>}
+      {recent.length ? <WorkList items={recent} seenAt={rowSeenAt} onNavigate={onNavigate} /> : <p className="text-sm text-muted lg:my-1 lg:px-3 lg:text-note">아직 도착한 소식이 없어요.</p>}
     </section>
   </div>;
   return <WorkContext value={{ opened, toggle, count: inProgress.length + (suggestions.count ? 1 : 0), unread, status, refresh }}>
@@ -147,12 +150,21 @@ function tagTone({ status }: WorkItem) {
   return "bg-surface-soft text-body";
 }
 
+/** 종류는 색이 아니라 꼬리표 앞 회색 아이콘으로 가른다(FE#483 — 색 규칙은 그대로) */
+const KIND_ICON: Record<WorkKind, Icon> = { SOURCE_ANALYSIS: FileTextIcon, MATCH: ListChecksIcon, GROUNDING_CHECK: SealCheckIcon, DRAFT: PencilSimpleIcon, CHAGOK: ChatCircleDotsIcon };
+
 function WorkList({ items, seenAt, onNavigate }: { items: WorkItem[]; seenAt: string | null; onNavigate: () => void }) {
   return <ul className="m-0 grid min-w-0 grid-cols-[minmax(0,1fr)] list-none gap-1 p-0">{items.map(item => {
     const href = workHref(item);
+    const unread = isUnread(item, seenAt);
+    const KindIcon = KIND_ICON[item.kind] ?? FileTextIcon;
     const content = <>
-      <span className={cn("justify-self-start rounded-full px-2 py-px text-xs font-bold", tagTone(item))}>{WORK_KIND[item.kind] ?? item.kind} · {WORK_STATUS[item.status] ?? item.status}{isUnread(item, seenAt) && " · 안 읽음"}</span>
-      <span className="min-w-0 break-all whitespace-normal font-medium">{item.label}</span>
+      {/* 안 읽은 줄은 꼬리표 앞 줄 여백에 빨간 점(종 위 점과 같은 뜻) — 꼬리표 · 제목의 왼쪽 줄은 읽은 줄과 같다 */}
+      <span className="relative flex min-w-0 items-center">
+        {unread && <i data-slot="row-unread-dot" aria-hidden="true" className="absolute top-1/2 -left-2.5 size-1.75 -translate-y-1/2 rounded-full bg-unread" />}
+        <span className={cn("inline-flex min-w-0 items-center gap-1 rounded-full px-2 py-px text-xs font-bold", tagTone(item))}><KindIcon aria-hidden="true" weight="bold" className="size-3.5 shrink-0" />{WORK_KIND[item.kind] ?? item.kind} · {WORK_STATUS[item.status] ?? item.status}{unread && " · 안 읽음"}</span>
+      </span>
+      <span className={cn("min-w-0 break-all whitespace-normal", unread ? "font-semibold" : "font-medium")}>{item.label}</span>
       {item.finishedAt && <time className="text-xs text-muted" dateTime={item.finishedAt}>{new Date(item.finishedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}</time>}
       {item.status === "FAILED" && <span className="break-words text-note text-error">{item.errorCode ?? "오류 코드 없음"} · 해당 화면에서 다시 시도해 주세요.</span>}
       {item.status === "WAITING_CONFIRM" && <span className="text-note text-muted">차곡이의 확인 카드를 열어 주세요.</span>}
