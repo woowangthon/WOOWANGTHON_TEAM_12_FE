@@ -168,13 +168,22 @@ export type GitHubSource = {
 const truncatedLine = (cut: number, max: number) => `(README 가 길어 뒤 ${cut.toLocaleString()}자를 잘랐어요 — 자료 하나는 ${max.toLocaleString()}자까지예요.)`;
 
 /**
- * 자료 글 — 레포 이름 · 링크 · 설명 → README → 「내가 쓴 커밋 제목」 → 「내가 연 PR 제목」(S-64).
+ * 자료 글 — 레포 이름 · 링크 · 설명 · 기간 → README → 「내가 쓴 커밋 제목」 → 「내가 연 PR 제목」(S-64).
+ * 기간은 글에 실은 커밋 · PR 날짜의 가장 이른 날 ~ 가장 늦은 날이다 — AI 추출은 원문에 적힌 기간만 활동 기간으로 쓰므로(S-05),
+ * 이 줄이 없으면 활동 기간이 비어 연도 검색(S-58)에서 빠진다(FE#485).
  * 절 제목을 「내가 …」로 써서 AI 가 그 줄을 수행 주체 「나」로 읽게 한다. README 는 원문 그대로 둔다(누가 했는지 바꾸지 않는다).
  * 빈 절은 쓰지 않는다. max 를 넘으면 README 뒤를 잘라 맞추고 잘랐다는 줄을 README 끝에 남긴다
  */
 export function buildGitHubSource(data: GitHubData, max: number = MAX_TEXT_LENGTH): GitHubSource {
   const full = `${data.repo.owner}/${data.repo.repo}`;
-  const head = [`# ${full} — GitHub`, `링크: https://github.com/${full}`, ...(data.description ? [`설명: ${data.description}`] : [])].join("\n");
+  const dates = data.login ? [...data.commits, ...data.pulls].map((x) => x.date).sort() : [];
+  const period = dates.length ? (dates[0] === dates.at(-1) ? dates[0] : `${dates[0]} ~ ${dates.at(-1)}`) : null;
+  const head = [
+    `# ${full} — GitHub`,
+    `링크: https://github.com/${full}`,
+    ...(data.description ? [`설명: ${data.description}`] : []),
+    ...(period ? [`기간: ${period} (내 커밋 · PR 날짜)`] : []),
+  ].join("\n");
   const tail: string[] = [];
   if (data.login && data.commits.length) {
     tail.push([`## 내가 쓴 커밋 제목 (GitHub 아이디 ${data.login} · 최근 ${data.commits.length}개)`, ...data.commits.map((c) => `- ${c.date} ${c.title}`)].join("\n"));
