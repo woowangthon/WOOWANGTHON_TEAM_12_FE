@@ -36,7 +36,7 @@ test("입력 한도를 먼저 검사하고 목 모드에서만 네 종류를 고
   for (const kind of ENTRANCE_KINDS) expect((await routeEntrance("입력", kind)).kind).toBe(kind);
 });
 
-test("지원 나누기는 글을 POST 하고 목록 밖 값 · 빈 문항을 칸에 넣지 않으며 실패를 그대로 올린다", async () => {
+test("지원서 나누기는 글을 POST 하고 목록 밖 값 · 빈 문항을 칸에 넣지 않으며 실패를 그대로 올린다", async () => {
   process.env.NEXT_PUBLIC_API_BASE_URL = "https://backend.example/api/";
   const text = "[OO 부트캠프]\n1. 문항";
   globalThis.fetch = async (url, options) => {
@@ -57,7 +57,7 @@ test("지원 나누기는 글을 POST 하고 목록 밖 값 · 빈 문항을 칸
   await expect(parseApplication(text)).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
 });
 
-test("지원 나누기 한도를 먼저 검사하고 목은 글에 적힌 번호 줄만 문항으로 읽는다", async () => {
+test("지원서 나누기 한도를 먼저 검사하고 목은 글에 적힌 번호 줄만 문항으로 읽는다", async () => {
   delete process.env.NEXT_PUBLIC_API_BASE_URL;
   globalThis.fetch = async () => { throw new Error("unexpected HTTP"); };
   await expect(parseApplication(" ")).rejects.toMatchObject({ code: "EMPTY_TEXT" });

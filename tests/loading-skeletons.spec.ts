@@ -77,14 +77,14 @@ test("홈 「이어서」 카드는 불러오는 동안 같은 크기의 뼈대 
   await page.goto("/");
   await g.applications.entered;
   const continueCards = page.getByRole("region", { name: "이어서" });
-  for (const label of ["최근 지원을 불러오고 있어요", "마지막으로 연 활동을 불러오고 있어요", "지난 경험을 불러오고 있어요"])
+  for (const label of ["최근 지원서를 불러오고 있어요", "마지막으로 연 활동을 불러오고 있어요", "지난 경험을 불러오고 있어요"])
     await expect(continueCards.getByRole("status").filter({ hasText: label })).toBeAttached();
   await expect(page.getByRole("status").filter({ hasText: "쌓인 경험을 불러오고 있어요" })).toBeAttached();
   await expect(page.getByText(/불러오고 있어요…/)).toHaveCount(0);
   const before = await continueCards.locator(":scope > div > *").first().boundingBox();
 
   g.applications.open(); g.activities.open(); g.detail.open();
-  await expect(continueCards.getByText("지원 시작하기")).toBeVisible();
+  await expect(continueCards.getByText("지원서 시작하기")).toBeVisible();
   await expect(continueCards.getByRole("status")).toHaveCount(0);
   await expect(page.getByText(/경험 2개가 쌓여 있어요/)).toBeVisible();
   // 카드 자리 · 높이가 그대로(레이아웃 밀림 없음)

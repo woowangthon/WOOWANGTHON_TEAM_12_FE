@@ -70,7 +70,7 @@ test("자료 분류는 확인 전 저장하지 않고 양쪽 전환에서도 수
   expect(calls.sources).toHaveLength(0);
   const edited = text + "\n수정한 사실";
   await page.getByLabel("붙여넣을 자료").fill(edited);
-  await page.getByRole("button", { name: "지원으로 만들기", exact: true }).click();
+  await page.getByRole("button", { name: "지원서로 만들기", exact: true }).click();
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(edited);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   // 390 에선 버튼 줄이 개발 도구 배지(개발 서버에만 있다) 자리로 내려온다
@@ -85,7 +85,7 @@ test("자료 분류는 확인 전 저장하지 않고 양쪽 전환에서도 수
   await expect(page.getByLabel("홈에 넣을 글")).toHaveValue("");
 });
 
-test("지원 분류는 나눈 값으로 칸을 채우고, 고친 칸의 꼬리표를 지우고, 사용자가 넣은 뒤 지원으로 이동한다", async ({ page }) => {
+test("지원서 분류는 나눈 값으로 칸을 채우고, 고친 칸의 꼬리표를 지우고, 사용자가 넣은 뒤 지원서로 이동한다", async ({ page }) => {
   const calls = await setup(page, "APPLICATION");
   const text = "모집 공고\n1. 협업한 경험을 적어 주세요.\n2. 지원 동기는?";
   await page.getByLabel("홈에 넣을 글").fill(text);
@@ -200,11 +200,11 @@ for (const status of [502, 504]) {
   });
 }
 
-test("지원 넣기 화면에서 공고를 붙여 칸을 채우고, 직접 넣은 칸은 건드리지 않는다", async ({ page }) => {
+test("새 지원서 화면에서 공고를 붙여 칸을 채우고, 직접 넣은 칸은 건드리지 않는다", async ({ page }) => {
   const calls = await setup(page, "UNSURE");
   await page.getByLabel("홈에 넣을 글").fill("직접 넣은 문항");
   await page.getByRole("button", { name: "보내기", exact: true }).click();
-  await page.getByRole("button", { name: "지원으로 만들기", exact: true }).click();
+  await page.getByRole("button", { name: "지원서로 만들기", exact: true }).click();
   expect(calls.parses).toHaveLength(0);
   await expect(page.getByRole("dialog").getByText("AI 가 나눠 채웠어요 · 고쳐도 돼요", { exact: true })).toHaveCount(0);
   await page.getByLabel("지원처 이름", { exact: true }).fill("내가 쓴 이름");
@@ -237,10 +237,10 @@ for (const result of [{ kind: "UNSURE", status: 200 }, { kind: "SOURCE", status:
     const calls = await setup(page, result.kind, result.status);
     await page.getByLabel("홈에 넣을 글").fill("입력한 전체 글");
     await page.getByRole("button", { name: "보내기", exact: true }).click();
-    await expect(page.getByText("자료로 쌓을까요, 지원으로 만들까요?", { exact: true })).toBeVisible();
+    await expect(page.getByText("자료로 쌓을까요, 지원서로 만들까요?", { exact: true })).toBeVisible();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     expect(calls.sources).toHaveLength(0); expect(calls.applications).toHaveLength(0);
-    await page.getByRole("button", { name: "지원으로 만들기", exact: true }).click();
+    await page.getByRole("button", { name: "지원서로 만들기", exact: true }).click();
     await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("입력한 전체 글");
   });
 }
@@ -339,7 +339,7 @@ test("홈에 PDF 를 올려도 같은 추출로 쪽 위치와 함께 보낸다 (
   });
 });
 
-test("ASK 면 꺼내기로 경험 카드 · 근거 · AI 해석을 보이고 활동 세부와 지원으로 만들기로 잇는다 (S-29)", async ({ page }, info) => {
+test("ASK 면 꺼내기로 경험 카드 · 근거 · AI 해석을 보이고 활동 세부와 지원서로 만들기로 잇는다 (S-29)", async ({ page }, info) => {
   const calls = await setup(page, "ASK");
   await page.getByLabel("홈에 넣을 글").fill("동아리에서 의견 모아 본 적 있었나?");
   await page.getByRole("button", { name: "보내기", exact: true }).click();
@@ -358,7 +358,7 @@ test("ASK 면 꺼내기로 경험 카드 · 근거 · AI 해석을 보이고 활
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
   await page.screenshot({ path: `artifacts/ask-answer-${info.project.name}.png`, fullPage: true });
-  await answer.getByRole("button", { name: "지원으로 만들기", exact: true }).click();
+  await answer.getByRole("button", { name: "지원서로 만들기", exact: true }).click();
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(PARSED.questions[0]);
   expect(calls.parses).toEqual([{ text: "동아리에서 의견 모아 본 적 있었나?" }]);
 });
@@ -370,7 +370,7 @@ test("꺼내기 0개면 부족하다고 말하지 않고 찾지 못했다고 보
   await page.getByRole("button", { name: "보내기", exact: true }).click();
   const answer = page.getByRole("region", { name: "꺼내기 답" });
   await expect(answer).toContainText("쌓인 자료에서 찾지 못했어요.");
-  await expect(answer.getByRole("button", { name: "지원으로 만들기", exact: true })).toBeVisible();
+  await expect(answer.getByRole("button", { name: "지원서로 만들기", exact: true })).toBeVisible();
 });
 
 for (const status of [502, 504, 429] as const) {
@@ -461,12 +461,12 @@ for (const code of ["URL_UNREADABLE", "URL_BLOCKED"]) {
   });
 }
 
-test("링크에서 문항을 못 찾으면 지원 양식 안내와 붙여 넣기를 보인다 · 지원 넣기 화면의 링크 칸으로도 채운다", async ({ page }) => {
+test("링크에서 문항을 못 찾으면 지원서 양식 안내와 붙여 넣기를 보인다 · 새 지원서 화면의 링크 칸으로도 채운다", async ({ page }) => {
   const calls = await setup(page, "UNSURE");
   calls.parsed = { organization: "OO 연합 동아리", organizationType: "CLUB", jobRole: null, questions: [] };
   await page.getByLabel("홈에 넣을 글").fill("직접 넣은 문항");
   await page.getByRole("button", { name: "보내기", exact: true }).click();
-  await page.getByRole("button", { name: "지원으로 만들기", exact: true }).click();
+  await page.getByRole("button", { name: "지원서로 만들기", exact: true }).click();
   await page.getByRole("button", { name: "글 · 링크 · 캡처로 채우기", exact: true }).click();
   await page.getByLabel("공고 · 문항 글이나 공고 링크").fill(LINK);
   await page.getByRole("button", { name: "읽기", exact: true }).click();

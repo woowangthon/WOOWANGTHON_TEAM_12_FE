@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { pickOption } from "./pick-option";
 
-const MOCK_LABEL = { SOURCE: "자료", APPLICATION: "지원", ASK: "한 줄 질문", UNSURE: "애매함" };
+const MOCK_LABEL = { SOURCE: "자료", APPLICATION: "지원서", ASK: "한 줄 질문", UNSURE: "애매함" };
 
 test("목임을 표시하고 네 분류를 실제 호출 없이 확인한다", async ({ page }) => {
   let requests = 0;
@@ -15,7 +15,7 @@ test("목임을 표시하고 네 분류를 실제 호출 없이 확인한다", a
     if (kind === "SOURCE") await expect(page.getByLabel("붙여넣을 자료")).toHaveValue("목에서 확인할 글");
     else if (kind === "APPLICATION") await expect(page.getByText(/이 글엔 자소서 문항이 없어요/)).toBeVisible();
     else if (kind === "ASK") await expect(page.getByRole("listitem", { name: "꺼낸 경험 1" })).toBeVisible();
-    else await expect(page.getByText("자료로 쌓을까요, 지원으로 만들까요?", { exact: true })).toBeVisible();
+    else await expect(page.getByText("자료로 쌓을까요, 지원서로 만들까요?", { exact: true })).toBeVisible();
   }
   expect(requests).toBe(0);
 });
@@ -35,14 +35,14 @@ test("목 꺼내기 답은 카드 있는 답 · 0개 답을 고정 예시로 보
   await pickOption(page.getByRole("combobox", { name: "목 꺼내기 답", exact: true }), "0개");
   await page.getByRole("button", { name: "보내기", exact: true }).click();
   await expect(answer).toContainText("쌓인 자료에서 찾지 못했어요.");
-  await answer.getByRole("button", { name: "지원으로 만들기", exact: true }).click();
-  await expect(page.getByRole("dialog").getByRole("heading", { name: "지원 넣기" })).toBeVisible();
+  await answer.getByRole("button", { name: "지원서로 만들기", exact: true }).click();
+  await expect(page.getByRole("dialog").getByRole("heading", { name: "새 지원서" })).toBeVisible();
 });
 
-test("목 지원 나누기는 글에 적힌 문항만 규칙으로 나누고 목임을 밝힌다", async ({ page }, info) => {
+test("목 지원서 나누기는 글에 적힌 문항만 규칙으로 나누고 목임을 밝힌다", async ({ page }, info) => {
   await page.goto("/?debug=entrance");
-  await pickOption(page.getByRole("combobox", { name: "목 분류 결과", exact: true }), "지원");
-  await page.getByRole("button", { name: "지원 문항 붙여 넣어 보기", exact: true }).click();
+  await pickOption(page.getByRole("combobox", { name: "목 분류 결과", exact: true }), "지원서");
+  await page.getByRole("button", { name: "지원서 문항 붙여 넣어 보기", exact: true }).click();
   await page.getByRole("button", { name: "보내기", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(page.getByLabel("문항 2", { exact: true })).toHaveValue("지원 동기와 수료 후 목표를 적어 주세요.");
@@ -61,7 +61,7 @@ test("기본 홈에는 목 선택기가 없고 개발용 주소에서만 열린�
   await expect(page.getByRole("combobox", { name: "목 분류 결과", exact: true })).toHaveCount(0);
   await page.getByRole("textbox", { name: "홈에 넣을 글", exact: true }).fill("목 모드의 기본 입력");
   await page.getByRole("button", { name: "보내기", exact: true }).click();
-  await expect(page.getByText("자료로 쌓을까요, 지원으로 만들까요?", { exact: true })).toBeVisible();
+  await expect(page.getByText("자료로 쌓을까요, 지원서로 만들까요?", { exact: true })).toBeVisible();
   await page.goto("/?debug=entrance");
   await expect(page.getByRole("combobox", { name: "목 분류 결과", exact: true })).toBeVisible();
   await pickOption(page.getByRole("combobox", { name: "목 분류 결과", exact: true }), "자료");
@@ -70,7 +70,7 @@ test("기본 홈에는 목 선택기가 없고 개발용 주소에서만 열린�
   await expect(page.getByRole("combobox", { name: "목 분류 결과", exact: true })).toHaveCount(0);
   await page.getByRole("textbox", { name: "홈에 넣을 글", exact: true }).fill("개발용 선택을 유지하지 않는 기본 홈");
   await page.getByRole("button", { name: "보내기", exact: true }).click();
-  await expect(page.getByText("자료로 쌓을까요, 지원으로 만들까요?", { exact: true })).toBeVisible();
+  await expect(page.getByText("자료로 쌓을까요, 지원서로 만들까요?", { exact: true })).toBeVisible();
 });
 
 test("1024 레일에서 내 경험 활동 세부가 넘치지 않는다", async ({ page }, info) => {
@@ -86,8 +86,8 @@ test("1024 레일에서 내 경험 활동 세부가 넘치지 않는다", async 
 
 test("목 모드는 캡처를 읽지 않는다 — 목 결과로 칸을 채우지 않고 그렇다고 말한다(FE#495)", async ({ page }) => {
   await page.goto("/?debug=entrance");
-  await pickOption(page.getByRole("combobox", { name: "목 분류 결과", exact: true }), "지원");
-  await page.getByRole("button", { name: "지원 문항 붙여 넣어 보기", exact: true }).click();
+  await pickOption(page.getByRole("combobox", { name: "목 분류 결과", exact: true }), "지원서");
+  await page.getByRole("button", { name: "지원서 문항 붙여 넣어 보기", exact: true }).click();
   await page.getByRole("button", { name: "보내기", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(page.getByLabel("문항 2", { exact: true })).toBeVisible();

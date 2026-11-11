@@ -82,7 +82,7 @@ const panel = (page: Page) => page.getByRole("tabpanel", { name: "공고" });
 // 줄 글 뒤에 「캡처에서 읽음」 꼬리표가 붙을 수 있어 글자 포함으로 찾는다 — 바깥 줄(공고 줄)이 먼저 나온다
 const lineRow = (page: Page, text: string) => panel(page).getByRole("listitem").filter({ hasText: text }).first();
 
-test("문항 0개 지원은 공고 탭이 첫 화면 — 찾는 중에서 판정 셋 · 묶음 · 받치는 경험까지", async ({ page }) => {
+test("문항 0개 지원서는 공고 탭이 첫 화면 — 찾는 중에서 판정 셋 · 묶음 · 받치는 경험까지", async ({ page }) => {
   const api = await setup(page, { postingMatch: analyzing() });
   await page.goto("/questions");
   await expect(page.getByRole("tab", { name: /공고/ })).toHaveAttribute("aria-selected", "true");
@@ -165,7 +165,7 @@ test("공고 줄이 10줄을 넘으면 근거 있음 줄은 한 줄로 접고, �
   await expect(panel(page).getByText("요건 3", { exact: true })).toBeVisible();
 });
 
-test("문항이 있는 지원 — 공고 탭은 문항 탭 앞에 있고, 고르면 새로고침해도 그 탭이다", async ({ page }) => {
+test("문항이 있는 지원서 — 공고 탭은 문항 탭 앞에 있고, 고르면 새로고침해도 그 탭이다", async ({ page }) => {
   const q = QUESTION_EXAMPLES[0];
   const summary: QuestionSummary = { id: q.id, applicationId: q.applicationId, organization: q.organization, text: q.text, questionType: q.questionType, questionTypeBy: q.questionTypeBy, status: q.status, createdAt: q.createdAt };
   await setup(page, { id: q.applicationId, organization: q.organization, questions: [summary] });

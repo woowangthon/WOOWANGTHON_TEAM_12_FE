@@ -247,7 +247,7 @@ const answer = (id: number, extra: object = {}) => change({
 test("write notice says external AI can create applications and answer clarifications", async ({ page }) => {
   await setup(page, []);
   await page.getByRole("switch", { name: "외부 AI 쓰기" }).click();
-  await expect(page.getByRole("dialog")).toContainText("지원을 만들고 되묻기에 답할 수도 있어요");
+  await expect(page.getByRole("dialog")).toContainText("지원서를 만들고 되묻기에 답할 수도 있어요");
   await expect(page.getByRole("dialog")).toContainText("맞아요를 눌러야 근거로 쓰여요");
 });
 
@@ -259,10 +259,10 @@ test("change log shows created applications and relayed answers with type-specif
     answer(5, { undoable: false, undoBlockedReason: "CHANGED_AFTER" }),
   ]);
   const items = page.getByRole("listitem");
-  await expect(items.nth(0)).toContainText("Claude · 지원을 만듦");
+  await expect(items.nth(0)).toContainText("Claude · 지원서를 만듦");
   await expect(items.nth(0)).toContainText("OO 백엔드 부트캠프 · 문항 2개");
   await expect(items.nth(0)).toContainText("분석 완료");
-  await expect(items.nth(0).getByRole("link", { name: "지원으로 가기" })).toHaveAttribute("href", "/questions?application=21");
+  await expect(items.nth(0).getByRole("link", { name: "지원서로 가기" })).toHaveAttribute("href", "/questions?application=21");
   await expect(items.nth(0).getByRole("button", { name: "맞아요" })).toHaveCount(0);
   await expect(items.nth(1)).toContainText("Claude · 되묻기 답을 전함");
   await expect(items.nth(1)).toContainText("바꿔요");
@@ -286,8 +286,8 @@ test("change log shows created applications and relayed answers with type-specif
   await items.nth(0).getByRole("button", { name: "되돌리기" }).click();
   await expect(page.getByRole("dialog")).toContainText("쓴 분석 횟수는 돌아오지 않아요");
   await page.getByRole("dialog").getByRole("button", { name: "되돌리기" }).click();
-  await expect(items.nth(0)).toContainText("지원과 문항 · 추천을 지웠어요");
-  await expect(items.nth(0).getByRole("link", { name: "지원으로 가기" })).toHaveCount(0);
+  await expect(items.nth(0)).toContainText("지원서와 문항 · 추천을 지웠어요");
+  await expect(items.nth(0).getByRole("link", { name: "지원서로 가기" })).toHaveCount(0);
 
   await items.nth(1).getByRole("button", { name: "맞아요" }).click();
   await expect(items.nth(1)).toContainText("다음 추천 · 초안부터 근거로 쓰여요");

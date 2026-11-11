@@ -28,7 +28,7 @@ const draftLines = (parsed: ParsedPostingLine[], readFrom: ReadFrom): DraftPosti
 const INPUT_LABEL = "공고 · 문항 글이나 공고 링크";
 /** S-16 — 홈 · 자료 넣기와 같은 한 줄. 캡처도 외부 AI 로 간다(ai-scope F-17 S-92) */
 const SEND_NOTE = "넣은 글 · 링크 · 캡처는 분석을 위해 외부 AI 제공사(OpenAI)로 보내져요 · 학습엔 안 쓰여요 · 캡처는 저장하지 않아요";
-const LINK_NOTE = "링크를 한 번 읽어 칸을 채우고, 넣은 지원에서 원문을 열 수 있게 남겨요. 읽은 본문은 저장하지 않아요.";
+const LINK_NOTE = "링크를 한 번 읽어 칸을 채우고, 넣은 지원서에서 원문을 열 수 있게 남겨요. 읽은 본문은 저장하지 않아요.";
 /** 예시 버튼 대신 칸 안 안내 글(FE#508) */
 const PLACEHOLDER = "공고나 지원서 문항을 그대로 붙여 넣거나, 공고 링크 · 화면 캡처를 넣어 주세요(캡처는 끌어 놓거나 Ctrl V).\n\n예: [OO 부트캠프 백엔드 과정] 1. 기술적인 문제를 해결한 경험을 적어 주세요 (700자) 2. 지원 동기 …";
 const field = "min-h-11 w-full min-w-0 rounded-sm border border-hairline bg-canvas px-3 text-sm outline-none placeholder:text-muted focus-visible:border-ink lg:min-h-10";
@@ -156,7 +156,7 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
     // 캡처가 있으면 캡처를 읽는다 — 요청엔 글 · 링크 · 캡처 중 하나만 싣는다(계약)
     if (capture.captures.length) { void fill({ images: capture.captures }); return; }
     if (!pastedLink) { void fill({ text: paste }); return; }
-    setPostingUrl(pastedLink); // 못 읽어도 지원에 남길 수 있게 먼저 옮긴다
+    setPostingUrl(pastedLink); // 못 읽어도 지원서에 남길 수 있게 먼저 옮긴다
     void fill({ url: pastedLink });
   };
   const canRead = !saving && !parse.parsing && !capture.adding && (!!paste.trim() || !!capture.captures.length) && paste.length <= MAX_PARSE_TEXT_LENGTH;
@@ -255,7 +255,7 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
       event.preventDefault();
       if (pending.current || nothing) return;
       const blankAt = questionCount ? items.findIndex(it => !it.text.trim()) : -1;
-      if (blankAt >= 0) { setError(items.length === 1 ? "지원 문항을 입력해 주세요." : `비어 있는 문항이 있어요(문항 ${blankAt + 1}). 채우거나 빼 주세요.`); return; }
+      if (blankAt >= 0) { setError(items.length === 1 ? "지원서 문항을 입력해 주세요." : `비어 있는 문항이 있어요(문항 ${blankAt + 1}). 채우거나 빼 주세요.`); return; }
       if (items.some(it => it.text.length > MAX_QUESTION_LENGTH) || organization.length > MAX_ORGANIZATION_LENGTH) {
         setError("지원처는 100자, 문항은 5,000자까지 입력할 수 있어요."); return;
       }
@@ -269,7 +269,7 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
       const postingLines = lines.map(({ section, text, ksa, readFrom }) => ({ section, text, ksa, readFrom }));
       const questions = questionCount ? items : [];
       try { await onSubmit({ organization: organization.trim() || null, ...types, ...(postingLines.length && { postingLines }), questions: questions.map(it => ({ text: it.text })) }, questions.map(it => it.target)); }
-      catch (e) { setError(submitErrorMessage(e, "지원을 넣지 못했어요.")); }
+      catch (e) { setError(submitErrorMessage(e, "지원서를 넣지 못했어요.")); }
       finally { pending.current = false; setSaving(false); onSavingChange?.(false); }
     }}>
       <div className="grid gap-1.5">
@@ -374,7 +374,7 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
       {picker}
       {error && <p role="alert" className="m-0 text-sm text-error">{error}</p>}
       {/* 넣을 게 없으면 버튼을 막고 이유 한 줄(FE#494) */}
-      {nothing && !error && <p id="application-nothing" className="m-0 text-right text-note text-muted">{filled ? "문항이나 공고 요건을 하나 이상 넣어 주세요." : "지원 문항을 입력해 주세요."}</p>}
+      {nothing && !error && <p id="application-nothing" className="m-0 text-right text-note text-muted">{filled ? "문항이나 공고 요건을 하나 이상 넣어 주세요." : "지원서 문항을 입력해 주세요."}</p>}
       <div className="flex flex-wrap items-center justify-end gap-2">
         {onCancel && <Button type="button" variant="ghost" className="min-h-11 lg:min-h-10" disabled={saving} onClick={onCancel}>취소</Button>}
         {!onCancel && (confirmingReset
@@ -389,7 +389,7 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
         <AnalysisCost count={cost} running={saving} />
         <AnalysisButton type="submit" className="min-h-11 lg:min-h-10" cost={cost} running={saving} disabled={saving || parse.parsing || nothing}
           aria-describedby={nothing ? "application-nothing" : undefined}>
-          {saving ? "지원을 넣고 있어요…" : !questionCount && lines.length ? "공고로 경험 찾기" : `문항 ${questionCount || 1}개로 경험 찾기`}
+          {saving ? "지원서를 넣고 있어요…" : !questionCount && lines.length ? "공고로 경험 찾기" : `문항 ${questionCount || 1}개로 경험 찾기`}
         </AnalysisButton>
       </div>
     </form>
@@ -412,7 +412,7 @@ export function AddQuestionForm({ onSubmit, onCancel }: { onSubmit: (text: strin
       catch (e) { setError(submitErrorMessage(e, "문항을 넣지 못했어요.")); }
       finally { pending.current = false; setSaving(false); }
     }}>
-      <label htmlFor="add-question" className="text-title-md font-semibold">이 지원에 문항 더하기</label>
+      <label htmlFor="add-question" className="text-title-md font-semibold">이 지원서에 문항 더하기</label>
       <textarea id="add-question" autoFocus rows={4} maxLength={MAX_QUESTION_LENGTH} value={text} disabled={saving} onChange={e => setText(e.target.value)} className="w-full resize-y rounded-sm border border-hairline bg-canvas p-3 text-base leading-relaxed font-normal" placeholder="더할 문항을 붙여 넣어 주세요." />
       <span className="text-right text-xs text-muted tabular-nums">{text.length.toLocaleString("ko-KR")} / 5,000</span>
       {error && <p role="alert" className="m-0 text-sm text-error">{error}</p>}

@@ -174,8 +174,8 @@ export function ApplicationScreen() {
   const originOf: SupplementOrigin = supplement => {
     const owner = matching.applications.find(a => a.questions.some(q => q.id === supplement.questionId));
     if (!owner) return "지난 문항";
-    if (owner.id === open?.application.id) return `이 지원의 문항 ${owner.questions.findIndex(q => q.id === supplement.questionId) + 1}`;
-    return `${owner.organization || "다른 지원"} 문항`;
+    if (owner.id === open?.application.id) return `이 지원서의 문항 ${owner.questions.findIndex(q => q.id === supplement.questionId) + 1}`;
+    return `${owner.organization || "다른 지원서"} 문항`;
   };
   const panelQuestion = composing || adding ? null : selected;
   const chagok = useChagokRun(panelQuestion?.id ?? null, restoreRun);
@@ -217,11 +217,11 @@ export function ApplicationScreen() {
     <div className="flex-1 xl:flex xl:items-start">
     <div className="min-w-0 flex-1">
     <main className="mx-auto max-w-[1280px] px-4.5 py-5 lg:px-8 lg:py-6">
-      {/* 지원서를 넣는 동안엔 제목 · ⓘ · 「+ 지원 넣기」를 숨긴다 — 넣기 칸이 제목을 단다(FE#508) */}
-      {working || composing || (empty && restoreRun === null) ? <h1 className="sr-only">지원</h1> : <div className="mb-7 flex items-start justify-between gap-3">
-        <div className="flex items-center gap-1"><h1 className="m-0 text-display leading-snug font-bold tracking-[-0.4px]">지원</h1><InfoTip label="지원">지원서의 문항마다 꺼내 볼 경험을 찾아요. 같은 경험도 문항마다 다른 점을 보여 줄 수 있어요.</InfoTip></div>
+      {/* 지원서를 넣는 동안엔 제목 · ⓘ · 「+ 새 지원서」를 숨긴다 — 넣기 칸이 제목을 단다(FE#508) */}
+      {working || composing || (empty && restoreRun === null) ? <h1 className="sr-only">지원서</h1> : <div className="mb-7 flex items-start justify-between gap-3">
+        <div className="flex items-center gap-1"><h1 className="m-0 text-display leading-snug font-bold tracking-[-0.4px]">지원서</h1><InfoTip label="지원서">지원서의 문항마다 꺼내 볼 경험을 찾아요. 같은 경험도 문항마다 다른 점을 보여 줄 수 있어요.</InfoTip></div>
         {(empty || matching.error) && restoreRun !== null && <Button variant="secondary" onClick={() => setPanelChoice(!panelOpen)} aria-expanded={panelOpen}>차곡이</Button>}
-        {!empty && <Button className="min-h-11 lg:min-h-10" disabled={composing || !!matching.error} onClick={startNew}><PlusIcon aria-hidden="true" />지원 넣기</Button>}
+        {!empty && <Button className="min-h-11 lg:min-h-10" disabled={composing || !!matching.error} onClick={startNew}><PlusIcon aria-hidden="true" />새 지원서</Button>}
       </div>}
       {ready && matching.pollWarnings.map(warning => <div key={warning.id} role="alert" aria-label={warning.label}
         className="mb-4 flex flex-wrap items-center justify-between gap-3 border-y border-hairline py-3 text-sm">
@@ -233,18 +233,18 @@ export function ApplicationScreen() {
       </div>)}
       {matching.loading ? <LoadingApplications /> : matching.error ? <div role="alert" className="grid justify-items-start gap-3 py-8">
         <p className="m-0 text-error">{matching.error}</p><Button variant="secondary" onClick={() => { void matching.refresh(); }}>다시 불러오기</Button>
-      </div> : empty ? <section id="selected-application" className="max-w-2xl" aria-label="새 지원 입력">
+      </div> : empty ? <section id="selected-application" className="max-w-2xl" aria-label="새 지원서 입력">
         <ApplicationForm key={pasted} pastedText={pasted} onSubmit={(req, targetLengths) => matching.submit(req, targetLengths)} />
       </section> : <div className={cn("grid items-start gap-7 lg:gap-10", collapsed && "lg:grid-cols-[240px_minmax(0,1fr)]")}>
-        {collapsed && <aside id="application-list" className={cn("min-w-0 scroll-mt-4 lg:sticky lg:top-20 lg:scroll-mt-20", !listFirst && "max-lg:hidden")} aria-label="지원 목록">
+        {collapsed && <aside id="application-list" className={cn("min-w-0 scroll-mt-4 lg:sticky lg:top-20 lg:scroll-mt-20", !listFirst && "max-lg:hidden")} aria-label="지원서 목록">
           <ApplicationList {...list} />
         </aside>}
-        <section id="selected-application" className={cn("min-w-0 scroll-mt-5 lg:scroll-mt-20", listFirst && "max-lg:hidden")} aria-label={composing ? "새 지원 입력" : "선택한 지원"}>
+        <section id="selected-application" className={cn("min-w-0 scroll-mt-5 lg:scroll-mt-20", listFirst && "max-lg:hidden")} aria-label={composing ? "새 지원서 입력" : "선택한 지원서"}>
           {composing ? <ApplicationForm key={pasted} pastedText={pasted} onCancel={() => setComposing(false)} onSubmit={async (req, targetLengths) => {
             const saved = await matching.submit(req, targetLengths);
             if (saved) { setComposing(false); scrollToDetail(); }
           }} /> : open ? <>
-            <button type="button" onClick={showList} className="mb-1 inline-flex min-h-11 lg:min-h-10 items-center text-sm text-muted underline underline-offset-4 lg:hidden">지원 목록으로</button>
+            <button type="button" onClick={showList} className="mb-1 inline-flex min-h-11 lg:min-h-10 items-center text-sm text-muted underline underline-offset-4 lg:hidden">지원서 목록으로</button>
             {/* 이름은 한 줄을 다 쓴다(길면 말줄임). 태그 · 넣은 날짜는 아랫줄, 문항 수는 탭이 보여 주니 뺀다(FE#271) */}
             <header className="grid min-w-0 gap-1">
               <div className="flex min-w-0 items-start gap-1">
@@ -308,7 +308,7 @@ export function ApplicationScreen() {
     <DeleteApplicationDialog target={deletingApplication} onClose={() => setDeletingApplication(null)} onDelete={async id => {
       await matching.deleteApplication(id);
       setDeletingApplication(null); setDeletingQuestion(null); setAdding(false);
-      showToast("지원을 지웠어요.");
+      showToast("지원서를 지웠어요.");
       showList();
     }} />
     <DeleteQuestionDialog target={deletingQuestion} onClose={() => setDeletingQuestion(null)} onDelete={async id => {
@@ -322,7 +322,7 @@ export function ApplicationScreen() {
 
 /** 지원 화면 첫 진입 — 고른 지원 머리 · 문항 탭 · 추천 카드 자리를 잡아 둔다(FE#60) */
 function LoadingApplications() {
-  return <div role="status" aria-label="지원 기록을 불러오고 있어요" className="grid gap-5">
+  return <div role="status" aria-label="지원서 기록을 불러오고 있어요" className="grid gap-5">
     <div className="grid gap-2"><Skeleton className="h-7 w-48" /><Skeleton className="h-4 w-64" /></div>
     <div className="flex gap-3 border-b border-hairline pb-3">{[0, 1, 2].map(i => <Skeleton key={i} className="h-6 w-16" />)}</div>
     <AnswerSkeleton />
@@ -343,7 +343,7 @@ function ApplicationList({ applications, activeId, onPick, onSave, sidebar = fal
 }) {
   return <>
     {!sidebar && <div className="mb-3 flex items-baseline justify-between">
-      <h2 className="m-0 text-title-md font-semibold">넣었던 지원</h2>
+      <h2 className="m-0 text-title-md font-semibold">넣었던 지원서</h2>
       {/* 사이드바가 없는 폭(레일 · 모바일)에서 내 지원서로 가는 길(FE#347) */}
       <span className="flex items-baseline gap-2.5 text-note text-muted tabular-nums">{applications.length}곳
         <Link href="/applications" className="inline-flex min-h-11 items-center text-ink underline-offset-3 hover:underline lg:min-h-0">전체 보기</Link>

@@ -16,8 +16,8 @@ import {
 
 /** 서버도 같은 규칙으로 막지만, 보내기 전에 걸러 하루 분석 횟수 · 왕복을 아낀다 */
 function checkText(text: string) {
-  if (!text.trim()) throw new ApiError("EMPTY_TEXT", "지원 문항을 입력해 주세요.");
-  if (text.length > MAX_QUESTION_LENGTH) throw new ApiError("TEXT_TOO_LONG", "지원 문항은 5,000자까지 입력할 수 있어요.");
+  if (!text.trim()) throw new ApiError("EMPTY_TEXT", "지원서 문항을 입력해 주세요.");
+  if (text.length > MAX_QUESTION_LENGTH) throw new ApiError("TEXT_TOO_LONG", "지원서 문항은 5,000자까지 입력할 수 있어요.");
 }
 function checkOrganization(organization?: string | null) {
   if ((organization?.length ?? 0) > MAX_ORGANIZATION_LENGTH) throw new ApiError("INVALID_REQUEST", "지원처 이름은 100자까지 입력할 수 있어요.");
@@ -91,7 +91,7 @@ export function updateApplication(id: number, req: UpdateApplicationRequest): Pr
  *  「○○을 저장하지 못했어요.」는 부르는 쪽이 앞에 붙인다. 늘 마침표로 끝난다 */
 export function applicationSaveError(e: unknown): string {
   if (e instanceof ApiError) {
-    if (e.code === "APPLICATION_NOT_FOUND") return "이 지원을 찾지 못했어요. 지원 목록을 새로고침해 주세요.";
+    if (e.code === "APPLICATION_NOT_FOUND") return "이 지원서를 찾지 못했어요. 지원서 목록을 새로고침해 주세요.";
     if (e.code === "INVALID_REQUEST" || e.status === 400) return "서버가 이 값을 받지 않았어요.";
     if (e.code === "NETWORK_ERROR" || e.code === "INVALID_RESPONSE" || e.code.startsWith("HTTP_")) return e.message;
   }

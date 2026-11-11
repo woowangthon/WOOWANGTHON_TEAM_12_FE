@@ -7,7 +7,7 @@ import { isUnread, latestFinished, workHref, type WorkItem, type WorkSnapshot } 
 const FINISHED = "2026-11-06T09:00:00+09:00";
 const NEWER = "2026-11-06T09:00:01+09:00";
 const item = (patch: Partial<WorkItem> = {}): WorkItem => ({
-  key: "MATCH:41", kind: "MATCH", status: "ANALYZING", label: "테스트 지원 · 기술적인 문제를 해결한 경험", startedAt: FINISHED, finishedAt: null, errorCode: null,
+  key: "MATCH:41", kind: "MATCH", status: "ANALYZING", label: "테스트 지원서 · 기술적인 문제를 해결한 경험", startedAt: FINISHED, finishedAt: null, errorCode: null,
   sourceId: null, jobId: null, applicationId: 21, questionId: 41, runId: null, ...patch,
 });
 const trigger = (page: Page) => page.getByRole("button", { name: /^진행 중인 일 \d+개 · 안 읽은 소식/ }).first();
@@ -259,7 +259,7 @@ test("차곡이 WAITING_CONFIRM runId 복원 · 문항 없는 작업 · 새로�
   const writes: string[] = [];
   await page.route("**/api/chagok/**", route => {
     if (route.request().method() !== "GET") writes.push(route.request().url());
-    return route.fulfill({ json: { runId: 55, text: "지원 만들어 줘", questionId: null, status: "WAITING_CONFIRM", steps: [{ seq: 1, type: "CONFIRM", label: "테스트 지원을 만들까요?", tool: "create_application", arguments: { organization: "테스트", organizationType: null, jobRole: null, questions: [{ text: "기술 경험은?" }] }, at: FINISHED }], result: null, error: null } });
+    return route.fulfill({ json: { runId: 55, text: "지원서 만들어 줘", questionId: null, status: "WAITING_CONFIRM", steps: [{ seq: 1, type: "CONFIRM", label: "테스트 지원서를 만들까요?", tool: "create_application", arguments: { organization: "테스트", organizationType: null, jobRole: null, questions: [{ text: "기술 경험은?" }] }, at: FINISHED }], result: null, error: null } });
   });
   await page.goto("/experience"); await trigger(page).click(); await dialog(page).getByRole("link").click();
   await expect(page.getByRole("listitem", { name: "차곡이의 확인 요청" })).toBeVisible();
@@ -408,7 +408,7 @@ test("복원 후 문항 Feed가 늦게 붙어도 확인 버튼은 화면 안에 
   });
   await page.route("**/api/chagok/runs/55", route => route.fulfill({ json: {
     runId: 55, questionId: 41, text: "FE106 복원 확인", status: "WAITING_CONFIRM", error: null, result: null,
-    steps: [{ seq: 1, type: "CONFIRM", label: "테스트 지원을 만들까요?", tool: "create_application", arguments: { organization: "FE106", questions: [{ text: "해결한 경험은?" }] }, at: FINISHED }],
+    steps: [{ seq: 1, type: "CONFIRM", label: "테스트 지원서를 만들까요?", tool: "create_application", arguments: { organization: "FE106", questions: [{ text: "해결한 경험은?" }] }, at: FINISHED }],
   } }));
   // 되묻기 묶음은 접힌 채 시작한다(FE#336) — 늦게 붙은 질문은 머리줄 「답할 것 3개」 한 줄만 더하고, 긴 질문 글은 펼치기 전엔 자리를 쓰지 않는다
   const feedAttached = () => page.getByText("답할 것 3개", { exact: true }).waitFor();
@@ -423,7 +423,7 @@ test("복원 후 문항 Feed가 늦게 붙어도 확인 버튼은 화면 안에 
 test("소식 줄은 종류 아이콘 · 안 읽음 점으로 갈린다 — 색 꼬리표는 실패 · 정할 것만(FE#483)", async ({ page }) => {
   const SEEN = "2026-11-06T08:59:59+09:00";
   const recent = [
-    item({ key: "MATCH:41", status: "COMPLETED", finishedAt: NEWER, label: "테스트 지원 · 팀에서 문제를 해결한 경험" }),
+    item({ key: "MATCH:41", status: "COMPLETED", finishedAt: NEWER, label: "테스트 지원서 · 팀에서 문제를 해결한 경험" }),
     item({ key: "DRAFT:41", kind: "DRAFT", status: "FAILED", finishedAt: FINISHED, errorCode: "AI_TIMEOUT" }),
     item({ key: "SOURCE_ANALYSIS:34", kind: "SOURCE_ANALYSIS", status: "COMPLETED", finishedAt: "2026-11-06T08:00:00+09:00", jobId: 34, sourceId: 12, label: "테스트 자료.md" }),
     item({ key: "CHAGOK:56", kind: "CHAGOK", status: "DONE", finishedAt: "2026-11-06T07:00:00+09:00", runId: 56, label: "차곡이 테스트 실행" }),

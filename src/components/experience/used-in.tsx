@@ -30,7 +30,7 @@ const month = (m: string) => m.replace("-", ".");
 
 export function UsedInList({ usedIn, id }: { usedIn: UsedIn[]; id: string }) {
   return (
-    <ul id={id} aria-label="이 경험이 쓰인 지원" className="m-0 grid list-none gap-1 rounded-sm border border-application-line bg-application-soft p-1.5">
+    <ul id={id} aria-label="이 경험이 쓰인 지원서" className="m-0 grid list-none gap-1 rounded-sm border border-application-line bg-application-soft p-1.5">
       {usedIn.map((u) => {
         const first = u.questions[0];
         const href = first ? `/questions?question=${first.id}` : "/questions";

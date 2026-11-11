@@ -28,7 +28,7 @@ const tag = "inline-flex h-5 shrink-0 items-center rounded-full bg-surface-soft 
 
 const WHY: Record<string, string> = {
   DAILY_LIMIT_EXCEEDED: "오늘 분석 횟수를 다 썼어요. 지금 결과는 그대로예요.",
-  APPLICATION_NOT_FOUND: "이 지원을 찾을 수 없어요. 지원 목록을 새로고침해 주세요.",
+  APPLICATION_NOT_FOUND: "이 지원서를 찾을 수 없어요. 지원서 목록을 새로고침해 주세요.",
 };
 /** 실패 이유(question-api.md — 문항 추천의 error 와 같은 모양)를 사용자 말로. 공고 줄은 저장돼 있다 */
 function failureText(error: PostingMatch["error"]) {

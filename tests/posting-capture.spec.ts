@@ -107,7 +107,7 @@ test("adding an application is two steps: one box and one button, then a review 
     await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
     // 넣는 동안 차곡이 패널은 열리지 않고 위 「+ 지원 넣기」는 숨는다
     await expect(page.locator("#chagok-panel")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "지원 넣기", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("main").getByRole("button", { name: "새 지원서", exact: true })).toHaveCount(0);
     await page.screenshot({ path: `artifacts/fe-508/input-${width}.png`, fullPage: true });
 
     // 넣었던 · 자주 나오는 문항 고르기는 확인 단계로 바로 간다

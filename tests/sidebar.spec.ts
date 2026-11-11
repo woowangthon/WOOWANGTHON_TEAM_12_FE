@@ -72,7 +72,7 @@ test("desktop collapse survives reload and navigation; the application list rema
   await capture(page, "questions-1440");
   await sidebar(page).getByRole("button", { name: "사이드바 접기", exact: true }).click();
   await expect(sidebar(page)).toHaveCSS("width", "72px");
-  await expect(page.getByRole("complementary", { name: "지원 목록", exact: true })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "지원서 목록", exact: true })).toBeVisible();
   // 시안 6: 별도 버튼 줄 없이 로고와 펼침 버튼이 같은 자리를 쓴다.
   const brand = sidebar(page).locator('[data-slot="sidebar-brand"]');
   const expand = sidebar(page).getByRole("button", { name: "사이드바 펼치기", exact: true });
