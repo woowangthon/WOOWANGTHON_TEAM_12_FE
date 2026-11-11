@@ -7,7 +7,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { COMMON_QUESTIONS } from "@/lib/common-questions";
 import { fetchQuestions } from "@/lib/api/questions";
-import { MAX_QUESTIONS_PER_SUBMIT, QUESTION_TYPE_LABEL, type QuestionSummary } from "@/lib/api/question-types";
+import { CaretRightIcon } from "@phosphor-icons/react";
+import { MAX_QUESTIONS_PER_SUBMIT, QUESTION_TYPE_LABEL, type OrganizationType, type QuestionSummary } from "@/lib/api/question-types";
 import { cn } from "@/lib/utils";
 
 type Past = { state: "loading" } | { state: "error"; message: string } | { state: "ready"; questions: QuestionSummary[] };
@@ -16,6 +17,27 @@ type Past = { state: "loading" } | { state: "error"; message: string } | { state
 function uniqueByText(questions: QuestionSummary[]) {
   const seen = new Set<string>();
   return questions.filter(q => { const key = q.text.trim(); if (seen.has(key)) return false; seen.add(key); return true; });
+}
+
+/** 고를 문항 한 줄 — 체크 칸 · 문항 글 · 덧붙임(지원처 등). 고르기 창과 「문항이 없어요」 자리(FE#492)가 같이 쓴다 */
+export function QuestionOption({ text, sub, checked, disabled, onToggle }: { text: string; sub?: string; checked: boolean; disabled: boolean; onToggle: () => void }) {
+  return (
+    <label className={cn("flex min-h-11 lg:min-h-10 cursor-pointer items-start gap-3 rounded-sm px-3 py-2.5 hover:bg-surface-soft has-disabled:cursor-default has-disabled:opacity-50", checked && "bg-surface-soft")}>
+      <input type="checkbox" checked={checked} disabled={disabled} onChange={onToggle} className="mt-1 size-4 shrink-0 accent-[var(--ink)]" />
+      <span className="grid gap-0.5">
+        <span className="text-ui leading-relaxed text-ink">{text}</span>
+        {sub && <span className="text-note text-muted">{sub}</span>}
+      </span>
+    </label>
+  );
+}
+
+/** 몇 개 골랐고 몇 개 더 고를 수 있는지 — 한 번에 넣는 문항 수 한도(MAX_QUESTIONS_PER_SUBMIT) 안에서 */
+export function pickNote(room: number, picked: number) {
+  return room === 0 ? `문항은 한 번에 ${MAX_QUESTIONS_PER_SUBMIT}개까지 넣을 수 있어요. 칸을 비우거나 빼면 더 고를 수 있어요.`
+    : picked >= room ? `${room}개를 다 골랐어요 — 문항은 한 번에 ${MAX_QUESTIONS_PER_SUBMIT}개까지 넣을 수 있어요.`
+    : picked ? `${picked}개 골랐어요 · ${room - picked}개 더 고를 수 있어요.`
+    : `${room}개까지 고를 수 있어요.`;
 }
 
 /** 「내가 넣었던 문항」(S-40) · 「자주 나오는 문항」(S-26)에서 여러 개 골라 문항 칸에 넣는다. 넣은 뒤엔 칸에서 고친다 */
@@ -48,15 +70,7 @@ export function CommonQuestionPicker({ open, onOpenChange, room, onPick }: {
 
   const option = (key: string | number, text: string, sub?: string) => {
     const checked = picked.includes(text);
-    return (
-      <label key={key} className={cn("flex min-h-11 lg:min-h-10 cursor-pointer items-start gap-3 rounded-sm px-3 py-2.5 hover:bg-surface-soft has-disabled:cursor-default has-disabled:opacity-50", checked && "bg-surface-soft")}>
-        <input type="checkbox" checked={checked} disabled={!checked && full} onChange={() => toggle(text)} className="mt-1 size-4 shrink-0 accent-[var(--ink)]" />
-        <span className="grid gap-0.5">
-          <span className="text-ui leading-relaxed text-ink">{text}</span>
-          {sub && <span className="text-note text-muted">{sub}</span>}
-        </span>
-      </label>
-    );
+    return <QuestionOption key={key} text={text} sub={sub} checked={checked} disabled={!checked && full} onToggle={() => toggle(text)} />;
   };
 
   return (
@@ -104,10 +118,7 @@ export function CommonQuestionPicker({ open, onOpenChange, room, onPick }: {
         </div>
 
         <p className="m-0 text-note text-muted" aria-live="polite">
-          {room === 0 ? `문항은 한 번에 ${MAX_QUESTIONS_PER_SUBMIT}개까지 넣을 수 있어요. 칸을 비우거나 빼면 더 고를 수 있어요.`
-            : full ? `${room}개를 다 골랐어요 — 문항은 한 번에 ${MAX_QUESTIONS_PER_SUBMIT}개까지 넣을 수 있어요.`
-            : picked.length ? `${picked.length}개 골랐어요 · ${room - picked.length}개 더 고를 수 있어요.`
-            : `${room}개까지 고를 수 있어요.`}
+          {pickNote(room, picked.length)}
         </p>
 
         <DialogFooter>
@@ -118,5 +129,50 @@ export function CommonQuestionPicker({ open, onOpenChange, room, onPick }: {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** 나누기에서 문항을 못 찾았을 때 그 자리에 펼쳐 두는 「자주 나오는 문항」(S-26 · FE#492) — 막다른 길 대신 고를 것을 보인다.
+ *  지원처 종류(S-42)를 채웠으면 맞는 묶음만 펼치고, 나머지 묶음은 접는다(화면이 길어지지 않게). 고르는 동작은 고르기 창과 같다 */
+export function CommonQuestionsInline({ message, room, organizationType, onPick, onPickPast }: {
+  message: string;
+  room: number;
+  organizationType: OrganizationType | "";
+  onPick: (texts: string[]) => void;
+  /** 「내가 넣었던 문항」(S-40)은 고르기 창에서 — 이 자리가 그 입구를 대신할 때 */
+  onPickPast: () => void;
+}) {
+  const [picked, setPicked] = useState<string[]>([]);
+  const full = picked.length >= room;
+  const toggle = (text: string) => setPicked(prev => (prev.includes(text) ? prev.filter(t => t !== text) : [...prev, text]));
+  return (
+    <section aria-label="자주 나오는 문항" className="grid gap-3 rounded-sm border border-hairline bg-canvas px-3.5 py-3">
+      <p role="status" className="m-0 text-sm leading-relaxed text-body">{message}</p>
+      <div className="grid gap-1">
+        {COMMON_QUESTIONS.map(group => (
+          <details key={group.kind} className="group" open={!!organizationType && group.types.includes(organizationType)}>
+            <summary className="flex min-h-11 lg:min-h-10 cursor-pointer list-none items-center gap-2 rounded-sm px-1 text-sm font-semibold text-ink [&::-webkit-details-marker]:hidden">
+              <CaretRightIcon aria-hidden="true" className="size-3.5 shrink-0 text-muted transition-transform group-open:rotate-90" />
+              {group.kind}
+              <span className="text-note font-normal text-muted tabular-nums">{group.questions.length}</span>
+            </summary>
+            <fieldset className="m-0 grid gap-1 border-0 p-0 pb-2">
+              <legend className="sr-only">{group.kind}</legend>
+              {group.questions.map(text => {
+                const checked = picked.includes(text);
+                return <QuestionOption key={text} text={text} checked={checked} disabled={!checked && full} onToggle={() => toggle(text)} />;
+              })}
+            </fieldset>
+          </details>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+        <p className="m-0 mr-auto min-w-0 flex-1 basis-48 text-note text-muted" aria-live="polite">{pickNote(room, picked.length)}</p>
+        <Button type="button" variant="link" size="sm" className="min-h-11 lg:min-h-10" onClick={onPickPast}>내가 넣었던 문항에서 고르기</Button>
+        <Button type="button" size="sm" className="min-h-11 lg:min-h-10" disabled={picked.length === 0} onClick={() => onPick(picked)}>
+          {picked.length ? `고른 문항 ${picked.length}개 넣기` : "문항을 골라 주세요"}
+        </Button>
+      </div>
+    </section>
   );
 }
