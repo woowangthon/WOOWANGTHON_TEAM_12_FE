@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowsClockwiseIcon, FileTextIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { fetchSource } from "@/lib/api/experience";
 import type { Citation, SourceText } from "@/lib/api/types";
 
@@ -21,11 +21,8 @@ export function SourceFileButton({ sourceId, name, lines }: { sourceId: number; 
       {name}
     </button>
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="grid max-h-[85dvh] grid-rows-[auto_minmax(0,1fr)] gap-3 sm:max-w-2xl">
-        <div className="grid gap-1 pr-8">
-          <DialogTitle className="break-words">{name}</DialogTitle>
-          <DialogDescription>넣을 때 저장한 글자예요. 고칠 수 없고, 파일의 모양은 보이지 않아요.</DialogDescription>
-        </div>
+      <DialogContent aria-describedby={undefined} className="grid max-h-[85dvh] grid-rows-[auto_minmax(0,1fr)] gap-3 sm:max-w-2xl">
+        <DialogTitle className="pr-8 break-words">{name}</DialogTitle>
         {open && <SourceBody sourceId={sourceId} lines={lines} />}
       </DialogContent>
     </Dialog>

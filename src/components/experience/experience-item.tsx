@@ -7,7 +7,7 @@ import { DropdownMenu } from "radix-ui";
 import { cn } from "@/lib/utils";
 import { COMPETENCIES, type Actor, type Experience, type SourceStatus } from "@/lib/api/types";
 import { CitationList } from "./citation-list";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ActorField, CompetencyField, ExperienceContentField } from "./inline-edit";
 import { ExperienceMcpChange } from "./experience-mcp-change";
@@ -65,32 +65,34 @@ export function SourceStatusIcon({ status }: { status: SourceStatus }) {
 const isAiCompetency = (e: Pick<Experience, "competenciesBy" | "sourceStatus">) =>
   e.competenciesBy === undefined ? e.sourceStatus !== "USER_ENTERED" : e.competenciesBy === "AI";
 
+type MetaFields = Pick<Experience, "actor" | "competencies" | "competenciesBy" | "sourceStatus" | "origin">;
+
+/** 예외만 보이는 메타(FE#510) — 수행 주체는 팀 · 알 수 없음일 때만, 출처 상태는 확인 필요일 때만 */
+export const hasQuietMeta = (e: MetaFields) =>
+  e.actor !== "ME" || e.origin?.type === "ANSWER" || e.sourceStatus === "NEEDS_REVIEW" || e.competencies.length > 0;
+
 /** 수행 주체 · 출처 상태 · 역량 — AI 표시는 부가 정보라 맨 뒤. 고칠 수 있는 줄(edit)에선 출처 상태를 빼고 근거 옆 아이콘으로(FE#293) */
-export function ExperienceMeta({ experience: e, edit, noSource }: {
-  experience: Pick<Experience, "actor" | "competencies" | "competenciesBy" | "sourceStatus" | "origin">;
+export function ExperienceMeta({ experience: e, edit, noSource, quiet }: {
+  experience: MetaFields;
   /** 출처 상태를 근거 옆 아이콘(SourceStatusIcon)으로 따로 둘 때 — 꺼내기 답(FE#363) */
   noSource?: boolean;
+  /** 예외만 보인다 — 나 · 원문 확인 · 내가 입력은 감춘다. 꺼내 쓸 경험 카드(FE#510). 고치는 줄(edit)엔 쓰지 않는다 */
+  quiet?: boolean;
   /** 주면 수행 주체 · 역량을 눌러 그 자리에서 고친다 (S-10) */
   edit?: { experience: Experience; onSaved: (experience: Experience) => void };
 }) {
-  const sep = <span className="text-hairline">·</span>;
   const aiMark = isAiCompetency(e) && <AiMark className="ml-1" title="AI 가 붙인 역량 — 해석이에요" />;
-  return (
-    <>
-      {edit ? <ActorField experience={edit.experience} onSaved={edit.onSaved} /> : <span>{ACTOR[e.actor]}</span>}
-      {e.origin?.type === "ANSWER" ? <>{sep}<Link href={`/questions?question=${e.origin.questionId}`} className="min-w-0 break-words underline-offset-3 hover:underline">내가 쓴 지원서 · {e.origin.organization || "지원처 미입력"} · {e.origin.questionText}</Link></>
-        : !edit && !noSource && <>{sep}<SourceStatusMark status={e.sourceStatus} /></>}
-      {edit ? <>{sep}<CompetencyField experience={edit.experience} aiMark={aiMark} onSaved={edit.onSaved} /></> : e.competencies.length > 0 && (
-        <>
-          {sep}
-          <span>
-            {e.competencies.map((c) => COMPETENCIES[c]).join(" · ")}
-            {aiMark}
-          </span>
-        </>
-      )}
-    </>
-  );
+  const parts: React.ReactNode[] = [];
+  if (edit) parts.push(<ActorField key="actor" experience={edit.experience} onSaved={edit.onSaved} />);
+  else if (!quiet || e.actor !== "ME") parts.push(<span key="actor">{ACTOR[e.actor]}</span>);
+  if (e.origin?.type === "ANSWER") parts.push(<Link key="origin" href={`/questions?question=${e.origin.questionId}`} className="min-w-0 break-words underline-offset-3 hover:underline">내가 쓴 지원서 · {e.origin.organization || "지원처 미입력"} · {e.origin.questionText}</Link>);
+  else if (!edit && !noSource && (!quiet || e.sourceStatus === "NEEDS_REVIEW")) parts.push(<SourceStatusMark key="source" status={e.sourceStatus} />);
+  if (edit) parts.push(<CompetencyField key="competency" experience={edit.experience} aiMark={aiMark} onSaved={edit.onSaved} />);
+  else if (e.competencies.length > 0) parts.push(<span key="competency">
+    {e.competencies.map((c) => COMPETENCIES[c]).join(" · ")}
+    {aiMark}
+  </span>);
+  return <>{parts.map((part, i) => <Fragment key={i}>{i > 0 && <span className="text-hairline">·</span>}{part}</Fragment>)}</>;
 }
 
 /** 미리 보기의 속성 목록 — 한 줄에 몰지 않고 칸마다 나눈다. 역량이 AI 해석이면 그 칸에만 적는다 */

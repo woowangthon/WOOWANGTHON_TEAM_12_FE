@@ -675,6 +675,7 @@ test("초안 부탁하기 — 열린 패널에서도 「초안 준비」를 강�
   const ask = page.getByRole("button", { name: /초안 부탁하기|초안 설정 열기/ });
   const wide = page.viewportSize()!.width >= 1280;
   if (wide) await expect(page.getByRole("complementary", { name: "차곡이", exact: true })).toBeVisible(); // 넓은 화면은 패널이 처음부터 열려 있다
+  await page.setViewportSize({ width: page.viewportSize()!.width, height: 560 }); // 카드가 짧아져(FE#510) 낮은 창에서야 스크롤이 생긴다
   await ask.scrollIntoViewIfNeeded();
   await page.evaluate(() => window.scrollBy(0, 120));
   const before = await page.evaluate(() => window.scrollY);

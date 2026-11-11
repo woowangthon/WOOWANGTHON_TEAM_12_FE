@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import type { QuestionDetail, Recommendation } from "@/lib/api/question-types";
 
-/** 활동 카드 하나 — 활동과 그 활동에 묶인 추천(「이 문항에 쓸 만한 줄」) */
+/** 활동 카드 하나 — 활동과 그 활동에 묶인 추천(경험 줄) */
 export type ActivityGroup = { activity: Recommendation["activity"]; recommendations: Recommendation[] };
 
 /** 추천을 activity.id 로 묶는다. 활동 순서는 그 활동의 첫 추천 순서, 줄 순서는 추천 순서(S-84 · question-api.md 「추천」) */

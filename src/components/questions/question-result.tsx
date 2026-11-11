@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Popover } from "radix-ui";
-import { CaretRightIcon, CheckIcon, WarningCircleIcon } from "@phosphor-icons/react";
-import { ExperienceMeta } from "@/components/experience/experience-item";
+import { CaretRightIcon } from "@phosphor-icons/react";
+import { ExperienceMeta, hasQuietMeta } from "@/components/experience/experience-item";
+import { SourceFileButton } from "@/components/experience/source-viewer";
 import { CitationList } from "@/components/experience/citation-list";
 import { McpAnswerLabel, UserEnteredLabel } from "@/components/experience/supplement-list";
 import type { QuestionDetail, Recommendation } from "@/lib/api/question-types";
@@ -43,21 +44,15 @@ export function RecommendationEvidence({ recommendation }: { recommendation: Pic
   })}</div>;
 }
 
-/** 이 문항에서 그 경험에 대한 되묻기에 답했나 — 추천은 문항을 넣을 때 한 번 돌아 답해도 그대로라서(question-api.md · AI#21),
- *  카드에 「답함」을 붙여 답이 다음 문항부터 쓰인다고 알린다(FE#65) */
-const answeredFor = (question: QuestionDetail, experienceId: number) =>
-  question.clarifications.some(c => c.experienceId === experienceId && c.supplementId !== null);
-
-const box = "grid content-start gap-1.5 rounded-sm bg-canvas px-3.5 py-3 text-sm leading-relaxed";
-const boxTitle = "m-0 text-xs font-semibold text-muted";
 const badge = "inline-flex items-center gap-1 rounded-full px-2.5 py-px text-xs font-semibold whitespace-nowrap";
 
 /** 카드에 처음 보이는 줄 수 — 넘으면 「더 보기」(FE#358 기본값) */
 const VISIBLE_LINES = 3;
 
 /** 「꺼내 쓸 경험」(시안 6 apply.html 의 접기 카드)을 활동 카드로 묶는다(S-84 · FE#358).
- *  카드 = 활동 이름 · 기간 + 그 활동 첫 추천의 이유(AI 표시 한 번) + 「이 문항에 쓸 만한 줄」. 사용자는 활동만 체크한다.
- *  줄을 펼치면 근거 · 빠진 것. 요구사항 판정 · 되묻기는 차곡이 패널에 있다.
+ *  카드 = 체크 · 활동 이름 · 기간 + 그 활동 첫 추천의 이유(AI 표시 한 번) + 경험 줄. 사용자는 활동만 체크한다.
+ *  줄을 펼치면 원본 칩 · 역량. 강조점 · 근거 발췌 · 빠진 것은 카드에 두지 않는다 — 부족한 사실은 차곡이 되묻기 한 곳에서만(S-20 · FE#510).
+ *  요구사항 판정 · 되묻기는 차곡이 패널에 있다.
  *  overlapOf — 같은 지원의 다른 문항에도 추천된 활동이면 카드 머리 꼬리표로, 누르면 문항별 강조점을 나란히(S-21 · FE#464 — 따로 있던 패널을 없앴다) */
 export function QuestionResult({ question, overlapOf, onPickQuestion, savingAnswer, requestingDraft, picks, onPick, onRematch }: { question: QuestionDetail; overlapOf?: (activityId: number) => Overlap | undefined; onPickQuestion?: (questionId: number) => void; onPick: (activityId: number, on: boolean) => void; onRematch: Rematch } & Pick<DraftActions, "onOpenOmissions" | "savingAnswer" | "requestingDraft" | "picks">) {
   const picksLocked = savingAnswer || requestingDraft || question.draft?.status === "ANALYZING";
@@ -100,12 +95,11 @@ function ActivityCard({ group, index, question, overlap, onPickQuestion, checked
           <span className="text-note text-muted">{periodText(activity.period)}</span>
           {overlap && <OverlapTag overlap={overlap} questionId={question.id} onPick={onPickQuestion} />}
         </div>
-        {/* 이 카드의 AI 표시는 여기 한 번 — 이유 · 빠진 것이 AI 가 쓴 줄이다. 강조점 상자는 본문을 되풀이해 뺐다(AI#105) */}
-        <p className="m-0 text-note leading-normal text-muted"><AiMark className="mr-1.5" />{first.reason}</p>
+        {/* 이 카드의 AI 표시는 여기 한 번 — 이유가 AI 가 쓴 줄이다. 강조점 상자는 본문을 되풀이해 뺐다(AI#105) */}
+        <Reason text={first.reason} />
       </div>
     </div>
     <div className="grid gap-1.5">
-      <p className={boxTitle}>이 문항에 쓸 만한 줄</p>
       <ul className="m-0 grid list-none divide-y divide-hairline-soft p-0">{lines.map(r => <RecommendationLine key={r.experience.id} recommendation={r} question={question} />)}</ul>
       {hidden > 0 && <button type="button" onClick={() => setShowAll(v => !v)} aria-expanded={showAll}
         className="inline-flex min-h-11 lg:min-h-8 items-center justify-self-start text-sm font-medium text-ink underline-offset-3 hover:underline">
@@ -113,45 +107,62 @@ function ActivityCard({ group, index, question, overlap, onPickQuestion, checked
       </button>}
     </div>
     <Link href={`/experience?activity=${activity.id}&fromQuestion=${question.id}`}
-      className="inline-flex min-h-11 lg:min-h-10 items-center justify-self-start text-sm font-medium text-ink underline-offset-3 hover:underline">타임라인에서 활동 보기 →</Link>
+      className="inline-flex min-h-11 lg:min-h-10 items-center justify-self-start text-sm font-medium text-ink underline-offset-3 hover:underline">내 경험에서 보기 →</Link>
   </li>;
 }
 
-/** 「쓸 만한 줄」 하나 — 펼치면 근거 · 빠진 것. 줄은 넣고 빼지 않는다(S-84) */
+/** 이유 한 줄(AI) — 두 줄을 넘으면 두 줄에서 자르고 「더 보기」로 전체(FE#510 기본값) */
+function Reason({ text }: { text: string }) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const [open, setOpen] = useState(false);
+  const [clamped, setClamped] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || open) return;
+    const measure = () => setClamped(el.scrollHeight > el.clientHeight + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [text, open]);
+  return <div className="grid justify-items-start">
+    <p ref={ref} className={cn("m-0 text-note leading-normal text-muted", !open && "line-clamp-2")}><AiMark className="mr-1.5" />{text}</p>
+    {(clamped || open) && <button type="button" onClick={() => setOpen(v => !v)} aria-expanded={open}
+      className="inline-flex min-h-11 lg:min-h-6 items-center text-note font-medium text-ink underline-offset-3 hover:underline">{open ? "접기" : "더 보기"}</button>}
+  </div>;
+}
+
+/** 근거로 연결된 원본 — 파일 칩만(누르면 원본 창이 그 줄로 연다). 같은 파일은 한 칩 */
+function sourcesOf(r: Recommendation) {
+  const seen = new Map<number, { sourceId: number; name: string; lines: NonNullable<typeof r.experience.citations[number]["location"]> | null }>();
+  for (const ref of r.evidence) {
+    if (ref.type !== "CITATION") continue;
+    const c = r.experience.citations.find(x => x.id === ref.id);
+    if (c && !seen.has(c.sourceId)) seen.set(c.sourceId, { sourceId: c.sourceId, name: c.sourceName, lines: c.location ?? null });
+  }
+  return [...seen.values()];
+}
+
+/** 경험 줄 하나 — 펼치면 원본 칩 · 역량(AI 해석). 줄은 넣고 빼지 않는다(S-84). 펼칠 게 없으면 접는 표시도 없다 */
 function RecommendationLine({ recommendation: r, question }: { recommendation: Recommendation; question: QuestionDetail }) {
-  const answered = answeredFor(question, r.experience.id);
   // 줄 이름은 문항 전체 추천 순번 — 카드가 묶여도 「추천 경험 N」으로 찾는다
   const n = question.recommendations.indexOf(r) + 1;
+  const sources = sourcesOf(r);
+  const expandable = sources.length > 0 || hasQuietMeta(r.experience);
+  const content = <span className="text-sm leading-relaxed font-medium whitespace-pre-wrap text-ink">{r.experience.content}</span>;
   return <li id={`recommendation-${question.id}-${r.experience.id}`} aria-label={`추천 경험 ${n}`} className="scroll-mt-5 lg:scroll-mt-20">
-    <details className="group">
-      <summary className="grid cursor-pointer list-none grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2 gap-y-1.5 px-1 py-2.5 sm:grid-cols-[auto_minmax(0,1fr)_auto] [&::-webkit-details-marker]:hidden">
+    {!expandable ? <div className="px-1 py-2.5 sm:pl-6.5">{content}</div> : <details className="group">
+      <summary className="grid cursor-pointer list-none grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2 px-1 py-2.5 [&::-webkit-details-marker]:hidden">
         <CaretRightIcon aria-hidden="true" className="mt-1 size-3.5 text-muted transition-transform group-open:rotate-90" />
-        <span className="text-sm leading-relaxed font-medium whitespace-pre-wrap text-ink">{r.experience.content}</span>
-        {(r.gaps.length > 0 || answered) && <span className="col-start-2 flex flex-wrap gap-1.5 justify-self-start sm:col-start-auto sm:justify-self-end">
-          {r.gaps.length > 0 && <span className={`${badge} border border-dashed border-review-line bg-review-soft text-review`}>
-            <WarningCircleIcon aria-hidden="true" className="size-3.5" />빠진 것
-          </span>}
-          {answered && <span className={`${badge} bg-primary-soft text-primary`}>
-            <CheckIcon aria-hidden="true" className="size-3.5" />답함
-          </span>}
-        </span>}
+        {content}
       </summary>
-      <div className="grid gap-2.5 px-1 pb-3 sm:pl-6.5">
-        <span className="flex flex-wrap items-center gap-1.5 text-note font-medium text-muted"><ExperienceMeta experience={r.experience} /></span>
-        <section aria-label={`추천 경험 ${n}의 근거`} className="grid gap-1.5">
-          <p className={boxTitle}>추천을 뒷받침하는 기록</p>
-          <RecommendationEvidence recommendation={r} />
-        </section>
-        {r.gaps.length > 0 && <div className={`${box} border border-dashed border-review-line`}>
-          <p className={boxTitle}>빠진 것 — 자료에서 더 확인할 부분</p>
-          <ul className="m-0 list-disc space-y-1 pl-4 text-body">{r.gaps.map((gap, j) => <li key={j}>{gap}</li>)}</ul>
-          {answered && <p className="m-0 flex items-start gap-1.5 text-note text-body">
-            <CheckIcon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-primary" />
-            <span><b className="font-semibold">차곡이 질문에 답했어요</b> — 보완으로 쌓여 다음 문항부터 근거로 써요. 이 추천은 문항을 넣을 때 만든 거라 위 목록은 그대로예요.</span>
-          </p>}
+      <div className="grid gap-2 px-1 pb-3 sm:pl-6.5">
+        {sources.length > 0 && <div aria-label={`추천 경험 ${n}의 원본`} role="group" className="flex flex-wrap gap-x-3 gap-y-1">
+          {sources.map(src => <SourceFileButton key={src.sourceId} sourceId={src.sourceId} name={src.name} lines={src.lines} />)}
         </div>}
+        {hasQuietMeta(r.experience) && <span className="flex flex-wrap items-center gap-1.5 text-note font-medium text-muted"><ExperienceMeta experience={r.experience} quiet /></span>}
       </div>
-    </details>
+    </details>}
   </li>;
 }
 
