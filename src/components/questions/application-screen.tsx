@@ -40,7 +40,8 @@ import { closeRevisionPanel, isRevisionPanelOpen } from "@/components/revisions/
 import { useRestoreListener } from "@/components/revisions/restore-bus";
 import { Toast, useToast } from "@/components/ui/toast";
 import { ExportStatus, useMarkdownExport } from "@/components/export/markdown-export";
-import { ApplicationMenu, DeleteApplicationDialog, DeleteQuestionDialog, EditQuestionTextDialog, QuestionMenu } from "./question-menus";
+import { ApplicationActions, DeleteApplicationDialog, DeleteQuestionButton, DeleteQuestionDialog } from "./question-menus";
+import { QuestionText } from "./question-text";
 
 const STATUS = { ANALYZING: "분석 중", COMPLETED: "완료", FAILED: "실패" } as const;
 const DOT = { ANALYZING: "bg-muted-soft", COMPLETED: "bg-mark", FAILED: "bg-error" } as const;
@@ -196,12 +197,11 @@ export function ApplicationScreen() {
   const working = !composing && !matching.error && (matching.loading || !!open);
   const activeId = composing ? null : open?.application.id ?? null;
   const list = { applications: matching.applications, activeId, onPick: pick, onSave: matching.updateApplication };
-  // 지우기 · 글 고치기(S-89) — 메뉴에서 고르면 창을 연다. 지우면 알림, 지원을 지우면 목록으로
+  // 지우기(S-89) — 휴지통을 누르면 확인 창을 연다. 지우면 알림, 지원을 지우면 목록으로
   const { toast, showToast } = useToast();
   const exporter = useMarkdownExport();
   const [deletingApplication, setDeletingApplication] = useState<{ id: number; name: string; questionCount: number } | null>(null);
   const [deletingQuestion, setDeletingQuestion] = useState<{ id: number; index: number; text: string; hasAnswer: boolean } | null>(null);
-  const [editingQuestion, setEditingQuestion] = useState<{ id: number; index: number; text: string } | null>(null);
   const askDeleteApplication = (a: Application) => setDeletingApplication({ id: a.id, name: a.organization || "지원처 이름 없음", questionCount: a.questions.length });
   // 공고 탭의 「직접 기록하기」(S-93) — 그 줄 글을 자리 표시로 넘기고 자료 쌓기 창(내 경험 화면)을 연다
   const router = useRouter();
@@ -249,7 +249,7 @@ export function ApplicationScreen() {
             <header className="grid min-w-0 gap-1">
               <div className="flex min-w-0 items-start gap-1">
                 <div className="min-w-0 flex-1"><OrganizationName key={`name-${open.application.id}`} application={open.application} onSave={req => matching.updateApplication(open.application.id, req)} /></div>
-                <ApplicationMenu label={open.application.organization || "지원처 이름 없음"} onDelete={() => askDeleteApplication(open.application)}
+                <ApplicationActions label={open.application.organization || "지원처 이름 없음"} onDelete={() => askDeleteApplication(open.application)}
                   onExport={exporter.busy ? undefined : () => void exporter.run({ scope: "application", id: open.application.id })} />
               </div>
               <div className="flex flex-wrap items-center gap-x-2 text-note text-muted tabular-nums">
@@ -281,8 +281,13 @@ export function ApplicationScreen() {
                 overlaps={overlaps} onPickOverlap={id => { matching.selectQuestion(id); scrollToDetail(); }} onRetry={id => matching.retry(id)} onTypeChange={(id, type) => matching.updateQuestionType(id, type)} onTargetLengthChange={(id, length) => matching.updateTargetLength(id, length)} onAnswerChange={matching.keepAnswer} onAnswerDraftChange={matching.keepAnswerDraft} groundingChecks={groundingChecks}
                 {...draftActions} onPick={picks.toggle} onOpenOmissions={openDraftQuestions} onNewFacts={openNewFacts}
                 onAnswerClarification={(clarificationId, answer) => selected ? matching.answer(selected.id, clarificationId, answer) : Promise.resolve()}
-                menu={summary && <QuestionMenu index={selectedIndex} last={open.application.questions.length === 1}
-                  onEdit={() => setEditingQuestion({ id: summary.id, index: selectedIndex, text: summary.text })}
+                onTextChange={async (id, text) => {
+                  await matching.updateQuestionText(id, text);
+                  // 서버가 근거 점검을 지웠다 — 「모름」이 아니라 「없음」으로 둬서 다음 고치기에 괜히 묻지 않는다
+                  groundingChecks.keep(id, null);
+                  showToast("문항 글을 바꿨어요. 추천을 다시 받고 있어요.");
+                }}
+                menu={summary && <DeleteQuestionButton index={selectedIndex} last={open.application.questions.length === 1}
                   onDelete={() => setDeletingQuestion({ id: summary.id, index: selectedIndex, text: summary.text, hasAnswer: selected ? !!selected.answer : true })}
                   onDeleteApplication={() => askDeleteApplication(open.application)} />} />}
             </div>
@@ -302,7 +307,7 @@ export function ApplicationScreen() {
     </div>
     <DeleteApplicationDialog target={deletingApplication} onClose={() => setDeletingApplication(null)} onDelete={async id => {
       await matching.deleteApplication(id);
-      setDeletingApplication(null); setDeletingQuestion(null); setEditingQuestion(null); setAdding(false);
+      setDeletingApplication(null); setDeletingQuestion(null); setAdding(false);
       showToast("지원을 지웠어요.");
       showList();
     }} />
@@ -310,12 +315,6 @@ export function ApplicationScreen() {
       await matching.deleteQuestion(id);
       setDeletingQuestion(null);
       showToast("문항을 지웠어요.");
-    }} />
-    <EditQuestionTextDialog target={editingQuestion} onClose={() => setEditingQuestion(null)} onSave={async (id, text) => {
-      await matching.updateQuestionText(id, text);
-      groundingChecks.forget(id);
-      setEditingQuestion(null);
-      showToast("문항 글을 바꿨어요. 추천을 다시 받고 있어요.");
     }} />
     <Toast toast={toast} />
   </div></ActivityCategoriesProvider>;
@@ -414,9 +413,11 @@ function useTargetLengthPrefill(question: QuestionSummary | null, save: (id: num
 }
 
 /** 고른 문항 — 받아 둔 내용이 있으면 바로, 처음 보는 문항이면 받는 동안 자리만(FE#60). 문항 글 · 상태는 지원 목록에 이미 있다 */
-function SelectedQuestion({ summary, question, application, index, loadError, onReload, overlaps, onPickOverlap, onRetry, onTypeChange, onTargetLengthChange, onAnswerChange, onAnswerDraftChange, onAnswerClarification, groundingChecks, onOpenOmissions, onNewFacts, onRefresh, savingAnswer, requestingDraft, picks, onPick, menu }: {
-  /** 문항 메뉴(글 고치기 · 지우기 — S-89) */
+function SelectedQuestion({ summary, question, application, index, loadError, onReload, overlaps, onPickOverlap, onRetry, onTypeChange, onTargetLengthChange, onAnswerChange, onAnswerDraftChange, onAnswerClarification, groundingChecks, onOpenOmissions, onNewFacts, onRefresh, savingAnswer, requestingDraft, picks, onPick, onTextChange, menu }: {
+  /** 문항 지우기 휴지통(S-89) */
   menu?: ReactNode;
+  /** 문항 글 그 자리 고치기(S-89) — 실패는 던진다 */
+  onTextChange: (id: number, text: string) => Promise<void>;
   summary: QuestionSummary | null; question: QuestionDetail | null; application: Application; index: number; loadError: string | null; onReload: (id: number) => void;
   overlaps: Overlap[]; onPickOverlap: (questionId: number) => void; onRetry: (id: number) => Promise<unknown>; onTypeChange: (id: number, type: QuestionType) => Promise<void>; onTargetLengthChange: (id: number, targetLength: number | null) => Promise<void>; onAnswerChange: (id: number, answer: Answer | null) => void; onAnswerDraftChange: (id: number, draft: AnswerDraft | null) => void; groundingChecks: GroundingChecks; onPick: (experienceId: number, on: boolean) => void; onAnswerClarification: AnswerHandler; onNewFacts: (find: boolean) => void;
 } & DraftActions) {
@@ -427,15 +428,16 @@ function SelectedQuestion({ summary, question, application, index, loadError, on
   const exhausted = useAnalysisExhausted(1, retrying);
   useTargetLengthPrefill(question ?? summary, onTargetLengthChange);
   if (!summary) return null;
-  const status = question?.status ?? summary.status;
+  // 저장하면 지워지는 것(초안 · 근거 점검)이나 다 쓴 답이 있나 — 아직 모르면(받는 중) 있다고 보고 묻는다
+  const needsConfirm = () => !question || !!question.draft || !!question.answer || !groundingChecks.has(summary.id) || groundingChecks.get(summary.id) !== null;
   return <section id="question-panel" role="tabpanel" aria-label="선택한 문항" className="min-w-0">
     <header className="mb-5">
-      <div className="flex flex-wrap items-center gap-x-2">
-        <p className="m-0 text-note font-medium text-muted">문항 {index + 1} · {STATUS[status]}</p>
+      {/* 유형 칩 줄 — 칩 혼자, 오른쪽 끝 휴지통. 「문항 N · 상태」는 탭이 보여 준다(ETC#346 · DESIGN.md 「지원 화면」) */}
+      <div className="flex items-center gap-x-2">
         <QuestionTypeField question={question ?? summary} onSave={type => onTypeChange(summary.id, type)} />
         {menu && <div className="ml-auto">{menu}</div>}
       </div>
-      <h3 className="m-0 max-h-36 overflow-y-auto whitespace-pre-wrap text-xl leading-relaxed font-[650] tracking-[-0.3px]">{summary.text}</h3>
+      <QuestionText key={summary.id} id={summary.id} index={index} text={summary.text} needsConfirm={needsConfirm} onSave={text => onTextChange(summary.id, text)} />
       {question && <SimilarAnswers question={question} application={application} />}
     </header>
     <AnswerInput key={`answer-${summary.id}`} questionId={summary.id} question={question} loadFailed={!!loadError} onAnswerChange={onAnswerChange} onAnswerDraftChange={onAnswerDraftChange} checks={groundingChecks} onAskDraft={onOpenOmissions} onNewFacts={onNewFacts}

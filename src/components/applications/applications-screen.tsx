@@ -17,7 +17,7 @@ import { groupApplications, type GroupBy } from "@/lib/application-groups";
 import { cn } from "@/lib/utils";
 import { deleteApplication } from "@/lib/api/questions";
 import { Toast, useToast } from "@/components/ui/toast";
-import { ApplicationMenu, DeleteApplicationDialog } from "@/components/questions/question-menus";
+import { ApplicationActions, DeleteApplicationDialog } from "@/components/questions/question-menus";
 
 const GROUP_BY: [GroupBy, string][] = [["period", "시기별"], ["type", "종류별"]];
 const statusTag = "inline-flex h-6 shrink-0 items-center rounded-full bg-surface-soft px-2.5 text-xs font-medium whitespace-nowrap text-body";
@@ -121,7 +121,7 @@ function ApplicationRow({ application: a, by, onDelete }: { application: Applica
           {a.questions.length > 1 && <span className="shrink-0 pl-1.5 text-muted">외 {a.questions.length - 1}</span>}
         </span>}
       </Link>
-      <ApplicationMenu label={name} onDelete={onDelete} className="-mr-2" />
+      <ApplicationActions label={name} onDelete={onDelete} className="-mr-2" />
     </li>
   );
 }
