@@ -159,7 +159,7 @@ test("pending deletion survives closing detail; multiple undo windows are indepe
   await remove(page, "Original 2");
   await expect(page.getByRole("status")).toHaveCount(2);
   await page.getByRole("status").first().getByRole("button", { name: "되돌리기" }).click();
-  await page.getByRole("button", { name: page.viewportSize()!.width < 1024 ? "타임라인" : "세부 닫기", exact: true }).click();
+  await page.getByRole("button", { name: page.viewportSize()!.width < 1024 ? "내 경험" : "세부 닫기", exact: true }).click();
   await page.getByRole("button", { name: "삭제 알림 닫기" }).click();
   await expect(page.getByRole("status")).toHaveCount(0);
   expect(state.deletes).toEqual([102]);

@@ -57,7 +57,7 @@ async function open(page: Page, name: string) {
   await expect(noteRegion(page)).toBeVisible();
 }
 async function close(page: Page) {
-  await page.getByRole("button", { name: page.viewportSize()!.width < 1024 ? "타임라인" : "세부 닫기", exact: true }).click();
+  await page.getByRole("button", { name: page.viewportSize()!.width < 1024 ? "내 경험" : "세부 닫기", exact: true }).click();
 }
 async function edit(page: Page) {
   await noteRegion(page).getByRole("button", { name: "고치기", exact: true }).click();

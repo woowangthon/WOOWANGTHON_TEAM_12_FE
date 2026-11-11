@@ -41,7 +41,7 @@ test("활동을 열어도 목록이 맨 위로 튀지 않는다(PC) · 좁은 �
     expect(await scrollPos(page)).toBeGreaterThan(0);
     await expect(target).toBeInViewport();
   } else {
-    await page.getByRole("button", { name: /타임라인/ }).first().click();
+    await page.getByRole("button", { name: "내 경험", exact: true }).click(); // 모바일 돌아가기(FE#518)
     await expect.poll(() => scrollPos(page)).toBe(before);
   }
 });
@@ -61,4 +61,27 @@ test("PC 에서 목록을 끝까지 내려도 활동 세부가 화면에 보인�
   // 아래쪽 활동을 눌러도 세부가 바로 보인다
   await page.getByRole("button", { name: /^활동 1 / }).getByText("활동 1", { exact: true }).click();
   await expect(detail.getByText("활동 1 에서 한 일")).toBeInViewport();
+});
+
+// FE#518 — 좁은 화면 활동 세부의 돌아가기는 「내 경험」. 타임라인에서 열었으면 타임라인으로, 서랍에서 열었으면 서랍으로 돌아간다
+test("좁은 화면 돌아가기는 「내 경험」 — 타임라인 · 서랍 어느 뷰에서 열었든 그 뷰로 돌아간다(FE#518)", async ({ page }) => {
+  test.skip(page.viewportSize()!.width >= 1024, "넓은 화면은 세부가 옆에 열린다");
+  await setup(page);
+  const back = page.getByRole("button", { name: "내 경험", exact: true });
+  const view = (name: string) => page.getByRole("button", { name, exact: true });
+
+  await page.getByRole("button", { name: /활동 50/ }).first().click();
+  await expect(page.getByRole("complementary", { name: "활동 세부" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "타임라인", exact: true })).toHaveCount(0); // 예전 문구는 없다
+  await back.click();
+  await expect(view("타임라인")).toHaveAttribute("aria-pressed", "true");
+
+  await view("서랍").click();
+  const drawer = page.locator('section[aria-labelledby="activity-drawer"]');
+  await expect(drawer).toBeVisible();
+  await drawer.getByRole("button").filter({ hasText: "활동 2" }).first().click();
+  await expect(page.getByRole("complementary", { name: "활동 세부" })).toBeVisible();
+  await back.click();
+  await expect(view("서랍")).toHaveAttribute("aria-pressed", "true");
+  await expect(drawer).toBeVisible();
 });

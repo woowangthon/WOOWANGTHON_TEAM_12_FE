@@ -549,3 +549,30 @@ test("results and the preview start from the top again when the search or the pi
   await expect(preview).toContainText("시험 경험 2");
   await expect.poll(() => top(preview)).toBe(0);
 });
+
+// FE#518 — 세 탭을 오가도 창 · 입력 줄 · 탭 줄이 1px 도 움직이지 않는다(1440 · 1024). 탭마다 같은 자리를 찍어 겹쳐 볼 수 있게 남긴다
+test("switching tabs keeps the window, input row and tab row exactly in place at 1440 and 1024 (FE#518)", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop");
+  await setup(page);
+  for (const width of [1440, 1024]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.goto("/guidelines");
+    await openByButton(page);
+    await expect(rows(page)).toHaveCount(2);
+    const tabs = dialog(page).getByRole("group", { name: "빠른 찾기 탭", exact: true });
+    // 입력 줄(칸을 감싼 줄 전체) · 탭 줄 · 창은 상자 그대로, 입력칸은 자리와 높이만 — 「차곡이에게」는 같은 줄 안에 보내기 버튼이 붙어 칸 폭만 준다
+    const measure = async () => {
+      const [win, row, tabRow, input] = await Promise.all([dialog(page), box(page).locator(".."), tabs, box(page)].map(l => l.boundingBox()));
+      return { win, row, tabRow, input: input && { x: input.x, y: input.y, height: input.height } };
+    };
+    const first = await measure();
+    for (const name of ["차곡이에게", "바로가기", "찾기"]) {
+      await tabs.getByRole("button", { name, exact: true }).click();
+      await expect(tabs.getByRole("button", { name, exact: true })).toHaveAttribute("aria-pressed", "true");
+      expect(await measure(), `${width} · ${name}`).toEqual(first);
+      await page.screenshot({ path: info.outputPath(`quick-find-${width}-${name}.png`), clip: first.win!, style: "nextjs-portal { display: none !important; }" });
+    }
+    await page.keyboard.press("Escape");
+    await expect(dialog(page)).toHaveCount(0);
+  }
+});

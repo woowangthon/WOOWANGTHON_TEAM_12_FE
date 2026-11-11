@@ -105,6 +105,6 @@ test("저장 실패 — 원래 분류로 두고 오류 · 다시 시도", async 
   await page.getByLabel("활동 세부").getByRole("button", { name: "다시 시도" }).click();
   await expect(field(page)).toHaveText("공부 · 성장");
   await expect(page.getByRole("alert").filter({ hasText: "분류를 저장하지 못했어요." })).toHaveCount(0);
-  if (page.viewportSize()!.width < 1024) await page.getByLabel("활동 세부").getByRole("button", { name: "타임라인" }).click(); // 모바일 세부는 전체 화면
+  if (page.viewportSize()!.width < 1024) await page.getByLabel("활동 세부").getByRole("button", { name: "내 경험", exact: true }).click(); // 모바일 세부는 전체 화면
   await expect(row(page, "바꿔요 앱")).toContainText("공부 · 성장");
 });

@@ -127,17 +127,17 @@ export function QuickFindPanel({ asked, addSourceBusy, initial, onGo }: { asked:
       <input ref={input} type="text" value={word} onChange={e => type(e.target.value)} onKeyDown={onKeyDown} placeholder={PLACEHOLDER[tab]} aria-label="빠른 찾기 입력"
         autoComplete="off" role={hasList ? "combobox" : undefined} aria-expanded={hasList ? count > 0 : undefined} aria-controls={hasList ? LIST_ID : undefined}
         aria-autocomplete={hasList ? "list" : undefined} aria-activedescendant={hasList && count ? optionId(current) : undefined}
-        className="min-h-11 min-w-0 flex-1 bg-transparent lg:h-5.5 lg:min-h-0 text-title-md text-ellipsis text-ink outline-none placeholder:text-muted" />
+        className="min-h-11 min-w-0 flex-1 bg-transparent lg:h-8 lg:min-h-0 text-title-md text-ellipsis text-ink outline-none placeholder:text-muted" />
       {tab === "ask" && <AnalysisCost className="shrink-0" />}
       {tab === "ask" && <Button type="button" size="icon" className="size-11 shrink-0 lg:size-8" aria-label="보내기" title="분석 1회" aria-describedby={exhausted ? "quick-find-exhausted" : undefined} disabled={!query || asked.asking || exhausted} onClick={send}><ArrowUpIcon aria-hidden="true" /></Button>}
     </div>
-    <div role="group" aria-label="빠른 찾기 탭" className={cn("flex gap-1.5 px-3.5 lg:px-4.5", tab === "find" ? "pb-1.5" : "border-b border-hairline-soft pb-2.5")}>
+    {/* 입력 줄은 탭과 상관없이 32px(입력칸 = 「차곡이에게」 보내기 버튼 높이), 탭 줄은 여백 · 테두리가 늘 같다 — 탭을 오가도 위쪽이 움직이지 않는다(FE#518) */}
+    <div role="group" aria-label="빠른 찾기 탭" className="flex gap-1.5 border-b border-hairline-soft px-3.5 pb-2.5 lg:px-4.5">
       {TABS.map(t => <button key={t.value} type="button" aria-pressed={tab === t.value} onClick={() => moveTo(t.value)}
         className={cn("inline-flex min-h-11 items-center gap-1.5 rounded-full px-3.5 text-note lg:min-h-8", tab === t.value ? "bg-surface-soft font-bold text-ink" : "text-muted hover:bg-surface-soft")}>
         {t.value === "ask" && <Mascot size={16} />}{t.label}
       </button>)}
     </div>
-    {tab === "find" && <ExperienceFilterBar value={filters} onChange={changeFilters} years={years} onDone={backToInput} className="border-b border-hairline-soft px-3.5 py-2.5 lg:px-4.5" />}
 
     {tab === "ask" ? <div className="min-h-0 flex-1 overflow-y-auto p-4 [&>section]:mt-0">
       {!asked.asking && !asked.answer && !asked.failure && <div className="flex items-start gap-3 px-1 text-sm leading-relaxed">
@@ -160,7 +160,10 @@ export function QuickFindPanel({ asked, addSourceBusy, initial, onGo }: { asked:
           </span>
         </Option>)}
       </OptionList>
-    </div> : <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+    </div> : <div className="flex min-h-0 flex-1 flex-col">
+      {/* 「찾기」의 거르기 줄은 탭 줄 아래 내용 영역 안 — 결과 · 미리 보기만 스크롤한다(FE#518) */}
+      <ExperienceFilterBar value={filters} onChange={changeFilters} years={years} onDone={backToInput} className="border-b border-hairline-soft px-3.5 py-2.5 lg:px-4.5" />
+      <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
       <div ref={resultList} className="min-h-0 overflow-y-auto p-2.5" aria-busy={refreshing}>
         {/* 결과 줄 자리 — 분류 점 · 두 줄 글 · 활동 이름(FE#402) */}
         {(state.status === "loading" || (refreshing && found.length === 0)) && <div role="status" className="grid gap-1 p-1"><span className="sr-only">경험을 찾고 있어요…</span>
@@ -192,6 +195,7 @@ export function QuickFindPanel({ asked, addSourceBusy, initial, onGo }: { asked:
       {/* 좁은 화면엔 자리가 없다 — 고르면 활동 세부에서 같은 내용을 본다 */}
       <div ref={previewBox} data-slot="quick-find-preview" className={cn("hidden min-h-0 flex-col items-start gap-2 overflow-y-auto border-l border-hairline-soft p-5.5 transition-opacity duration-150 lg:flex", refreshing && "opacity-50")}>
         {preview && <Preview experience={preview} />}
+      </div>
       </div>
     </div>}
 
