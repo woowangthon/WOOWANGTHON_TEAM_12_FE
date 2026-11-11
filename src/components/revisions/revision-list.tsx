@@ -5,6 +5,8 @@
 // 맨 처음 값(첫 수정 전)은 항목 이력 맨 아래 「처음 값」 줄, 지금 값과 같은 줄에는 버튼을 두지 않는다.
 // 「최근 수정」(헤더 — 전체)과 「수정 이력」(경험 · 활동 메뉴, 답칸 줄 — 그 항목만)이 같이 쓴다.
 // 줄은 세로선 타임라인에 접어 두고 한 줄 요약만 보인다 — 펼치면 바뀐 부분만 강조한 글 · 짧은 값 · 되돌리기(FE#413)
+// 「최근 수정」에는 외부 AI 변경 기록(mcp-api)도 시간순으로 섞는다 — 맞아요 · 되돌리기는 그 줄에서. 같은 변경(mcpChangeId)의
+// 수정 이력 줄은 변경 기록 줄 하나로 보인다(S-54 · S-80 · FE#517 — 계약은 그대로, FE 가 합친다)
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
@@ -14,9 +16,9 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { useSidebar } from "@/components/sidebar-layout";
-import { timestamp } from "@/components/connections/mcp-changes";
+import { McpChangeCard, needsConfirm, STATUS, timestamp, VERB } from "@/components/connections/mcp-changes";
 import { ApiError } from "@/lib/api/errors";
-import { mcpClientName } from "@/lib/api/mcp";
+import { fetchMcpChanges, mcpClientName, type McpChange } from "@/lib/api/mcp";
 import { fetchRevisions, restoreRevision, type RestoreResult, type RestoreTo, type Revision, type RevisionTarget, type RevisionTargetType } from "@/lib/api/revisions";
 import { COMPETENCIES, type Actor, type SourceStatus } from "@/lib/api/types";
 import { periodText } from "@/lib/period";
@@ -247,7 +249,66 @@ function OriginRow({ oldest: r, current, beforeRestore, onRestored }: {
   </li>;
 }
 
+/** 외부 AI 변경 한 줄 — 머리는 수정 이력 줄과 같은 모양(누가 · 무엇을 · 대상 · 상태 · 언제), 펼치면 변경 카드(맞아요 · 되돌리기) */
+function ChangeRow({ change: c, last, outcome, onChange, onStale, onNavigate }: {
+  change: McpChange; last: boolean; outcome?: string;
+  onChange: (change: McpChange, outcome: string) => void; onStale: () => void; onNavigate?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const who = mcpClientName(c.client);
+  const subject = c.experience?.activityName ?? c.source?.name ?? c.supplement?.activityName
+    ?? (c.application ? c.application.organization || "지원처 미입력" : null);
+  const waiting = needsConfirm(c);
+  return <li className="relative grid grid-cols-[2rem_minmax(0,1fr)] gap-x-2 pb-2">
+    {!last && <span aria-hidden="true" className="absolute top-10 bottom-0 left-4 w-px -translate-x-1/2 bg-hairline" />}
+    <span aria-hidden="true" title={who} className="mt-1.5 flex size-8 items-center justify-center rounded-full bg-review-soft text-review"><RobotIcon className="size-4" /></span>
+    <div className="min-w-0">
+      <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)}
+        className={cn("flex min-h-11 w-full min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-left hover:bg-surface-soft focus-visible:outline-2 focus-visible:outline-ink", open && "bg-surface-soft")}>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-ink">{who} 가 {VERB[c.type]}</span>
+          <span className="mt-0.5 flex min-w-0 flex-wrap gap-x-1.5 text-note text-muted">
+            {subject && <><span className="min-w-0 truncate">{subject}</span><span aria-hidden="true">·</span></>}
+            <span>{STATUS[c.status]}</span>
+            <span aria-hidden="true">·</span>
+            <time dateTime={c.createdAt}>{timestamp(c.createdAt)}</time>
+          </span>
+        </span>
+        {waiting && <span className="shrink-0 rounded-full bg-review-soft px-2 py-0.5 text-xs text-review">확인 필요</span>}
+        <CaretDownIcon aria-hidden="true" className={cn("size-4 shrink-0 text-muted transition-transform", !open && "-rotate-90")} />
+      </button>
+      {/* 카드 안 링크(활동 · 지원으로 가기)를 누르면 패널을 닫는다 */}
+      {open && <div className="mt-2 grid gap-2 rounded-sm border border-hairline-soft p-3"
+        onClickCapture={event => { if (event.target instanceof Element && event.target.closest("a")) onNavigate?.(); }}>
+        <div><McpChangeCard change={c} head={false} onChange={onChange} onStale={onStale} /></div>
+        {outcome && <p role="status" className="m-0 text-sm leading-relaxed text-body">{outcome}</p>}
+      </div>}
+    </div>
+  </li>;
+}
+
+type ChangeState = { status: "loading" } | { status: "error" } | { status: "ready"; changes: McpChange[] };
+
 type ListState = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; revisions: Revision[]; nextCursor: string | null };
+
+/** 수정 이력과 외부 AI 변경을 시간순으로 섞는다. 같은 변경(mcpChangeId)의 수정 이력 줄은 뺀다 — 맞아요 · 되돌리기가 있는 변경 줄이 남는다.
+ *  수정 이력은 커서로 넘기니, 더 불러올 것이 있으면 받은 이력의 가장 오래된 때보다 새 변경만 보인다(「더 보기」로 이어진다) */
+function MergedRows({ revisions, nextCursor, changes, renderRevision, renderChange }: {
+  revisions: Revision[]; nextCursor: string | null; changes: McpChange[];
+  renderRevision: (r: Revision, last: boolean) => ReactNode; renderChange: (c: McpChange, last: boolean) => ReactNode;
+}) {
+  const ids = new Set(changes.map(c => c.id));
+  const floor = nextCursor && revisions.length ? Date.parse(revisions[revisions.length - 1].createdAt) : -Infinity;
+  const rows = [
+    ...revisions.filter(r => r.mcpChangeId == null || !ids.has(r.mcpChangeId)).map(r => ({ at: Date.parse(r.createdAt), revision: r })),
+    ...changes.filter(c => Date.parse(c.createdAt) >= floor).map(c => ({ at: Date.parse(c.createdAt), change: c })),
+  ].sort((a, b) => b.at - a.at);
+  if (!rows.length) return <p className="m-0 py-4 text-sm text-body">{nextCursor ? "이 구간엔 보일 기록이 없어요. 「더 보기」로 이어서 보세요." : "아직 고친 기록이 없어요. 경험 · 활동 · 답을 고치거나 외부 AI 가 바꾸면 여기에 모여요."}</p>;
+  return <ul className="m-0 list-none p-0 pt-2">{rows.map((row, i) => {
+    const last = i === rows.length - 1;
+    return "change" in row ? renderChange(row.change, last) : renderRevision(row.revision, last);
+  })}</ul>;
+}
 
 /** 이력 목록 — target 이 없으면 전체(최근 수정), activityId 면 그 활동과 지금 속한 경험(FE#467). 「더 보기」로 넘긴다 */
 export function RevisionList({ target, activityId, current, beforeRestore, onRestored, onNavigate }: {
@@ -266,13 +327,30 @@ export function RevisionList({ target, activityId, current, beforeRestore, onRes
   const [more, setMore] = useState<"idle" | "busy" | "error">("idle");
   const [outcome, setOutcome] = useState<ReactNode>(null);
   const type = target?.type, id = target?.id;
+  // 「최근 수정」(전체) — 외부 AI 변경 기록을 같이 받는다
+  const recent = !target && activityId == null;
+  const [changes, setChanges] = useState<ChangeState>({ status: "loading" });
+  const [changeOutcomes, setChangeOutcomes] = useState<Record<number, string>>({});
 
   const load = useCallback(() => fetchRevisions(type && id != null ? { type, id } : null, null, activityId).then(
     page => setState({ status: "ready", ...page }),
-    (e: unknown) => setState({ status: "error", message: e instanceof ApiError && e.code === "API_NOT_CONFIGURED" ? "목 모드에는 수정 이력이 없어요. 서버에 저장한 것만 기록돼요."
-      : e instanceof ApiError && e.code !== "INVALID_RESPONSE" ? e.message : "수정 이력을 불러오지 못했어요." }),
-  ), [type, id, activityId]);
-  useEffect(() => { void load(); }, [load]);
+    (e: unknown) => setState(recent && e instanceof ApiError && e.code === "API_NOT_CONFIGURED"
+      // 목 모드 — 수정 이력은 없지만 외부 AI 변경 기록(목)은 보인다
+      ? { status: "ready", revisions: [], nextCursor: null }
+      : { status: "error", message: e instanceof ApiError && e.code === "API_NOT_CONFIGURED" ? "목 모드에는 수정 이력이 없어요. 서버에 저장한 것만 기록돼요."
+        : e instanceof ApiError && e.code !== "INVALID_RESPONSE" ? e.message : "수정 이력을 불러오지 못했어요." }),
+  ), [type, id, activityId, recent]);
+  // 변경 기록은 커서가 없다 — 최근 100건을 한 번에 받는다(mcp-api.md). 외부 AI 쓰기는 하루 상한이 있어 많지 않다
+  const loadChanges = useCallback(() => recent ? fetchMcpChanges().then(
+    list => setChanges({ status: "ready", changes: list }),
+    () => setChanges({ status: "error" }),
+  ) : Promise.resolve(), [recent]);
+  useEffect(() => { void load(); void loadChanges(); }, [load, loadChanges]);
+
+  function decided(next: McpChange, text: string) {
+    setChanges(s => s.status === "ready" ? { status: "ready", changes: s.changes.map(c => c.id === next.id ? next : c) } : s);
+    setChangeOutcomes(all => ({ ...all, [next.id]: text }));
+  }
 
   async function loadMore() {
     if (state.status !== "ready" || !state.nextCursor) return;
@@ -295,9 +373,11 @@ export function RevisionList({ target, activityId, current, beforeRestore, onRes
       : result.revision.targetType === "ANSWER" ? "되돌렸어요. 답칸에 그때 글을 넣었어요 — 「다 썼어요」를 눌러야 확정돼요." : "되돌렸어요.");
     setMore("idle");
     void load();
+    // 경험을 되돌리면 그 경험의 외부 AI 변경은 더 되돌릴 수 없게 된다(CHANGED_AFTER)
+    void loadChanges();
   }
 
-  if (state.status === "loading") return <p role="status" className="m-0 py-4 text-sm text-muted">수정 이력을 불러오고 있어요…</p>;
+  if (state.status === "loading" || (recent && changes.status === "loading")) return <p role="status" className="m-0 py-4 text-sm text-muted">수정 이력을 불러오고 있어요…</p>;
   if (state.status === "error") return <div role="alert" className="grid justify-items-start gap-3 py-4">
     <p className="m-0 text-sm text-error">{state.message}</p>
     <Button size="sm" className="min-h-11 lg:min-h-9" onClick={() => { setState({ status: "loading" }); void load(); }}><ArrowsClockwiseIcon />다시 시도</Button>
@@ -317,16 +397,28 @@ export function RevisionList({ target, activityId, current, beforeRestore, onRes
   // 「처음 값」 줄 — 끝까지 불러온 항목 이력에만. 빈 글이면 두지 않는다(답칸을 비우는 되돌리기는 없다)
   const oldest = target && !state.nextCursor ? state.revisions.at(-1) : undefined;
   const origin = oldest && !oldest.target.deleted && (oldest.before[TEXT_KEY[oldest.targetType]] ?? "") !== "" ? oldest : undefined;
+  const moreButton = state.nextCursor && <div className="grid justify-items-start gap-2 pt-2">
+    {more === "error" && <p role="alert" className="m-0 text-sm text-error">더 불러오지 못했어요.</p>}
+    <Button variant="secondary" size="sm" className="min-h-11 lg:min-h-9" disabled={more === "busy"} onClick={() => void loadMore()}>{more === "busy" ? "불러오는 중…" : more === "error" ? "다시 시도" : "더 보기"}</Button>
+  </div>;
+  if (recent) return <div className="min-w-0">
+    {outcome && <p role="status" className="m-0 mb-1 rounded-sm bg-surface-soft px-3 py-2 text-sm text-body">{outcome}</p>}
+    {changes.status === "error" && <div role="alert" className="flex flex-wrap items-center gap-2 py-2">
+      <p className="m-0 text-sm text-error">외부 AI 변경을 불러오지 못했어요.</p>
+      <Button size="sm" variant="secondary" className="min-h-11 lg:min-h-9" onClick={() => { setChanges({ status: "loading" }); void loadChanges(); }}>다시 시도</Button>
+    </div>}
+    <MergedRows revisions={state.revisions} nextCursor={state.nextCursor} changes={changes.status === "ready" ? changes.changes : []}
+      renderRevision={(r, last) => <Row key={`r${r.id}`} revision={r} all current={false} badge={false} last={last} defaultOpen={false} beforeRestore={before} onRestored={restored} onNavigate={onNavigate} />}
+      renderChange={(c, last) => <ChangeRow key={`c${c.id}`} change={c} last={last} outcome={changeOutcomes[c.id]} onChange={decided} onStale={() => void loadChanges()} onNavigate={onNavigate} />} />
+    {moreButton}
+  </div>;
   return <div className="min-w-0">
     {outcome && <p role="status" className="m-0 mb-1 rounded-sm bg-surface-soft px-3 py-2 text-sm text-body">{outcome}</p>}
     {state.revisions.length === 0
-      ? <p className="m-0 py-4 text-sm text-body">{target || activityId != null ? "아직 고친 기록이 없어요. 고치면 바뀌기 전 값이 여기에 남아요." : "아직 고친 기록이 없어요. 경험 · 활동 · 답을 고치면 여기에 모여요."}</p>
+      ? <p className="m-0 py-4 text-sm text-body">{target || activityId != null ? "아직 고친 기록이 없어요. 고치면 바뀌기 전 값이 여기에 남아요." : "아직 고친 기록이 없어요."}</p>
       : <ul className="m-0 list-none p-0 pt-2">{state.revisions.map((r, i) => <Row key={r.id} revision={r} all={!target} linkable={!target && activityId == null} origin={isOrigin(r)} current={isNow(r.after, r.targetType, r)} badge={activityId != null ? latest(r) === r && isNow(r.after, r.targetType, r) : i === nowIndex} last={i === state.revisions.length - 1 && !origin} defaultOpen={!!target && i === 0} beforeRestore={before} onRestored={restored} onNavigate={onNavigate} />)}
         {origin && <OriginRow oldest={origin} current={isNow(origin.before, origin.targetType)} beforeRestore={before} onRestored={restored} />}</ul>}
-    {state.nextCursor && <div className="grid justify-items-start gap-2 pt-2">
-      {more === "error" && <p role="alert" className="m-0 text-sm text-error">더 불러오지 못했어요.</p>}
-      <Button variant="secondary" size="sm" className="min-h-11 lg:min-h-9" disabled={more === "busy"} onClick={() => void loadMore()}>{more === "busy" ? "불러오는 중…" : more === "error" ? "다시 시도" : "더 보기"}</Button>
-    </div>}
+    {moreButton}
   </div>;
 }
 
@@ -334,6 +426,7 @@ export function RevisionList({ target, activityId, current, beforeRestore, onRes
  *  「모두 저장됨」이라고 단정하지 않는다. 좁은 화면은 아이콘만. 다시 누르면 닫는다 */
 export function RecentRevisionsButton({ compact = false }: { compact?: boolean }) {
   const [open, setOpen] = useState(false);
+  useEffect(() => { const listener = () => setOpen(true); openListeners.add(listener); return () => { openListeners.delete(listener); }; }, []);
   return <>
     <button type="button" data-slot="recent-revisions" onClick={() => setOpen(o => !o)} aria-haspopup="dialog" aria-expanded={open} aria-label={compact ? "최근 수정" : undefined} title="최근 수정 — 경험 · 활동 · 답을 고친 기록"
       className={compact ? "flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-surface-soft focus-visible:outline-2 focus-visible:outline-ink"
@@ -342,9 +435,13 @@ export function RecentRevisionsButton({ compact = false }: { compact?: boolean }
       {!compact && "최근 수정"}
     </button>
     <RevisionDialog open={open} onOpenChange={setOpen} target={null} title="최근 수정"
-      description="경험 · 활동 · 지원서 답을 고친 기록이에요. 외부 AI 가 고친 경험도 같이 보여요." />
+      description="경험 · 활동 · 지원서 답을 고친 기록과 외부 AI 가 바꾼 것이에요. 외부 AI 변경은 그 줄에서 맞아요 · 되돌리기를 해요." />
   </>;
 }
+
+const openListeners = new Set<() => void>();
+/** 헤더의 「최근 수정」을 연다 — 연결 화면의 「최근 수정에서 보기」(FE#517) */
+export const openRecentRevisions = () => openListeners.forEach(listener => listener());
 
 // 오른쪽 이력 패널은 한 번에 하나(FE#424) — 열린 패널의 id. 다른 패널이 열리거나 closeRevisionPanel() 이 불리면 앞의 것이 닫힌다.
 // 활동을 고르거나 차곡이를 열면 그 자리를 돌려준다

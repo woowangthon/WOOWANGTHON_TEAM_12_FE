@@ -4,9 +4,9 @@
 // 변경 하나를 읽는 API 가 없어 변경 기록(최근 100건)에서 찾는다. 「확인 필요」 표시는 메타 줄에 그대로 둔다.
 import { useState, type ReactNode } from "react";
 import { CaretDownIcon } from "@phosphor-icons/react";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { McpChangeCard } from "@/components/connections/mcp-changes";
+import { openRecentRevisions } from "@/components/revisions/revision-list";
 import { fetchMcpChanges, mcpClientName, type McpChange } from "@/lib/api/mcp";
 import type { Experience } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
@@ -46,7 +46,7 @@ export function McpChangeToggle({ changeId, children, onDecided }: {
       <Button className="min-h-11 lg:min-h-10" variant="secondary" onClick={load}>다시 시도</Button>
     </div>}
     {panel.status === "missing" && <p className="text-sm leading-relaxed text-body">
-      최근 변경 기록에서 찾지 못했어요. <Link href="/connections" className="underline underline-offset-3">연결 화면의 변경 기록</Link>을 확인해 주세요.
+      최근 변경 기록에서 찾지 못했어요. <button type="button" onClick={openRecentRevisions} className="underline underline-offset-3">최근 수정</button>에서 확인해 주세요.
     </p>}
     {panel.status === "ready" && <div className="rounded-sm bg-surface-soft p-3">
       <McpChangeCard change={panel.change} inActivity onStale={load}

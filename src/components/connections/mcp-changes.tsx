@@ -1,32 +1,33 @@
 "use client";
 
 // 외부 AI 변경 기록 — 언제 · 어느 AI · 무엇을 · 왜, 건별 맞아요 · 되돌리기 (S-53 · S-54 · mcp-api.md 「변경 기록」)
+// 목록은 헤더 「최근 수정」(revision-list.tsx)에 수정 이력과 섞여 있다(FE#517). 활동 세부에도 한 건씩 보인다
 // 종류를 더할 때는 아래 표와 Body 에 한 줄씩 더한다(FE#118)
-import { InfoTip } from "@/components/ui/info-tip";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { CaretRightIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { ApiError } from "@/lib/api/errors";
 import { retryJob } from "@/lib/api/experience";
-import { confirmMcpChange, fetchMcpChanges, mcpClientName, undoMcpChange, type McpChange } from "@/lib/api/mcp";
+import { confirmMcpChange, mcpClientName, undoMcpChange, type McpChange } from "@/lib/api/mcp";
 
 export const timestamp = (value: string) => new Intl.DateTimeFormat("ko-KR", {
   dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Seoul",
 }).format(new Date(value));
 
-const VERB: Record<McpChange["type"], string> = {
+export const VERB: Record<McpChange["type"], string> = {
   ADD_SOURCE: "자료를 넣음",
   UPDATE_EXPERIENCE: "경험 본문을 고침",
   CREATE_APPLICATION: "지원을 만듦",
   ANSWER_CLARIFICATION: "되묻기 답을 전함",
 };
-const STATUS: Record<McpChange["status"], string> = { APPLIED: "반영됨", CONFIRMED: "맞아요", UNDONE: "되돌림" };
+export const STATUS: Record<McpChange["status"], string> = { APPLIED: "반영됨", CONFIRMED: "맞아요", UNDONE: "되돌림" };
 
 /** 맞아요는 이 두 종류만 받는다(mcp-api.md 「confirm」) */
 const CONFIRMABLE: McpChange["type"][] = ["UPDATE_EXPERIENCE", "ANSWER_CLARIFICATION"];
+/** 아직 「맞아요」를 기다리는 변경 */
+export const needsConfirm = (change: McpChange) => CONFIRMABLE.includes(change.type) && change.status === "APPLIED" && change.undoBlockedReason !== "CHANGED_AFTER";
 
 const UNDO_WARNING: Record<McpChange["type"], string> = {
   UPDATE_EXPERIENCE: "본문과 출처 상태가 고치기 전으로 돌아가요.",
@@ -80,9 +81,9 @@ function AnalysisStatus({ source }: { source: NonNullable<McpChange["source"]> }
   return <>분석 중</>;
 }
 
-function Body({ change, inActivity }: { change: McpChange; inActivity: boolean }) {
+function Body({ change, inActivity, head }: { change: McpChange; inActivity: boolean; head: boolean }) {
   const { experience, source, application, supplement, reason } = change;
-  return <div className="mt-3 space-y-2">
+  return <div className={head ? "mt-3 space-y-2" : "space-y-2"}>
     {experience && <>
       {!inActivity && <Link href={`/experience?activity=${experience.activityId}`} className="inline-flex min-h-11 lg:min-h-10 items-center text-sm font-medium underline-offset-3 hover:underline">{experience.activityName}</Link>}
       <Text label="고치기 전">{experience.beforeContent}</Text>
@@ -111,18 +112,20 @@ function Body({ change, inActivity }: { change: McpChange; inActivity: boolean }
 }
 
 /** 변경 한 건. onChange 는 정한 뒤의 변경, onStale 은 서버 상태가 달라 다시 불러와야 할 때 */
-export function McpChangeCard({ change, onChange, onStale, inActivity = false }: {
+export function McpChangeCard({ change, onChange, onStale, inActivity = false, head = true }: {
   change: McpChange;
   onChange: (change: McpChange, outcome: string) => void;
   onStale: () => void;
   /** 활동 세부 안 — 활동 이름 · 링크를 뺀다 */
   inActivity?: boolean;
+  /** 머리 줄(누가 · 무엇을 · 상태 · 언제) — 「최근 수정」 줄은 접힌 머리에 이미 있어 뺀다 */
+  head?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const failedAnalysis = change.source?.jobStatus === "FAILED";
-  const canConfirm = CONFIRMABLE.includes(change.type) && change.status === "APPLIED" && change.undoBlockedReason !== "CHANGED_AFTER";
+  const canConfirm = needsConfirm(change);
 
   async function run(action: () => Promise<void>, failure: string) {
     setBusy(true);
@@ -158,12 +161,12 @@ export function McpChangeCard({ change, onChange, onStale, inActivity = false }:
 
   const blocked = blockedText(change);
   return <>
-    <p className="flex flex-wrap items-center gap-x-2 text-sm">
+    {head && <p className="flex flex-wrap items-center gap-x-2 text-sm">
       <span className="font-semibold">{mcpClientName(change.client)} · {VERB[change.type]}</span>
       <span className="text-note font-medium text-muted">{STATUS[change.status]}</span>
       <time dateTime={change.createdAt} className="text-note text-muted">{timestamp(change.createdAt)}</time>
-    </p>
-    <Body change={change} inActivity={inActivity} />
+    </p>}
+    <Body change={change} inActivity={inActivity} head={head} />
     {blocked && <p className="mt-2 text-sm leading-relaxed text-muted">{blocked}</p>}
     {error && <p role="alert" className="mt-2 text-sm leading-relaxed text-error">{error}</p>}
     {(canConfirm || change.undoable || failedAnalysis) && <div className="mt-3 flex flex-wrap gap-2">
@@ -182,59 +185,4 @@ export function McpChangeCard({ change, onChange, onStale, inActivity = false }:
       </DialogContent>
     </Dialog>
   </>;
-}
-
-type LogState = { status: "loading" } | { status: "error" } | { status: "ready"; changes: McpChange[] };
-
-/** 쓰기를 켰거나 기록이 있을 때만 카드 아래에 접어 둔다 — 못 불러왔으면 있는지 모르니 오류를 그대로 보인다 */
-export function McpChangeLog({ writeEnabled }: { writeEnabled: boolean }) {
-  const [state, setState] = useState<LogState>({ status: "loading" });
-  const [outcomes, setOutcomes] = useState<Record<number, string>>({});
-
-  const load = useCallback(() => fetchMcpChanges().then(
-    (changes) => setState({ status: "ready", changes }),
-    () => setState({ status: "error" }),
-  ), []);
-  useEffect(() => { void load(); }, [load]);
-
-  function decided(next: McpChange, outcome: string) {
-    setState((current) => current.status === "ready"
-      ? { status: "ready", changes: current.changes.map((c) => c.id === next.id ? next : c) } : current);
-    setOutcomes((all) => ({ ...all, [next.id]: outcome }));
-  }
-
-  if (state.status === "error") return <div role="alert" className="mt-4 space-y-3 rounded-md border border-hairline-soft p-4 sm:px-5">
-    <p className="text-sm leading-relaxed text-error">변경 기록을 불러오지 못했어요.</p>
-    <Button className="min-h-11 lg:min-h-10" onClick={() => { setState({ status: "loading" }); void load(); }}>다시 시도</Button>
-  </div>;
-  const changes = state.status === "ready" ? state.changes : [];
-  if (!writeEnabled && !changes.length) return null;
-
-  return <details className="group mt-4 rounded-md border border-hairline-soft px-4 sm:px-5">
-    <summary className="flex min-h-14 cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
-      <CaretRightIcon aria-hidden="true" className="size-4 text-muted transition-transform group-open:rotate-90" />
-      <h2 className="text-ui font-semibold">변경 기록</h2>
-      {changes.length > 0 && <span className="text-note text-muted tabular-nums">{changes.length}건</span>}
-    </summary>
-    <div className="pb-4">
-      <div className="flex flex-wrap items-center justify-between gap-x-3">
-        <p className="inline-flex items-center gap-0.5 text-sm text-muted">외부 AI가 바꾼 것을 되돌려요<InfoTip label="변경 기록">외부 AI 가 한 일을 건별로 확인하고 되돌려요. 웹에서 고친 것까지 모두 보려면 위 「최근 수정」이나 경험 메뉴의 「수정 이력」을 열어요 — 외부 AI 가 고친 경험도 거기 같이 보여요.</InfoTip></p>
-        {state.status === "ready" && <Button className="min-h-11 lg:min-h-10" variant="ghost" size="sm" onClick={() => void load()}>새로고침</Button>}
-      </div>
-      {/* 변경 기록 줄 자리(FE#402) */}
-      {state.status === "loading" && <div role="status" className="mt-2"><span className="sr-only">변경 기록을 불러오고 있어요</span>
-        {[0, 1].map(i => <div key={i} className="grid gap-2 border-b border-hairline-soft py-4 last:border-b-0">
-          <Skeleton className="h-3.5 w-32" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-3/4" />
-        </div>)}
-      </div>}
-      {state.status === "ready" && (changes.length === 0
-        ? <p className="mt-4 text-sm text-body">아직 외부 AI가 바꾼 것이 없어요.</p>
-        : <ul className="m-0 mt-2 list-none p-0">
-          {changes.map((change) => <li key={change.id} className="border-b border-hairline-soft py-4 last:border-b-0">
-            <McpChangeCard change={change} onStale={() => void load()} onChange={decided} />
-            {outcomes[change.id] && <p role="status" className="mt-2 text-sm leading-relaxed text-body">{outcomes[change.id]}</p>}
-          </li>)}
-        </ul>)}
-    </div>
-  </details>;
 }
