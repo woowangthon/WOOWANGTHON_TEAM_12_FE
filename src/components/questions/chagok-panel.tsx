@@ -131,21 +131,20 @@ function Feed({ question: q, originOf, onAnswer, draftActions }: { question: Que
       })}</ul>
       <p className="m-0 text-note text-muted">자료에 없다고 경험이 없는 건 아니에요.{q.clarifications.length > 0 && " 몇 가지만 물어볼게요."}</p>
     </section>
-    <p className={bubble}>{top ? <>「{shortName(top.activity.name)}」 경험이 가장 잘 맞아요. 「참고」에 {q.recommendations.length}개 골라 뒀어요.</>
+    <p className={bubble}>{top ? <>「{shortName(top.activity.name)}」 경험이 가장 잘 맞아요. 「꺼내 쓸 경험」에 {q.recommendations.length}개 골라 뒀어요.</>
       : <>지금 자료에서 이 문항에 연결할 경험을 찾지 못했어요. 경험이 없다는 뜻은 아니에요.</>}</p>
     {reused.map(({ activity, supplement }) => <div key={supplement.id} className={bubble}>
       <p className="m-0">{originOf(supplement)}에서 알려 준 답을 「{shortName(activity)}」 경험의 근거로 같이 썼어요.</p>
       <p className="m-0 border-l-2 border-hairline pl-3 text-note whitespace-pre-wrap text-muted">{supplement.answer}</p>
       {!q.clarifications.some(c => c.question === supplement.question) && <p className="m-0 text-note text-muted">그 부분은 다시 묻지 않을게요.</p>}
     </div>)}
-    {total > 0 && <ClarifyBlock title={`차곡이가 물어볼 것 ${total}개`} total={total} answered={answered} attention={attention} openSignal={draftActions.focusRequest}>
-      <p className="m-0 pt-2 text-note leading-relaxed text-muted">자료에 없어 묻는 거예요. 기억나는 것만 짧게 — 답은 경험에 보완으로 쌓이고 다음 초안에 들어가요.</p>
+    {total > 0 && <ClarifyBlock title={`차곡이가 물어볼 것 ${total}개`} info="답은 그 경험에 보완으로 쌓이고 다음 초안에 들어가요." total={total} answered={answered} attention={attention} openSignal={draftActions.focusRequest}>
       {/* 초안 빈칸 질문이 위 — 목록은 둘이지만 같은 가는 선으로 이어 보인다 */}
       {fromDraft.length > 0 && <ul aria-label="초안의 빠진 사실" className={clarifyList}>
         {fromDraft.map(item => <OmissionItem key={item.clarificationId} item={item} question={q} onAnswer={onAnswer} onRefresh={refreshDraft} disabled={draftDisabled} />)}
       </ul>}
       {asks.length > 0 && <ul aria-label="차곡이의 질문" className={cn(clarifyList, fromDraft.length > 0 && "border-t border-hairline-soft")}>
-        {asks.map(({ c, experience }) => <ClarificationItem key={c.id} activityName={activityOf(c.experienceId)} clarification={c} experience={experience} onAnswer={onAnswer} />)}
+        {asks.map(({ c, experience }) => <ClarificationItem key={c.id} activityName={activityOf(c.experienceId)} clarification={c} experience={experience} questionId={q.id} onAnswer={onAnswer} />)}
       </ul>}
     </ClarifyBlock>}
     <DraftFollowUp question={q} {...draftActions} />

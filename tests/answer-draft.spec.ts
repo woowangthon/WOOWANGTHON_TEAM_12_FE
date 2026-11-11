@@ -47,7 +47,7 @@ const asksBlock = (page: Page) => page.locator("details").filter({ has: page.loc
 async function omissionList(page: Page) {
   const block = asksBlock(page);
   await expect(block).toBeVisible();
-  if (!(await block.evaluate(el => (el as HTMLDetailsElement).open))) await block.locator(":scope > summary").click();
+  if (!(await block.evaluate(el => (el as HTMLDetailsElement).open))) await block.locator(":scope > summary").click({ position: { x: 14, y: 14 } }); // 제목 옆 ⓘ 를 피해 꺾쇠 쪽을 누른다(FE#464)
   return block.getByRole("list", { name: "초안의 빠진 사실" });
 }
 async function openDraftComposer(page: Page) {
@@ -57,7 +57,7 @@ async function openDraftComposer(page: Page) {
 /** 좁은 폭은 패널이 화면을 덮으니 닫고 참고 카드에서 고른다 */
 async function referenceChoices(page: Page) {
   if (page.viewportSize()!.width < 1280) await closeDraftPanel(page);
-  return page.getByRole("region", { name: "참고 — 꺼내 쓸 경험", exact: true }).getByRole("checkbox");
+  return page.getByRole("region", { name: "꺼내 쓸 경험", exact: true }).getByRole("checkbox");
 }
 async function closeDraftPanel(page: Page) {
   const close = page.getByRole("button", { name: "차곡이 닫기", exact: true });
@@ -358,10 +358,13 @@ test("omitted facts have optional experience questions, while unlinked gaps stay
   const omissions = await omissionList(page);
   await expect(omissions.getByRole("listitem")).toHaveCount(2);
   await expect(omissions.getByRole("textbox")).toHaveCount(2);
+  await omissions.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `docs/fe-464/asks-${info.project.name}.png`, animations: "disabled" });
   // 경험에 붙지 않은 빈칸(문장 밖)은 패널에 맥락 없이 늘어놓지 않는다(FE#382)
   await expect(panel.getByRole("list", { name: "직접 쓸 거리" })).toHaveCount(0);
   await expect(panel).not.toContainText("보완으로 저장하지 않아요");
-  await expect(omissions.getByRole("link").first()).toContainText(QUESTION_EXAMPLES[0].recommendations[0].experience.content);
+  // 머리는 활동 칩(링크) → 경험 한 줄(인용) — 문항 되묻기와 같은 모양(FE#464)
+  await expect(omissions.getByRole("listitem").first()).toContainText(QUESTION_EXAMPLES[0].recommendations[0].experience.content);
   const first = omissions.getByRole("listitem").first();
   // 답은 선택 — 건너뛰기 버튼이 없고, 쓰기 전엔 보내기도 없다(FE#320)
   await expect(first.getByRole("button", { name: "건너뛰기", exact: true })).toHaveCount(0);
@@ -425,7 +428,8 @@ test("보조 재료 경험(추천 밖)의 빠진 사실도 답 · 활동 칩 · 
   await setup(page, q => { q.draft = { ...structuredClone(DRAFT_EXAMPLE), omitted: [aux] }; });
   await openDraftFollowUp(page);
   const item = (await omissionList(page)).getByRole("listitem").first();
-  await expect(item.getByRole("link")).toContainText(aux.experienceContent);
+  await expect(item).toContainText(aux.experienceContent);
+  await expect(item.getByRole("link")).toContainText("바꿔요"); // 칩이 그 활동으로 가는 링크다
   await expect(item.getByRole("link")).toHaveAttribute("href", "/experience?activity=7&fromQuestion=41");
   const answer = "같은 방의 알림은 30초 동안 모아 한 번만 보냈다";
   await item.getByRole("textbox").fill(answer);
@@ -437,7 +441,7 @@ test("보조 재료 경험(추천 밖)의 빠진 사실도 답 · 활동 칩 · 
     await expect(item).toContainText(answer);
     await expect(item).not.toContainText("답한 보완을 지금 불러오지 못했어요");
     await expect(item).toContainText("「바꿔요」 경험에 보완으로 쌓았어요");
-    await expect(item.getByRole("link")).toContainText(aux.experienceContent);
+    await expect(item).toContainText(aux.experienceContent);
   };
   await check();
   await page.reload();
@@ -723,7 +727,7 @@ test("activity cards: group by activity in first-recommendation order, check act
       ...[104, 105, 106].map(id => line(id, base.activity, `바꿔요 기록 ${id}`))];
   });
   await closeDraftPanel(page);
-  const refs = page.getByRole("region", { name: "참고 — 꺼내 쓸 경험", exact: true });
+  const refs = page.getByRole("region", { name: "꺼내 쓸 경험", exact: true });
   const cards = refs.getByRole("listitem", { name: /^추천 활동 \d+$/ });
   await expect(cards).toHaveCount(2);
   await expect(cards.nth(0)).toContainText("바꿔요 — 캠퍼스 중고거래 앱");

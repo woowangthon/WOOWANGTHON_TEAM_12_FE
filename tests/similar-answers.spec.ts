@@ -109,6 +109,6 @@ test("추천이 끝나 유형이 붙으면 다시 부른다 — 분석 중에도
   await expect(similar(page)).toBeVisible();
   const opened = reads.count;
   done = true;
-  await expect(page.getByRole("heading", { name: "참고 — 꺼내 쓸 경험" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "꺼내 쓸 경험" })).toBeVisible();
   await expect.poll(() => reads.count).toBe(opened + 1);
 });

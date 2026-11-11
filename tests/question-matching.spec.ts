@@ -307,13 +307,24 @@ test("application with several questions keeps order, analyzes each and shows th
   await expect(analyzingNotice(page)).toBeVisible();
   expect(posts(api)).toEqual([{ call: "POST /api/applications", body: { organization: "OO 백엔드 부트캠프 · 2기", questions: [{ text: QUESTION_EXAMPLES[1].text }, { text: QUESTION_EXAMPLES[0].text }] } }]);
 
-  const overlap = page.getByRole("region", { name: "여러 문항에 추천된 활동" });
-  await expect(overlap).toContainText("바꿔요 — 캠퍼스 중고거래 앱", { timeout: 10000 });
+  // S-21 — 따로 있던 「여러 문항에 추천된 활동」 패널 대신 활동 카드 머리의 꼬리표. 누르면 문항별 강조점이 나란히, 줄을 누르면 그 문항으로(FE#464)
+  await expect(page.getByRole("region", { name: "여러 문항에 추천된 활동" })).toHaveCount(0);
+  const tag = result(page).getByRole("button", { name: "문항 2에도 추천", exact: true });
+  await expect(tag).toBeVisible({ timeout: 10000 });
+  await tag.click();
+  const overlap = page.getByRole("dialog", { name: "문항마다 강조하는 점" });
   await expect(overlap).toContainText("서버 엔드포인트와 앱 코드를 모두 맡은 범위");
   await expect(overlap).toContainText("폴링의 한계를 보고 WebSocket 으로 바꾼 판단");
-  await expect(recommendation(page, 2)).toContainText("문항 2에도 추천");
+  await expect(overlap).toContainText("AI 해석");
+  await page.screenshot({ path: `docs/fe-464/overlap-${test.info().project.name}.png`, animations: "disabled" });
+  if (test.info().project.name === "desktop") { // 1024 — 아이콘 레일 폭도 같이 남긴다
+    await page.setViewportSize({ width: 1024, height: 1000 });
+    await page.screenshot({ path: "docs/fe-464/overlap-1024.png", animations: "disabled" });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+  }
   await expect(page.getByText(/겹쳐서 안|중복/)).toHaveCount(0);
-  await tabs.nth(1).click();
+  await overlap.getByRole("button", { name: /^문항 2/ }).first().click();
+  await expect(overlap).toHaveCount(0);
   await expect(result(page).getByRole("heading", { name: QUESTION_EXAMPLES[0].text, exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByRole("tablist", { name: "문항" }).getByRole("tab").nth(1)).toHaveAttribute("aria-selected", "true");
@@ -592,7 +603,7 @@ test("daily limit (429) keeps the draft and says nothing was saved", async ({ pa
 /** 「차곡이가 물어볼 것」 — 문항 · 초안 되묻기 한 블록, 기본은 접혀 있다(FE#336) */
 async function openAsks(page: Page) {
   const block = chagokPanel(page).locator("details").filter({ has: page.locator(":scope > summary", { hasText: "차곡이가 물어볼 것" }) });
-  if (!(await block.evaluate(el => (el as HTMLDetailsElement).open))) await block.locator(":scope > summary").click();
+  if (!(await block.evaluate(el => (el as HTMLDetailsElement).open))) await block.locator(":scope > summary").click({ position: { x: 14, y: 14 } }); // 제목 옆 ⓘ 를 피해 꺾쇠 쪽을 누른다(FE#464)
 }
 
 // FE#31 — 되묻기에 답하기(비워 두면 보내지 않음, FE#320) · 활동 세부의 「내가 입력」 보완(S-22 · S-23 · S-25)
@@ -678,7 +689,7 @@ test("chagok panel toggles; narrow screens start closed and show how many questi
   await expect(chagokToggle(page)).toContainText("질문 1");
   await chagokToggle(page).click();
   await expect(chagokPanel(page)).toContainText("문항을 읽어 봤어요. 이 문항이 보려는 건 2가지예요.");
-  await expect(chagokPanel(page)).toContainText("「바꿔요」 경험이 가장 잘 맞아요. 「참고」에 2개 골라 뒀어요.");
+  await expect(chagokPanel(page)).toContainText("「바꿔요」 경험이 가장 잘 맞아요. 「꺼내 쓸 경험」에 2개 골라 뒀어요.");
 });
 
 // FE#65 — 추천은 문항을 넣을 때 한 번 돈다(답해도 그대로). 답한 경험의 카드엔 「답함」과 다음 문항부터 쓰인다는 안내
@@ -1069,7 +1080,7 @@ test("opening an application shows the question and answer box on the first scre
     await page.reload();
     const answer = page.getByRole("textbox", { name: "내가 쓴 답", exact: true });
     await expect(answer).toBeVisible();
-    await expect(page.getByRole("region", { name: "여러 문항에 추천된 활동" })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("button", { name: /에도 추천$/ }).first()).toBeVisible({ timeout: 10000 }); // 겹침은 카드 머리 꼬리표(FE#464)
     if (process.env.UPDATE_QUESTION_SCREENSHOTS === "1") await page.screenshot({ path: `docs/fe-148/apply-${width}.png`, style: "nextjs-portal { display: none !important; }" });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     if (width !== 1440) continue;
@@ -1086,8 +1097,7 @@ test("opening an application shows the question and answer box on the first scre
       page.getByRole("tablist", { name: "문항" }),
       result(page).getByRole("heading", { level: 3 }).first(),
       answer,
-      page.getByRole("heading", { name: "참고 — 꺼내 쓸 경험", exact: true }),
-      page.getByRole("heading", { name: "여러 문항에 추천된 활동", exact: true }),
+      page.getByRole("heading", { name: "꺼내 쓸 경험", exact: true }),
     ].map(top));
     expect(order).toEqual([...order].sort((a, b) => a - b));
   }

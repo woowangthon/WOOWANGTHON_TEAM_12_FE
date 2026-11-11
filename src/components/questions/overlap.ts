@@ -18,8 +18,3 @@ export function overlapsOf(details: (QuestionDetail | null)[]): Overlap[] {
   });
   return [...byActivity.values()].filter(g => new Set(g.uses.map(u => u.questionId)).size >= 2);
 }
-
-/** 이 문항의 추천 경험이 같은 지원의 다른 문항에도 추천됐으면 그 문항 번호 · 강조점 */
-export function sameExperienceElsewhere(overlaps: Overlap[], questionId: number, experienceId: number): OverlapUse[] {
-  return overlaps.flatMap(g => g.uses).filter(u => u.questionId !== questionId && u.recommendation.experience.id === experienceId);
-}
