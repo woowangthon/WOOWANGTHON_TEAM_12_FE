@@ -134,7 +134,7 @@ npm run design:diff -- home   # 화면: home · quick-find · add-menu · notifi
 - 시안은 `../WOOWANGTHON_TEAM_12_ETC/docs/design/chagok`(옆에 클론), 앱은 API 주소를 비운 목 모드로 스스로 띄운다. 실제 서버에 닿지 않는다.
 - 결과는 `artifacts/design-diff/<화면>/` — 폭마다 나란한 이미지 `<폭>.png` 와 차이 표 `report.md`(화면에도 찍는다). 커밋되지 않는다.
 - 이 폴더에서 `npm run dev` 가 돌고 있으면 한 폴더에 둘을 못 띄운다 — 목 모드 서버를 가리킨다: `npm run design:diff -- home --app-url http://localhost:3000`. 그 밖의 인자: `--widths 1440` · `--etc <ETC 경로>`.
-- 화면을 더하려면 `scripts/design-diff/screens/<화면>.json` 하나를 만든다. `pairs` 의 `design` · `app` 은 Playwright 선택자(여럿이면 첫 요소), `open` 은 재기 전에 누를 곳이다. `pseudo: "::before"` · `extra: ["opacity"]` 로 가상 요소 · 항목을 더한다.
+- 화면을 더하려면 `scripts/design-diff/screens/<화면>.json` 하나를 만든다. `pairs` 의 `design` · `app` 은 Playwright 선택자(여럿이면 첫 요소), `open` 은 재기 전에 누를 곳이다. `pseudo: "::before"` · `extra: ["opacity"]` 로 가상 요소 · 항목을 더한다. 목 모드에 없는 데이터가 필요하면 `"api": "fake-question"` — 시험용 가짜 BE(`tests/fake-question-api.ts`)가 계약 예시 지원서를 준다(`apply`). 이때 `--app-url` 은 API 모드 서버여야 한다.
 - 일부러 다르게 둔 값은 ETC `docs/design/DESIGN.md` 「시안과 일부러 다른 곳」에 적고, 짝에 `"intent": { "높이": "이유" }` 를 달면 표에 「의도」로 나온다. 키는 표의 항목 이름이다.
 - 0.5px 안쪽 차이와 끝이 둥근 모양끼리의 값 차이는 세지 않는다. 표는 값만 본다 — 위치 · 색은 나란한 이미지로 본다.
 
