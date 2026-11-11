@@ -23,7 +23,7 @@ const CARDS_AT_FIRST = 3;
 const card = "m-0 grid gap-3 rounded-[4px_16px_16px_16px] border border-hairline bg-canvas p-3.5 text-sm leading-relaxed";
 const notice = "m-0 grid gap-2 rounded-md border border-hairline bg-canvas p-3 text-note leading-relaxed";
 const mark = "mt-0.5 grid size-[18px] place-items-center rounded-full text-on-primary";
-const resultLink = "font-semibold text-evidence underline underline-offset-3";
+const resultLink = "font-semibold text-ink underline underline-offset-3"; // 이동 링크 — 근거 색을 쓰지 않는다(FE#468)
 
 function ExperienceCard({ found: { activityName, experience } }: { found: FoundExperience }) {
   const evidence = [

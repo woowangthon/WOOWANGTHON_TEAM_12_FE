@@ -21,7 +21,7 @@ export function FramePicker({ frame, suggested, onChange, disabled, proposed }: 
       <Select<DraftFrame> aria-label="구성 틀" value={frame} disabled={disabled} onChange={next => { if (next) onChange(next); }} className="sm:max-w-80" options={frameOptions(suggested)} />
     </div>
     <FrameDescription frame={frame} />
-    <Link href="/guidelines" className="inline-flex min-h-11 lg:min-h-10 items-center justify-self-start text-sm text-evidence underline underline-offset-3">작성 지침 관리 →</Link>
+    <Link href="/guidelines" className="inline-flex min-h-11 lg:min-h-10 items-center justify-self-start text-sm text-ink underline underline-offset-3">작성 지침 관리 →</Link>
   </div>;
 }
 

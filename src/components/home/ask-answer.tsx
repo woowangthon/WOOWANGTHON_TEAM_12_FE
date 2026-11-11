@@ -72,7 +72,7 @@ export function AskAnswer({ answer, onMakeApplication, busy, onOpenActivity }: {
       <ol className="m-0 grid list-none gap-2 p-0">{list.map((r, i) => <li key={r.experience.id} aria-label={`꺼낸 경험 ${i + 1}`} className="grid gap-1.5 rounded-[18px] bg-mark-soft px-4 py-3 sm:px-4.5">
         <div className="flex flex-wrap items-baseline gap-x-2">
           <Link href={`/experience?activity=${r.activity.id}`} onClick={onOpenActivity && (event => { event.preventDefault(); onOpenActivity(r.activity.id); })}
-            title="활동 세부 보기" className="inline-flex min-h-11 items-center gap-0.5 text-sm font-semibold text-evidence underline-offset-3 hover:underline lg:min-h-6">
+            title="활동 세부 보기" className="inline-flex min-h-11 items-center gap-0.5 text-sm font-semibold text-ink underline-offset-3 hover:underline lg:min-h-6">
             {r.activity.name}<CaretRightIcon className="size-3.5" aria-hidden="true" /><span className="sr-only"> — 활동 세부 보기</span>
           </Link>
           <span className="text-xs text-muted tabular-nums">{periodText(r.activity.period)}</span>
