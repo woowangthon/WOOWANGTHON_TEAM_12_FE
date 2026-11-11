@@ -60,7 +60,7 @@ function blockedText(change: McpChange) {
 }
 
 const CONFIRMED: Partial<Record<McpChange["type"], string>> = {
-  UPDATE_EXPERIENCE: "맞아요 — 「내가 입력」으로 바뀌었어요.",
+  UPDATE_EXPERIENCE: "맞아요 — 확인했어요.",
   ANSWER_CLARIFICATION: "맞아요 — 「내가 입력」 답이 됐어요. 다음 추천 · 초안부터 근거로 쓰여요.",
 };
 const UNDONE: Partial<Record<McpChange["type"], string>> = {

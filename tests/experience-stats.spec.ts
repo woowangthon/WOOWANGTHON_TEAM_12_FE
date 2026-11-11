@@ -42,6 +42,17 @@ const capture = async (page: Page, name: string) => {
   if (process.env.UPDATE_STATS_SCREENSHOTS !== "1") return;
   await page.screenshot({ path: `docs/fe-274/${name}.png`, fullPage: true, animations: "disabled", style: "nextjs-portal { display: none !important; }" });
 };
+const capture513 = async (page: Page, name: string) => {
+  if (process.env.FE513_SHOTS !== "1") return;
+  const viewport = page.viewportSize()!;
+  await page.evaluate(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); });
+  for (const width of viewport.width === 1440 ? [1440, 1024] : [390]) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
+    await page.screenshot({ path: `docs/fe-513/${name}-${width}.png`, fullPage: true, animations: "disabled", style: "nextjs-portal { display: none !important; }" });
+    expect(await noOverflow(page)).toBe(true);
+  }
+  await page.setViewportSize(viewport);
+};
 
 test("the stats tab replaces search and counts blocks, categories, source status and competencies from saved data", async ({ page }) => {
   await setup(page);
@@ -64,11 +75,10 @@ test("the stats tab replaces search and counts blocks, categories, source status
   await expect(category.getByRole("listitem").filter({ hasText: "동아리 · 대외활동" })).toContainText("0개");
   await expect(category.getByRole("listitem").filter({ hasText: "미분류" })).toContainText("1개");
 
-  // 출처 상태는 따로 카드가 아니라 「쌓인 블록」 카드 아래 한 줄(FE#368)
-  const source = stats(page).getByRole("list", { name: "출처 상태별", exact: true });
-  await expect(source.getByRole("listitem").filter({ hasText: "원문 확인" })).toHaveText("원문 확인 2");
-  await expect(source.getByRole("listitem").filter({ hasText: "내가 입력" })).toHaveText("내가 입력 1");
-  await expect(source.getByRole("listitem").filter({ hasText: "확인 필요" })).toHaveText("확인 필요 1");
+  // 확인이 필요한 경험 수만 보인다(ADR-018 · FE#513).
+  const source = card(page, "쌓인 블록");
+  await expect(source.getByText(/원문 확인|내가 입력/)).toHaveCount(0);
+  await expect(source.getByRole("button", { name: "확인 필요 1", exact: true })).toBeVisible();
 
   // 역량 카드는 「나를 보여 주는 역량」 칩 — 역량 없는 경험 수는 ⓘ 안에(FE#368 · FE#301)
   const competency = card(page, "나를 보여 주는 역량");
@@ -81,9 +91,14 @@ test("the stats tab replaces search and counts blocks, categories, source status
   await capture(page, `stats-${page.viewportSize()!.width}`);
   expect(await noOverflow(page)).toBe(true);
 
+  await capture513(page, "drawer");
+
   // 따로 있던 「확인할 경험 보기」 줄 대신 「확인 필요」 숫자 자체를 눌러 그 경험으로 간다(FE#461)
   await source.getByRole("button", { name: "확인 필요 1", exact: true }).click();
   await expect(page.getByRole("complementary", { name: "활동 세부" })).toBeVisible();
+  await expect(page.locator("#experience-71").getByText(/원문 확인|내가 입력/)).toHaveCount(0);
+  await expect(page.locator("#experience-72").getByText("확인 필요", { exact: true })).toBeVisible();
+  await capture513(page, "detail");
 });
 
 test("many years wrap instead of pushing the page sideways", async ({ page }) => {
@@ -95,6 +110,7 @@ test("many years wrap instead of pushing the page sideways", async ({ page }) =>
   await page.goto("/experience?view=stats");
   await expect(stats(page).getByLabel("2010 경험 30개", { exact: true })).toBeVisible();
   await expect(stats(page).getByLabel("2023 경험 2개", { exact: true })).toBeVisible();
+  await expect(card(page, "쌓인 블록").getByText(/확인 필요|원문 확인|내가 입력/)).toHaveCount(0);
   await capture(page, `stats-many-${page.viewportSize()!.width}`);
   expect(await noOverflow(page)).toBe(true);
 });

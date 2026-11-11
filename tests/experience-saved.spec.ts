@@ -83,7 +83,7 @@ test("saving in the activity detail stays after reload, says so in words and cha
   await page.keyboard.press("Escape");
   expect(api.puts).toEqual([{ id: String(CHAT.id), body: { saved: true } }]);
   await expect(item).toContainText(CHAT.content);
-  await expect(item).toContainText("원문 확인");
+  await expect(item).not.toContainText("원문 확인");
   await expect(item).toContainText("근거 1");
   await expect(savedMark(page, DEPLOY)).toHaveCount(0);
 

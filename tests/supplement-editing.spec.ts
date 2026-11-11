@@ -67,7 +67,7 @@ test("보완의 답을 바로 고치면 새로고침해도 남고, 경험 본문
   await page.reload();
   await page.getByRole("button", { name: /실시간 알림 프로젝트/ }).click();
   await expect(page.getByText("STOMP 엔드포인트를 만들고 재연결도 붙였다")).toBeVisible();
-  await expect(page.getByText("원문 확인")).toBeVisible();
+  await expect(page.getByText("원문 확인")).toHaveCount(0);
 });
 
 test("고치기가 실패하면 쓴 글을 두고 알리고, Esc 면 원래 답으로", async ({ page }) => {

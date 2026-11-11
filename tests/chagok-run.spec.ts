@@ -90,7 +90,7 @@ test("부탁하면 단계 · 경험 카드 · 확인 카드가 쌓이고 만들�
   await expect(cards).toHaveCount(0);
   await searched.click();
   await expect(cards.getByText("채팅 메시지가 늦게 도착하는")).toBeVisible();
-  await expect(cards.getByText("원문 확인")).toBeVisible();
+  await expect(cards.getByText("원문 확인")).toHaveCount(0);
   await expect(cards.getByText("내가 폴링을 WebSocket 으로 바꿔 해결했다.")).toBeVisible();
   await expect(cards.getByText("앱의 3초 폴링을 구독으로 바꿨다")).toBeVisible();
   await expect(panel(page).getByText("「바꿔요」의 WebSocket 경험이 맞아요.")).toBeVisible();

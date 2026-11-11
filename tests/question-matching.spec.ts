@@ -687,7 +687,7 @@ test("answering a clarification posts it and shows it on the experience as user-
   const activity = page.getByRole("complementary", { name: "활동 세부" });
   const first = activity.locator("li").first();
   await expect(first).toContainText("WebSocket");
-  await expect(first.getByText("원문 확인", { exact: true })).toBeVisible();
+  await expect(first.getByText("원문 확인", { exact: true })).toHaveCount(0);
   const supplements = first.getByRole("list", { name: "내가 입력한 보완", exact: true });
   await expect(supplements.getByRole("listitem")).toHaveCount(2);
   await expect(supplements.getByText(/내가 입력 · |문항에서 답함/)).toHaveCount(0); // 줄엔 답 글만(FE#512)

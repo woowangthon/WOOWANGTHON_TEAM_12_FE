@@ -9,7 +9,8 @@ const ACTIVITY: ActivityDetail = {
 };
 const { experiences, ...rest } = ACTIVITY;
 const SUMMARY = { ...rest, experienceCount: experiences.length };
-const BODY = "---\nexportedFrom: 차곡 — 내가 우왕이 될 상인가\nscope: all\nid: null\n---\n\n# 내 경험\n";
+// 화면에서 감추는 두 출처 상태도 서버가 만든 내보내기 글에는 그대로 남아야 한다(S-33 · FE#513).
+const BODY = "---\nexportedFrom: 차곡 — 내가 우왕이 될 상인가\nscope: all\nid: null\n---\n\n# 내 경험\n\n- 원문에서 확인: 시험 경험 하나\n- 내가 입력: 시험 경험 둘\n- 확인 필요: 시험 경험 셋\n";
 
 async function setup(page: Page) {
   const state = { fail: false, calls: [] as string[] };

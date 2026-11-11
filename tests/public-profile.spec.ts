@@ -225,14 +225,14 @@ test("public page shows only the profile, with no app menu or login", async ({ p
   await expect(page.getByRole("heading", { level: 1, name: PROFILE.title! })).toBeVisible();
   await expect(page.getByRole("heading", { level: 2, name: ACTIVITY.name })).toBeVisible();
   const first = page.getByRole("listitem").first();
-  await expect(first).toContainText("원문 확인");
+  await expect(first).not.toContainText("원문 확인");
   await expect(first).toContainText("AI 해석");
   await expect(first).toContainText("문제 해결 · 기술 구현");
   await expect(first).toContainText("근거 원본 바꿔요-회고.md");
   await expect(page.locator("main")).toContainText("2025.03 – 2025.06");
   await expect(page.locator("main")).toContainText("프로젝트 · 일");
   const second = page.getByRole("listitem").nth(1);
-  await expect(second).toContainText("내가 입력");
+  await expect(second).not.toContainText("내가 입력");
   await expect(second).not.toContainText("AI 해석");
   await expect(page.getByRole("navigation")).toHaveCount(0);
   await expect(page.getByLabel("사이드바")).toHaveCount(0);

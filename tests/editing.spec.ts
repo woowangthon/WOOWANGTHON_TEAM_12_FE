@@ -61,7 +61,7 @@ test("actor and competency edits keep the source status, content edits do", asyn
   await expect(badge).toHaveCount(0);
   await editContent(page, "Changed content");
   expect(state.activity.experiences[0].sourceStatus).toBe("USER_ENTERED");
-  await expect(badge).toBeVisible();
+  await expect(badge).toHaveCount(0);
 });
 
 // S-10 · FE#232 — 누르면 그 자리에서 고친다. 본문은 Enter 저장 · Esc 취소, 주체는 메뉴, 역량 · 기간은 작은 창
@@ -263,7 +263,7 @@ test("experience: Esc cancels, no-op, empty validation, Shift+Enter newline, out
   await field.press("Shift+Enter");
   await field.pressSequentially("experience");
   await field.press("Enter");
-  await expect(page.getByText("내가 입력", { exact: true })).toBeVisible();
+  await expect(page.getByText("내가 입력", { exact: true })).toHaveCount(0);
   expect(state.patches[0].body).toEqual({ content: "Updated\nexperience" });
   // 밖을 누르면(포커스가 빠지면) 저장 — 키 안내 · 저장/취소 버튼은 없다(FE#512)
   await edit();
@@ -444,7 +444,7 @@ test("PATCH response values replace drafts in activity, timeline and experience"
   await page.getByLabel("경험 내용").fill("Experience draft");
   await page.getByLabel("경험 내용").press("Enter");
   await expect(page.getByText("Server experience", { exact: true })).toBeVisible();
-  await expect(page.getByText("내가 입력", { exact: true })).toBeVisible();
+  await expect(page.getByText("내가 입력", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: /근거 1/ }).filter({ visible: true }).click();
   await expect(page.getByText("Original quote", { exact: true }).filter({ visible: true })).toBeVisible();
   if (page.viewportSize()!.width < 1024) {

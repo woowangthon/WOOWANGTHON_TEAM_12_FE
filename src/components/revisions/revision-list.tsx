@@ -25,7 +25,7 @@ import { periodText } from "@/lib/period";
 import { beforeRestore as beforeRestoreAll, publishRestored } from "./restore-bus";
 
 const ACTOR: Record<Actor, string> = { ME: "나", TEAM: "팀", UNKNOWN: "알 수 없음" };
-const SOURCE: Record<SourceStatus, string> = { SOURCE_CONFIRMED: "원문 확인", USER_ENTERED: "내가 입력", NEEDS_REVIEW: "확인 필요" };
+const sourceReview = (status: SourceStatus) => status === "NEEDS_REVIEW" ? "확인 필요" : "확인함";
 
 /** 되돌리기 전에 알릴 것 — 무엇이 돌아가나 */
 const RESTORE_NOTE: Record<RevisionTargetType, string> = {
@@ -71,7 +71,9 @@ function fieldChanges({ before: b, after: a, targetType }: Revision): [string, s
   if (targetType === "EXPERIENCE") {
     if (b.actor && a.actor && b.actor !== a.actor) lines.push(["수행 주체", ACTOR[b.actor], ACTOR[a.actor]]);
     if (!same(b.competencies, a.competencies)) lines.push(["역량", (b.competencies ?? []).map(c => COMPETENCIES[c]).join(" · ") || "없음", (a.competencies ?? []).map(c => COMPETENCIES[c]).join(" · ") || "없음"]);
-    if (b.sourceStatus && a.sourceStatus && b.sourceStatus !== a.sourceStatus) lines.push(["출처 상태", SOURCE[b.sourceStatus], SOURCE[a.sourceStatus]]);
+    if (b.sourceStatus && a.sourceStatus && b.sourceStatus !== a.sourceStatus && (b.sourceStatus === "NEEDS_REVIEW" || a.sourceStatus === "NEEDS_REVIEW")) {
+      lines.push(["출처 상태", sourceReview(b.sourceStatus), sourceReview(a.sourceStatus)]);
+    }
   }
   if (targetType === "ACTIVITY" && b.period && a.period && !same(b.period, a.period)) lines.push(["기간", periodText(b.period), periodText(a.period)]);
   return lines;
@@ -225,7 +227,7 @@ function OriginRow({ oldest: r, current, beforeRestore, onRestored }: {
 }) {
   const [open, setOpen] = useState(false);
   const b = r.before;
-  const fields = r.targetType === "EXPERIENCE" ? [b.actor && `수행 주체 ${ACTOR[b.actor]}`, `역량 ${(b.competencies ?? []).map(c => COMPETENCIES[c]).join(" · ") || "없음"}`, b.sourceStatus && `출처 상태 ${SOURCE[b.sourceStatus]}`]
+  const fields = r.targetType === "EXPERIENCE" ? [b.actor && `수행 주체 ${ACTOR[b.actor]}`, `역량 ${(b.competencies ?? []).map(c => COMPETENCIES[c]).join(" · ") || "없음"}`, b.sourceStatus === "NEEDS_REVIEW" && "출처 상태 확인 필요"]
     : r.targetType === "ACTIVITY" && b.period ? [`기간 ${periodText(b.period)}`] : [];
   return <li className="relative grid grid-cols-[2rem_minmax(0,1fr)] gap-x-2 pb-2">
     <span aria-hidden="true" className="mt-1.5 flex size-8 items-center justify-center rounded-full bg-surface-soft text-muted"><FlagIcon className="size-4" /></span>

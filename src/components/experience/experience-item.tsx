@@ -1,7 +1,7 @@
 "use client";
 
 // 경험 하나 — 이 화면의 주인공. 상자 없이 구분선, 근거는 접어 둔다 (SPEC S-08 · DESIGN.md 「경험」)
-import { BookmarkSimpleIcon, CaretDownIcon, CheckIcon, DotsSixVerticalIcon, DotsThreeIcon, PencilSimpleIcon, QuotesIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { BookmarkSimpleIcon, CaretDownIcon, DotsSixVerticalIcon, DotsThreeIcon, QuotesIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { DropdownMenu } from "radix-ui";
 import { cn } from "@/lib/utils";
@@ -21,42 +21,13 @@ import { MENU_CONTENT } from "@/components/ui/menu";
 
 const ACTOR: Record<Actor, string> = { ME: "나", TEAM: "팀", UNKNOWN: "알 수 없음" };
 
-/** 출처 상태 — 색만이 아니라 아이콘 · 글자로. 색이 있는 꼬리표는 「확인 필요」 하나 */
+/** 출처 상태는 데이터에 남기고 「확인 필요」만 아이콘 · 글자로 보인다(ADR-018 · FE#513). */
 export function SourceStatusMark({ status }: { status: SourceStatus }) {
-  if (status === "SOURCE_CONFIRMED") {
-    return (
-      <span className="inline-flex items-center gap-0.5 text-evidence">
-        <CheckIcon className="size-[1.15em]" aria-hidden="true" />
-        원문 확인
-      </span>
-    );
-  }
-  if (status === "USER_ENTERED") {
-    return (
-      <span className="inline-flex items-center gap-0.5">
-        <PencilSimpleIcon className="size-[1.15em]" aria-hidden="true" />
-        내가 입력
-      </span>
-    );
-  }
+  if (status !== "NEEDS_REVIEW") return null;
   return (
     <span className="inline-flex items-center gap-0.5 rounded-full border border-dashed border-review-line bg-review-soft py-px pr-2.5 pl-2 text-xs font-semibold text-review">
       <WarningCircleIcon className="size-[1.15em]" aria-hidden="true" />
       확인 필요
-    </span>
-  );
-}
-
-/** 활동 세부의 경험 줄 — 원문 확인 · 내가 입력은 부가 정보라 근거 옆에 아이콘만 둔다(글자는 툴팁 · 읽기 프로그램).
- *  「확인 필요」는 사용자가 할 일이 있어 꼬리표 그대로(FE#293) */
-export function SourceStatusIcon({ status }: { status: SourceStatus }) {
-  if (status === "NEEDS_REVIEW") return <SourceStatusMark status={status} />;
-  const confirmed = status === "SOURCE_CONFIRMED";
-  const Icon = confirmed ? CheckIcon : PencilSimpleIcon;
-  return (
-    <span title={confirmed ? "원문 확인 — 자료 원문에서 확인한 경험이에요" : "내가 입력 — 직접 쓰거나 고친 경험이에요"} className={cn("inline-flex items-center", confirmed && "text-evidence")}>
-      <Icon className="size-[1.15em]" weight={confirmed ? "bold" : "regular"} aria-hidden="true" />
-      <span className="sr-only">{confirmed ? "원문 확인" : "내가 입력"}</span>
     </span>
   );
 }
@@ -71,10 +42,10 @@ type MetaFields = Pick<Experience, "actor" | "competencies" | "competenciesBy" |
 export const hasQuietMeta = (e: MetaFields) =>
   e.actor !== "ME" || e.origin?.type === "ANSWER" || e.sourceStatus === "NEEDS_REVIEW" || e.competencies.length > 0;
 
-/** 수행 주체 · 출처 상태 · 역량 — AI 표시는 부가 정보라 맨 뒤. 고칠 수 있는 줄(edit)에선 출처 상태를 빼고 근거 옆 아이콘으로(FE#293) */
+/** 수행 주체 · 확인 필요 · 역량 — AI 표시는 맨 뒤. 고칠 수 있는 줄(edit)에선 확인 필요를 근거 옆에 둔다. */
 export function ExperienceMeta({ experience: e, edit, noSource, quiet }: {
   experience: MetaFields;
-  /** 출처 상태를 근거 옆 아이콘(SourceStatusIcon)으로 따로 둘 때 — 꺼내기 답(FE#363) */
+  /** 확인 필요를 근거 옆에 따로 둘 때 — 꺼내기 답(FE#363) */
   noSource?: boolean;
   /** 예외만 보인다 — 나 · 원문 확인 · 내가 입력은 감춘다. 꺼내 쓸 경험 카드(FE#510). 고치는 줄(edit)엔 쓰지 않는다 */
   quiet?: boolean;
@@ -86,7 +57,7 @@ export function ExperienceMeta({ experience: e, edit, noSource, quiet }: {
   if (edit) parts.push(<ActorField key="actor" experience={edit.experience} onSaved={edit.onSaved} />);
   else if (!quiet || e.actor !== "ME") parts.push(<span key="actor">{ACTOR[e.actor]}</span>);
   if (e.origin?.type === "ANSWER") parts.push(<Link key="origin" href={`/questions?question=${e.origin.questionId}`} className="min-w-0 break-words underline-offset-3 hover:underline">내가 쓴 지원서 · {e.origin.organization || "지원처 미입력"} · {e.origin.questionText}</Link>);
-  else if (!edit && !noSource && (!quiet || e.sourceStatus === "NEEDS_REVIEW")) parts.push(<SourceStatusMark key="source" status={e.sourceStatus} />);
+  if (!edit && !noSource && e.sourceStatus === "NEEDS_REVIEW") parts.push(<SourceStatusMark key="source" status={e.sourceStatus} />);
   if (edit) parts.push(<CompetencyField key="competency" experience={edit.experience} aiMark={aiMark} onSaved={edit.onSaved} />);
   else if (e.competencies.length > 0) parts.push(<span key="competency">
     {e.competencies.map((c) => COMPETENCIES[c]).join(" · ")}
@@ -103,8 +74,8 @@ export function ExperienceProperties({ experience: e, period }: {
   const rows: [string, React.ReactNode][] = [
     ["기간", <span key="period" className="tabular-nums">{period}</span>],
     ["수행", ACTOR[e.actor]],
-    ["출처", <SourceStatusMark key="source" status={e.sourceStatus} />],
   ];
+  if (e.sourceStatus === "NEEDS_REVIEW") rows.push(["출처", <SourceStatusMark key="source" status={e.sourceStatus} />]);
   if (e.competencies.length > 0) rows.push(["역량", <>
     {e.competencies.map((c) => COMPETENCIES[c]).join(" · ")}
     {isAiCompetency(e) && <AiMark className="ml-1.5" title="AI 가 붙인 역량 — 해석이에요" />}
@@ -211,7 +182,7 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
       <div className="flex flex-wrap items-center gap-1.5 text-note font-medium text-muted">
         <ExperienceMeta experience={e} edit={readOnly ? undefined : { experience: e, onSaved: (result) => onSaved({ ...result, usedIn: result.usedIn ?? e.usedIn }) }} />
         <span className="ml-auto inline-flex items-center gap-1.5">
-        {!readOnly && e.origin?.type !== "ANSWER" && <SourceStatusIcon status={e.sourceStatus} />}
+        {!readOnly && <SourceStatusMark status={e.sourceStatus} />}
         {n === 0 ? (
           <span className="text-muted">근거 없음</span>
         ) : (
