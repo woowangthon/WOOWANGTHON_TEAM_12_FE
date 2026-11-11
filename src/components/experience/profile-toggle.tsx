@@ -9,6 +9,7 @@ import { useState } from "react";
 import { ApiError } from "@/lib/api/errors";
 import { setExperienceShared } from "@/lib/api/share";
 import type { Experience } from "@/lib/api/types";
+import { MENU_ITEM } from "@/components/ui/menu";
 
 const NEEDS_REVIEW = "먼저 확인해 주세요";
 
@@ -37,7 +38,7 @@ export function useProfileShare(e: Experience, onSaved: (experience: Experience)
 
 type Share = ReturnType<typeof useProfileShare>;
 
-export const MENU_ITEM = "flex min-h-11 lg:min-h-10 cursor-pointer items-center gap-2 rounded-sm px-3 text-sm outline-none focus:bg-surface-soft data-disabled:cursor-default data-disabled:opacity-50";
+export { MENU_ITEM };
 
 /** 메뉴 체크 항목의 네모 — 저장 · 프로필에 넣기가 같이 쓴다 */
 export function MenuCheckBox() {

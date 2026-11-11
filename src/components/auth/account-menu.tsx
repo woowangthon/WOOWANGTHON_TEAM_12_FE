@@ -6,6 +6,7 @@ import { SignOutIcon, UserCircleIcon } from "@phosphor-icons/react";
 import { DropdownMenu } from "radix-ui";
 import { cn } from "@/lib/utils";
 import { useAuth } from "./auth-gate";
+import { MENU_CONTENT } from "@/components/ui/menu";
 
 export function AccountMenu({ variant = "bar" }: { variant?: "bar" | "sidebar" | "rail" }) {
   const { me, refresh, signOut } = useAuth();
@@ -31,7 +32,7 @@ export function AccountMenu({ variant = "bar" }: { variant?: "bar" | "sidebar" |
           align={variant !== "bar" ? "start" : "end"}
           side={variant !== "bar" ? "top" : "bottom"}
           sideOffset={6}
-          className="z-50 min-w-52 rounded-md border border-hairline bg-canvas p-2 shadow-float"
+          className={cn(MENU_CONTENT, "z-50 min-w-52")}
         >
           <div className="grid gap-0.5 px-3 py-2.5">
             <span className="text-sm font-semibold text-ink">{me.loginId}</span>

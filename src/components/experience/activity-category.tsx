@@ -8,6 +8,7 @@ import { Select, optionsOf } from "@/components/ui/select";
 import { updateActivity } from "@/lib/api/experience";
 import { ACTIVITY_CATEGORIES, type ActivityCategory, type ActivitySummary } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
+import { AiMark } from "@/components/ui/ai-mark";
 
 export const CATEGORY_KEYS = Object.keys(ACTIVITY_CATEGORIES) as ActivityCategory[];
 
@@ -23,12 +24,6 @@ export function categoryOf(activity: Pick<ActivitySummary, "category">): Activit
 export function categoryName(activity: Pick<ActivitySummary, "category">) {
   const category = categoryOf(activity);
   return category ? ACTIVITY_CATEGORIES[category] : null;
-}
-
-/** 「프로젝트 · 일 (AI 해석)」 — 세부(읽기 전용)용. 미분류면 null */
-export function categoryText(activity: Pick<ActivitySummary, "category" | "categoryBy">) {
-  const name = categoryName(activity);
-  return name && `${name}${activity.categoryBy === "AI" ? " (AI 해석)" : ""}`;
 }
 
 /** 활동 이름 칩의 모양 — 분류색은 [data-category] 가 정한다. 회색 카드 위에서도 같은 분류색 칩(채팅 기준으로 통일) */
@@ -63,8 +58,8 @@ export function ActivityCategoryField({ activity, onSaved, readOnly = false }: {
   const pending = useRef(false);
 
   if (readOnly) {
-    const text = categoryText(activity);
-    return text && <p data-category={category ?? undefined} className="m-0 inline-flex items-center gap-1.5 text-note text-muted">{category && <CategoryIcon category={category} />}{text}</p>;
+    const text = categoryName(activity);
+    return text && <p data-category={category ?? undefined} className="m-0 inline-flex items-center gap-1.5 text-note text-muted">{category && <CategoryIcon category={category} />}{text}{activity.categoryBy === "AI" && <AiMark />}</p>;
   }
 
   const save = async (value: ActivityCategory | null) => {
@@ -84,7 +79,7 @@ export function ActivityCategoryField({ activity, onSaved, readOnly = false }: {
         onChange={(next) => void save(next || null)} className="w-44 max-w-full lg:min-h-9"
         options={[{ value: "", label: "미분류" }, ...optionsOf(ACTIVITY_CATEGORIES)]} />
       {saving ? <span role="status" className="text-xs text-muted">저장 중…</span>
-        : category && activity.categoryBy === "AI" && <span className="text-xs text-muted">AI 해석</span>}
+        : category && activity.categoryBy === "AI" && <AiMark />}
     </div>
     {error && <div className="grid justify-items-start gap-1">
       <p role="alert" className="m-0 text-sm text-error">{error}</p>

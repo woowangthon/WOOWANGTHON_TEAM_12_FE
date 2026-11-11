@@ -62,6 +62,8 @@ test("작업 없음 · 빈 소식은 읽음 POST 없음 · 키보드 초점 복�
   await expect(trigger(page)).toBeVisible();
   await expect(page.getByLabel("전역 작업 상태").getByRole("paragraph")).toHaveText(""); // 할 일이 없으면 자리를 차지하지 않는다
   await trigger(page).focus(); await page.keyboard.press("Enter");
+  await expect(dialog(page)).toBeVisible();
+  await page.screenshot({ path: `docs/fe-465/notifications-${test.info().project.name}.png`, animations: "disabled" }); // 「할 일」 · 「소식 ⓘ」 제목 줄이 같은 높이(FE#465)
   await expect(dialog(page).getByText("아직 도착한 소식이 없어요.")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(trigger(page)).toBeFocused();
@@ -234,7 +236,7 @@ for (const [kind, area] of [["MATCH", "선택한 문항"], ["GROUNDING_CHECK", "
     await trigger(page).click(); await dialog(page).getByRole("link").click();
     await expect(page).toHaveURL(new RegExp("question=41&workArea="));
     if (kind === "MATCH") await expect(page.getByRole("tabpanel", { name: area })).toBeVisible();
-    else await expect(page.getByRole(kind === "DRAFT" ? "group" : "heading", { name: area, exact: true })).toBeFocused(); // 초안은 답칸 안의 한 줄(이름 있는 묶음)로 온다
+    else await expect(page.getByRole(kind === "DRAFT" ? "group" : "region", { name: area, exact: true })).toBeFocused(); // 초안은 답칸 안의 한 줄(이름 있는 묶음), 답칸은 제목 없는 구역(FE#463)
   });
 }
 

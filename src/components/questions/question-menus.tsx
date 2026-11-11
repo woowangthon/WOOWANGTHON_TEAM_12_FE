@@ -12,8 +12,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ApiError } from "@/lib/api/errors";
 import { MAX_QUESTION_LENGTH } from "@/lib/api/question-types";
 import { cn } from "@/lib/utils";
+import { MENU_CONTENT } from "@/components/ui/menu";
 
-const MENU = "z-50 min-w-44 rounded-md border border-hairline bg-canvas p-2 shadow-float";
+const MENU = cn(MENU_CONTENT, "z-50 min-w-44");
 
 /** 지우기 · 고치기 실패를 사용자 말로 — 창은 열어 둔 채 값은 그대로 둔다 */
 function failureText(e: unknown, fallback: string) {

@@ -12,7 +12,8 @@ export function InfoTip({ label, children, className, align = "start" }: { label
   return <Popover.Root>
     <Popover.Trigger asChild>
       <button type="button" aria-label={`${label} 설명`}
-        className={cn("inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-colors hover:text-ink lg:size-6 data-[state=open]:text-ink", className)}>
+        // 1024 미만은 누르는 영역만 44 — 음수 여백으로 배치 크기는 PC 와 같은 24 라 옆 제목의 줄 높이 · 간격을 밀지 않는다(FE#465)
+        className={cn("inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-colors hover:text-ink max-lg:-m-2.5 lg:size-6 data-[state=open]:text-ink", className)}>
         <InfoIcon className="size-4" aria-hidden="true" />
       </button>
     </Popover.Trigger>

@@ -81,7 +81,7 @@ test("inline add validates, cancels, appends server record after collapsed items
   await expect(last).toContainText("Saved by server");
   await expect(last).toContainText("내가 입력");
   await expect(last).toContainText("근거 없음");
-  await expect(last.getByText("AI", { exact: true })).toHaveCount(0);
+  await expect(last.getByText("AI 해석", { exact: true })).toHaveCount(0);
   expect(state.posts).toEqual([{ content: "My manual experience", actor: "TEAM", competencies: ["COLLABORATION"] }]);
   await expect(page.getByText("이 활동에서 한 일 5", { exact: true })).toBeVisible();
   await page.reload();

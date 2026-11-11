@@ -1,11 +1,12 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, optionsOf } from "@/components/ui/select";
 import { isTargetLength, MAX_TARGET_LENGTH, MIN_TARGET_LENGTH } from "@/lib/target-length";
 import { cn } from "@/lib/utils";
 import { applicationSaveError } from "@/lib/api/questions";
+import { AiMark } from "@/components/ui/ai-mark";
 import {
   APPLICATION_STATUS_LABEL, JOB_ROLE_LABEL, ORGANIZATION_TYPE_LABEL, QUESTION_TYPE_LABEL,
   type Application, type ApplicationStatus, type JobRole, type OrganizationType, type QuestionSummary, type QuestionType, type UpdateApplicationRequest,
@@ -43,8 +44,8 @@ function SavingSelect<T extends string>({ label, value, options, placeholder, cl
   placeholder: string;
   /** 비우기를 받는가 — 문항 유형은 받지 않는다(question-api.md) */
   clearable: boolean;
-  /** 칸 옆 한 줄 — 「AI 해석」 · 「내가 고름」 */
-  note?: string;
+  /** 칸 옆 한 줄 — AI 표시 · 「내가 고름」. 칸의 설명(aria-describedby)으로도 읽힌다 */
+  note?: ReactNode;
   onSave: (value: T | null) => Promise<void>;
 }) {
   const id = useId();
@@ -54,7 +55,7 @@ function SavingSelect<T extends string>({ label, value, options, placeholder, cl
   return <>
     <Select<T> variant="chip" aria-label={label} aria-describedby={note ? `${id}-note` : undefined} value={shown ?? ""} disabled={!!pending} placeholder={placeholder}
       options={clearable && shown !== null ? [{ value: "", label: "고르지 않음" }, ...items] : items} onChange={next => void save(next || null)} />
-    {note && <span id={`${id}-note`} className="text-note text-muted">{note}</span>}
+    {note && <span id={`${id}-note`} className="inline-flex items-center text-note text-muted">{note}</span>}
     {pending && <span role="status" className="text-note text-muted">저장하고 있어요…</span>}
     {failed && <SaveFailed what={`${label}을(를)`} message={failed.message} onRetry={() => void save(failed.value)} className="w-full" />}
   </>;
@@ -163,7 +164,7 @@ export function QuestionTypeField({ question, onSave }: {
   return (
     <SavingSelect<QuestionType> label="문항 유형" value={type} options={QUESTION_TYPE_LABEL}
       placeholder="유형 고르기" clearable={false}
-      note={!type ? undefined : question.questionTypeBy === "USER" ? "내가 고름" : "AI 해석"}
+      note={!type ? undefined : question.questionTypeBy === "USER" ? "내가 고름" : <AiMark />}
       onSave={next => (next ? onSave(next) : Promise.resolve())} />
   );
 }

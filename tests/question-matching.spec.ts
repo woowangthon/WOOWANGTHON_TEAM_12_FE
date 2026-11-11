@@ -134,8 +134,8 @@ test("question 41/42 switch shows contract judgments, actors and supplemental ev
   await expect(page).toHaveURL(/question=42/);
   await expand(page, 1); // 추천 카드는 처음에 모두 접혀 있다(FE#266)
   await expect(recommendation(page, 1).getByText("팀", { exact: true })).toBeVisible();
-  // 활동 카드 1개(두 추천이 같은 활동 — S-84)의 이유 + 문항 유형 칸의 「AI 해석」 1개(FE#81 — 계약 예시의 유형은 AI 가 붙였다)
-  await expect(result(page).getByText("AI 해석", { exact: true })).toHaveCount(2);
+  // 활동 카드의 이유 1 + 문항 유형 칸 1(FE#81) + 쓸 만한 줄의 역량 배지 2 — AI 표시는 모두 같은 배지다(FE#465)
+  await expect(result(page).getByText("AI 해석", { exact: true })).toHaveCount(4);
   await expect(result(page).getByLabel("문항 유형", { exact: true })).toHaveAccessibleDescription("AI 해석");
   // FE#75부터 초안도 실제 API다. 다른 기능의 목으로 대체하지 않는다.
   await expect(page.getByText("초안 목 모드", { exact: true })).toHaveCount(0);
@@ -279,7 +279,7 @@ test("three recommendations, UNKNOWN actor and missing evidence never invent quo
   await closeChagokSheet(page);
   await expand(page, 3);
   await expect(recommendation(page, 3).getByText("알 수 없음", { exact: true })).toBeVisible();
-  await expect(recommendation(page, 3).getByText("AI", { exact: true })).toHaveCount(0);
+  await expect(recommendation(page, 3).getByText("AI 해석", { exact: true })).toHaveCount(0);
   await expect(recommendation(page, 3)).toContainText("연결된 원문 근거를 찾지 못했어요.");
   await expect(recommendation(page, 3)).toContainText("연결된 보완을 찾지 못했어요.");
   await expect(recommendation(page, 3).locator("blockquote")).toHaveCount(0);

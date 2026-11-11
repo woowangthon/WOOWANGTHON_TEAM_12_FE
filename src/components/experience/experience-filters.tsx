@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Select, optionsOf } from "@/components/ui/select";
 import { ACTIVITY_CATEGORIES, COMPETENCIES, type ActivityCategory, type Competency, type ExperienceSearch } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
+import { MENU_CONTENT } from "@/components/ui/menu";
 
 export type ExperienceFilters = Omit<ExperienceSearch, "query">;
 
@@ -46,7 +47,7 @@ export function ExperienceFilterBar({ value, onChange, years, clearable, onDone,
         </DropdownMenu.Trigger>
         <DropdownMenu.Portal>
           <DropdownMenu.Content align="start" sideOffset={4} onCloseAutoFocus={onDone && ((e) => { e.preventDefault(); onDone(); })}
-            className="z-50 max-h-[min(60dvh,420px)] min-w-40 overflow-auto rounded-md border border-hairline bg-canvas p-2 shadow-float">
+            className={cn(MENU_CONTENT, "z-50 max-h-[min(60dvh,420px)] min-w-40 overflow-auto")}>
             {(Object.keys(COMPETENCIES) as Competency[]).map((c) => (
               <DropdownMenu.CheckboxItem
                 key={c}
