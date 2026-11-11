@@ -158,18 +158,24 @@ async function closePanel(page: Page) {
   if (await close.isVisible()) { await close.click(); await expect(close).toBeHidden(); }
 }
 
-test('type suggestion table, explicit NONE and saved CARL survive panel regeneration and reload', async ({ page }) => {
-  const api = await new FakeQuestionApi({ sameApplication: true }).install(page);
-  const expected: [QuestionType | null, DraftFrame][] = [['ACHIEVEMENT','STAR'], ['FAILURE','CARL'], ['SELF_INTRO','PREP'], ['MOTIVATION','MOTIVE_LINK'], ['PROBLEM_SOLVING','CAUSE_FIX'], ['COLLABORATION','ALIGN'], ['CONFLICT','ALIGN'], ['IDEA','CHANGE'], ['GROWTH','ORIGIN'], ['JOB_SKILL','SKILL_STEPS'], ['OTHER','NONE'], [null,'NONE']];
-  for (const [type, frame] of expected) {
+const suggestedFrames: [QuestionType | null, DraftFrame][] = [['ACHIEVEMENT','STAR'], ['FAILURE','CARL'], ['SELF_INTRO','PREP'], ['MOTIVATION','MOTIVE_LINK'], ['PROBLEM_SOLVING','CAUSE_FIX'], ['COLLABORATION','ALIGN'], ['CONFLICT','ALIGN'], ['IDEA','CHANGE'], ['GROWTH','ORIGIN'], ['JOB_SKILL','SKILL_STEPS'], ['OTHER','NONE'], [null,'NONE']];
+for (const [type, frame] of suggestedFrames) {
+  test(`type suggestion: ${type ?? '미정'} → ${frame}`, async ({ page }) => {
+    const api = await new FakeQuestionApi({ sameApplication: true }).install(page);
     api.edit(41, q => { q.questionType = type; q.draft = null; });
     await page.goto('/questions?question=41');
     const controls = await openComposer(page);
     await expect(controls.getByRole('combobox', { name: '구성 틀', exact: true })).toHaveText(DRAFT_FRAMES[frame].name);
     await expect(controls.getByRole('button', { name: '구성 틀 설명', exact: true })).toBeVisible(); // 「문항 유형에 맞춘 제안」은 ⓘ 안(FE#463)
     await expect(controls.getByText(DRAFT_FRAMES[frame].steps, { exact: true })).toBeVisible();
-  }
-  const controls = composer(page);
+  });
+}
+
+test('explicit NONE and saved CARL survive panel regeneration and reload', async ({ page }) => {
+  const api = await new FakeQuestionApi({ sameApplication: true }).install(page);
+  api.edit(41, q => { q.questionType = null; q.draft = null; });
+  await page.goto('/questions?question=41');
+  const controls = await openComposer(page);
   await pickOption(controls.getByRole('combobox', { name: '구성 틀', exact: true }), '틀 없이');
   await controls.getByRole('button', { name: '초안 만들기', exact: true }).click();
   await closePanel(page);
