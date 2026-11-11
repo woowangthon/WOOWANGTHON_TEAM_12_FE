@@ -66,7 +66,7 @@ export async function parseApplication(input: string | { url: string } | { image
     : "url" in input ? { url: input.url.trim() } : { images: input.images.map(({ mediaType, data }) => ({ mediaType, data })) };
   if ("text" in body) {
     if (!body.text.trim()) throw new ApiError("EMPTY_TEXT", "글을 입력해 주세요.");
-    if (body.text.length > MAX_PARSE_TEXT_LENGTH) throw new ApiError("TEXT_TOO_LONG", "지원 칸 채우기는 한 번에 20,000자까지 읽어요. 줄여서 다시 넣어 주세요.");
+    if (body.text.length > MAX_PARSE_TEXT_LENGTH) throw new ApiError("TEXT_TOO_LONG", "지원서 칸 채우기는 한 번에 20,000자까지 읽어요. 줄여서 다시 넣어 주세요.");
   } else if ("url" in body) {
     if (!isPostingUrl(body.url)) throw new ApiError("INVALID_URL", "http:// 나 https:// 로 시작하는 링크 하나를 넣어 주세요(2,000자까지).");
   } else {
@@ -80,7 +80,7 @@ export async function parseApplication(input: string | { url: string } | { image
     return "text" in body ? mockParseApplication(body.text) : mockParseApplicationUrl((body as { url: string }).url);
   }
   const result = await request<Omit<ParsedApplication, "postingLines"> & { postingLines?: unknown }>("/entrance/parse-application", body, "POST");
-  if (!Array.isArray(result?.questions)) throw new ApiError("INVALID_RESPONSE", "지원 나누기 결과를 읽지 못했어요. 다시 시도해 주세요.");
+  if (!Array.isArray(result?.questions)) throw new ApiError("INVALID_RESPONSE", "지원서 나누기 결과를 읽지 못했어요. 다시 시도해 주세요.");
   // 닫힌 목록 밖의 값은 고를 수 없는 칸이 되니 비운다(S-42 — 둘 다 선택 칸)
   return {
     organization: result.organization?.trim() || null,
@@ -100,7 +100,7 @@ export type AskRecommendation = Omit<Recommendation, "emphasis" | "gaps">;
 /** S-29: 한 줄 질문에 쌓인 경험 0 ~ 3개로 답한다. 저장하지 않는다 · 하루 분석 한도를 1회 센다. */
 export async function askExperiences(text: string, mockResult: MockAskResult = "CARDS"): Promise<AskRecommendation[]> {
   if (!text.trim()) throw new ApiError("EMPTY_TEXT", "글을 입력해 주세요.");
-  if (text.length > MAX_ASK_TEXT_LENGTH) throw new ApiError("INVALID_REQUEST", "꺼내기 질문은 2,000자까지 읽어요. 줄여서 물어보거나 지원으로 만들어 주세요.");
+  if (text.length > MAX_ASK_TEXT_LENGTH) throw new ApiError("INVALID_REQUEST", "꺼내기 질문은 2,000자까지 읽어요. 줄여서 물어보거나 지원서로 만들어 주세요.");
   if (isMockMode()) {
     // MOCK(entrance-ask): API 주소가 없을 때만 고정 예시(카드 있는 답 · 0개 답)를 돌려준다. 실제 실패 대체용이 아니다.
     await new Promise(resolve => setTimeout(resolve, 400));

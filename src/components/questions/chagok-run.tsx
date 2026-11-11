@@ -136,7 +136,7 @@ function ResultLink({ run }: { run: ChagokRun }) {
   if (!result) return null;
   const line = `${bubble} flex flex-wrap items-center gap-2`;
   if (result.tool === "create_application") return <div className={line}>
-    <span>지원을 만들었어요.</span>
+    <span>지원서를 만들었어요.</span>
     <a className={resultLink} href={`/questions?question=${result.questionIds[0]}`}>열기</a>
   </div>;
   return <div className={line}>

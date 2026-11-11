@@ -29,7 +29,7 @@ export function useHomeOverview(mock: MockMode, userId?: number) {
       activities: activities.status === "fulfilled" ? activities.value : null,
       applications: applications.status === "fulfilled" ? applications.value : null,
       activityError: activities.status === "rejected" ? "경험을 불러오지 못했어요." : null,
-      applicationError: applications.status === "rejected" ? "최근 지원을 불러오지 못했어요." : null,
+      applicationError: applications.status === "rejected" ? "최근 지원서를 불러오지 못했어요." : null,
     });
     if (activities.status !== "fulfilled") return;
     const details = await Promise.allSettled(activities.value.map(a => fetchActivity(a.id)));

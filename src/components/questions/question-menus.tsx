@@ -15,8 +15,8 @@ function failureText(e: unknown, fallback: string) {
   if (e instanceof ApiError) {
     if (e.code === "QUESTION_ANALYZING") return "추천 · 초안 · 근거 점검이 아직 돌고 있어요. 끝난 뒤 다시 시도해 주세요.";
     if (e.code === "DAILY_LIMIT_EXCEEDED") return "오늘 분석 횟수를 다 썼어요. 문항 글은 바꾸지 않았어요 — 한국 시간 자정 뒤 다시 시도해 주세요.";
-    if (e.code === "LAST_QUESTION") return "지원의 마지막 문항이라 문항만 지울 수 없어요. 지원 머리의 휴지통으로 지원째 지워 주세요.";
-    if (e.code === "QUESTION_NOT_FOUND" || e.code === "APPLICATION_NOT_FOUND") return "이미 지웠거나 찾을 수 없어요. 지원 목록을 새로고침해 주세요.";
+    if (e.code === "LAST_QUESTION") return "지원서의 마지막 문항이라 문항만 지울 수 없어요. 지원서 머리의 휴지통으로 지원서째 지워 주세요.";
+    if (e.code === "QUESTION_NOT_FOUND" || e.code === "APPLICATION_NOT_FOUND") return "이미 지웠거나 찾을 수 없어요. 지원서 목록을 새로고침해 주세요.";
   }
   return e instanceof Error && e.message ? e.message : fallback;
 }
@@ -44,7 +44,7 @@ function IconAction({ label, title, onClick, children, className }: { label: str
 export function ApplicationActions({ label, onDelete, onExport, className }: { label: string; onDelete: () => void; onExport?: () => void; className?: string }) {
   return <div className={cn("flex shrink-0 items-center", className)}>
     {onExport && <IconAction label={`Markdown 으로 내보내기: ${label}`} title="Markdown 으로 내보내기" onClick={onExport}><DownloadSimpleIcon aria-hidden="true" /></IconAction>}
-    <IconAction label={`지원 지우기: ${label}`} title="지원 지우기" onClick={onDelete} className="hover:text-error"><TrashIcon aria-hidden="true" /></IconAction>
+    <IconAction label={`지원서 지우기: ${label}`} title="지원서 지우기" onClick={onDelete} className="hover:text-error"><TrashIcon aria-hidden="true" /></IconAction>
   </div>;
 }
 
@@ -53,7 +53,7 @@ export function DeleteQuestionButton({ index, last, onDelete, onDeleteApplicatio
   index: number; last: boolean; onDelete: () => void; onDeleteApplication: () => void;
 }) {
   return last
-    ? <IconAction label={`지원째 지우기 — 문항 ${index + 1}이 마지막 문항이에요`} title="지원째 지우기 — 마지막 문항이라 문항만 지울 수 없어요" onClick={onDeleteApplication} className="-my-2 hover:text-error"><TrashIcon aria-hidden="true" /></IconAction>
+    ? <IconAction label={`지원서째 지우기 — 문항 ${index + 1}이 마지막 문항이에요`} title="지원서째 지우기 — 마지막 문항이라 문항만 지울 수 없어요" onClick={onDeleteApplication} className="-my-2 hover:text-error"><TrashIcon aria-hidden="true" /></IconAction>
     : <IconAction label={`문항 ${index + 1} 지우기`} title="문항 지우기" onClick={onDelete} className="-my-2 hover:text-error"><TrashIcon aria-hidden="true" /></IconAction>;
 }
 
@@ -87,7 +87,7 @@ export function DeleteApplicationDialog({ target, onClose, onDelete }: {
   target: { id: number; name: string; questionCount: number } | null; onClose: () => void; onDelete: (id: number) => Promise<void>;
 }) {
   return <ConfirmDialog key={target?.id ?? "none"} open={target !== null} onOpenChange={open => { if (!open) onClose(); }}
-    title="지원을 지울까요?" subject={target?.name ?? ""} action="지우기" fallback="지원을 지우지 못했어요. 다시 시도해 주세요."
+    title="지원서를 지울까요?" subject={target?.name ?? ""} action="지우기" fallback="지원서를 지우지 못했어요. 다시 시도해 주세요."
     lines={[`문항 ${target?.questionCount ?? 0}개와 다 쓴 답도 같이 지워져요.`, "추천 · 초안 · 근거 점검도 함께 지워지고, 되돌릴 수 없어요.", "되묻기에 답해 쌓은 보완과 이미 만든 경험은 남아요."]}
     onConfirm={() => target ? onDelete(target.id) : Promise.resolve()} />;
 }

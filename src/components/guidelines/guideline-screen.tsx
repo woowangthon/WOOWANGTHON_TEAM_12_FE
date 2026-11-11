@@ -81,7 +81,7 @@ export function GuidelineScreen() {
     <main className="w-full min-w-0 flex-1 px-4 py-7 sm:px-8 lg:px-10">
       <div className="mx-auto grid max-w-4xl min-w-0 gap-6">
         <header className="grid gap-3">
-          <Link href="/questions" className="inline-flex min-h-11 lg:min-h-10 items-center justify-self-start text-sm text-muted hover:underline">← 지원으로 돌아가기</Link>
+          <Link href="/questions" className="inline-flex min-h-11 lg:min-h-10 items-center justify-self-start text-sm text-muted hover:underline">← 지원서로 돌아가기</Link>
           <div className="flex items-center gap-1"><h1 className="m-0 text-2xl font-bold">작성 지침</h1><InfoTip label="작성 지침">켠 지침은 모든 답변 초안의 문체 · 구성 · 강조에 써요. 근거에 없는 사실은 만들지 않아요.</InfoTip></div>
           <p className="m-0 text-sm leading-relaxed text-muted">들었던 작성법을 내 지침으로 쌓아 두세요.</p>
         </header>

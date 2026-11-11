@@ -51,7 +51,7 @@ test("sidebar shows the applications anywhere and a row opens that application",
   await expect(page).toHaveURL(/\/questions\?question=\d+/);
   await expect(page.getByRole("tabpanel", { name: "선택한 문항", exact: true })).toBeVisible();
   await expect(sidebar(page).locator("button[aria-pressed=true]")).toContainText("OO 연합 동아리");
-  await expect(sidebar(page).getByRole("link", { name: "내 지원서", exact: true })).toHaveAttribute("aria-current", "page"); // 지원 화면도 내 지원서 영역(FE#347)
+  await expect(sidebar(page).getByRole("link", { name: "내 지원서", exact: true })).toHaveAttribute("aria-current", "page"); // 지원서 화면도 내 지원서 영역(FE#347)
   await capture(page, "questions-1440");
 });
 
@@ -80,13 +80,13 @@ test("the add menu opens a new application from another screen, once", async ({ 
   await capture(page, "add-menu-1440");
   await page.getByRole("menuitem", { name: /^새 지원서/ }).click();
   await expect(page).toHaveURL(/\/questions/);
-  await expect(page.locator("#selected-application")).toHaveAttribute("aria-label", "새 지원 입력");
+  await expect(page.locator("#selected-application")).toHaveAttribute("aria-label", "새 지원서 입력");
   await expect(page).not.toHaveURL(/new=1/);
   await page.reload();
-  await expect(page.locator("#selected-application")).toHaveAttribute("aria-label", "선택한 지원");
+  await expect(page.locator("#selected-application")).toHaveAttribute("aria-label", "선택한 지원서");
   // 지원 화면 안에서는 옮겨 가지 않고 바로 연다
   await applications(page).getByRole("button", { name: "새 지원서", exact: true }).click();
-  await expect(page.locator("#selected-application")).toHaveAttribute("aria-label", "새 지원 입력");
+  await expect(page.locator("#selected-application")).toHaveAttribute("aria-label", "새 지원서 입력");
 });
 
 test("rail keeps the menu reachable: applications icon, add menu and overlay list", async ({ page }, info) => {
@@ -108,7 +108,7 @@ test("rail keeps the menu reachable: applications icon, add menu and overlay lis
   await capture(page, "add-menu-overlay-1024");
   await page.getByRole("menuitem", { name: /^새 지원서/ }).click();
   await expect(overlay).toHaveCount(0);
-  await expect(page.locator("#selected-application")).toHaveAttribute("aria-label", "새 지원 입력");
+  await expect(page.locator("#selected-application")).toHaveAttribute("aria-label", "새 지원서 입력");
 });
 
 test("390 uses a one line top bar and a bottom tab bar without the desktop shell or its requests", async ({ page }, info) => {

@@ -13,7 +13,7 @@ export type Rematch = (questionId: number) => Promise<unknown>;
 const WHY: Record<string, string> = {
   QUESTION_ANALYZING: "초안이나 근거 점검이 아직 돌고 있어요. 끝난 뒤 다시 눌러 주세요.",
   DAILY_LIMIT_EXCEEDED: "오늘 분석 횟수를 다 썼어요. 지금 추천은 그대로예요.",
-  QUESTION_NOT_FOUND: "이 문항을 찾을 수 없어요. 지원 목록에서 문항을 다시 확인해 주세요.",
+  QUESTION_NOT_FOUND: "이 문항을 찾을 수 없어요. 지원서 목록에서 문항을 다시 확인해 주세요.",
 };
 
 export function RematchButton({ questionId, onRematch, busy = false, label = "경험 다시 찾기", prominent = false, className }: {

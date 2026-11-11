@@ -30,13 +30,13 @@ import type { MockAskResult } from "@/lib/mock/ask";
 
 /** url · failure: 링크만 넣은 홈 입력(S-46) — 원문 링크 칸에 남기고, 못 읽었으면 그 결과를 지원 넣기에서 보인다 */
 type Destination = { kind: "source" | "application"; text: string; prefill?: ParsedApplication; url?: string; failure?: ParseFailure };
-const MOCK_LABEL: Record<EntranceKind, string> = { SOURCE: "자료", APPLICATION: "지원", ASK: "한 줄 질문", UNSURE: "애매함" };
+const MOCK_LABEL: Record<EntranceKind, string> = { SOURCE: "자료", APPLICATION: "지원서", ASK: "한 줄 질문", UNSURE: "애매함" };
 // SAMPLE(home-input-examples): 시안 6의 입력 예시. 칸만 채우며 결과·저장은 만들지 않는다.
 const EXAMPLES = {
   out: [
     ["리더십을 보여 준 경험 있어?", "리더십을 보여 준 경험 있어?"],
     ["작년 이맘때 뭐 했더라", "작년 이맘때 뭐 했더라"],
-    ["지원 문항 붙여 넣어 보기", "[OO 부트캠프 백엔드 과정 지원서]\n1. 기술적인 문제를 해결한 경험을 구체적으로 적어 주세요. (700자)\n2. 지원 동기와 수료 후 목표를 적어 주세요. (500자)"],
+    ["지원서 문항 붙여 넣어 보기", "[OO 부트캠프 백엔드 과정 지원서]\n1. 기술적인 문제를 해결한 경험을 구체적으로 적어 주세요. (700자)\n2. 지원 동기와 수료 후 목표를 적어 주세요. (500자)"],
   ],
   in: [
     ["오늘: 스터디에서 처음 발표했다", "오늘: 스터디에서 처음 발표했다"],
@@ -184,7 +184,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
         {file && <span className="mb-2 inline-flex max-w-full items-center gap-2 rounded-full bg-surface-soft px-3 py-1 text-xs text-body"><span className="min-w-0 break-all">{file.name} · {file.text.length.toLocaleString("ko-KR")}자</span><button type="button" aria-label="첨부 파일 빼기" disabled={busy} className="flex size-11 lg:size-10 shrink-0 items-center justify-center" onClick={() => { ++fileVersion.current; setFile(null); setError(null); setDuplicate(null); }}><XIcon aria-hidden="true" /></button></span>}
         <textarea aria-label="홈에 넣을 글" aria-describedby="entrance-note entrance-length" aria-invalid={tooLong}
           id="home-text" rows={2} value={text} disabled={busy || !!file} onChange={e => { setText(e.target.value); setChoosing(false); setError(null); setDuplicate(null); parse.clear(); }}
-          placeholder={mode === "out" ? "한 줄로 물어보거나, 지원 문항 · 공고(링크도 돼요)를 그대로 붙여 넣어 보세요" : "오늘 한 일 한 줄이나, README · 회고를 붙여 넣어 보세요"}
+          placeholder={mode === "out" ? "한 줄로 물어보거나, 지원서 문항 · 공고(링크도 돼요)를 그대로 붙여 넣어 보세요" : "오늘 한 일 한 줄이나, README · 회고를 붙여 넣어 보세요"}
           className="min-h-12 w-full resize-none border-0 bg-transparent text-base leading-relaxed outline-none placeholder:text-muted focus-visible:outline-none" />
         <div className="mt-1.5 flex items-center justify-between gap-3">
           <input ref={fileInput} type="file" accept={SOURCE_FILE_ACCEPT} aria-label="홈 첨부 파일" className="sr-only" disabled={busy || sourceBusy} onChange={e => { void pickFile(e.target.files?.[0]); e.target.value = ""; }} />
@@ -221,7 +221,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     {asking && <p role="status" className="mt-4 text-center text-sm text-muted">쌓인 경험에서 찾고 있어요…</p>}
     {answer && <AskAnswer answer={answer} busy={busy} onMakeApplication={() => makeApplication(answer.text)} />}
     {askFailure && <AskFailureNotice failure={askFailure} busy={busy} onRetry={() => void ask(askFailure.text, mockAsk)} onMakeApplication={() => makeApplication(askFailure.text)} />}
-    {routing && !parse.parsing && !asking && <p role="status" className="mt-4 text-center text-sm text-muted">글을 읽고 자료인지 지원인지 가르고 있어요…</p>}
+    {routing && !parse.parsing && !asking && <p role="status" className="mt-4 text-center text-sm text-muted">글을 읽고 자료인지 지원서인지 가르고 있어요…</p>}
     {parse.parsing && <p role="status" className="mt-4 text-center text-sm text-muted">{singleLink(text) ? "링크를 읽고 지원처와 문항을 나누고 있어요…" : "글을 읽고 지원처와 문항을 나누고 있어요…"}</p>}
     {parse.failure && <ParseFailureNotice className="mt-4" failure={parse.failure}
       onRetry={() => { const input = parse.failure!.input; void ("url" in input ? fillFromLink(input.url) : "text" in input && fillApplication(input.text)); /* 홈은 캡처를 받지 않는다 */ }}
@@ -235,8 +235,8 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     {error && <div role="alert" className="mt-4 text-sm text-error">{error} <Button variant="link" disabled={busy || (!file && !text.trim())} onClick={() => void send()}>다시 시도</Button></div>}
     {duplicate && <div className="mt-4"><DuplicateSourceNotice source={duplicate} busy={sourceSubmitting} onInsert={() => void sendSource(true)} onCancel={() => setDuplicate(null)} /></div>}
     {choosing && <div className="mt-5 rounded-md border border-hairline p-4" aria-label="사용자가 종류 고르기">
-      <p className="mt-0 mb-3 font-medium">자료로 쌓을까요, 지원으로 만들까요?</p>
-      <div className="flex flex-wrap gap-2"><Button variant="secondary" className="min-h-11 lg:min-h-10" disabled={sourceBusy} onClick={() => openDestination("source")}>자료로 쌓기</Button><Button className="min-h-11 lg:min-h-10" onClick={() => openDestination("application")}>지원으로 만들기</Button></div>
+      <p className="mt-0 mb-3 font-medium">자료로 쌓을까요, 지원서로 만들까요?</p>
+      <div className="flex flex-wrap gap-2"><Button variant="secondary" className="min-h-11 lg:min-h-10" disabled={sourceBusy} onClick={() => openDestination("source")}>자료로 쌓기</Button><Button className="min-h-11 lg:min-h-10" onClick={() => openDestination("application")}>지원서로 만들기</Button></div>
     </div>}
     {destination?.kind === "source" && <AddSourceDialog open onOpenChange={open => { if (!open) setDestination(null); }} mock={mockAnalysis}
       initialText={destination.text}
@@ -244,7 +244,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
       onSubmitted={jobs => { onSourceSubmitted(jobs); setText(""); setDestination(null); }} />}
     <Dialog open={destination?.kind === "application"} onOpenChange={open => { if (!open && !saving) setDestination(null); }}>
       <DialogContent>
-        <DialogHeader className="pr-10"><DialogTitle>지원 넣기</DialogTitle><DialogDescription>{destination?.url ? (destination.prefill ? "링크에서 나눈 내용으로 칸을 채웠어요. 고친 뒤 넣어 주세요." : destination.failure ? "링크를 읽지 못했어요. 공고 본문을 붙여 넣으면 칸을 채워요." : "원문 링크를 남겨 뒀어요. 지원처와 문항을 넣어 주세요.") : destination?.prefill ? "글에서 나눈 내용으로 칸을 채웠어요. 고친 뒤 넣어 주세요." : destination?.text ? "입력한 글을 문항 하나로 옮겼어요. 지원처와 문항을 확인하고 넣어 주세요." : "지원처와 문항을 넣어 주세요."}</DialogDescription></DialogHeader>
+        <DialogHeader className="pr-10"><DialogTitle>새 지원서</DialogTitle><DialogDescription>{destination?.url ? (destination.prefill ? "링크에서 나눈 내용으로 칸을 채웠어요. 고친 뒤 넣어 주세요." : destination.failure ? "링크를 읽지 못했어요. 공고 본문을 붙여 넣으면 칸을 채워요." : "원문 링크를 남겨 뒀어요. 지원처와 문항을 넣어 주세요.") : destination?.prefill ? "글에서 나눈 내용으로 칸을 채웠어요. 고친 뒤 넣어 주세요." : destination?.text ? "입력한 글을 문항 하나로 옮겼어요. 지원처와 문항을 확인하고 넣어 주세요." : "지원처와 문항을 넣어 주세요."}</DialogDescription></DialogHeader>
         {destination?.kind === "application" && <ApplicationForm key={`${destination.prefill ? "filled" : "plain"}:${destination.url ?? ""}`} initialText={destination.text} prefill={destination.prefill} pastedText={destination.prefill ? destination.text : ""}
           initialUrl={destination.url} initialFailure={destination.failure} onSavingChange={setSaving} moveToSourceDisabled={sourceBusy}
           onMoveToSource={value => openDestination("source", value)} onCancel={() => setDestination(null)}

@@ -48,7 +48,7 @@ test("used experience shows count; unused shows nothing; opening lists applicati
   await expect(page.locator("#experience-103")).not.toContainText("쓰임");
 
   await chip.click();
-  const list = page.getByRole("list", { name: "이 경험이 쓰인 지원" });
+  const list = page.getByRole("list", { name: "이 경험이 쓰인 지원서" });
   await expect(list).toContainText("OO 연합 동아리");
   await expect(list).toContainText("합격");
   await expect(list).toContainText("2025.02 냄");

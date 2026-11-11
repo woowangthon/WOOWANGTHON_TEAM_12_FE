@@ -16,8 +16,8 @@ export type AskFailure = { text: string; message: string; retryable: boolean; li
 /** 「지원으로 만들기」 — 가르기가 문항을 질문으로 잘못 가른 경우를 위해 답 아래에 늘 둔다(entrance-api 「흐름」) */
 function MakeApplication({ onMakeApplication, disabled }: { onMakeApplication: () => void; disabled: boolean }) {
   return <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-hairline pt-3 text-sm text-muted">
-    <span>지원 문항이었나요?</span>
-    <Button type="button" variant="secondary" className="min-h-11 lg:min-h-10" disabled={disabled} onClick={onMakeApplication}>지원으로 만들기</Button>
+    <span>지원서 문항이었나요?</span>
+    <Button type="button" variant="secondary" className="min-h-11 lg:min-h-10" disabled={disabled} onClick={onMakeApplication}>지원서로 만들기</Button>
   </div>;
 }
 

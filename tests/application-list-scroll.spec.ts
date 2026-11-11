@@ -3,12 +3,12 @@ import { test, expect } from "./signed-in";
 import { FakeQuestionApi } from "./fake-question-api";
 import type { Application } from "../src/lib/api/question-types";
 
-const q = (id: number, applicationId: number) => ({ id, applicationId, organization: null, text: `${applicationId}번 지원의 첫 문항 — 지원 동기와 이루고 싶은 목표를 적어 주세요.`, status: "MATCHED" as const, createdAt: "2026-11-01T00:00:00Z" });
+const q = (id: number, applicationId: number) => ({ id, applicationId, organization: null, text: `${applicationId}번 지원서의 첫 문항 — 지원 동기와 이루고 싶은 목표를 적어 주세요.`, status: "MATCHED" as const, createdAt: "2026-11-01T00:00:00Z" });
 const list = Array.from({ length: 14 }, (_, i) => ({
   id: i + 1, organization: `${i + 1}번 지원처`, organizationType: "COMPANY", jobRole: "BACKEND", applicationStatus: "WRITING", submittedMonth: null, createdAt: `2026-11-${String(i + 1).padStart(2, "0")}T00:00:00Z`, questions: [q((i + 1) * 10, i + 1)],
 })) as unknown as Application[];
 
-test("모바일 지원 목록은 288px 상자에 갇히지 않고 페이지가 스크롤된다", async ({ page }, info) => {
+test("모바일 지원서 목록은 288px 상자에 갇히지 않고 페이지가 스크롤된다", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop");
   await page.route("https://cdn.jsdelivr.net/**", route => route.abort());
   await new FakeQuestionApi().install(page);
@@ -17,7 +17,7 @@ test("모바일 지원 목록은 288px 상자에 갇히지 않고 페이지가 �
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/questions");
-  await page.getByRole("button", { name: "지원 목록으로" }).click(); // 지원을 열면 세부부터 — 목록은 이 버튼 뒤
+  await page.getByRole("button", { name: "지원서 목록으로" }).click(); // 지원서를 열면 세부부터 — 목록은 이 버튼 뒤
   await expect(rows.locator("li")).toHaveCount(14);
   const box = await rows.evaluate(e => ({ client: e.clientHeight, scroll: e.scrollHeight, maxHeight: getComputedStyle(e).maxHeight }));
   expect(box.maxHeight).toBe("none");
@@ -31,7 +31,7 @@ test("모바일 지원 목록은 288px 상자에 갇히지 않고 페이지가 �
   await page.mouse.wheel(0, -100);
   await expect(tabBar).not.toHaveClass(/translate-y-full/);
   await rows.locator("li").last().scrollIntoViewIfNeeded();
-  await expect(rows.locator("li").last()).toBeInViewport(); // 마지막 지원도 잘림 없이 닿는다
+  await expect(rows.locator("li").last()).toBeInViewport(); // 마지막 지원서도 잘림 없이 닿는다
   if (process.env.UPDATE_SHELL_SCREENSHOTS === "1") await page.screenshot({ path: "docs/fe-340/application-list-390.png", animations: "disabled", style: "nextjs-portal { display: none !important; }" });
 
   await page.setViewportSize({ width: 1024, height: 1000 });

@@ -154,7 +154,7 @@ try {
     report.created.source = source; save();
     const initial = await freshReloadWork();
     const initiallyActive = initial.snapshot.inProgress.some(item => item.jobId === source.jobId);
-    await page.getByRole('link', { name: '지원', exact: true }).filter({ visible: true }).first().click();
+    await page.getByRole('link', { name: '지원서', exact: true }).filter({ visible: true }).first().click();
     await trigger().waitFor();
     const duringNavigation = await api('/work');
     const beforeReload = duringNavigation.inProgress.some(item => item.jobId === source.jobId);
@@ -239,7 +239,7 @@ try {
 
   let run;
   await check('real CHAGOK WAITING_CONFIRM across navigation and refresh', async () => {
-    const accepted = await aiJob('CHAGOK', '/chagok/runs', { text: `새 지원을 만들어 주세요. 지원처 이름은 FE106 확인카드 ${tag}, 종류 BOOTCAMP, 직무 BACKEND입니다. 문항은 '메시지 재연결 문제를 직접 해결한 경험을 설명해 주세요.' 하나입니다. 다른 정보는 필요 없으니 create_application으로 이 내용 그대로 제안해 주세요.`, questionId: null });
+    const accepted = await aiJob('CHAGOK', '/chagok/runs', { text: `새 지원서를 만들어 주세요. 지원처 이름은 FE106 확인카드 ${tag}, 종류 BOOTCAMP, 직무 BACKEND입니다. 문항은 '메시지 재연결 문제를 직접 해결한 경험을 설명해 주세요.' 하나입니다. 다른 정보는 필요 없으니 create_application으로 이 내용 그대로 제안해 주세요.`, questionId: null });
     report.created.runId = accepted.runId; save();
     run = await until(() => api(`/chagok/runs/${accepted.runId}`), row => row.status !== 'RUNNING', 180000);
     report.aiJobs.find(row => row.kind === 'CHAGOK').outcome = run.status;

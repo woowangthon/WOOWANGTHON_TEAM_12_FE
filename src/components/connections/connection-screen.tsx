@@ -37,7 +37,7 @@ function MarkdownExportSection() {
 /** 외부 AI 변경 기록은 헤더 「최근 수정」 한 목록에 있다 — 여기엔 여는 길 하나만(S-54 · FE#517) */
 function McpChangeLink() {
   return <section aria-labelledby="mcp-changes-title" className={cn(CONNECTION_CARD, "mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-1")}>
-    <div className="flex items-center gap-0.5"><h2 id="mcp-changes-title" className="text-lg font-bold tracking-tight">변경 기록</h2><InfoTip label="변경 기록">외부 AI 가 바꾼 것(자료 넣기 · 경험 본문 고치기 · 지원 만들기 · 되묻기 답)은 웹에서 고친 기록과 같이 「최근 수정」에 모여요. 맞아요 · 되돌리기도 그 줄에서 해요.</InfoTip></div>
+    <div className="flex items-center gap-0.5"><h2 id="mcp-changes-title" className="text-lg font-bold tracking-tight">변경 기록</h2><InfoTip label="변경 기록">외부 AI 가 바꾼 것(자료 넣기 · 경험 본문 고치기 · 지원서 만들기 · 되묻기 답)은 웹에서 고친 기록과 같이 「최근 수정」에 모여요. 맞아요 · 되돌리기도 그 줄에서 해요.</InfoTip></div>
     <Button className="min-h-11 lg:min-h-10" variant="secondary" onClick={openRecentRevisions}>
       <ClockCounterClockwiseIcon aria-hidden="true" />최근 수정에서 보기
     </Button>
@@ -54,7 +54,7 @@ const CONFIRM = {
   disconnect: { title: "연결을 끊을까요?", body: "지금 주소는 즉시 사용할 수 없어요. 다시 연결하려면 새 주소를 만들어야 해요.", action: "연결 끊기" },
   write: {
     title: "외부 AI 쓰기를 켤까요?",
-    body: "외부 AI가 내 확인 없이 자료를 넣고 경험 본문을 고칠 수 있어요. 지원을 만들고 되묻기에 답할 수도 있어요 — 전한 답은 맞아요를 눌러야 근거로 쓰여요. 연결 주소를 가진 사람도 할 수 있어요. 바뀐 것은 「최근 수정」에서 보고 되돌릴 수 있어요.",
+    body: "외부 AI가 내 확인 없이 자료를 넣고 경험 본문을 고칠 수 있어요. 지원서를 만들고 되묻기에 답할 수도 있어요 — 전한 답은 맞아요를 눌러야 근거로 쓰여요. 연결 주소를 가진 사람도 할 수 있어요. 바뀐 것은 「최근 수정」에서 보고 되돌릴 수 있어요.",
     action: "쓰기 켜기",
   },
 };
@@ -228,7 +228,7 @@ export function ConnectionScreen() {
         {connection?.connected && <div className="flex items-center justify-between gap-4 border-t border-hairline-soft pt-4">
           <div className="min-w-0">
             <p id="mcp-write" className="text-sm font-semibold">외부 AI 쓰기</p>
-            <p id="mcp-write-hint" className="mt-1 text-sm leading-relaxed text-muted">{connection.writeEnabled ? "켜져 있어요. 외부 AI가 확인 없이 자료 · 경험 본문 · 지원 · 되묻기 답을 바꿀 수 있어요." : "꺼져 있어요. 외부 AI는 읽기만 해요."}</p>
+            <p id="mcp-write-hint" className="mt-1 text-sm leading-relaxed text-muted">{connection.writeEnabled ? "켜져 있어요. 외부 AI가 확인 없이 자료 · 경험 본문 · 지원서 · 되묻기 답을 바꿀 수 있어요." : "꺼져 있어요. 외부 AI는 읽기만 해요."}</p>
           </div>
           <button type="button" role="switch" aria-checked={connection.writeEnabled} aria-labelledby="mcp-write" aria-describedby="mcp-write-hint" disabled={busy}
             onClick={() => { if (connection.writeEnabled) void setWrite(false); else setConfirm("write"); }}

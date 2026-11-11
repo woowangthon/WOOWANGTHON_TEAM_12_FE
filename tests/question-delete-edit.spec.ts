@@ -111,7 +111,7 @@ test("다 쓴 답이 있으면 저장 직전에 확인 — 취소하면 쓴 글�
   await expect(analyzing(page)).toBeVisible();
 });
 
-test("문항 지우기 → 마지막 문항은 지원째 지우기로 · 지원을 지우면 목록으로", async ({ page }, info) => {
+test("문항 지우기 → 마지막 문항은 지원서째 지우기로 · 지원서를 지우면 목록으로", async ({ page }, info) => {
   const api = new FakeQuestionApi({ sameApplication: true });
   api.edit(42, d => { d.answer = { questionId: 42, text: "다 쓴 답", confirmedAt: new Date().toISOString(), newFacts: null }; });
   await api.install(page);
@@ -129,24 +129,24 @@ test("문항 지우기 → 마지막 문항은 지원째 지우기로 · 지원�
 
   // 남은 하나는 문항만 지울 수 없다 — 휴지통이 지원 지우기로 데려간다
   await expect(panel(page).getByRole("button", { name: "문항 1 지우기", exact: true })).toHaveCount(0);
-  await panel(page).getByRole("button", { name: /^지원째 지우기/ }).click();
-  const confirmApplication = page.getByRole("dialog", { name: "지원을 지울까요?" });
+  await panel(page).getByRole("button", { name: /^지원서째 지우기/ }).click();
+  const confirmApplication = page.getByRole("dialog", { name: "지원서를 지울까요?" });
   await expect(confirmApplication.getByText("문항 1개와 다 쓴 답도 같이 지워져요.")).toBeVisible();
   await confirmApplication.getByRole("button", { name: "지우기" }).click();
   await expect(confirmApplication).toBeHidden();
   expect(api.calls.map(c => c.call)).toContain("DELETE /api/applications/22");
   // 남은 지원이 없다 — 새 지원 입력이 보이고, 주소는 지운 문항을 가리키지 않는다
-  await expect(page.getByRole("region", { name: "새 지원 입력" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "새 지원서 입력" })).toBeVisible();
   await expect(page).not.toHaveURL(/question=/);
   await page.reload();
-  await expect(page.getByRole("region", { name: "새 지원 입력" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "새 지원서 입력" })).toBeVisible();
 });
 
-test("지원 화면 머리의 휴지통으로 지우면 남은 지원을 연다 · 실패하면 창에 이유와 다시 시도", async ({ page }) => {
+test("지원서 화면 머리의 휴지통으로 지우면 남은 지원서를 연다 · 실패하면 창에 이유와 다시 시도", async ({ page }) => {
   const api = await new FakeQuestionApi().install(page);
   await page.goto("/questions?question=42");
-  await page.getByRole("button", { name: "지원 지우기: OO 연합 동아리" }).click();
-  const dialog = page.getByRole("dialog", { name: "지원을 지울까요?" });
+  await page.getByRole("button", { name: "지원서 지우기: OO 연합 동아리" }).click();
+  const dialog = page.getByRole("dialog", { name: "지원서를 지울까요?" });
   await expect(dialog.getByText("문항 1개와 다 쓴 답도 같이 지워져요.")).toBeVisible();
 
   await page.route("**/api/applications/22", route => route.request().method() === "DELETE"
@@ -156,18 +156,18 @@ test("지원 화면 머리의 휴지통으로 지우면 남은 지원을 연다 
   await dialog.getByRole("button", { name: "다시 시도" }).click();
   await expect(dialog).toBeHidden();
   expect(api.calls.map(c => c.call)).toContain("DELETE /api/applications/22");
-  await expect(page.getByRole("status").filter({ hasText: "지원을 지웠어요." })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "지원서를 지웠어요." })).toBeVisible();
   await expect(page).toHaveURL(/question=41/);
 });
 
-test("내 지원서 줄의 휴지통으로 지원을 지운다", async ({ page }, info) => {
+test("내 지원서 줄의 휴지통으로 지원서를 지운다", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop");
   const api = await new FakeQuestionApi().install(page);
   await page.goto("/applications");
   const main = page.getByRole("main");
   await expect(main.getByRole("link", { name: /OO 백엔드 부트캠프/ })).toBeVisible();
-  await main.getByRole("button", { name: "지원 지우기: OO 백엔드 부트캠프" }).click();
-  const dialog = page.getByRole("dialog", { name: "지원을 지울까요?" });
+  await main.getByRole("button", { name: "지원서 지우기: OO 백엔드 부트캠프" }).click();
+  const dialog = page.getByRole("dialog", { name: "지원서를 지울까요?" });
   await expect(dialog.getByText("문항 1개와 다 쓴 답도 같이 지워져요.")).toBeVisible();
   await dialog.getByRole("button", { name: "지우기" }).click();
   await expect(dialog).toBeHidden();

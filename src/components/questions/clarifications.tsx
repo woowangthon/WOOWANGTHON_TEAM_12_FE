@@ -116,7 +116,7 @@ export function AnswerForm({ head, question, label, disabled, onSave, after, max
 
 /** 되묻기 항목의 머리 — 활동 칩(누르면 그 활동) → 그 경험 한 줄(회색 인용). 문항 되묻기 · 초안 빈칸 질문이 같은 모양(FE#464).
  *  이동 링크라 근거 색을 쓰지 않는다. 글 길이가 달라도 칩 · 인용 · 질문 순서가 같다 */
-export function AskHead({ activityId, activityName, content, questionId }: { activityId?: number | null; activityName?: string | null; content?: string | null; /** 없으면(공고 되묻기) 「지원 화면으로 돌아가기」 없이 활동만 */ questionId?: number }) {
+export function AskHead({ activityId, activityName, content, questionId }: { activityId?: number | null; activityName?: string | null; content?: string | null; /** 없으면(공고 되묻기) 「지원서 화면으로 돌아가기」 없이 활동만 */ questionId?: number }) {
   if (!activityName && !content) return null;
   return <div className="grid min-w-0 justify-items-start gap-1.5">
     {activityName && (activityId != null

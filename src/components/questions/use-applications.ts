@@ -169,7 +169,7 @@ export function useApplications(composingAtStart = false) {
       const details = first && first.id === questionId ? { [first.id]: first } : {};
       setState({ loading: false, applications: patch(applications, Object.values(details)), details, detailErrors: {}, pollFailures: {}, questionId, postingFor, postingPollFailures: {}, error: null });
     } catch (e) {
-      if (version === generation.current) setState(prev => ({ ...prev, loading: false, error: message(e, "지원을 불러오지 못했어요.") }));
+      if (version === generation.current) setState(prev => ({ ...prev, loading: false, error: message(e, "지원서를 불러오지 못했어요.") }));
     } finally {
       if (version === generation.current) loading.current = false;
     }
@@ -282,7 +282,7 @@ export function useApplications(composingAtStart = false) {
   const reloadAfter = async (run: (version: number) => Promise<void>) => {
     const version = ++generation.current;
     try { await run(version); }
-    catch (e) { if (version === generation.current) setState(prev => ({ ...prev, error: message(e, "지원을 불러오지 못했어요.") })); }
+    catch (e) { if (version === generation.current) setState(prev => ({ ...prev, error: message(e, "지원서를 불러오지 못했어요.") })); }
   };
 
   /** 탭 고르기 — 요청 없이 바로. 같은 탭이면 아무 일도 없다 */

@@ -339,7 +339,7 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
             <InfoTip label="분석 횟수">✦ 가 붙은 버튼은 누를 때마다 분석 횟수를 1회 써요. 한국 시간 자정에 다시 채워져요.</InfoTip>
           </span>}
           {github && <Button variant="link" onClick={() => { clearNotice(); setGithub(false); }} disabled={submitting}>돌아가기</Button>}
-          {onMoveToApplication && !usingFiles && !github && <Button variant="link" disabled={submitting || !text.trim()} onClick={() => onMoveToApplication(text)}>지원으로 만들기</Button>}
+          {onMoveToApplication && !usingFiles && !github && <Button variant="link" disabled={submitting || !text.trim()} onClick={() => onMoveToApplication(text)}>지원서로 만들기</Button>}
           <Button variant="link" onClick={() => changeOpen(false)} disabled={submitting}>
             취소
           </Button>

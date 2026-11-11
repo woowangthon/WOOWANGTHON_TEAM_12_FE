@@ -11,7 +11,7 @@ function message(e: unknown) {
   const labels: Record<string, string> = {
     DAILY_LIMIT_EXCEEDED: "오늘 분석 횟수를 다 썼어요. 한국 시간 자정에 다시 채워져요.",
     GROUNDING_CHECK_IN_PROGRESS: "이미 근거를 점검하고 있어요. 서버의 상태를 다시 확인해 주세요.",
-    QUESTION_NOT_FOUND: "이 문항을 찾을 수 없어요. 지원 목록에서 다시 확인해 주세요.",
+    QUESTION_NOT_FOUND: "이 문항을 찾을 수 없어요. 지원서 목록에서 다시 확인해 주세요.",
   };
   return e instanceof ApiError ? labels[e.code] ?? e.message : e instanceof Error ? e.message : "근거 점검을 처리하지 못했어요.";
 }

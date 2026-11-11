@@ -99,7 +99,7 @@ export function CommonQuestionPicker({ open, onOpenChange, room, onPick }: {
               </div>
             )}
             {past.state === "ready" && past.questions.length === 0 && (
-              <p className="m-0 px-3 text-sm text-muted">아직 넣은 문항이 없어요. 지원을 넣으면 여기서 다시 고를 수 있어요.</p>
+              <p className="m-0 px-3 text-sm text-muted">아직 넣은 문항이 없어요. 지원서를 넣으면 여기서 다시 고를 수 있어요.</p>
             )}
             {past.state === "ready" && past.questions.map(q => (
               option(q.id, q.text, [

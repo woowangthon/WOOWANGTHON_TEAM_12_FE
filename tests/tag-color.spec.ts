@@ -37,7 +37,7 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test("지원 — 추천 카드의 분류색 점이 분류색이고 분류 이름도 글자로 있다", async ({ page }) => {
+test("지원서 — 추천 카드의 분류색 점이 분류색이고 분류 이름도 글자로 있다", async ({ page }) => {
   const api = new FakeQuestionApi();
   await api.install(page);
   const [example] = QUESTION_EXAMPLES;

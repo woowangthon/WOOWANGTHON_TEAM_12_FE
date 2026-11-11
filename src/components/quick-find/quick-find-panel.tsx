@@ -30,7 +30,7 @@ const TABS: { value: Tab; label: string }[] = [{ value: "find", label: "찾기" 
 const PLACEHOLDER: Record<Tab, string> = { find: "경험 찾기", ask: "한 줄로 물어보세요", go: "어디로 갈까요?" };
 const SHORTCUTS: Shortcut[] = [
   { kind: "source", label: "자료 쌓기", detail: "한 줄 기록 · 노트 · 파일을 넣어요", icon: PlusIcon },
-  { kind: "application", label: "새 지원", detail: "지원처와 문항을 넣는 화면으로 가요", icon: FileTextIcon },
+  { kind: "application", label: "새 지원서", detail: "지원처와 문항을 넣는 화면으로 가요", icon: FileTextIcon },
   { kind: "experience", label: "내 경험", detail: "타임라인으로 가요", icon: StackIcon },
   { kind: "home", label: "홈", detail: "홈으로 가요", icon: HouseIcon },
 ];

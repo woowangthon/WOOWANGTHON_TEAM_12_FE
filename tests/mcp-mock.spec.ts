@@ -24,7 +24,7 @@ test("mock is explicit, stores only metadata and never restores the preview addr
   await update.getByRole("button", { name: "맞아요", exact: true }).click();
   await expect(update).toContainText("맞아요 — 확인했어요.");
   // FE#118 — 지원 만들기 · 되묻기 답 예시도 보인다
-  await expect(page.getByRole("listitem").filter({ hasText: "지원을 만듦" })).toContainText("(예시) OO 백엔드 부트캠프");
+  await expect(page.getByRole("listitem").filter({ hasText: "지원서를 만듦" })).toContainText("(예시) OO 백엔드 부트캠프");
   await expect(page.getByRole("listitem").filter({ hasText: "되묻기 답을 전함" })).toContainText("(예시) 로그에 도착 시간을");
 });
 

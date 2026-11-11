@@ -29,12 +29,12 @@ const result = (page: Page) => page.getByRole("tabpanel", { name: "선택한 문
 // 분석 중에도 답 칸이 같이 보여 그쪽 로딩 status 가 함께 있을 수 있다 — 분석 안내만 고른다
 const analyzingNotice = (page: Page) => result(page).getByRole("status").filter({ hasText: "찾고 있어요" });
 // 지원 목록 — 1280 이상은 사이드바 안(FE#51), 그보다 좁으면 화면 안
-const list = (page: Page) => page.getByRole("complementary", { name: /^(지원 목록|사이드바)$/ });
+const list = (page: Page) => page.getByRole("complementary", { name: /^(지원서 목록|사이드바)$/ });
 // 지원 목록의 첫 지원 — 사이드바엔 「자료 넣기」 같은 메뉴 버튼도 있어 지원 버튼(aria-pressed)만 센다
 const firstApplication = (page: Page) => list(page).locator("button[aria-pressed]").first();
 /** 1024 미만은 지원을 열면 세부만 보인다(FE#159) — 목록을 보려면 먼저 「지원 목록으로」 */
 async function openList(page: Page) {
-  if (page.viewportSize()!.width < 1024) await page.getByRole("button", { name: "지원 목록으로", exact: true }).click();
+  if (page.viewportSize()!.width < 1024) await page.getByRole("button", { name: "지원서 목록으로", exact: true }).click();
 }
 const recommendation = (page: Page, n: number) => result(page).getByRole("listitem", { name: `추천 경험 ${n}`, exact: true });
 // 추천은 활동 카드로 묶인다(S-84 · FE#358) — 활동 체크 · 「내 경험에서 보기」는 카드에 있다
@@ -204,7 +204,7 @@ test("question input validates whitespace before calling the server and sends li
   await page.getByLabel("문항 1", { exact: true }).fill(" \n ");
   // 넣을 게 없으면 버튼을 막고 이유 한 줄(FE#494)
   await expect(page.getByRole("button", { name: "문항 1개로 경험 찾기", exact: true })).toBeDisabled();
-  await expect(page.locator("form").getByText("지원 문항을 입력해 주세요.")).toBeVisible();
+  await expect(page.locator("form").getByText("지원서 문항을 입력해 주세요.")).toBeVisible();
   expect(posts(api)).toEqual([]);
   await expect(page.getByLabel("지원처 이름", { exact: true })).toHaveAttribute("maxlength", "100");
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveAttribute("maxlength", "5000");
@@ -469,7 +469,7 @@ test("application form sends only the chosen kind and role; the header changes a
   await expect(role).toBeEnabled();
   await pickOption(kind, "고르지 않음");
   await expect(kind).toBeEnabled();
-  const id = 23; // 가짜 BE 가 새 지원에 주는 ID
+  const id = 23; // 가짜 BE 가 새 지원서에 주는 ID
   expect(patches(api)).toEqual([[`PATCH /api/applications/${id}`, { jobRole: "BACKEND" }], [`PATCH /api/applications/${id}`, { organizationType: null }]]);
   await page.reload();
   await expect(page.getByLabel("직무", { exact: true })).toHaveText("백엔드 · 서버");
@@ -602,7 +602,7 @@ test("a question can be added to an existing application and blank slots are nam
   await page.getByRole("button", { name: "문항 1개로 경험 찾기", exact: true }).click();
   await expect(page.getByRole("tablist", { name: "문항" }).getByRole("tab")).toHaveCount(1);
   await page.getByRole("button", { name: "문항 더하기", exact: true }).click();
-  await page.getByLabel("이 지원에 문항 더하기").fill("본인의 장단점을 적어 주세요.");
+  await page.getByLabel("이 지원서에 문항 더하기").fill("본인의 장단점을 적어 주세요.");
   await page.getByRole("button", { name: "문항 더하고 경험 찾기", exact: true }).click();
   const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab");
   await expect(tabs).toHaveCount(2);
@@ -695,7 +695,7 @@ test("answering a clarification posts it and shows it on the experience as user-
   const detail = shot("activity", info.project.name);
   if (detail) await page.screenshot({ ...detail, fullPage: true });
   if (info.project.name === "desktop") {
-    await page.getByRole("link", { name: "지원 화면으로 돌아가기" }).click();
+    await page.getByRole("link", { name: "지원서 화면으로 돌아가기" }).click();
     await expect(result(page).getByRole("heading", { name: QUESTION_EXAMPLES[0].text, exact: true })).toBeVisible();
   }
 });
@@ -971,14 +971,14 @@ test("new application opens the input even when the visited application screen c
   };
   const composingFresh = async () => {
     await expect(page).toHaveURL(/\/questions/);
-    await expect(section).toHaveAttribute("aria-label", "새 지원 입력");
+    await expect(section).toHaveAttribute("aria-label", "새 지원서 입력");
     await expect(page.getByLabel("공고 · 문항 글이나 공고 링크")).toHaveValue("");
     await page.waitForTimeout(500); // 다시 받는 목록이 1번 지원서로 덮지 않는지
-    await expect(section).toHaveAttribute("aria-label", "새 지원 입력");
+    await expect(section).toHaveAttribute("aria-label", "새 지원서 입력");
     await expect(page).not.toHaveURL(/new=1|question=/);
   };
   await page.goto("/questions");
-  await expect(section).toHaveAttribute("aria-label", "선택한 지원");
+  await expect(section).toHaveAttribute("aria-label", "선택한 지원서");
 
   // 내 지원서의 「+ 새 지원서」
   await toApplications();
@@ -987,7 +987,7 @@ test("new application opens the input even when the visited application screen c
 
   // 지원으로 돌아간 뒤 「추가 → 새 지원서」 — 같은 화면이 또 다시 보여도 한 번 더 연다
   await page.getByRole("button", { name: "취소", exact: true }).click();
-  await expect(section).toHaveAttribute("aria-label", "선택한 지원");
+  await expect(section).toHaveAttribute("aria-label", "선택한 지원서");
   await toApplications();
   await (narrow ? tabBar : sidebar).getByRole("button", { name: "추가", exact: true }).click();
   await page.getByRole("menuitem", { name: /^새 지원서/ }).click();
@@ -995,7 +995,7 @@ test("new application opens the input even when the visited application screen c
 
   // 새로고침해도 작성 화면이 다시 뜨지 않는다
   await page.reload();
-  await expect(section).toHaveAttribute("aria-label", "선택한 지원");
+  await expect(section).toHaveAttribute("aria-label", "선택한 지원서");
 });
 
 test("write questions goes straight to the review step, keeping a pasted link as the original link", async ({ page }) => {
@@ -1125,7 +1125,7 @@ test("390 first screen shows the question and answer; the application list stays
   await fake(page);
   await page.goto("/questions");
   await expect(page.getByRole("tabpanel", { name: "선택한 문항", exact: true })).toBeVisible();
-  await expect(page.getByRole("complementary", { name: "지원 목록", exact: true })).toBeHidden();
+  await expect(page.getByRole("complementary", { name: "지원서 목록", exact: true })).toBeHidden();
   const answer = page.locator('textarea[id^="answer-"]');
   await expect(answer).toBeVisible();
   expect((await answer.boundingBox())!.y).toBeLessThan(page.viewportSize()!.height - 80);

@@ -85,7 +85,7 @@ export function ApplicationsScreen() {
         await deleteApplication(id);
         list.remove(id);
         setDeleting(null);
-        showToast("지원을 지웠어요.");
+        showToast("지원서를 지웠어요.");
       }} />
       <Toast toast={toast} />
     </>

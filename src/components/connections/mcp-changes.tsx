@@ -19,7 +19,7 @@ export const timestamp = (value: string) => new Intl.DateTimeFormat("ko-KR", {
 export const VERB: Record<McpChange["type"], string> = {
   ADD_SOURCE: "자료를 넣음",
   UPDATE_EXPERIENCE: "경험 본문을 고침",
-  CREATE_APPLICATION: "지원을 만듦",
+  CREATE_APPLICATION: "지원서를 만듦",
   ANSWER_CLARIFICATION: "되묻기 답을 전함",
 };
 export const STATUS: Record<McpChange["status"], string> = { APPLIED: "반영됨", CONFIRMED: "맞아요", UNDONE: "되돌림" };
@@ -32,7 +32,7 @@ export const needsConfirm = (change: McpChange) => CONFIRMABLE.includes(change.t
 const UNDO_WARNING: Record<McpChange["type"], string> = {
   UPDATE_EXPERIENCE: "본문과 출처 상태가 고치기 전으로 돌아가요.",
   ADD_SOURCE: "이 자료로 만든 경험을 지워요. 내가 손댄 경험은 남고, 원본도 남아요.",
-  CREATE_APPLICATION: "이 지원과 문항 · 추천을 지워요. 쓴 분석 횟수는 돌아오지 않아요.",
+  CREATE_APPLICATION: "이 지원서와 문항 · 추천을 지워요. 쓴 분석 횟수는 돌아오지 않아요.",
   ANSWER_CLARIFICATION: "이 보완을 지워요. 그 되묻기에 다시 답할 수 있어요.",
 };
 
@@ -40,7 +40,7 @@ const UNDO_WARNING: Record<McpChange["type"], string> = {
 const CHANGED_AFTER: Record<McpChange["type"], string> = {
   UPDATE_EXPERIENCE: "그 뒤 내용이 바뀌어서 되돌릴 수 없어요.",
   ADD_SOURCE: "그 뒤 내용이 바뀌어서 되돌릴 수 없어요.",
-  CREATE_APPLICATION: "그 뒤 이 지원에 답 · 초안을 쓰거나 문항을 더해서 되돌릴 수 없어요. 내가 손댄 지원은 지우지 않아요.",
+  CREATE_APPLICATION: "그 뒤 이 지원서에 답 · 초안을 쓰거나 문항을 더해서 되돌릴 수 없어요. 내가 손댄 지원서는 지우지 않아요.",
   ANSWER_CLARIFICATION: "그 뒤 답을 고치거나 지워서 되돌릴 수 없어요. 웹에서 고친 답은 「내가 입력」이에요.",
 };
 
@@ -64,7 +64,7 @@ const CONFIRMED: Partial<Record<McpChange["type"], string>> = {
   ANSWER_CLARIFICATION: "맞아요 — 「내가 입력」 답이 됐어요. 다음 추천 · 초안부터 근거로 쓰여요.",
 };
 const UNDONE: Partial<Record<McpChange["type"], string>> = {
-  CREATE_APPLICATION: "되돌렸어요. 지원과 문항 · 추천을 지웠어요. 쓴 분석 횟수는 돌아오지 않아요.",
+  CREATE_APPLICATION: "되돌렸어요. 지원서와 문항 · 추천을 지웠어요. 쓴 분석 횟수는 돌아오지 않아요.",
   ANSWER_CLARIFICATION: "되돌렸어요. 그 되묻기에 다시 답할 수 있어요.",
 };
 
@@ -95,12 +95,12 @@ function Body({ change, inActivity, head }: { change: McpChange; inActivity: boo
       <p className="text-sm text-body"><AnalysisStatus source={source} /></p>
     </>}
     {application && <>
-      <Text label="지원">{application.organization || "지원처 미입력"} · 문항 {application.questionCount}개</Text>
+      <Text label="지원서">{application.organization || "지원처 미입력"} · 문항 {application.questionCount}개</Text>
       {change.status !== "UNDONE" && <p className="text-sm text-body">
         {application.analyzingCount > 0 ? `문항 ${application.analyzingCount}개 분석 중` : "분석 완료"}
       </p>}
-      {/* 되돌리면 지원이 지워져 갈 곳이 없다 */}
-      {change.status !== "UNDONE" && <Link href={`/questions?application=${application.id}`} className="inline-flex min-h-11 lg:min-h-10 items-center text-sm font-medium underline underline-offset-3">지원으로 가기</Link>}
+      {/* 되돌리면 지원서가 지워져 갈 곳이 없다 */}
+      {change.status !== "UNDONE" && <Link href={`/questions?application=${application.id}`} className="inline-flex min-h-11 lg:min-h-10 items-center text-sm font-medium underline underline-offset-3">지원서로 가기</Link>}
     </>}
     {supplement && <>
       {!inActivity && <p className="text-sm font-medium text-ink">{supplement.activityName}</p>}

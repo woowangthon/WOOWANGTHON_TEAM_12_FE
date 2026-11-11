@@ -207,7 +207,7 @@ export function MergeExperienceDialog({ experience, experiences, onClose, onMerg
                 <Choice name="merge-experience-keep" checked={!keepThis} onChange={() => setKeepThis(false)} title={other.content} sub={evidenceCount(other)} />
               </fieldset>
               <p className="m-0 rounded-sm bg-surface-soft px-3.5 py-3 text-sm leading-relaxed text-body" aria-live="polite">
-                「{from.content}」의 {evidenceCount(from)}가 남길 경험 아래로 옮겨지고, 이 경험은 사라져요. 지원 추천 · 초안에서도 남길 경험으로 바뀌어요.
+                「{from.content}」의 {evidenceCount(from)}가 남길 경험 아래로 옮겨지고, 이 경험은 사라져요. 지원서 추천 · 초안에서도 남길 경험으로 바뀌어요.
                 <b className="font-semibold text-ink"> 합친 뒤에는 되돌릴 수 없어요.</b>
               </p>
             </>

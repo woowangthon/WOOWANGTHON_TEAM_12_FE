@@ -4,13 +4,13 @@
   "open": {
     "app": [
       { "click": "[role=combobox][aria-label='목 분류 결과']" },
-      { "click": "[role=option] >> text=\"지원\"" },
-      { "click": "button:has-text('지원 문항 붙여 넣어 보기')" },
+      { "click": "[role=option] >> text=\"지원서\"" },
+      { "click": "button:has-text('지원서 문항 붙여 넣어 보기')" },
       { "click": "button[aria-label='보내기']:visible" },
       { "click": "[aria-label='지원처 정보']" }
     ]
   },
   "pairs": [
-    { "name": "칩 — 시안 없음, 지원 머리 알약과 견줌", "design": ".ap-head .pill", "app": "[aria-label='지원처 정보'] [role=combobox] > span" }
+    { "name": "칩 — 시안 없음, 지원서 머리 알약과 견줌", "design": ".ap-head .pill", "app": "[aria-label='지원처 정보'] [role=combobox] > span" }
   ]
 }

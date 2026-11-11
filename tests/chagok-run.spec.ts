@@ -14,7 +14,7 @@ const FOUND = {
 };
 const SEARCH: ChagokStep = { seq: 1, type: "TOOL_CALL", label: "「WebSocket」으로 경험 찾는 중", tool: "search_experiences", arguments: { query: "WebSocket" }, ok: true, summary: "경험 1개를 찾았어요", result: { total: 1, experiences: [FOUND] }, error: null, at: "2026-11-06T10:00:02+09:00" };
 const SAID: ChagokStep = { seq: 2, type: "MESSAGE", label: null, text: "「바꿔요」의 WebSocket 경험이 맞아요.", at: "2026-11-06T10:00:05+09:00" };
-const CONFIRM: ChagokStep = { seq: 3, type: "CONFIRM", label: "「OO 백엔드 부트캠프」 지원을 문항 1개로 만들까요?", tool: "create_application", arguments: { organization: "OO 백엔드 부트캠프", organizationType: "BOOTCAMP", jobRole: "BACKEND", postingUrl: null, questions: [{ text: "기술적인 문제를 해결한 경험을 적어 주세요." }] }, at: "2026-11-06T10:00:06+09:00" };
+const CONFIRM: ChagokStep = { seq: 3, type: "CONFIRM", label: "「OO 백엔드 부트캠프」 지원서를 문항 1개로 만들까요?", tool: "create_application", arguments: { organization: "OO 백엔드 부트캠프", organizationType: "BOOTCAMP", jobRole: "BACKEND", postingUrl: null, questions: [{ text: "기술적인 문제를 해결한 경험을 적어 주세요." }] }, at: "2026-11-06T10:00:06+09:00" };
 
 /** 일 API 만 흉내 낸다 — 나머지는 FakeQuestionApi 로 넘긴다 */
 class FakeChagok {
@@ -79,8 +79,8 @@ const ask = async (page: Page, text: string) => {
 test("부탁하면 단계 · 경험 카드 · 확인 카드가 쌓이고 만들면 결과로 간다", async ({ page }) => {
   const chagok = await open(page);
   chagok.script = [{ steps: [SEARCH] }, { steps: [SEARCH, SAID] }, { steps: [SEARCH, SAID, CONFIRM], status: "WAITING_CONFIRM" }];
-  await ask(page, "WebSocket 경험으로 OO 부트캠프 지원 만들어 줘");
-  expect(chagok.calls[0]).toEqual({ call: "POST /", body: { text: "WebSocket 경험으로 OO 부트캠프 지원 만들어 줘", questionId: 41 } });
+  await ask(page, "WebSocket 경험으로 OO 부트캠프 지원서 만들어 줘");
+  expect(chagok.calls[0]).toEqual({ call: "POST /", body: { text: "WebSocket 경험으로 OO 부트캠프 지원서 만들어 줘", questionId: 41 } });
   await expect(panel(page).getByLabel("차곡이에게 부탁하기")).toHaveValue("");
   await expect(panel(page).getByText("경험 1개를 찾았어요")).toBeVisible();
   // 끝난 단계는 한 줄로 접힌다 — 누르면 찾은 경험 카드가 펼쳐진다(FE#338)

@@ -155,7 +155,7 @@ function SidebarNavigation({ collapsed = false, activePage = "timeline", experie
         </DropdownMenu.Trigger>
       </RailTip>
     </AddMenu>
-    {/* 지원 화면(/questions)도 「내 지원서」 영역이다(FE#347) */}
+    {/* 지원서 화면(/questions)도 「내 지원서」 영역이다(FE#347) */}
     {sideLinks.map(l => <SideLink key={l.page} {...l} active={activePage === l.page || (l.page === "applications" && activePage === "questions")} collapsed={collapsed} onNavigate={onNavigate}
       count={l.page === "timeline" ? experienceCount : l.page === "applications" ? applicationCount : null} />)}
   </nav>;

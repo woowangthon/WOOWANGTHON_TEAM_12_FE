@@ -279,7 +279,7 @@ function ChangeRow({ change: c, last, outcome, onChange, onStale, onNavigate }: 
         {waiting && <span className="shrink-0 rounded-full bg-review-soft px-2 py-0.5 text-xs text-review">확인 필요</span>}
         <CaretDownIcon aria-hidden="true" className={cn("size-4 shrink-0 text-muted transition-transform", !open && "-rotate-90")} />
       </button>
-      {/* 카드 안 링크(활동 · 지원으로 가기)를 누르면 패널을 닫는다 */}
+      {/* 카드 안 링크(활동 · 지원서로 가기)를 누르면 패널을 닫는다 */}
       {open && <div className="mt-2 grid gap-2 rounded-sm border border-hairline-soft p-3"
         onClickCapture={event => { if (event.target instanceof Element && event.target.closest("a")) onNavigate?.(); }}>
         <div><McpChangeCard change={c} head={false} onChange={onChange} onStale={onStale} /></div>

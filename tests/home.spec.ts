@@ -19,9 +19,9 @@ async function setup(page: Page) {
     if (path === "/api/activities") return state.failActivities ? route.fulfill({ status: 503, json: { error: { code: "UNAVAILABLE", message: "경험 조회 실패" } } }) : route.fulfill({ json: { activities: state.empty ? [] : activities.map(({ experiences, ...a }) => ({ ...a, experienceCount: experiences.length })) } });
     const activity = activities.find(a => path === `/api/activities/${a.id}`);
     if (activity) return route.fulfill({ json: activity });
-    if (path === "/api/applications") return state.failApplications ? route.fulfill({ status: 503, json: { error: { code: "UNAVAILABLE", message: "지원 조회 실패" } } }) : route.fulfill({ json: { applications: state.empty ? [] : [
-      { id: 1, organization: "이전 지원", createdAt: "2026-11-01T00:00:00Z", questions: [{ id: 41, status: "COMPLETED" }] },
-      { id: 2, organization: "최근 부트캠프 지원", createdAt: "2026-11-04T00:00:00Z", questions: [{ id: 42, status: "COMPLETED" }, { id: 43, status: "ANALYZING" }] },
+    if (path === "/api/applications") return state.failApplications ? route.fulfill({ status: 503, json: { error: { code: "UNAVAILABLE", message: "지원서 조회 실패" } } }) : route.fulfill({ json: { applications: state.empty ? [] : [
+      { id: 1, organization: "이전 지원서", createdAt: "2026-11-01T00:00:00Z", questions: [{ id: 41, status: "COMPLETED" }] },
+      { id: 2, organization: "최근 부트캠프 지원서", createdAt: "2026-11-04T00:00:00Z", questions: [{ id: 42, status: "COMPLETED" }, { id: 43, status: "ANALYZING" }] },
     ] } });
     throw new Error(`Unexpected API ${path}`);
   });
@@ -34,14 +34,14 @@ test("시안 6 홈은 타임라인 없이 실제 이어서·쌓인 블록·모�
   await expect(page.getByText("경험 4개가 쌓여 있어요", { exact: false })).toBeVisible();
   await expect(page.getByRole("heading", { name: "내 경험", exact: true })).toHaveCount(0);
   const cards = page.getByRole("region", { name: "이어서", exact: true });
-  await expect(cards.getByRole("link", { name: /최근 지원/ })).toHaveAttribute("href", "/questions?question=42");
+  await expect(cards.getByRole("link", { name: /최근 지원서/ })).toHaveAttribute("href", "/questions?question=42");
   await expect(cards.getByRole("link", { name: /1년 전 이맘때/ })).toContainText("사용자 다섯 명과 인터뷰했다");
   await expect(cards.getByRole("link", { name: /1년 전 이맘때/ })).toHaveAttribute("href", "/experience?activity=7");
   await page.getByRole("button", { name: "모델 선택 — 기본 모델" }).click();
   await expect(page.getByRole("menuitemradio", { name: /기본 모델/ })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("menuitem", { name: /내 API 키로/ })).toHaveAttribute("aria-disabled", "true");
   await page.getByRole("menuitemradio", { name: /기본 모델/ }).click();
-  await page.getByRole("button", { name: "지원 문항 붙여 넣어 보기", exact: true }).click();
+  await page.getByRole("button", { name: "지원서 문항 붙여 넣어 보기", exact: true }).click();
   await expect(page.getByLabel("홈에 넣을 글")).toHaveValue(/부트캠프/);
   expect(state.posts).toBe(0);
   await page.getByRole("button", { name: "쌓기", exact: true }).click();
@@ -91,15 +91,15 @@ test("빈 홈은 실제 입력으로 연결하고 조회 실패를 빈 데이터
   const state = await setup(page);
   state.empty = true;
   await page.goto("/");
-  await page.getByRole("button", { name: /지원 시작하기/ }).click();
-  await expect(page.getByRole("dialog", { name: "지원 넣기" })).toBeVisible();
+  await page.getByRole("button", { name: /지원서 시작하기/ }).click();
+  await expect(page.getByRole("dialog", { name: "새 지원서" })).toBeVisible();
   await expect(page.getByLabel("공고 · 문항 글이나 공고 링크")).toHaveValue("");
   await page.addStyleTag({ content: "nextjs-portal { display: none; }" }); // 390 에선 버튼 줄이 개발 도구 배지(개발 서버에만 있다) 자리에 온다
   await page.getByRole("button", { name: "취소", exact: true }).click();
   state.failActivities = true; state.failApplications = true;
   await page.reload();
   await expect(page.getByText("경험을 불러오지 못했어요.", { exact: false }).first()).toBeVisible();
-  await expect(page.getByText("최근 지원을 불러오지 못했어요.", { exact: true })).toBeVisible();
+  await expect(page.getByText("최근 지원서를 불러오지 못했어요.", { exact: true })).toBeVisible();
   await expect(page.getByText("경험 0개가 쌓여 있어요", { exact: false })).toHaveCount(0);
   state.failActivities = false; state.failApplications = false;
   // 사이드바 지원서에도 다시 시도가 있다(FE#147) — 여기서는 홈 안의 것

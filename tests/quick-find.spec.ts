@@ -321,12 +321,12 @@ test("ask failures and the daily limit are not filled with an answer, and the te
   await expect(dialog(page).getByRole("alert")).toContainText("오늘 분석 횟수를 다 썼어요");
   await expect(dialog(page).getByRole("button", { name: "다시 시도", exact: true })).toHaveCount(0);
   // FE#289 — 한도 초과엔 경고만. 「지원으로 만들기」는 붙이지 않는다
-  await expect(dialog(page).getByRole("button", { name: "지원으로 만들기", exact: true })).toHaveCount(0);
+  await expect(dialog(page).getByRole("button", { name: "지원서로 만들기", exact: true })).toHaveCount(0);
 
   api.ask = { status: 502, json: { error: { code: "AI_ERROR", message: "AI 실패" } } };
   await box(page).press("Enter");
   await expect(dialog(page).getByRole("alert")).toContainText("잠시 뒤 다시 시도해 주세요");
-  await dialog(page).getByRole("button", { name: "지원으로 만들기", exact: true }).click();
+  await dialog(page).getByRole("button", { name: "지원서로 만들기", exact: true }).click();
   await expect(page).toHaveURL(/\/questions/);
   await expect(page.getByRole("textbox", { name: "공고 · 문항 글이나 공고 링크", exact: true })).toHaveValue("동아리에서 의견 모은 적");
   expect(api.asks).toHaveLength(4);
@@ -354,7 +354,7 @@ test("> lists shortcuts that only move between screens", async ({ page }) => {
   await openByButton(page);
   await box(page).fill(">");
   await expect(box(page)).toHaveValue("");
-  await expect(rows(page)).toHaveText([/자료 쌓기/, /새 지원/, /내 경험/, /홈/]);
+  await expect(rows(page)).toHaveText([/자료 쌓기/, /새 지원서/, /내 경험/, /홈/]);
   await capture(page, `go-${page.viewportSize()!.width}`);
   await box(page).fill("내 경");
   await page.keyboard.press("Enter");

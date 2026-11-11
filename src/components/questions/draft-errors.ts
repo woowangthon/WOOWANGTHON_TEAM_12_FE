@@ -5,7 +5,7 @@ import type { Draft } from "@/lib/api/question-types";
 export function requestError(e: unknown, hasDraft = true) {
   const labels: Record<string, string> = {
     INVALID_REQUEST: "이 문항의 추천 활동을 다시 골라 주세요.",
-    QUESTION_NOT_FOUND: "이 문항을 찾을 수 없어요. 지원 목록에서 문항을 다시 확인해 주세요.",
+    QUESTION_NOT_FOUND: "이 문항을 찾을 수 없어요. 지원서 목록에서 문항을 다시 확인해 주세요.",
     QUESTION_NOT_COMPLETED: "문항 분석이 아직 끝나지 않았어요. 문항 상태를 다시 확인해 주세요.",
     DRAFT_IN_PROGRESS: "이미 초안을 만들고 있어요. 서버의 현재 상태를 확인했어요.",
     DAILY_LIMIT_EXCEEDED: hasDraft ? "오늘 분석 횟수를 다 썼어요. 기존 초안은 그대로예요." : "오늘 분석 횟수를 다 썼어요. 한국 시간 자정에 다시 채워져요.",
