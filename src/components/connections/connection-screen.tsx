@@ -22,7 +22,7 @@ function MarkdownExportSection() {
   const exporter = useMarkdownExport();
   return <section aria-labelledby="markdown-export-title" className={cn(CONNECTION_CARD, "mt-4")}>
     <div className="flex items-center gap-0.5"><h2 id="markdown-export-title" className="text-lg font-bold tracking-tight">파일로 내려받기</h2><InfoTip label="파일로 내려받기">출처 상태 · AI 해석 표시가 글자로 같이 들어가서, 다른 AI 에 붙여 넣어도 무엇이 확인된 사실인지 그대로 남아요.</InfoTip></div>
-    <p className="text-sm leading-relaxed text-muted">쌓은 활동 · 경험 전체를 Markdown(.md) 파일 한 장으로 받아요. 지원 하나는 지원 화면 메뉴에서, 활동 하나는 활동 세부 메뉴에서 받을 수 있어요.</p>
+    <p className="text-sm leading-relaxed text-muted">쌓은 활동 · 경험 전체를 Markdown(.md) 파일 한 장으로 받아요.</p>
     <Button className="min-h-11 lg:min-h-10 justify-self-start" variant="secondary" disabled={exporter.busy} onClick={() => void exporter.run(ALL)}>
       <DownloadSimpleIcon aria-hidden="true" />전체 내보내기 (.md)
     </Button>

@@ -101,9 +101,9 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
               </DropdownMenu.Trigger>
               <DropdownMenu.Portal>
                 <DropdownMenu.Content align="end" sideOffset={4} className={cn(MENU_CONTENT, "z-50 min-w-40")}>
+                  {onMergeRequest && <DropdownMenu.Item onSelect={onMergeRequest} className={MENU_ITEM}>다른 활동과 합치기</DropdownMenu.Item>}
                   <DropdownMenu.Item onSelect={() => setHistoryOpen(true)} className={MENU_ITEM}>수정 이력</DropdownMenu.Item>
                   <DropdownMenu.Item disabled={exporter.busy} onSelect={() => void exporter.run({ scope: "activity", id: activity.id })} className={MENU_ITEM}>Markdown 으로 내보내기</DropdownMenu.Item>
-                  {onMergeRequest && <DropdownMenu.Item onSelect={onMergeRequest} className={MENU_ITEM}>다른 활동과 합치기</DropdownMenu.Item>}
                   {onDeleteRequest && <DropdownMenu.Item onSelect={onDeleteRequest} className={cn(MENU_ITEM, "text-error")}>지우기</DropdownMenu.Item>}
                 </DropdownMenu.Content>
               </DropdownMenu.Portal>
