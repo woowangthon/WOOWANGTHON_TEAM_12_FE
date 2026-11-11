@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowsClockwiseIcon, CaretLeftIcon, CaretRightIcon, FileTextIcon, SparkleIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { fetchActivity } from "@/lib/api/experience";
 import { ACTIVITY_CATEGORIES, type ActivityDetail, type ActivitySummary } from "@/lib/api/types";
@@ -145,7 +146,13 @@ function PairView({ pair, position, total, onMove, onMerge, onDismiss }: {
       </div>
 
       <div className="grid gap-4 max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto max-lg:px-5 max-lg:pb-4 lg:contents">
-      {loaded.status === "loading" && <p role="status" className="m-0 py-8 text-center text-sm text-muted">두 활동을 불러오고 있어요…</p>}
+      {/* 두 활동 카드 자리(FE#402) */}
+      {loaded.status === "loading" && <div role="status" className="grid gap-3 lg:grid-cols-2"><span className="sr-only">두 활동을 불러오고 있어요</span>
+        {[0, 1].map(i => <div key={i} className="grid content-start gap-2 rounded-md border border-hairline p-4">
+          <Skeleton className="h-3 w-14" /><Skeleton className="h-5 w-40" /><Skeleton className="h-3.5 w-28" />
+          <Skeleton className="mt-2 h-4 w-full" /><Skeleton className="h-4 w-4/5" />
+        </div>)}
+      </div>}
       {loaded.status === "error" && (
         <div className="grid justify-items-start gap-2 py-4">
           <p role="alert" className="m-0 text-sm text-error">{loaded.message}</p>

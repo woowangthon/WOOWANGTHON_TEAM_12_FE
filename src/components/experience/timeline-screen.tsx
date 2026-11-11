@@ -27,6 +27,7 @@ import { EXPERIENCE_SEARCH_PARAMS, experienceSearchFromParams } from "@/lib/expe
 import { useQuickFindOpen } from "@/components/quick-find/quick-find";
 import { DeleteActivityDialog, MergeActivityDialog, MergeExperienceDialog, MoveExperienceDialog } from "./regroup-dialogs";
 import { Timeline } from "./timeline";
+import { TimelineSkeleton } from "./timeline-skeleton";
 import { useExperienceDeletion } from "./use-experience-deletion";
 import { SupplementSourceContext, supplementSource } from "./supplement-list";
 import { fetchQuestions } from "@/lib/api/questions";
@@ -598,7 +599,7 @@ export function TimelineScreen() {
             selected && "hidden lg:block",
           )}
         >
-          {list.status === "loading" && <p className="py-10 text-center text-sm text-muted">타임라인을 불러오고 있어요…</p>}
+          {list.status === "loading" && <TimelineSkeleton />}
           {list.status === "error" && (
             <CenterState
               icon={<WarningCircleIcon className="text-error" />}

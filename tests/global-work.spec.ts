@@ -419,3 +419,27 @@ test("복원 후 문항 Feed가 늦게 붙어도 확인 버튼은 화면 안에 
   await feedAttached();
   await expect(page.getByRole("listitem", { name: "차곡이의 확인 요청", exact: true }).getByRole("button", { name: "만들기", exact: true })).toBeInViewport();
 });
+
+test("소식 줄은 종류 아이콘 · 안 읽음 점으로 갈린다 — 색 꼬리표는 실패 · 정할 것만(FE#483)", async ({ page }) => {
+  const SEEN = "2026-11-06T08:59:59+09:00";
+  const recent = [
+    item({ key: "MATCH:41", status: "COMPLETED", finishedAt: NEWER, label: "테스트 지원 · 팀에서 문제를 해결한 경험" }),
+    item({ key: "DRAFT:41", kind: "DRAFT", status: "FAILED", finishedAt: FINISHED, errorCode: "AI_TIMEOUT" }),
+    item({ key: "SOURCE_ANALYSIS:34", kind: "SOURCE_ANALYSIS", status: "COMPLETED", finishedAt: "2026-11-06T08:00:00+09:00", jobId: 34, sourceId: 12, label: "테스트 자료.md" }),
+    item({ key: "CHAGOK:56", kind: "CHAGOK", status: "DONE", finishedAt: "2026-11-06T07:00:00+09:00", runId: 56, label: "차곡이 테스트 실행" }),
+  ];
+  await setup(page, { seenAt: SEEN, inProgress: [item({ key: "CHAGOK:55", kind: "CHAGOK", status: "WAITING_CONFIRM", runId: 55 })], recent });
+  await page.goto("/questions");
+  await expect(trigger(page)).toHaveAccessibleName("진행 중인 일 1개 · 안 읽은 소식 2개");
+  await trigger(page).click();
+  const news = dialog(page).getByRole("region", { name: "최근 소식" }).getByRole("listitem");
+  await expect(news).toHaveCount(4);
+  // 열기 전에 안 읽은 두 줄만 빨간 점 — 열자마자 읽음 POST 가 가도 이번 열람에선 남는다
+  expect(await news.evaluateAll(els => els.map(el => !!el.querySelector("[data-slot=row-unread-dot]")))).toEqual([true, true, false, false]);
+  await expect(news.first().locator("[data-slot=row-unread-dot]")).toBeInViewport();
+  // 종류마다 다른 아이콘(색 없음 — 꼬리표 글자색을 따른다)
+  const icons = await news.locator("svg").evaluateAll(els => els.map(el => el.innerHTML));
+  expect(new Set(icons).size).toBe(4);
+  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+  await page.screenshot({ path: `docs/fe-483/notifications-${test.info().project.name}.png`, animations: "disabled" }); // 테스트 API 응답(FE#106) — 실제 BE/AI 데이터 아님
+});

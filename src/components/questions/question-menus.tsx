@@ -42,13 +42,14 @@ function useConfirm(onConfirm: () => Promise<void>, fallback: string) {
 }
 
 /** 지원 메뉴 — 지원 화면 머리 · 내 지원서 줄 */
-export function ApplicationMenu({ label, onDelete, className }: { label: string; onDelete: () => void; className?: string }) {
+export function ApplicationMenu({ label, onDelete, onExport, className }: { label: string; onDelete: () => void; onExport?: () => void; className?: string }) {
   return <DropdownMenu.Root>
     <DropdownMenu.Trigger asChild>
       <Button variant="ghost" size="icon" className={cn("size-11 shrink-0 lg:size-9", className)} aria-label={`지원 메뉴: ${label}`}><DotsThreeIcon /></Button>
     </DropdownMenu.Trigger>
     <DropdownMenu.Portal>
       <DropdownMenu.Content align="end" sideOffset={4} className={MENU}>
+        {onExport && <DropdownMenu.Item onSelect={onExport} className={MENU_ITEM}>Markdown 으로 내보내기</DropdownMenu.Item>}
         <DropdownMenu.Item onSelect={onDelete} className={cn(MENU_ITEM, "text-error")}>지우기</DropdownMenu.Item>
       </DropdownMenu.Content>
     </DropdownMenu.Portal>
