@@ -2,9 +2,13 @@
 // 실제 단체 이름은 「이 과정」 · 「우리 동아리」처럼 일반 표현으로 바꾸고, 끝의 괄호는 원래 글자 수다(출처에 없으면 뺐다).
 // 출처는 묶음마다 주석으로 남긴다 — ETC docs/ai-scope.md §4 와 같다.
 
+import type { OrganizationType } from "@/lib/api/question-types";
+
 export type CommonQuestionGroup = {
   /** 어디서 모았나 — 지원처 종류 */
   kind: string;
+  /** 이 묶음이 맞는 지원처 종류(S-42) — 나누기가 종류를 채웠는데 문항이 없을 때 이 묶음을 먼저 펼친다(FE#492) */
+  types: OrganizationType[];
   questions: string[];
 };
 
@@ -12,6 +16,7 @@ export const COMMON_QUESTIONS: CommonQuestionGroup[] = [
   {
     // https://velog.io/@greencloud/네이버-부스트캠프-웹・모바일-8기-합격-후기 (2023)
     kind: "SW 교육 프로그램",
+    types: ["BOOTCAMP"],
     questions: [
       "왜 개발자가 되고 싶나요? 그 이유와 이 과정에서 이루고자 하는 목표를 함께 구체적으로 서술해 주세요. (공백 포함 400자 내외)",
       "소프트웨어 개발을 더 잘하고 싶어서 시도했던 경험을 적어주세요. 그리고 그 과정에서 어떤 노력을 기울였는지 사례와 함께 구체적으로 적어주세요. (공백 포함 400자 내외)",
@@ -24,6 +29,7 @@ export const COMMON_QUESTIONS: CommonQuestionGroup[] = [
     // https://velog.io/@thguss/합격-후기-SOPT-30기-서버-파트-서류면접-합격-후기 (2022)
     // https://velog.io/@kaswhy/SOPT-36기-AT-SOPT-서버-파트-합격-후기 (2025)
     kind: "IT 연합 동아리",
+    types: ["CLUB"],
     questions: [
       "살면서 가장 깊게 몰입했던 경험에 대해 소개해주시고, 해당 경험에서 가장 어려웠던 문제와 그 해결 과정을 새롭게 깨달은 점을 중심으로 설명해 주세요. (700자)",
       "동료로부터 받았던 긍정적인 피드백과 부정적인 피드백을 하나씩 소개해주시고, 다음 단계로의 성장을 위해 두 가지의 피드백을 어떻게 활용하고 계신지 작성해 주세요. (600자)",
@@ -38,6 +44,7 @@ export const COMMON_QUESTIONS: CommonQuestionGroup[] = [
     // https://velog.io/@jiye0710/멋쟁이사자처럼-12기-리크루팅-후기 (2024)
     // https://mojan3543.github.io/LikelionPassReview/ (2024)
     kind: "교내 IT 동아리",
+    types: ["CLUB", "EXTRACURRICULAR"],
     questions: [
       "다양한 IT 동아리 중에서 우리 동아리를 선택하고 지원하시게 된 이유를 작성해 주세요. (500자 이내)",
       "협업과 팀워크를 진행해 보았던 경험과, 그 경험을 동아리에서 어떻게 적용시킬 수 있을지 작성해 주세요. (500자 이내)",
@@ -50,6 +57,7 @@ export const COMMON_QUESTIONS: CommonQuestionGroup[] = [
     // https://community.linkareer.com/pass-review/6580282 (2026)
     // https://community.linkareer.com/pass-review/5961420 (2026)
     kind: "대학생 대외활동 · 서포터즈",
+    types: ["EXTERNAL"],
     questions: [
       "서포터즈에 지원하게 된 동기가 무엇인가요? (500자 이내)",
       "활동에 도움이 될 수 있는 역량 2가지와 이를 선택한 이유는 무엇인가요? (500자 이내)",
@@ -64,6 +72,7 @@ export const COMMON_QUESTIONS: CommonQuestionGroup[] = [
     // https://www.jobkorea.co.kr/starter/PassAssay/View/242099 (2022 하반기)
     // https://www.jobkorea.co.kr/starter/PassAssay/View/242094 (2021 하반기)
     kind: "IT 기업 신입",
+    types: ["INTERN", "JOB"],
     questions: [
       "우리 회사에 지원하는 이유와 해당 직무에 지원하는 이유에 대해 각각 서술하여 주십시오.",
       "지원 직무와 관련하여 어떠한 역량을(지식/기술 등) 강점으로 가지고 있는지, 그 역량을 갖추기 위해 무슨 노력과 경험을 했는지 구체적으로 작성해 주시기 바랍니다. (최소 500자, 최대 1,500자)",

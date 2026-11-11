@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { ArrowDownIcon, ArrowUpIcon, ArticleIcon, LinkIcon, ListChecksIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { AnalysisButton, AnalysisCost } from "@/components/auth/analysis-cost";
-import { CommonQuestionPicker } from "./common-question-picker";
+import { CommonQuestionPicker, CommonQuestionsInline } from "./common-question-picker";
 import { ParseFailureNotice, useApplicationParse, type ParseFailure, type ParseInput } from "./application-parse";
 import { Mascot } from "./chagok-panel";
 import { isPostingUrl, MAX_PARSE_TEXT_LENGTH, MAX_POSTING_URL_LENGTH, singleLink, type ParsedApplication } from "@/lib/api/entrance";
@@ -196,7 +196,8 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
             onChange={e => { setPaste(e.target.value); parse.clear(); }} className={`${field} resize-y`}
             placeholder={askingLink ? "https://… 공고 페이지 주소를 붙여 넣어 주세요" : "예: [OO 부트캠프 백엔드 과정] 1. 기술적인 문제를 해결한 경험을 적어 주세요 (700자) 2. 지원 동기 … 글에 적힌 문항만 찾아요."} />
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="secondary" size="sm" className="min-h-11 lg:min-h-10" disabled={room === 0} title={room === 0 ? `문항은 한 번에 ${MAX_QUESTIONS_PER_SUBMIT}개까지 넣을 수 있어요` : undefined} onClick={() => setPicking(true)}><ListChecksIcon />넣었던 · 자주 나오는 문항에서 고르기</Button>
+            {/* 문항이 없어 아래에 「자주 나오는 문항」이 펼쳐져 있으면 같은 입구를 둘 두지 않는다 — 넣었던 문항은 그 안의 링크로(FE#492) */}
+            {!noQuestions && <Button type="button" variant="secondary" size="sm" className="min-h-11 lg:min-h-10" disabled={room === 0} title={room === 0 ? `문항은 한 번에 ${MAX_QUESTIONS_PER_SUBMIT}개까지 넣을 수 있어요` : undefined} onClick={() => setPicking(true)}><ListChecksIcon />넣었던 · 자주 나오는 문항에서 고르기</Button>}
             <Button type="button" variant="secondary" size="sm" className="min-h-11 lg:min-h-10" onClick={() => { setAskingLink(prev => !prev); pasteBox.current?.focus(); }}>{askingLink ? <ArticleIcon /> : <LinkIcon />}{askingLink ? "글 붙여넣기로 돌아가기" : "공고 링크로 가져오기"}</Button>
             <span className={`ml-auto text-xs tabular-nums ${paste.length > MAX_PARSE_TEXT_LENGTH ? "text-error" : "text-muted"}`}>{paste.length > 0 && `${paste.length.toLocaleString("ko-KR")} / 20,000`}</span>
           </div>
@@ -205,9 +206,10 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
         {parse.parsing && <p role="status" className="m-0 text-sm text-muted">{reading === "url" ? "링크를 읽고 지원처와 문항을 나누고 있어요…" : "글을 읽고 지원처와 문항을 나누고 있어요…"}</p>}
         {parse.failure && <ParseFailureNotice failure={parse.failure} onRetry={() => void fill(parse.failure!.input)}
           onManual={() => { const input = parse.failure!.input; if ("text" in input) { insert([input.text]); parse.clear(); } else { setPaste(""); pasteBox.current?.focus(); } }} />}
-        {noQuestions && (filledFrom === "url"
-          ? <p role="status" className="m-0 text-sm text-body">링크에서 문항을 찾지 못했어요 — 문항이 지원 양식(구글폼 등) 안에 있을 수 있어요. 공고 본문이나 문항을 위 칸에 붙여 넣고 「AI 로 나누기」를 눌러 주세요.</p>
-          : <p role="status" className="m-0 text-sm text-body">글에서 문항을 찾지 못했어요. 문항 칸에 직접 넣어 주세요.</p>)}
+        {/* 문항이 없으면 막다른 길 대신 「자주 나오는 문항」을 그 자리에 펼친다(FE#492). 고르거나 문항 칸에 쓰면 사라진다 */}
+        {noQuestions && <CommonQuestionsInline room={room} organizationType={organizationType} onPick={insert} onPickPast={() => setPicking(true)} message={filledFrom === "url"
+          ? "이 링크엔 자소서 문항이 없어요. 문항은 보통 지원서 양식(구글폼 등) 안에 있어요. 자주 나오는 문항에서 고르거나, 문항을 위 칸에 붙여 넣고 「AI 로 나누기」를 눌러 주세요."
+          : "이 글엔 자소서 문항이 없어요. 문항은 보통 지원서 양식(구글폼 등) 안에 있어요. 자주 나오는 문항에서 고르거나, 문항 칸에 붙여 넣어 주세요."} />}
         {!filled && !paste.trim() && <div className="grid gap-2">
           <span className="text-note font-medium text-muted">예시 문항으로 시작하기</span>
           <div className="flex flex-wrap gap-2">

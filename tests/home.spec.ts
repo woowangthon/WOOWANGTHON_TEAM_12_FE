@@ -109,8 +109,8 @@ test("빈 홈은 실제 입력으로 연결하고 조회 실패를 빈 데이터
 test("기존 홈의 활동·자료 넣기 링크는 내 경험으로 이어진다", async ({ page }) => {
   await setup(page);
   await page.goto("/?activity=7");
-  await expect(page).toHaveURL(/\/experience\?activity=7/);
   await expect(page.getByRole("complementary", { name: "활동 세부" })).toBeVisible();
+  await expect(page).toHaveURL(/\/experience$/); // 연 뒤 활동 링크는 주소에서 지운다(FE#322 · #342)
   await page.goto("/?add=1");
   await expect(page.getByRole("dialog", { name: "자료 쌓기" })).toBeVisible();
   await expect(page).toHaveURL(/\/experience$/);

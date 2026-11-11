@@ -51,6 +51,7 @@ async function setup(page: Page, kind: EntranceKind = "SOURCE", status = 200) {
       return route.fulfill({ status: 201, json: { applicationId: 1, questionIds: [41] } });
     }
     if (path === "/api/applications") return route.fulfill({ json: { applications: [] } });
+    if (path === "/api/questions") return route.fulfill({ json: { questions: [] } }); // 문항 고르기 창의 「내가 넣었던 문항」
     if (path === "/api/questions/41") return route.fulfill({ status: 404, json: { error: { code: "QUESTION_NOT_FOUND", message: "시험 종료" } } });
     throw new Error(`Unexpected API: ${req.method()} ${path}`);
   });
@@ -118,7 +119,7 @@ test("문항을 못 찾으면 입력 글을 문항으로 지어 넣지 않고 �
   await page.getByLabel("홈에 넣을 글").fill("OO 동아리 모집 안내입니다.");
   await page.getByRole("button", { name: "보내기", exact: true }).click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog.getByText(/글에서 문항을 찾지 못했어요/)).toBeVisible();
+  await expect(dialog.getByText(/이 글엔 자소서 문항이 없어요/)).toBeVisible();
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("");
   await expect(page.getByLabel("지원처 이름", { exact: true })).toHaveValue("OO 동아리");
   await expect(page.getByLabel("직무", { exact: true })).toHaveText("+ 직무");
@@ -126,6 +127,47 @@ test("문항을 못 찾으면 입력 글을 문항으로 지어 넣지 않고 �
   // 다른 쪽으로 보낼 땐 원문이 그대로 간다
   await page.getByRole("button", { name: "자료로 쌓기", exact: true }).click();
   await expect(page.getByLabel("붙여넣을 자료")).toHaveValue("OO 동아리 모집 안내입니다.");
+});
+
+// FE#492 — 문항이 없으면 막다른 길 대신 「자주 나오는 문항」을 그 자리에 펼친다. 채운 지원처 종류에 맞는 묶음만 펼치고, 고르면 문항 칸에 들어간다
+test("문항을 못 찾으면 그 자리에 자주 나오는 문항이 펼쳐지고, 골라 넣으면 문항 칸에 들어간다", async ({ page }) => {
+  const calls = await setup(page, "APPLICATION");
+  calls.parsed = { organization: "OO 동아리", organizationType: "CLUB", jobRole: null, questions: [] };
+  await page.getByLabel("홈에 넣을 글").fill("OO 동아리 모집 안내입니다.");
+  await page.getByRole("button", { name: "보내기", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  const common = dialog.getByRole("region", { name: "자주 나오는 문항", exact: true });
+  await expect(common).toBeVisible();
+  await expect(common.getByRole("status")).toHaveText(/^이 글엔 자소서 문항이 없어요/);
+  // 같은 입구를 둘 두지 않는다 — 위의 고르기 버튼은 숨고, 넣었던 문항은 이 안의 링크로 고르기 창을 연다
+  await expect(dialog.getByRole("button", { name: "넣었던 · 자주 나오는 문항에서 고르기" })).toHaveCount(0);
+  await common.getByRole("button", { name: "내가 넣었던 문항에서 고르기", exact: true }).click();
+  const picker = page.getByRole("dialog", { name: "문항 고르기" });
+  await expect(picker.getByText("내가 넣었던 문항", { exact: true })).toBeVisible();
+  await picker.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(picker).toHaveCount(0);
+  // 동아리 · 학회 → 동아리 묶음 둘만 펼친다
+  const group = (kind: string) => common.locator("details").filter({ has: page.locator("summary", { hasText: kind }) });
+  await expect(group("IT 연합 동아리")).toHaveAttribute("open", "");
+  await expect(group("교내 IT 동아리")).toHaveAttribute("open", "");
+  await expect(group("SW 교육 프로그램")).not.toHaveAttribute("open", "");
+  await expect(group("IT 기업 신입")).not.toHaveAttribute("open", "");
+  // 접힌 묶음도 펼쳐서 고른다
+  await group("SW 교육 프로그램").locator("summary").click();
+  const first = group("SW 교육 프로그램").getByRole("checkbox").first();
+  const second = group("IT 연합 동아리").getByRole("checkbox").first();
+  await first.check(); await second.check();
+  await expect(common).toContainText("2개 골랐어요");
+  const firstText = await group("SW 교육 프로그램").locator("label").first().innerText();
+  const secondText = await group("IT 연합 동아리").locator("label").first().innerText();
+  await common.getByRole("button", { name: "고른 문항 2개 넣기", exact: true }).click();
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(firstText.trim());
+  await expect(page.getByLabel("문항 2", { exact: true })).toHaveValue(secondText.trim());
+  // 문항이 생기면 자리를 비운다 · 찾은 칸은 그대로
+  await expect(common).toHaveCount(0);
+  await expect(page.getByLabel("지원처 이름", { exact: true })).toHaveValue("OO 동아리");
+  await page.getByRole("button", { name: "문항 2개 넣고 경험 찾기", exact: true }).click();
+  await expect.poll(() => calls.applications).toEqual([{ organization: "OO 동아리", organizationType: "CLUB", questions: [{ text: firstText.trim() }, { text: secondText.trim() }] }]);
 });
 
 for (const status of [502, 504]) {
@@ -176,7 +218,7 @@ test("지원 넣기 화면에서 공고를 붙여 칸을 채우고, 직접 넣�
   await expect(page.getByLabel("문항 2", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("직접 넣은 문항");
   await expect(page.getByLabel("지원처 종류", { exact: true })).toHaveText("+ 종류");
-  await expect(page.getByText(/글에서 문항을 찾지 못했어요/)).toHaveCount(0);
+  await expect(page.getByText(/이 글엔 자소서 문항이 없어요/)).toHaveCount(0);
   // 실패면 그 글을 문항 칸으로 옮길 수 있다
   calls.parseStatus = 502;
   await page.getByRole("button", { name: "AI 로 나누기", exact: true }).click();
@@ -425,7 +467,8 @@ test("링크에서 문항을 못 찾으면 지원 양식 안내와 붙여 넣기
   expect(calls.parses).toEqual([{ url: LINK }]);
   // 직접 넣은 문항이 있으면 「못 찾음」은 문항 칸이 비었을 때만 — 비우면 보인다
   await page.getByLabel("문항 1", { exact: true }).fill("");
-  await expect(dialog.getByText(/링크에서 문항을 찾지 못했어요 — 문항이 지원 양식\(구글폼 등\) 안에 있을 수 있어요/)).toBeVisible();
+  await expect(dialog.getByText(/이 링크엔 자소서 문항이 없어요\. 문항은 보통 지원서 양식\(구글폼 등\) 안에 있어요/)).toBeVisible();
+  await expect(dialog.getByRole("region", { name: "자주 나오는 문항", exact: true })).toBeVisible();
   await expect(page.getByLabel("공고 · 문항 글이나 공고 링크")).toBeVisible();
 });
 

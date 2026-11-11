@@ -13,7 +13,7 @@ test("목임을 표시하고 네 분류를 실제 호출 없이 확인한다", a
     await page.getByRole("textbox", { name: "홈에 넣을 글", exact: true }).fill("목에서 확인할 글");
     await page.getByRole("button", { name: "보내기", exact: true }).click();
     if (kind === "SOURCE") await expect(page.getByLabel("붙여넣을 자료")).toHaveValue("목에서 확인할 글");
-    else if (kind === "APPLICATION") await expect(page.getByText(/글에서 문항을 찾지 못했어요/)).toBeVisible();
+    else if (kind === "APPLICATION") await expect(page.getByText(/이 글엔 자소서 문항이 없어요/)).toBeVisible();
     else if (kind === "ASK") await expect(page.getByRole("listitem", { name: "꺼낸 경험 1" })).toBeVisible();
     else await expect(page.getByText("자료로 쌓을까요, 지원으로 만들까요?", { exact: true })).toBeVisible();
   }
