@@ -23,9 +23,8 @@ import { RevisionDialog } from "@/components/revisions/revision-list";
 import { MENU_CONTENT, MENU_ITEM } from "@/components/ui/menu";
 import { cn } from "@/lib/utils";
 import { ExportStatus, useMarkdownExport } from "@/components/export/markdown-export";
-import { AnalysisButton, AnalysisCost } from "@/components/auth/analysis-cost";
 import { fetchActivity, organizeStar } from "@/lib/api/experience";
-import { needsStar, StarPanel } from "./star-slots";
+import { StarPanel } from "./star-slots";
 
 const FIRST_COUNT = 3;
 /** STAR 정리 중일 때 활동 세부를 다시 읽는 간격 — 작업 ID 가 없어 세부의 star.status 로 본다(계약) */
@@ -48,7 +47,7 @@ type Props = {
   onCategorySaved: (activity: ActivitySummary) => void;
   onExperienceSaved: (experience: Experience) => void;
   onExperienceAdded: (experience: Experience) => void;
-  /** 활동 세부를 통째로 바꾼다 — 「STAR 로 정리」 응답 · 정리 중 다시 읽기 */
+  /** 활동 세부를 통째로 바꾼다 — STAR 「다시 시도」 응답 · 정리 중 다시 읽기 */
   onActivityReplaced: (activity: ActivityDetail) => void;
   onExperienceDelete: (experience: Experience) => void;
   onExperienceMove: (experience: Experience) => void;
@@ -186,8 +185,9 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
 /** 경험 아래 펼침은 한 패널에 하나 — 근거든 STAR 든(DESIGN.md 「경험 줄 — STAR 칸」) */
 type Expanded = { id: number; kind: "citations" | "star" } | null;
 
-/** 「STAR 로 정리」(S-95) — 활동 하나에 분석 1회. 정리 중이면 세부를 다시 읽어 star.status 를 따라간다 */
-function useStarOrganize(activity: ActivityDetail, onReplaced: (activity: ActivityDetail) => void) {
+/** STAR 정리 진행(S-95) — 정리는 BE 가 알아서 한다(ADR-018). 정리 중이면 세부를 다시 읽어 star.status 를 따라가고,
+ *  실패한 경험의 「다시 시도」(활동 단위 · 분석 횟수를 세지 않는다)만 여기서 부른다 */
+function useStarProgress(activity: ActivityDetail, onReplaced: (activity: ActivityDetail) => void) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const analyzing = activity.experiences.some((e) => e.star?.status === "ANALYZING");
@@ -204,7 +204,7 @@ function useStarOrganize(activity: ActivityDetail, onReplaced: (activity: Activi
     if (busy || analyzing) return;
     setBusy(true); setError(null);
     try { onReplaced(await organizeStar(activity.id)); }
-    catch (e) { setError(`STAR 로 정리하지 못했어요. ${e instanceof Error ? e.message : "다시 시도해 주세요."}`); }
+    catch (e) { setError(`STAR 를 정리하지 못했어요. ${e instanceof Error ? e.message : "다시 시도해 주세요."}`); }
     finally { setBusy(false); }
   };
   return { run, busy: busy || analyzing, error };
@@ -226,8 +226,7 @@ function ExperienceList({ activity, onSaved, onAdded, onReplaced, onDelete, onMo
   const [showAll, setShowAll] = useState(false);
   const [expanded, setExpanded] = useState<Expanded>(null);
   const [sheet, setSheet] = useState<Expanded>(null);
-  const star = useStarOrganize(activity, onReplaced);
-  const canOrganize = !readOnly && activity.experiences.some(needsStar);
+  const star = useStarProgress(activity, onReplaced);
 
   // 「확인 필요」는 할 일이 있어 맨 위로(FE#273). 연 순간의 상태로만 정한다 — 고치거나 맞아요를 눌러도 줄이 튀지 않게(이 목록은 활동마다 key 로 새로 그린다)
   const [reviewIds] = useState(() => new Set(activity.experiences.filter((e) => e.sourceStatus === "NEEDS_REVIEW").map((e) => e.id)));
@@ -248,14 +247,6 @@ function ExperienceList({ activity, onSaved, onAdded, onReplaced, onDelete, onMo
         {experiences.length > 0 && <InfoTip label="이 활동에서 한 일">
           AI 가 자료에서 찾아 채운 기록이에요. 「확인 필요」는 원문과 맞는지 봐 주세요.{!readOnly && <> 다른 활동의 일이면 왼쪽 손잡이로 끌어 옮겨요.</>}
         </InfoTip>}
-        {/* 경험 줄마다 두지 않고 목록 머리에 하나(DESIGN.md) — 정리할 경험이 있을 때만 */}
-        {canOrganize && <span className="ml-auto inline-flex items-center gap-1.5">
-          <AnalysisCost running={star.busy} />
-          <AnalysisButton variant="secondary" size="sm" className="min-h-11 lg:min-h-8" running={star.busy} disabled={star.busy} onClick={() => void star.run()}>
-            {star.busy ? "STAR 정리 중…" : "STAR 로 정리"}
-          </AnalysisButton>
-          <InfoTip label="STAR 로 정리" align="end">경험마다 근거 · 내 답을 상황 · 과제 · 행동 · 결과 칸에 나눠 둬요. 빈칸은 차곡이가 물어볼 거리예요.</InfoTip>
-        </span>}
       </div>
       {star.error && <p role="alert" className="m-0 pb-1 text-note text-error">{star.error}</p>}
       <ul className="m-0 list-none p-0">
@@ -276,8 +267,8 @@ function ExperienceList({ activity, onSaved, onAdded, onReplaced, onDelete, onMo
             starOpen={expanded?.id === e.id && expanded.kind === "star"}
             onToggleStar={() => toggle(e.id, "star")}
             onShowStar={() => setSheet({ id: e.id, kind: "star" })}
-            onOrganizeStar={() => void star.run()}
-            organizingStar={star.busy}
+            onRetryStar={() => void star.run()}
+            retryingStar={star.busy}
           />
         ))}
       </ul>
@@ -317,8 +308,9 @@ function ExperienceList({ activity, onSaved, onAdded, onReplaced, onDelete, onMo
                 <SheetTitle className="line-clamp-2 text-title-md font-semibold">{sheetExp.content}</SheetTitle>
                 <SheetDescription className="text-note text-muted">STAR 칸 — 빈칸은 차곡이가 물어볼 거리예요</SheetDescription>
               </SheetHeader>
+              {sheetExp.star?.status === "ANALYZING" && <p role="status" className="m-0 text-note text-muted">STAR 정리 중이에요. 끝나면 칸이 나와요.</p>}
               <StarPanel experience={sheetExp} onSaved={savedKeepingUsedIn(sheetExp)} onShowCitations={() => setSheet({ id: sheetExp.id, kind: "citations" })}
-                onOrganize={() => void star.run()} organizing={star.busy} />
+                onRetry={() => void star.run()} retrying={star.busy} />
             </>
           )}
           {sheetExp && sheet?.kind === "citations" && (

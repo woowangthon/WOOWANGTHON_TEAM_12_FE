@@ -260,13 +260,20 @@ export function deleteSupplement(id: number): Promise<void> {
   return request(`/supplements/${id}`, undefined, "DELETE");
 }
 
-/** POST /api/activities/{id}/star — 이 활동의 경험 전부를 STAR 로 다시 정리한다(202 · 분석 1회 · S-95).
+/** POST /api/activities/{id}/star — 실패한(FAILED) 정리를 다시 시도한다(202 · 분석 횟수를 세지 않는다 · S-95).
  *  응답은 활동 세부(경험들이 ANALYZING). 진행은 활동 세부를 다시 읽어 본다 — 작업 ID 가 없다 */
 export async function organizeStar(activityId: number): Promise<ActivityDetail> {
   if (isMockMode()) throw new ApiError("MOCK_UNSUPPORTED", "예시 화면에서는 STAR 로 정리할 수 없어요.");
   const activity = await request<ActivityDetail>(`/activities/${activityId}/star`, undefined, "POST");
   activity.experiences.forEach(checkCompetencies);
   return activity;
+}
+
+/** POST /api/experiences/{id}/star — 경험 하나 다시 나누기(202 · 세지 않는다 · S-95 · BE#184). star.hasNew 일 때만 누른다.
+ *  응답은 그 경험(star.status ANALYZING). 직접 쓴 칸은 BE 가 지킨다. 진행은 활동 세부를 다시 읽어 본다 */
+export async function resortStar(experienceId: number): Promise<Experience> {
+  if (isMockMode()) throw new ApiError("MOCK_UNSUPPORTED", "예시 화면에서는 다시 나눌 수 없어요.");
+  return checkCompetencies<Experience>(await request(`/experiences/${experienceId}/star`, undefined, "POST"));
 }
 
 /** POST /api/experiences/{id}/star/{slot}/answer — 빈칸에 답하면 보완이 생기고 칸이 찬다. AI 를 부르지 않는다(S-96) */
