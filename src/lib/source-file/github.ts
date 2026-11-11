@@ -185,6 +185,7 @@ export function buildGitHubSource(data: GitHubData, max: number = MAX_TEXT_LENGT
     ...(period ? [`기간: ${period} (내 커밋 · PR 날짜)`] : []),
   ].join("\n");
   const tail: string[] = [];
+  // 서로 맞물림: AI app/extract.py WORK_LOG_MARK 가 아래 두 절 제목으로 GitHub 자료를 알아본다(AI#113) — 바꾸면 같이 바꾼다
   if (data.login && data.commits.length) {
     tail.push([`## 내가 쓴 커밋 제목 (GitHub 아이디 ${data.login} · 최근 ${data.commits.length}개)`, ...data.commits.map((c) => `- ${c.date} ${c.title}`)].join("\n"));
   }
