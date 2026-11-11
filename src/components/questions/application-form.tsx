@@ -15,6 +15,9 @@ import {
   type CreateApplicationRequest, type JobRole, type OrganizationType,
 } from "@/lib/api/question-types";
 import { Select, optionsOf } from "@/components/ui/select";
+import { InfoTip } from "@/components/ui/info-tip";
+import { AiMark } from "@/components/ui/ai-mark";
+import { targetLengthFromText } from "@/lib/target-length";
 
 /** 입력을 돕는 예시 문항 — 칸만 채운다. 결과는 늘 실제 분석이다(question-api.md 문항 41 · 42 의 글) */
 const EXAMPLES = [
@@ -24,6 +27,11 @@ const EXAMPLES = [
 const INPUT_LABEL = "공고 · 문항 글이나 공고 링크";
 const LINK_NOTE = "링크를 한 번 읽어 칸을 채우고, 넣은 지원에서 원문을 열 수 있게 남겨요. 읽은 본문은 저장하지 않아요.";
 const field = "w-full rounded-sm border border-hairline bg-canvas p-3 text-base leading-relaxed font-normal";
+/** 칩 줄의 알약 — ui/select 칩 모양과 같다 */
+const CHIP = "h-6 rounded-full bg-surface-soft px-2.5 text-xs font-medium whitespace-nowrap text-body";
+// 글자 수는 한도의 80% 부터 보인다(FE#493)
+const NEAR_ORGANIZATION = MAX_ORGANIZATION_LENGTH * 0.8;
+const NEAR_QUESTION = MAX_QUESTION_LENGTH * 0.8;
 
 /** 계약 오류를 사용자 말로 — 429 는 문항 수가 남은 횟수보다 많을 때도 같다 */
 export function submitErrorMessage(e: unknown, fallback: string) {
@@ -31,9 +39,39 @@ export function submitErrorMessage(e: unknown, fallback: string) {
   return e instanceof Error ? e.message : fallback;
 }
 
-/** 나누기로 채운 칸의 꼬리표(S-30). 칸 값이 나눈 값과 같을 때만 보여서, 고치면 사라진다 */
-function FilledTag() {
-  return <span className="text-xs font-normal text-muted">{isMockMode() ? "목 규칙으로 채움" : "AI 가 채움"}</span>;
+export const AI_FILLED = "AI 가 채운 값이에요. 원문 사실이 아니에요 — 고쳐도 돼요.";
+export const MOCK_FILLED = "목 규칙으로 채운 값이에요 — 고쳐도 돼요.";
+
+/** 나누기로 채운 값의 표시(S-30) — 칩 줄에 한 번, 문항 카드마다 한 번. 값이 나눈 값과 같을 때만 보여서, 고치면 사라진다.
+ *  목 모드는 AI 가 아니니 AI 배지를 쓰지 않는다 */
+function FilledMark() {
+  // MOCK(application-parse): 목 모드임을 글자로 밝힌다 — ai-scope §3 의 꼬리표 「목 규칙으로 채움」
+  if (isMockMode()) return <span title={MOCK_FILLED} className="inline-block shrink-0 rounded-[4px] border border-hairline px-1 text-xs leading-[15px] font-bold whitespace-nowrap text-muted">목 규칙으로 채움</span>;
+  return <AiMark title={AI_FILLED} />;
+}
+
+/** 원문 링크 칩(S-46) — 값이 있으면 링크 아이콘 + 도메인, 누르면 그 자리에서 입력칸. 틀린 주소면 칸을 열어 둔다 */
+function PostingUrlChip({ value, invalid, onChange }: { value: string; invalid: boolean; onChange: (value: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const trimmed = value.trim();
+  if (editing || invalid) return <span className="inline-flex min-h-11 items-center lg:min-h-10">
+    <input aria-label="원문 링크" type="url" inputMode="url" autoComplete="url" autoFocus={editing} maxLength={MAX_POSTING_URL_LENGTH} value={value} aria-invalid={invalid}
+      aria-describedby={invalid ? "application-url-note" : undefined} placeholder="https://… 공고 페이지 주소"
+      onChange={e => onChange(e.target.value)} onBlur={() => setEditing(false)}
+      onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); } }}
+      className={`${CHIP} w-64 max-w-[70vw] outline-none placeholder:text-muted focus-visible:shadow-[inset_0_0_0_1px_var(--ink)] aria-invalid:shadow-[inset_0_0_0_1px_var(--error)]`} />
+  </span>;
+  return <button type="button" onClick={() => setEditing(true)} aria-label={trimmed ? `원문 링크 ${trimmed} — 고치기` : "원문 링크 더하기"} title={trimmed || undefined}
+    className="inline-flex min-h-11 max-w-full shrink-0 cursor-pointer items-center lg:min-h-10">
+    <span className={`${CHIP} inline-flex max-w-56 items-center gap-1 ${trimmed ? "text-body" : "text-muted"}`}>
+      {trimmed ? <LinkIcon aria-hidden="true" className="size-3 shrink-0" /> : <PlusIcon aria-hidden="true" className="size-3 shrink-0" />}
+      <span className="truncate">{trimmed ? hostOf(trimmed) : "원문 링크"}</span>
+    </span>
+  </button>;
+}
+
+function hostOf(url: string) {
+  try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; }
 }
 
 /** 지원 넣기 — 처음엔 입력칸 하나다. 글(S-30)이든 공고 링크(S-46)든 붙여 넣고 나누면 지원처 · 종류 · 직무 · 문항 칸이 펼쳐진다.
@@ -115,7 +153,9 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
   const noQuestions = !!filled && !filled.questions.length && texts.every(t => !t.trim());
   const filledAny = !!filled && !!(filled.organization || filled.organizationType || filled.jobRole || filled.questions.length);
   // 링크가 아직 입력칸에 있으면 같은 값을 두 번 보이지 않는다
-  const urlShown = urlField && (!urlTrimmed || paste.trim() !== urlTrimmed);
+  const urlShown = (open || urlField) && (!urlTrimmed || paste.trim() !== urlTrimmed);
+  const chipsFilled = !!filled && ((!!filled.organization && organization === filled.organization)
+    || (!!filled.organizationType && organizationType === filled.organizationType) || (!!filled.jobRole && jobRole === filled.jobRole));
 
   // 처음으로(FE#245) — 닫을 입력창이 없는 자리(onCancel 없음, 지원서 0개 화면)에서 펼친 칸을 접고 입력을 비운다. 쓴 게 있으면 한 번 묻는다
   const [confirmingReset, setConfirmingReset] = useState(false);
@@ -184,54 +224,58 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
           </div>
         </div>}
         {filledAny && <p className="m-0 flex items-center gap-2 text-note font-semibold text-muted"><Mascot size={18} />{isMockMode() ? (filledFrom === "url" ? "목 모드 — 링크를 읽지 않고 예시 공고로 채웠어요 · 고쳐도 돼요" : "목 모드 — AI 호출 없이 글의 번호 달린 줄만 규칙으로 나눴어요 · 고쳐도 돼요") : filledFrom === "url" ? "링크를 읽어 AI 가 나눠 채웠어요 · 고쳐도 돼요" : "AI 가 나눠 채웠어요 · 고쳐도 돼요"}</p>}
-        {urlShown && <div className="grid gap-1.5">
-          <label htmlFor="application-url" className="text-sm font-medium">원문 링크 (선택)</label>
-          <input id="application-url" type="url" inputMode="url" autoComplete="url" maxLength={MAX_POSTING_URL_LENGTH} value={postingUrl} aria-invalid={urlInvalid}
-            aria-describedby="application-url-note" onChange={e => setPostingUrl(e.target.value)} className={`${field} min-h-11 lg:min-h-10 py-0`} placeholder="https://… 공고 페이지 주소" />
-          <p id="application-url-note" className={`m-0 text-note ${urlInvalid ? "text-error" : "text-muted"}`}>{urlInvalid ? "http:// 나 https:// 로 시작하는 주소 하나를 넣어 주세요." : LINK_NOTE}</p>
+        {(open || urlShown) && <div className="grid gap-1">
+          {/* 지원처 · 종류 · 직무 · 원문 링크는 칩 한 줄 — 문항이 주인공이다(FE#493 · DESIGN.md 「지원 넣기 — 공고 확인」) */}
+          <div role="group" aria-label="지원처 정보" className="flex flex-wrap items-center gap-x-1.5 max-sm:-mx-1 max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:px-1 max-sm:[scrollbar-width:none]">
+            {open && <>
+              <span className="inline-flex min-h-11 items-center lg:min-h-10">
+                <input aria-label="지원처 이름" autoComplete="organization" maxLength={MAX_ORGANIZATION_LENGTH} value={organization} onChange={e => setOrganization(e.target.value)}
+                  placeholder="+ 지원처" className={`${CHIP} field-sizing-content min-w-20 max-w-64 outline-none placeholder:text-muted focus-visible:shadow-[inset_0_0_0_1px_var(--ink)]`} />
+              </span>
+              {organization.length >= NEAR_ORGANIZATION && <span className="text-xs text-muted tabular-nums">{organization.length} / 100</span>}
+              <Select variant="chip" aria-label="지원처 종류" placeholder="+ 종류" value={organizationType} onChange={setOrganizationType}
+                options={organizationType ? [{ value: "", label: "고르지 않음" }, ...optionsOf(ORGANIZATION_TYPE_LABEL)] : optionsOf(ORGANIZATION_TYPE_LABEL)} />
+              <Select variant="chip" aria-label="직무" placeholder="+ 직무" value={jobRole} onChange={setJobRole}
+                options={jobRole ? [{ value: "", label: "고르지 않음" }, ...optionsOf(JOB_ROLE_LABEL)] : optionsOf(JOB_ROLE_LABEL)} />
+            </>}
+            {urlShown && <PostingUrlChip value={postingUrl} invalid={urlInvalid} onChange={setPostingUrl} />}
+            {chipsFilled && <FilledMark />}
+            {urlShown && <InfoTip label="원문 링크">{LINK_NOTE}</InfoTip>}
+          </div>
+          {urlInvalid && <p id="application-url-note" className="m-0 text-note text-error">http:// 나 https:// 로 시작하는 주소 하나를 넣어 주세요.</p>}
         </div>}
         {open && <>
-          <label className="grid gap-1.5 text-sm font-medium">
-            <span className="flex flex-wrap items-center gap-2">지원처 이름 (선택){filled?.organization && organization === filled.organization && <FilledTag />}</span>
-            <input aria-label="지원처 이름 (선택)" autoComplete="organization" maxLength={MAX_ORGANIZATION_LENGTH} value={organization} onChange={e => setOrganization(e.target.value)} className={`${field} min-h-11 lg:min-h-10 py-0`} placeholder="동아리 · 부트캠프 · 대외활동 · 회사 이름" />
-            <span className="text-right text-xs font-normal text-muted tabular-nums">{organization.length} / 100</span>
-          </label>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="grid gap-1.5 text-sm font-medium">
-              <span className="flex flex-wrap items-center gap-2">지원처 종류 (선택){filled?.organizationType && organizationType === filled.organizationType && <FilledTag />}</span>
-              <Select value={organizationType} onChange={setOrganizationType} options={[{ value: "", label: "고르지 않음" }, ...optionsOf(ORGANIZATION_TYPE_LABEL)]} />
-            </label>
-            <label className="grid gap-1.5 text-sm font-medium">
-              <span className="flex flex-wrap items-center gap-2">직무 (선택){filled?.jobRole && jobRole === filled.jobRole && <FilledTag />}</span>
-              <Select value={jobRole} onChange={setJobRole} options={[{ value: "", label: "고르지 않음" }, ...optionsOf(JOB_ROLE_LABEL)]} />
-            </label>
-          </div>
-          <ol className="m-0 grid list-none gap-4 p-0" aria-label="문항">
-            {texts.map((text, i) => (
-              <li key={i} className="grid gap-1.5">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="flex flex-wrap items-center gap-2">
-                    <label htmlFor={`question-${i}`} className="text-sm font-medium">문항 {i + 1}</label>
-                    {filled?.questions.includes(text) && <FilledTag />}
+          <ol className="m-0 grid list-none gap-3 p-0" aria-label="문항">
+            {texts.map((text, i) => {
+              const target = targetLengthFromText(text);
+              return <li key={i} className="grid rounded-md border border-hairline bg-canvas transition-colors focus-within:border-ink">
+                <div className="flex min-h-11 items-center justify-between gap-2 pr-1 pl-4 lg:min-h-10">
+                  <span className="flex min-w-0 flex-wrap items-center gap-2">
+                    <label htmlFor={`question-${i}`} className="text-sm font-semibold">문항 {i + 1}</label>
+                    {filled?.questions.includes(text) && <FilledMark />}
+                    {/* 문항 글의 「700자」를 읽어 보인다 — 넣은 뒤 문항 머리에서 고친다(S-77) */}
+                    {target && <span title="문항 글에서 읽은 목표 글자 수예요. 넣은 뒤 고칠 수 있어요." className="inline-flex h-6 items-center rounded-full bg-surface-soft px-2.5 text-xs font-medium whitespace-nowrap text-body tabular-nums">목표 {target.toLocaleString("ko-KR")}자</span>}
                   </span>
-                  {texts.length > 1 && <span className="flex gap-0.5">
+                  {texts.length > 1 && <span className="flex shrink-0 gap-0.5">
                     <Button type="button" variant="ghost" size="icon" aria-label={`문항 ${i + 1} 위로`} disabled={i === 0} onClick={() => move(i, i - 1)}><ArrowUpIcon /></Button>
                     <Button type="button" variant="ghost" size="icon" aria-label={`문항 ${i + 1} 아래로`} disabled={i === texts.length - 1} onClick={() => move(i, i + 1)}><ArrowDownIcon /></Button>
                     <Button type="button" variant="ghost" size="icon" aria-label={`문항 ${i + 1} 빼기`} onClick={() => setTexts(prev => prev.filter((_, j) => j !== i))}><XIcon /></Button>
                   </span>}
                 </div>
-                <textarea id={`question-${i}`} autoFocus={i === 0 && (writing || (!!initialText && !prefill))} rows={4} maxLength={MAX_QUESTION_LENGTH} value={text} onChange={e => set(i, e.target.value)} className={`${field} resize-y`} placeholder="문항을 붙여 넣어 주세요. 글자 수 · 공고 일부를 함께 넣어도 괜찮아요." />
-                <span className="text-right text-xs font-normal text-muted tabular-nums">{text.length.toLocaleString("ko-KR")} / 5,000</span>
-              </li>
-            ))}
+                <textarea id={`question-${i}`} autoFocus={i === 0 && (writing || (!!initialText && !prefill))} rows={4} maxLength={MAX_QUESTION_LENGTH} value={text} onChange={e => set(i, e.target.value)}
+                  className="w-full resize-y rounded-b-md bg-transparent px-4 pt-0 pb-3 text-base leading-relaxed font-normal outline-none" placeholder="문항을 붙여 넣어 주세요. 글자 수 · 공고 일부를 함께 넣어도 괜찮아요." />
+                {/* 글자 수는 한도 가까이에서만 */}
+                {text.length >= NEAR_QUESTION && <span className="px-4 pb-2 text-right text-xs text-muted tabular-nums">{text.length.toLocaleString("ko-KR")} / 5,000</span>}
+              </li>;
+            })}
           </ol>
-          {texts.length < MAX_QUESTIONS_PER_SUBMIT && <Button type="button" variant="secondary" className="justify-self-start" onClick={() => setTexts(prev => [...prev, ""])}><PlusIcon />문항 칸 더하기</Button>}
+          <Button type="button" variant="secondary" size="sm" className="min-h-11 justify-self-start lg:min-h-10" disabled={texts.length >= MAX_QUESTIONS_PER_SUBMIT}
+            onClick={() => setTexts(prev => [...prev, ""])}><PlusIcon />문항 더하기 ({texts.length}/{MAX_QUESTIONS_PER_SUBMIT})</Button>
         </>}
       </fieldset>
       <CommonQuestionPicker open={picking} onOpenChange={setPicking} room={room} onPick={insert} />
       {error && <p role="alert" className="m-0 text-sm text-error">{error}</p>}
       <div className="flex flex-wrap items-center justify-end gap-2">
-        {open && <p className="m-0 mr-auto min-w-0 flex-1 basis-60 text-note text-muted">넣은 뒤엔 문항을 고치지 않아요 — 잘못 넣었으면 그 지원에 새로 더해 주세요.</p>}
         {!open && <Button type="button" variant="link" className="mr-auto min-h-11 lg:min-h-10" disabled={saving} onClick={writeQuestions}>문항 직접 쓰기</Button>}
         {onCancel && <Button type="button" variant="ghost" disabled={saving} onClick={onCancel}>취소</Button>}
         {!onCancel && open && (confirmingReset
