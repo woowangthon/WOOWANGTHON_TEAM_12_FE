@@ -52,7 +52,7 @@ test("connections: whole export downloads the server file with its Korean name; 
   const state = await setup(page);
   await page.goto("/connections", { waitUntil: "domcontentloaded" });
   const section = page.getByRole("region", { name: "파일로 내려받기" });
-  const button = section.getByRole("button", { name: "전체 내보내기 (.md)" });
+  const button = section.getByRole("button", { name: "Markdown 으로 내려받기" });
 
   state.fail = true;
   await button.click();

@@ -8,6 +8,7 @@ import { Toast, useToast } from "@/components/ui/toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { ApiError } from "@/lib/api/errors";
 import { isMockMode } from "@/lib/api/http";
+import { FoldCard } from "./fold-card";
 import { createPublicProfileLink, deletePublicProfileLink, fetchPublicProfileSettings, publicProfileUrl, PUBLIC_TITLE_MAX, updatePublicProfileTitle, type PublicProfileSettings } from "@/lib/api/share";
 
 type Action = "on" | "renew" | "off";
@@ -83,20 +84,26 @@ export function PublicProfileSection() {
   const hidden = settings ? settings.sharedCount - settings.visibleCount : 0;
   const blocked = settings?.visibleCount === 0;
 
-  return <section id="public-profile" aria-labelledby="public-profile-title" className="scroll-mt-20">
-    <h3 id="public-profile-title" className="text-ui font-semibold">공개 프로필</h3>
-    <p className="mt-2 text-sm leading-relaxed text-muted">고른 경험만 링크 하나로 보여 줘요. 켜지 않으면 아무것도 공개되지 않아요.</p>
-    {mock && <p role="note" className="mt-4 rounded-sm border border-hairline bg-surface-soft p-4 text-sm leading-relaxed">
+  // 접혀 있어도 보이는 한 줄 — 켜짐이면 실제로 실리는 경험 수
+  const status = error ? "확인하지 못했어요 · 펼쳐서 다시 확인"
+    : !settings ? "확인하는 중…"
+    : settings.linkEnabled ? `켜짐 · 경험 ${settings.visibleCount}개`
+    : "꺼짐";
+
+  return <FoldCard id="public-profile" className="mt-4" title="꺼내서 보여 주기" status={status} statusTone={error ? "error" : undefined}
+    tip="고른 경험을 로그인 없이 링크 하나로 보여 줘요. 링크를 켜기 전엔 아무것도 공개되지 않아요.">
+    <p className="text-sm leading-relaxed text-muted">고른 경험만 링크 하나로 보여 줘요. 켜지 않으면 아무것도 공개되지 않아요.</p>
+    {mock && <p role="note" className="rounded-sm border border-hairline bg-surface-soft p-4 text-sm leading-relaxed">
       목 모드 · 이 브라우저에만 저장돼요. 주소는 이 브라우저에서만 열리고 다른 사람은 볼 수 없어요.
     </p>}
 
-    {error && <div role="alert" className="mt-5 space-y-3">
+    {error && <div role="alert" className="space-y-3">
       <p className="text-sm leading-relaxed text-error">{error}</p>
       {!settings && <Button className="min-h-11 lg:min-h-10" disabled={busy} onClick={() => { setBusy(true); setError(null); void load(); }}>공개 설정 다시 확인</Button>}
     </div>}
-    {busy && !settings && !error && <p role="status" className="mt-5 text-sm text-muted">공개 설정을 불러오고 있어요…</p>}
+    {busy && !settings && !error && <p role="status" className="text-sm text-muted">공개 설정을 불러오고 있어요…</p>}
 
-    {settings && <div className="mt-5 space-y-5">
+    {settings && <div className="space-y-5">
       <div className="text-sm leading-relaxed">
         <p className="font-semibold">고른 경험 {settings.sharedCount}개</p>
         {hidden > 0 && <p className="mt-1 text-muted">{hidden}개는 확인이 필요해 빠져 있어요.</p>}
@@ -137,5 +144,5 @@ export function PublicProfileSection() {
       </DialogContent>
     </Dialog>
     <Toast toast={toast} />
-  </section>;
+  </FoldCard>;
 }

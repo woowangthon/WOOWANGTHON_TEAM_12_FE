@@ -1,5 +1,6 @@
 import { test, expect } from "./signed-in";
 import type { Page } from "@playwright/test";
+import { openCard, MCP_CARD } from "./fold-card";
 
 // 합성 HTTP 응답만 사용한다. BE#92 전이라 계약(mcp-api.md 「변경 기록」) 모양대로 만든다.
 const CREATED = "2026-11-05T10:00:00+09:00";
@@ -50,7 +51,8 @@ async function setup(page: Page, list: Record<string, unknown>[], connected = tr
     return r.fulfill({ status: 202, json: { jobId: 34, status: "ANALYZING" } });
   });
   await page.goto("/connections", { waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("heading", { name: "다른 AI 에서 내 경험 쓰기" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: MCP_CARD })).toBeVisible();
+  await openCard(page, MCP_CARD);
   if (list.length) await openLog(page);
   return state;
 }

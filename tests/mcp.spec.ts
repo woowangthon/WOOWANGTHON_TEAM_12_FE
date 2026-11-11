@@ -1,5 +1,6 @@
 import { test, expect } from "./signed-in";
 import type { Page } from "@playwright/test";
+import { openCard, MCP_CARD } from "./fold-card";
 
 // 합성 HTTP 응답만 사용한다. 실제 서버 · 비밀 토큰은 사용하지 않는다.
 const URL = "https://test-only.invalid/mcp/synthetic-example";
@@ -38,7 +39,8 @@ async function setup(page: Page, connected = false) {
     return r.fulfill({ status: 204 });
   });
   await page.goto("/connections", { waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("heading", { name: "다른 AI 에서 내 경험 쓰기" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: MCP_CARD })).toBeVisible();
+  await openCard(page, MCP_CARD);
   return state;
 }
 
@@ -59,6 +61,7 @@ test("create, copy feedback, reload and route exit hide the address; confirm rep
   await expect(page.getByText(/복사하지 못했어요/)).toBeVisible();
   expect(await page.evaluate(() => JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage }, cookie: document.cookie, url: location.href }))).not.toContain(URL);
   await page.reload();
+  await openCard(page, MCP_CARD);
   await expect(page.getByText("Claude에서 아직 안 쓰임")).toBeVisible();
   await expect(page.getByLabel("연결 주소", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "다시 만들기", exact: true }).click();
@@ -72,6 +75,7 @@ test("create, copy feedback, reload and route exit hide the address; confirm rep
   await expect(page).toHaveURL("/experience");
   await page.goBack();
   await expect(page).toHaveURL("/connections");
+  await openCard(page, MCP_CARD);
   await expect(page.getByText("Claude에서 아직 안 쓰임")).toBeVisible();
   await expect(page.getByLabel("연결 주소", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "연결 끊기", exact: true }).click();
@@ -84,6 +88,9 @@ test("existing connection timestamps and responsive captures", async ({ page }, 
   const state = await setup(page, true);
   state.lastUsedAt = "2026-11-04T10:12:30+09:00";
   await page.reload();
+  // 접힌 줄에도 상태가 글자로 보인다(FE#516)
+  await expect(page.getByRole("button", { name: MCP_CARD, exact: true })).toHaveAccessibleDescription("연결됨 · 쓰기 꺼짐");
+  await openCard(page, MCP_CARD);
   // 상태 줄은 「연결됨 · 마지막 사용」만 — 만든 시각은 뺐다(FE#466)
   await expect(page.locator("time")).toHaveCount(1);
   await expect(page.locator("time")).toContainText("오전 10:12");
@@ -103,6 +110,7 @@ test("GET failure, network error, retry and authentication expiry", async ({ pag
   for (const fail of ["GET", "network"]) {
     state.fail = fail;
     await page.reload();
+    await openCard(page, MCP_CARD);
     await expect(page.locator("main").getByRole("alert")).toContainText("연결 상태를 확인하지 못했어요");
     await expect(page.getByText(/목 모드/)).toHaveCount(0);
     state.fail = "";
