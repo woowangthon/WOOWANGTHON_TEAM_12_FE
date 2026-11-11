@@ -15,7 +15,6 @@ import { SAVE_ERROR, useExperienceSave } from "./experience-save";
 import { MENU_ITEM, MenuCheckBox, ProfileMenuItems, ProfileShareNote, useProfileShare } from "./profile-toggle";
 import { SupplementList } from "./supplement-list";
 import { UsedInChip, UsedInList } from "./used-in";
-import { RevisionDialog } from "@/components/revisions/revision-list";
 import { AiMark } from "@/components/ui/ai-mark";
 import { MENU_CONTENT } from "@/components/ui/menu";
 
@@ -139,7 +138,6 @@ type Props = {
 export function ExperienceItem({ experience, citationsOpen, onToggleCitations, onShowCitations, onSaved, onDelete, onMove, onMerge, onDragChange, dragging, readOnly = false }: Props) {
   const [editing, setEditing] = useState(false);
   const [usedInOpen, setUsedInOpen] = useState(false);
-  const [historyOpen, setHistoryOpen] = useState(false);
   const e = experience;
   const share = useProfileShare(e, onSaved);
   const save = useExperienceSave(e, (saved) => onSaved({ ...e, saved }));
@@ -190,7 +188,6 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
                 <DropdownMenu.CheckboxItem checked={save.saved} disabled={save.busy} onSelect={() => void save.toggle()} className={MENU_ITEM}><MenuCheckBox />저장</DropdownMenu.CheckboxItem>
                 <ProfileMenuItems share={share} />
                 <DropdownMenu.Separator className="my-1 h-px bg-hairline" />
-                <DropdownMenu.Item onSelect={() => setHistoryOpen(true)} className={MENU_ITEM}>수정 이력</DropdownMenu.Item>
                 <DropdownMenu.Item onSelect={() => onMove(e)} className={MENU_ITEM}>다른 활동으로 옮기기</DropdownMenu.Item>
                 {onMerge && <DropdownMenu.Item onSelect={() => onMerge(e)} className={MENU_ITEM}>다른 경험과 합치기</DropdownMenu.Item>}
                 <DropdownMenu.Separator className="my-1 h-px bg-hairline" />
@@ -198,9 +195,7 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
               </DropdownMenu.Content>
             </DropdownMenu.Portal>
           </DropdownMenu.Root>
-          <RevisionDialog open={historyOpen} onOpenChange={setHistoryOpen} target={{ type: "EXPERIENCE", id: e.id }} title="수정 이력"
-            description={`이 경험을 고친 기록이에요 — ${e.content}`}
-            onRestored={(result) => { if (result.experience) onSaved({ ...result.experience, usedIn: result.experience.usedIn ?? e.usedIn }); }} /></>}
+</>}
       </div>
       <div className="flex flex-wrap items-center gap-1.5 text-note font-medium text-muted">
         <ExperienceMeta experience={e} edit={readOnly ? undefined : { experience: e, onSaved: (result) => onSaved({ ...result, usedIn: result.usedIn ?? e.usedIn }) }} />

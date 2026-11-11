@@ -37,11 +37,16 @@ async function routeRevisions(page: Page, state: State, restored: (id: number, t
     }
     state.calls.push(`list:${url.search}`);
     const type = url.searchParams.get("targetType"), id = Number(url.searchParams.get("targetId"));
-    const list = type ? state.all.filter(r => r.targetType === type && r.targetId === id) : state.all;
+    // activityId — 그 활동 + 속한 경험(BE#168). 이 가짜 응답은 기록한 때의 활동 이름표로 가른다
+    const activityId = url.searchParams.get("activityId");
+    const list = type ? state.all.filter(r => r.targetType === type && r.targetId === id)
+      : activityId ? state.all.filter(r => (r.targetType === "ACTIVITY" && r.targetId === Number(activityId)) || (r.targetType === "EXPERIENCE" && r.target.activityId === Number(activityId)))
+      : state.all;
     // 전체 목록은 셋씩 넘긴다 — 「더 보기」 확인
     const from = url.searchParams.get("cursor") === "next" ? 3 : 0;
-    const page = type ? list : list.slice(from, from + 3);
-    return route.fulfill({ json: { revisions: page, nextCursor: !type && from === 0 && list.length > 3 ? "next" : null } });
+    const whole = type || activityId;
+    const page = whole ? list : list.slice(from, from + 3);
+    return route.fulfill({ json: { revisions: page, nextCursor: !whole && from === 0 && list.length > 3 ? "next" : null } });
   });
 }
 
@@ -129,26 +134,31 @@ test("헤더 「최근 수정」 — 접힌 요약 · 펼치면 바뀐 부분만
   await expect(page.getByRole("button", { name: /^경험 고치기: 백엔드 API 중/ })).toBeVisible();
 });
 
-test("경험 메뉴 「수정 이력」 — 그 항목만 · 맨 위는 현재라 버튼 없음 · 「처음 값」으로 되돌리기 · 실패는 다시 시도", async ({ page }) => {
+test("활동 메뉴 「수정 이력」 — 활동과 그 경험의 기록이 섞여 보이고 · 경험 메뉴엔 입구가 없다 · 경험 줄은 「처음 값」으로 되돌린다 (FE#467)", async ({ page }) => {
   const state = await setupTimeline(page);
   await page.getByRole("button", { name: /바꿔요/ }).first().click();
+  // 경험 메뉴엔 수정 이력이 없다 — 활동 메뉴 하나로 모았다
   await page.getByRole("button", { name: /^경험 메뉴:/ }).click();
+  await expect(page.getByRole("menuitem", { name: "다른 활동으로 옮기기" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "수정 이력" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "활동 메뉴" }).click();
   await page.getByRole("menuitem", { name: "수정 이력" }).click();
   const dialog = page.getByRole("dialog", { name: "수정 이력" });
-  // 항목별 이력은 맨 위 줄이 펼쳐져 있고 「현재」 표시 — 지금 값이라 되돌리기가 없다(FE#430)
-  const top = dialog.getByRole("button", { name: /^본문을 고쳤어요/ });
-  await expect(top).toHaveAttribute("aria-expanded", "true");
-  await expect(top).toContainText("현재");
-  await expect(dialog.getByRole("button", { name: /^이름/ })).toHaveCount(0);
-  expect(state.calls).toContain("list:?targetType=EXPERIENCE&targetId=101");
-  await expect(dialog.getByText("지금 값이에요. 되돌리려면 아래에서 돌아갈 때를 골라 주세요.")).toBeVisible();
-  await expect(dialog.getByRole("button", { name: "이때로 되돌리기" })).toHaveCount(0);
-  // 맨 아래 「처음 값」 — 첫 수정 전 글이 통째로 보이고 그 값으로 돌아간다
-  await dialog.getByRole("button", { name: /^처음 값\s*첫 수정 전/ }).click();
-  await expect(dialog.getByText("백엔드 API 설계를 전부 맡았다", { exact: true })).toBeVisible();
+  expect(state.calls).toContain("list:?activityId=7");
+  // 경험 1 · 활동 2 — 다른 항목(지운 답)은 섞이지 않는다. 줄마다 어느 항목인지 보인다
+  const experienceRow = dialog.getByRole("button", { name: /^본문을 고쳤어요/ });
+  await expect(experienceRow).toContainText("경험 「백엔드 API 중 채팅 · 거래 AP…」");
+  await expect(dialog.getByRole("button", { name: /^이름/ })).toHaveCount(2);
+  await expect(dialog.getByRole("button", { name: /^답을/ })).toHaveCount(0);
+  // 항목마다 맨 위가 「현재」 — 경험 줄 · 활동의 맨 위 줄
+  await expect(experienceRow).toContainText("현재");
+  await experienceRow.click();
+  await expect(dialog.getByText("지금 값이에요.", { exact: true })).toBeVisible(); // 이 항목의 기록이 하나라 「아래에서 고르라」고 하지 않는다
+  await page.screenshot({ path: `docs/fe-467/activity-history-${test.info().project.name}.png`, animations: "disabled" });
+  // 경험의 기록은 하나뿐이라 그 줄이 가장 오래된 줄 — 첫 수정 전으로 되돌린다
   await dialog.getByRole("button", { name: "처음 값으로 되돌리기" }).click();
-  await expect(dialog.getByText(/처음 값으로 되돌릴까요\?/)).toBeVisible();
-  await shot(page, "experience-confirm");
+  await expect(dialog.getByText(/첫 수정 전 값으로 되돌릴까요\?/)).toBeVisible();
   state.restoreFail = "INTERNAL_ERROR";
   await dialog.getByRole("button", { name: "되돌리기", exact: true }).click();
   await expect(dialog.getByRole("alert")).toContainText("되돌리지 못했어요");
@@ -156,6 +166,7 @@ test("경험 메뉴 「수정 이력」 — 그 항목만 · 맨 위는 현재�
   await expect(dialog.getByText("되돌렸어요.")).toBeVisible();
   expect(state.calls.filter(c => c.startsWith("restore"))).toEqual(["restore:901:BEFORE", "restore:901:BEFORE"]);
   await page.keyboard.press("Escape");
+  // 연 세부의 경험 줄이 그 자리에서 바뀐다(restore-bus)
   await expect(page.getByRole("button", { name: "경험 고치기: 백엔드 API 설계를 전부 맡았다" })).toBeVisible();
 });
 
@@ -166,7 +177,7 @@ test("활동 메뉴 「수정 이력」 — 아래 줄을 고르면 그 줄의 �
   await page.getByRole("menuitem", { name: "수정 이력" }).click();
   const dialog = page.getByRole("dialog", { name: "수정 이력" });
   await expect(dialog.getByRole("button", { name: /^이름/ })).toHaveCount(2);
-  expect(state.calls).toContain("list:?targetType=ACTIVITY&targetId=7");
+  expect(state.calls).toContain("list:?activityId=7");
   // 맨 위(현재)에는 버튼이 없다 — 그 아래 줄을 펼쳐 그 줄에 보이는 값(after)으로
   await expect(dialog.getByRole("button", { name: "이때로 되돌리기" })).toHaveCount(0);
   await dialog.getByRole("button", { name: /^이름을 고쳤어요/ }).click();
@@ -225,10 +236,11 @@ test("띄어쓰기만 바뀐 수정 — 요약에 그렇게 적고 빈칸도 강
   const state = await setupTimeline(page);
   state.all = [{ ...EXPERIENCE_EDIT, id: 990, by: "USER", client: null, before: snap("CI/CD trigger를 테스트했다."), after: snap("CI/CD trigger를 테스트했다. ", "USER_ENTERED") }];
   await page.getByRole("button", { name: /바꿔요/ }).first().click();
-  await page.getByRole("button", { name: /^경험 메뉴:/ }).click();
+  await page.getByRole("button", { name: "활동 메뉴" }).click(); // 경험의 기록도 활동 메뉴에서 본다(FE#467)
   await page.getByRole("menuitem", { name: "수정 이력" }).click();
   const dialog = page.getByRole("dialog", { name: "수정 이력" });
   await expect(dialog.getByRole("button", { name: /^본문 띄어쓰기를 고쳤어요/ })).toBeVisible();
+  await dialog.getByRole("button", { name: /^본문 띄어쓰기를 고쳤어요/ }).click(); // 활동 단위 목록은 줄이 접혀 있다
   await expect(dialog.locator("ins")).toHaveCount(1);
   await expect(dialog.getByText("출처 상태 원문 확인 → 내가 입력")).toBeVisible();
 });

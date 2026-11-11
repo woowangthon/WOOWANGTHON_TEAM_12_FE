@@ -36,10 +36,11 @@ export type RevisionTarget = { type: RevisionTargetType; id: number };
 
 const invalid = () => new ApiError("INVALID_RESPONSE", "수정 이력 응답을 확인하지 못했어요.");
 
-/** GET /api/revisions — target 이 없으면 「최근 수정」(전체), 있으면 그 항목만. 새것 먼저 */
-export async function fetchRevisions(target: RevisionTarget | null, cursor: string | null): Promise<RevisionPage> {
+/** GET /api/revisions — target 이 없으면 「최근 수정」(전체), 있으면 그 항목만, activityId 면 그 활동과 지금 속한 경험(FE#467 · BE#168). 새것 먼저 */
+export async function fetchRevisions(target: RevisionTarget | null, cursor: string | null, activityId?: number): Promise<RevisionPage> {
   const query = new URLSearchParams();
   if (target) { query.set("targetType", target.type); query.set("targetId", String(target.id)); }
+  else if (activityId != null) query.set("activityId", String(activityId));
   if (cursor) query.set("cursor", cursor);
   const qs = query.toString();
   const value = await request<RevisionPage>(`/revisions${qs ? `?${qs}` : ""}`);

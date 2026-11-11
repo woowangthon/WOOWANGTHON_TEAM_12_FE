@@ -129,13 +129,14 @@ function restoreError(e: unknown) {
 }
 
 /** 이력 한 줄 — 세로선 위 아이콘(나 / 외부 AI) · 접힌 머리(요약 · 대상 · 누가 · 언제). 펼치면 차이 · 짧은 값 · 되돌리기 */
-function Row({ revision: r, all, current, badge, last, defaultOpen, beforeRestore, onRestored, onNavigate }: {
-  /** current — 이 줄의 값이 지금 값과 같다(되돌릴 것이 없다). badge — 그중 가장 새 줄에만 「현재」 */
-  revision: Revision; all: boolean; current: boolean; badge: boolean; last: boolean; defaultOpen: boolean;
+function Row({ revision: r, all, linkable = all, origin = false, current, badge, last, defaultOpen, beforeRestore, onRestored, onNavigate }: {
+  /** current — 이 줄의 값이 지금 값과 같다(되돌릴 것이 없다). badge — 그중 가장 새 줄에만 「현재」.
+   *  origin — 이 항목의 가장 오래된 기록(활동 단위 목록) — 「처음 값으로 되돌리기」를 같이 둔다. linkable — 그 항목으로 가는 링크 */
+  revision: Revision; all: boolean; linkable?: boolean; origin?: boolean; current: boolean; badge: boolean; last: boolean; defaultOpen: boolean;
   beforeRestore?: BeforeRestore; onRestored: (result: RestoreResult) => void; onNavigate?: () => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
-  const link = all ? targetLink(r) : null;
+  const link = linkable ? targetLink(r) : null;
   const ai = r.by === "EXTERNAL_AI";
   const who = ai ? mcpClientName(r.client ?? "외부 AI") : "나";
   const key = TEXT_KEY[r.targetType];
@@ -169,10 +170,12 @@ function Row({ revision: r, all, current, badge, last, defaultOpen, beforeRestor
           {fields.map(([label, x, y]) => <p key={label} className="m-0 text-sm text-body"><span className="text-muted">{label}</span> {x} → <strong className="font-semibold text-ink">{y}</strong></p>)}
         </div>}
         {r.target.deleted ? <p className="m-0 text-note text-muted">지운 항목이라 그 항목으로 가거나 되돌릴 수 없어요.</p>
-          : current ? <p className="m-0 text-note text-muted">{badge ? "지금 값이에요. 되돌리려면 아래에서 돌아갈 때를 골라 주세요." : "지금 값과 같아요."}</p>
+          : current ? <p className="m-0 text-note text-muted">{badge && !origin ? "지금 값이에요. 되돌리려면 아래에서 돌아갈 때를 골라 주세요." : badge ? "지금 값이에요." : "지금 값과 같아요."}</p>
           : <RestoreAction revision={r} to="AFTER" label="이때로 되돌리기" question="이때 값으로 되돌릴까요?" beforeRestore={beforeRestore} onRestored={onRestored}>
             {link && <Link href={link.href} onClick={onNavigate} className="inline-flex min-h-11 items-center gap-1 rounded-full bg-surface-soft px-3 text-xs font-medium text-body hover:text-ink lg:min-h-9">{link.label}<ArrowRightIcon aria-hidden="true" className="size-3.5" /></Link>}
           </RestoreAction>}
+        {/* 활동 단위 목록엔 항목마다 「처음 값」 줄을 따로 두지 않는다 — 그 항목의 가장 오래된 줄에서 첫 수정 전으로(FE#467) */}
+        {origin && !r.target.deleted && before !== "" && <RestoreAction revision={r} to="BEFORE" label="처음 값으로 되돌리기" question="이 항목을 첫 수정 전 값으로 되돌릴까요?" beforeRestore={beforeRestore} onRestored={onRestored} />}
       </div>}
     </div>
   </li>;
@@ -246,9 +249,11 @@ function OriginRow({ oldest: r, current, beforeRestore, onRestored }: {
 
 type ListState = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; revisions: Revision[]; nextCursor: string | null };
 
-/** 이력 목록 — target 이 없으면 전체(최근 수정). 「더 보기」로 넘긴다 */
-export function RevisionList({ target, current, beforeRestore, onRestored, onNavigate }: {
+/** 이력 목록 — target 이 없으면 전체(최근 수정), activityId 면 그 활동과 지금 속한 경험(FE#467). 「더 보기」로 넘긴다 */
+export function RevisionList({ target, activityId, current, beforeRestore, onRestored, onNavigate }: {
   target: RevisionTarget | null;
+  /** 활동 메뉴의 수정 이력 — 그 활동과 속한 경험의 기록을 섞어 보인다. target 과 같이 쓰지 않는다 */
+  activityId?: number;
   /** 지금 화면의 글 — 자동 저장은 이력에 안 남아 답칸은 맨 위 기록과 다를 수 있다. 빼면 맨 위 기록이 지금 값이다(경험 · 활동) */
   current?: string;
   /** 되돌리기 직전 — 답칸은 기다리던 자동 저장을 먼저 보낸다 */
@@ -262,18 +267,18 @@ export function RevisionList({ target, current, beforeRestore, onRestored, onNav
   const [outcome, setOutcome] = useState<ReactNode>(null);
   const type = target?.type, id = target?.id;
 
-  const load = useCallback(() => fetchRevisions(type && id != null ? { type, id } : null, null).then(
+  const load = useCallback(() => fetchRevisions(type && id != null ? { type, id } : null, null, activityId).then(
     page => setState({ status: "ready", ...page }),
     (e: unknown) => setState({ status: "error", message: e instanceof ApiError && e.code === "API_NOT_CONFIGURED" ? "목 모드에는 수정 이력이 없어요. 서버에 저장한 것만 기록돼요."
       : e instanceof ApiError && e.code !== "INVALID_RESPONSE" ? e.message : "수정 이력을 불러오지 못했어요." }),
-  ), [type, id]);
+  ), [type, id, activityId]);
   useEffect(() => { void load(); }, [load]);
 
   async function loadMore() {
     if (state.status !== "ready" || !state.nextCursor) return;
     setMore("busy");
     try {
-      const page = await fetchRevisions(target, state.nextCursor);
+      const page = await fetchRevisions(target, state.nextCursor, activityId);
       setState(s => s.status === "ready" ? { status: "ready", revisions: [...s.revisions, ...page.revisions.filter(r => !s.revisions.some(x => x.id === r.id))], nextCursor: page.nextCursor } : s);
       setMore("idle");
     } catch { setMore("error"); }
@@ -281,6 +286,7 @@ export function RevisionList({ target, current, beforeRestore, onRestored, onNav
 
   // 전체 목록(헤더)은 그 항목을 연 화면에 알린다 — 같은 항목이 열려 있으면 그 자리에서 바뀐다(FE#401).
   // 받은 화면이 없으면(다른 화면에서 되돌림) 새로 불러오기를 권한다
+  // 활동 단위(activityId)도 항목이 섞여 있어 전체 목록과 같은 길로 — 연 활동 세부 · 경험 줄이 그 자리에서 바뀐다(FE#401)
   const before: BeforeRestore | undefined = target ? beforeRestore && (() => beforeRestore()) : beforeRestoreAll;
   function restored(result: RestoreResult) {
     onRestored?.(result);
@@ -299,17 +305,23 @@ export function RevisionList({ target, current, beforeRestore, onRestored, onNav
   // 지금 값과 같은 줄에는 되돌리기를 두지 않는다 — 항목 이력에서만 안다(전체 목록은 항목이 섞여 있다. 같으면 서버가 409).
   // 지금 값은 답칸이면 넘겨받은 글, 경험 · 활동이면 맨 위 기록의 after
   const top = state.revisions[0];
-  const isNow = (snapshot: Revision["after"], type: RevisionTargetType) => !!target && !!top
-    && (current !== undefined ? (snapshot[TEXT_KEY[type]] ?? "") === current : same(snapshot, top.after));
-  const nowIndex = state.revisions.findIndex(r => isNow(r.after, r.targetType));
+  // 활동 단위는 항목마다 맨 위(가장 새) 기록이 지금 값이다 — 한 항목만 볼 때는 맨 위 기록 하나
+  const latest = (r: Revision) => activityId != null ? state.revisions.find(x => x.targetType === r.targetType && x.targetId === r.targetId) : top;
+  const isNow = (snapshot: Revision["after"], type: RevisionTargetType, r?: Revision) => {
+    if (activityId != null) { const l = r && latest(r); return !!l && same(snapshot, l.after); }
+    return !!target && !!top && (current !== undefined ? (snapshot[TEXT_KEY[type]] ?? "") === current : same(snapshot, top.after));
+  };
+  const nowIndex = state.revisions.findIndex(r => isNow(r.after, r.targetType, r));
+  // 활동 단위 — 끝까지 불러왔을 때 항목마다 가장 오래된 줄
+  const isOrigin = (r: Revision) => activityId != null && !state.nextCursor && state.revisions.findLast(x => x.targetType === r.targetType && x.targetId === r.targetId) === r;
   // 「처음 값」 줄 — 끝까지 불러온 항목 이력에만. 빈 글이면 두지 않는다(답칸을 비우는 되돌리기는 없다)
   const oldest = target && !state.nextCursor ? state.revisions.at(-1) : undefined;
   const origin = oldest && !oldest.target.deleted && (oldest.before[TEXT_KEY[oldest.targetType]] ?? "") !== "" ? oldest : undefined;
   return <div className="min-w-0">
     {outcome && <p role="status" className="m-0 mb-1 rounded-sm bg-surface-soft px-3 py-2 text-sm text-body">{outcome}</p>}
     {state.revisions.length === 0
-      ? <p className="m-0 py-4 text-sm text-body">{target ? "아직 고친 기록이 없어요. 고치면 바뀌기 전 값이 여기에 남아요." : "아직 고친 기록이 없어요. 경험 · 활동 · 답을 고치면 여기에 모여요."}</p>
-      : <ul className="m-0 list-none p-0 pt-2">{state.revisions.map((r, i) => <Row key={r.id} revision={r} all={!target} current={isNow(r.after, r.targetType)} badge={i === nowIndex} last={i === state.revisions.length - 1 && !origin} defaultOpen={!!target && i === 0} beforeRestore={before} onRestored={restored} onNavigate={onNavigate} />)}
+      ? <p className="m-0 py-4 text-sm text-body">{target || activityId != null ? "아직 고친 기록이 없어요. 고치면 바뀌기 전 값이 여기에 남아요." : "아직 고친 기록이 없어요. 경험 · 활동 · 답을 고치면 여기에 모여요."}</p>
+      : <ul className="m-0 list-none p-0 pt-2">{state.revisions.map((r, i) => <Row key={r.id} revision={r} all={!target} linkable={!target && activityId == null} origin={isOrigin(r)} current={isNow(r.after, r.targetType, r)} badge={activityId != null ? latest(r) === r && isNow(r.after, r.targetType, r) : i === nowIndex} last={i === state.revisions.length - 1 && !origin} defaultOpen={!!target && i === 0} beforeRestore={before} onRestored={restored} onNavigate={onNavigate} />)}
         {origin && <OriginRow oldest={origin} current={isNow(origin.before, origin.targetType)} beforeRestore={before} onRestored={restored} />}</ul>}
     {state.nextCursor && <div className="grid justify-items-start gap-2 pt-2">
       {more === "error" && <p role="alert" className="m-0 text-sm text-error">더 불러오지 못했어요.</p>}
