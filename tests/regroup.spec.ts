@@ -239,7 +239,7 @@ test("PC — 경험을 끌어 타임라인의 다른 활동에 놓으면 옮겨�
   await page.reload();
   await open(page, "Algo study");
   const moved = detail(page).locator("li").filter({ hasText: "Weekly retro" });
-  await expect(moved).toContainText("원문 확인"); // 출처 상태는 그대로
+  await expect(moved).not.toContainText("원문 확인"); // 출처 상태는 그대로
 });
 
 test("같은 활동 위에 놓으면 아무 요청도 보내지 않는다", async ({ page }) => {

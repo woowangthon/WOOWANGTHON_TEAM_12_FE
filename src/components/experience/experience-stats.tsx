@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select } from "@/components/ui/select";
 import { fetchActivity } from "@/lib/api/experience";
-import { ACTIVITY_CATEGORIES, COMPETENCIES, type ActivityDetail, type ActivitySummary, type Competency, type SourceStatus } from "@/lib/api/types";
+import { ACTIVITY_CATEGORIES, COMPETENCIES, type ActivityDetail, type ActivitySummary, type Competency } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 import { CATEGORY_KEYS, CategoryIcon, categoryOf } from "./activity-category";
 import { ExperienceBlocks, experienceYears } from "./experience-blocks";
@@ -18,13 +18,6 @@ import { PeriodLabel } from "./timeline";
 import { starAsk, starAskText } from "@/lib/home-overview";
 
 type DetailState = { status: "loading" } | { status: "ready"; details: ActivityDetail[]; failed: number };
-
-// 블록 색은 분류라서 출처 상태엔 색을 쓰지 않는다 — 「확인 필요」만 블록과 같은 점선 표시(FE#371)
-const SOURCE: { value: SourceStatus; label: string }[] = [
-  { value: "SOURCE_CONFIRMED", label: "원문 확인" },
-  { value: "USER_ENTERED", label: "내가 입력" },
-  { value: "NEEDS_REVIEW", label: "확인 필요" },
-];
 
 type Props = {
   activities: ActivitySummary[];
@@ -65,7 +58,7 @@ export function ExperienceStats({ activities, version, hiddenIds, addSource, onO
   }));
 
   const experiences = (details ?? []).flatMap((d) => d.experiences).filter((e) => !hiddenIds.has(e.id));
-  const bySource = SOURCE.map((s) => ({ ...s, count: experiences.filter((e) => e.sourceStatus === s.value).length }));
+  const reviewCount = experiences.filter((e) => e.sourceStatus === "NEEDS_REVIEW").length;
   const competencyCounts = new Map<Competency, number>();
   for (const e of experiences) for (const c of e.competencies) competencyCounts.set(c, (competencyCounts.get(c) ?? 0) + 1);
   const byCompetency = [...competencyCounts].sort((a, b) => b[1] - a[1]);
@@ -100,26 +93,18 @@ export function ExperienceStats({ activities, version, hiddenIds, addSource, onO
     <section aria-label="쌓인 경험 요약" className="grid gap-4 @2xl:grid-cols-2 @5xl:grid-cols-3">
       <Card className="@2xl:col-span-2 @5xl:col-span-1" title="쌓인 블록" info="활동 시작 연도별 경험 수예요. 블록 하나가 경험 하나이고, 점선은 확인이 필요한 경험이에요.">
         <ExperienceBlocks years={years} size="md" perColumn={8} className="min-h-20 flex-1 content-end" />
-        <div className="mt-3">
+        {(detailNote || reviewCount > 0 || ask) && <div className="mt-3">
           {detailNote || <>
-            <ul aria-label="출처 상태별" className="m-0 flex list-none flex-wrap items-center gap-y-1 p-0 text-note text-muted">
-              {bySource.map((s, i) => (
-                <li key={s.value} className="inline-flex items-center gap-1.5">
-                  {i > 0 && <span aria-hidden="true" className="mx-2 h-3 w-px bg-hairline" />}
-                  {s.value === "NEEDS_REVIEW" && <span aria-hidden="true" className="inline-block h-2 w-3.5 rounded-sm outline-1 outline-offset-1 outline-dashed outline-review-line" />}
-                  {/* 확인 필요는 눌러서 그 경험이 있는 활동으로 — 따로 링크 줄을 두지 않아 카드가 낮다 */}
-                  {s.value === "NEEDS_REVIEW" && reviewFirst && s.count > 0
-                    ? <button type="button" onClick={() => onOpenActivity(reviewFirst.id)} title="확인할 경험 보기"
-                      className="cursor-pointer underline-offset-3 hover:text-ink hover:underline">{s.label} <b className="font-semibold text-ink tabular-nums">{s.count}</b></button>
-                    : <>{s.label} <b className="font-semibold text-ink tabular-nums">{s.count}</b></>}
-                </li>
-              ))}
-            </ul>
+            {reviewCount > 0 && reviewFirst && <button type="button" onClick={() => onOpenActivity(reviewFirst.id)} title="확인할 경험 보기"
+              className="inline-flex cursor-pointer items-center gap-1.5 text-note text-muted underline-offset-3 hover:text-ink hover:underline">
+              <span aria-hidden="true" className="inline-block h-2 w-3.5 rounded-sm outline-1 outline-offset-1 outline-dashed outline-review-line" />
+              확인 필요 <b className="font-semibold text-ink tabular-nums">{reviewCount}</b>
+            </button>}
             {/* S-97 — 출처 상태 줄 아래 같은 글자 · 줄 높이. 블록 표시는 붙이지 않는다(블록은 경험 수) */}
             {ask && <button type="button" onClick={() => onOpenActivity(ask.activityId)} title="차곡이가 물어볼 활동 열기"
               className="mt-1 block cursor-pointer text-note text-muted underline-offset-3 hover:text-ink hover:underline max-lg:min-h-11">{starAskText(ask)}</button>}
           </>}
-        </div>
+        </div>}
       </Card>
 
       <Card title="분류별" info="활동에 붙은 분류로 그 안의 경험을 셌어요. 분류는 활동 세부에서 골라요."

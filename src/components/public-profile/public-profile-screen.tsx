@@ -4,7 +4,6 @@
 import { FileTextIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 import { CenterState } from "@/components/center-state";
-import { SourceStatusMark } from "@/components/experience/experience-item";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api/errors";
@@ -21,11 +20,10 @@ const sep = <span className="text-hairline">·</span>;
 function ExperienceRow({ experience: e }: { experience: PublicExperience }) {
   return <li className="grid gap-1.5 border-b border-hairline py-4 last:border-b-0">
     <p className="m-0 text-base leading-relaxed break-words whitespace-pre-wrap text-ink">{e.content}</p>
-    <div className="flex flex-wrap items-center gap-1.5 text-note font-medium text-muted">
-      <SourceStatusMark status={e.sourceStatus} />
-      {e.competencies.length > 0 && <>{sep}<span>{e.competenciesBy === "AI" && <AiMark className="mr-1" />}{e.competencies.map((c) => COMPETENCIES[c]).join(" · ")}</span></>}
-      {e.sourceNames.length > 0 && <>{sep}<span className="min-w-0 break-words">근거 원본 {e.sourceNames.join(", ")}</span></>}
-    </div>
+    {(e.competencies.length > 0 || e.sourceNames.length > 0) && <div className="flex flex-wrap items-center gap-1.5 text-note font-medium text-muted">
+      {e.competencies.length > 0 && <span>{e.competenciesBy === "AI" && <AiMark className="mr-1" />}{e.competencies.map((c) => COMPETENCIES[c]).join(" · ")}</span>}
+      {e.sourceNames.length > 0 && <>{e.competencies.length > 0 && sep}<span className="min-w-0 break-words">근거 원본 {e.sourceNames.join(", ")}</span></>}
+    </div>}
   </li>;
 }
 

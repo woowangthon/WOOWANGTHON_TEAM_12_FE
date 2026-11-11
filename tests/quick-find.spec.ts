@@ -79,13 +79,18 @@ test("find searches while typing, arrow keys pick and the activity detail opens 
   await openByButton(page);
   await expect(rows(page)).toHaveCount(2); // 경험 둘 — 더 볼 게 없으면 「더 보기」 줄도 없다
   await expect(rows(page).first()).toHaveAttribute("aria-selected", "true");
+  await expect(dialog(page).getByText(/원문 확인|내가 입력/)).toHaveCount(0);
+  if (page.viewportSize()!.width >= 1024) await expect(page.locator("[data-slot=quick-find-preview] dt").filter({ hasText: "출처" })).toHaveCount(0);
   await expect(rows(page).nth(1)).toContainText("확인 필요");
   await box(page).fill("WebSocket");
   await expect.poll(() => api.searches.at(-1)).toBe("WebSocket");
   await capture(page, `find-${page.viewportSize()!.width}`);
   await page.keyboard.press("ArrowDown");
   await expect(rows(page).nth(1)).toHaveAttribute("aria-selected", "true");
-  if (page.viewportSize()!.width >= 1024) await expect(page.locator("[data-slot=quick-find-preview]")).toContainText("근거 없음");
+  if (page.viewportSize()!.width >= 1024) {
+    await expect(page.locator("[data-slot=quick-find-preview]")).toContainText("근거 없음");
+    await expect(page.locator("[data-slot=quick-find-preview]").getByText("확인 필요", { exact: true })).toBeVisible();
+  }
   await page.keyboard.press("ArrowUp");
   await expect(rows(page).first()).toHaveAttribute("aria-selected", "true");
   if (page.viewportSize()!.width >= 1024) await expect(page.locator("[data-slot=quick-find-preview]")).toContainText("내가 폴링을 WebSocket 으로");

@@ -79,7 +79,7 @@ test("inline add validates, cancels, appends server record after collapsed items
   await page.getByRole("button", { name: "저장", exact: true }).click();
   const last = page.getByRole("complementary").locator("li").last();
   await expect(last).toContainText("Saved by server");
-  await expect(last).toContainText("내가 입력");
+  await expect(last).not.toContainText("내가 입력");
   await expect(last).toContainText("근거 없음");
   await expect(last.getByText("AI 해석", { exact: true })).toHaveCount(0);
   expect(state.posts).toEqual([{ content: "My manual experience", actor: "TEAM", competencies: ["COLLABORATION"] }]);
@@ -118,7 +118,7 @@ test("delete hides immediately; undo restores order, status and evidence without
   await expect(page.getByRole("complementary").locator("li").nth(1)).toContainText("Original 2");
   await page.waitForTimeout(5200);
   expect(state.deletes).toHaveLength(0);
-  await expect(page.getByRole("complementary").locator("li").nth(1)).toContainText("원문 확인");
+  await expect(page.getByRole("complementary").locator("li").nth(1)).not.toContainText("원문 확인");
   await page.getByRole("complementary").locator("li").nth(1).getByRole("button", { name: /근거 1/ }).filter({ visible: true }).click();
   await expect(page.getByText("Quote 2", { exact: true }).filter({ visible: true })).toBeVisible();
 });

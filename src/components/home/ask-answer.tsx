@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { CaretRightIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { lineText } from "@/components/experience/citation-list";
-import { ExperienceMeta, SourceStatusIcon } from "@/components/experience/experience-item";
+import { ExperienceMeta, SourceStatusMark } from "@/components/experience/experience-item";
 import { SourceFileButton } from "@/components/experience/source-viewer";
 import { McpAnswerLabel, UserEnteredLabel } from "@/components/experience/supplement-list";
 import { InfoTip } from "@/components/ui/info-tip";
@@ -48,7 +48,7 @@ function EvidenceLine({ recommendation: r }: { recommendation: AskRecommendation
   });
   return <p className="m-0 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-note text-muted">
     <span className="sr-only">근거 </span>
-    <SourceStatusIcon status={experience.sourceStatus} />
+    <SourceStatusMark status={experience.sourceStatus} />
     {items.length ? items.flatMap((item, i) => i ? [<span key={`sep-${i}`} className="contents">{sep}</span>, item] : [item])
       : <span>연결된 원문 근거나 보완이 없어요</span>}
   </p>;

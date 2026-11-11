@@ -350,6 +350,7 @@ test("ASK 면 꺼내기로 경험 카드 · 근거 · AI 해석을 보이고 활
   await expect(card).toContainText("2025.03 – 2025.06");
   await expect(card).toContainText("매주 금요일 스프린트 회고를 했다");
   await expect(card).toContainText("AI 해석");
+  await expect(card.getByText(/^(원문 확인|내가 입력)$/)).toHaveCount(0);
   await expect(card).toContainText("바꿔요-회고.md"); // 근거는 발췌문 대신 파일 · 줄 한 줄(e8bb013 · FE#363)
   await expect(card.getByTitle("회고 안건을 모았다")).toContainText("내가 입력한 보완");
   expect(calls.asks).toEqual([{ text: "동아리에서 의견 모아 본 적 있었나?" }]);

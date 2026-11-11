@@ -132,7 +132,7 @@ test("change log shows who, what, why; confirm and undo; responsive captures", a
   }
 
   await items.nth(0).getByRole("button", { name: "맞아요" }).click();
-  await expect(items.nth(0)).toContainText("「내가 입력」으로 바뀌었어요");
+  await expect(items.nth(0)).toContainText("확인했어요");
   await expect(items.nth(0)).toContainText("맞아요를 누른 변경은 되돌릴 수 없어요");
   await expect(items.nth(0).getByRole("button")).toHaveCount(0);
 
@@ -212,7 +212,7 @@ test("activity detail links to the change: undo restores the previous text and s
   await expect(page.getByText("되돌렸어요.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Claude 가 고침" })).toHaveCount(0);
   await expect(page.locator("#experience-104")).toContainText("API 를 전부 맡았다");
-  await expect(page.locator("#experience-104")).toContainText("원문 확인");
+  await expect(page.locator("#experience-104")).not.toContainText("원문 확인");
   expect(state.calls).toEqual(["undo:1"]);
 });
 
@@ -224,7 +224,7 @@ test("activity detail confirm turns the experience into 내가 입력; a failed 
   state.fail = "";
   await page.locator("#experience-104").getByRole("button", { name: "다시 시도" }).click();
   await page.getByRole("button", { name: "맞아요" }).click();
-  await expect(page.locator("#experience-104")).toContainText("내가 입력");
+  await expect(page.locator("#experience-104")).not.toContainText("내가 입력");
   await expect(page.locator("#experience-104")).not.toContainText("확인 필요");
   await expect(page.getByRole("button", { name: "Claude 가 고침" })).toHaveCount(0);
 });

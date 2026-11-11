@@ -112,7 +112,7 @@ test("헤더 「최근 수정」 — 접힌 요약 · 펼치면 바뀐 부분만
   await expect(dialog.getByRole("button", { name: /^처음 값/ })).toHaveCount(0);
   await expect(dialog.locator("del")).toHaveText("지운 글: 설계를 전부 맡았다");
   await expect(dialog.locator("ins")).toHaveText("더한 글: 중 채팅 · 거래 API 를 설계했다");
-  await expect(dialog.getByText("출처 상태 원문 확인 → 확인 필요")).toBeVisible();
+  await expect(dialog.getByText("출처 상태 확인함 → 확인 필요")).toBeVisible();
   const activityRow = dialog.getByRole("button", { name: /^이름에 글을 더했어요 · 기간도 바뀜/ });
   await activityRow.click();
   await expect(dialog.getByText(/^기간/)).toBeVisible();
@@ -242,8 +242,26 @@ test("띄어쓰기만 바뀐 수정 — 요약에 그렇게 적고 빈칸도 강
   await expect(dialog.getByRole("button", { name: /^본문 띄어쓰기를 고쳤어요/ })).toBeVisible();
   await dialog.getByRole("button", { name: /^본문 띄어쓰기를 고쳤어요/ }).click(); // 활동 단위 목록은 줄이 접혀 있다
   await expect(dialog.locator("ins")).toHaveCount(1);
-  await expect(dialog.getByText("출처 상태 원문 확인 → 내가 입력")).toBeVisible();
+  await expect(dialog.getByText(/출처 상태/)).toHaveCount(0);
 });
+
+for (const [before, after, label] of [
+  ["NEEDS_REVIEW", "USER_ENTERED", "출처 상태 확인 필요 → 확인함"],
+  ["USER_ENTERED", "NEEDS_REVIEW", "출처 상태 확인함 → 확인 필요"],
+  ["SOURCE_CONFIRMED", "USER_ENTERED", null],
+] as const) {
+  test(`출처 이력 ${before} → ${after} — 확인 필요 변화만 표시`, async ({ page }) => {
+    const state = await setupTimeline(page);
+    state.all = [{ ...EXPERIENCE_EDIT, by: "USER", client: null, mcpChangeId: null,
+      before: snap("그대로인 경험", before), after: snap("그대로인 경험", after) }];
+    await page.getByRole("button", { name: "최근 수정" }).filter({ visible: true }).click();
+    const dialog = page.getByRole("dialog", { name: "최근 수정" });
+    await dialog.getByRole("button", { name: label ? /^출처 상태를 바꿨어요/ : /^고쳤어요/ }).click();
+    if (label) await expect(dialog.getByText(label, { exact: true })).toBeVisible();
+    else await expect(dialog.getByText(/출처 상태/)).toHaveCount(0);
+    await expect(dialog.getByText(/원문 확인|내가 입력/)).toHaveCount(0);
+  });
+}
 
 test("넓은 화면 — 오른쪽 사이드바로 열리고, 활동을 누르거나 Esc · 다시 누르면 닫힌다", async ({ page }) => {
   test.skip(test.info().project.name !== "desktop");
