@@ -22,6 +22,7 @@ import { SourceFileButton } from "./source-viewer";
 import { RevisionDialog } from "@/components/revisions/revision-list";
 import { MENU_CONTENT, MENU_ITEM } from "@/components/ui/menu";
 import { cn } from "@/lib/utils";
+import { ExportStatus, useMarkdownExport } from "@/components/export/markdown-export";
 
 const FIRST_COUNT = 3;
 
@@ -66,6 +67,7 @@ type Props = {
 
 export function ActivityDetailView({ summary, state, now, onClose, onRetry, onActivitySaved, onNoteSaved, onCategorySaved, onExperienceSaved, onExperienceAdded, onExperienceDelete, onExperienceMove, onExperienceMerge, onDragChange, draggingId, onMergeRequest, onDeleteRequest, suggestions, onOpenActivity, onAddSource, addSourceBusy, addSourceStatus, readOnly = false }: Props) {
   const [historyOpen, setHistoryOpen] = useState(false);
+  const exporter = useMarkdownExport();
   const activity = state.status === "ready" ? state.activity : null;
   const current = activity ?? summary;
   const period = current.period;
@@ -100,6 +102,7 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
               <DropdownMenu.Portal>
                 <DropdownMenu.Content align="end" sideOffset={4} className={cn(MENU_CONTENT, "z-50 min-w-40")}>
                   <DropdownMenu.Item onSelect={() => setHistoryOpen(true)} className={MENU_ITEM}>수정 이력</DropdownMenu.Item>
+                  <DropdownMenu.Item disabled={exporter.busy} onSelect={() => void exporter.run({ scope: "activity", id: activity.id })} className={MENU_ITEM}>Markdown 으로 내보내기</DropdownMenu.Item>
                   {onMergeRequest && <DropdownMenu.Item onSelect={onMergeRequest} className={MENU_ITEM}>다른 활동과 합치기</DropdownMenu.Item>}
                   {onDeleteRequest && <DropdownMenu.Item onSelect={onDeleteRequest} className={cn(MENU_ITEM, "text-error")}>지우기</DropdownMenu.Item>}
                 </DropdownMenu.Content>
@@ -113,6 +116,7 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
             <XIcon />
           </Button>
         </div>
+        {activity && <ExportStatus exporter={exporter} target={{ scope: "activity", id: activity.id }} />}
         <ActivityCategoryField activity={summary} onSaved={onCategorySaved} readOnly={readOnly} />
         <p className="m-0 flex flex-wrap items-center gap-2.5 text-sm text-body tabular-nums">
           <PeriodField activity={{ ...summary, name: current.name, period }} readOnly={readOnly || !activity} onSaved={onActivitySaved}>

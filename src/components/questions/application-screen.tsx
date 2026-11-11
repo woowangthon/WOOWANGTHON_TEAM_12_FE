@@ -37,6 +37,7 @@ import { OrganizationName } from "./organization-name";
 import { closeRevisionPanel, isRevisionPanelOpen } from "@/components/revisions/revision-list";
 import { useRestoreListener } from "@/components/revisions/restore-bus";
 import { Toast, useToast } from "@/components/ui/toast";
+import { ExportStatus, useMarkdownExport } from "@/components/export/markdown-export";
 import { ApplicationMenu, DeleteApplicationDialog, DeleteQuestionDialog, EditQuestionTextDialog, QuestionMenu } from "./question-menus";
 
 const STATUS = { ANALYZING: "분석 중", COMPLETED: "완료", FAILED: "실패" } as const;
@@ -193,6 +194,7 @@ export function ApplicationScreen() {
   const list = { applications: matching.applications, activeId, onPick: pick, onSave: matching.updateApplication };
   // 지우기 · 글 고치기(S-89) — 메뉴에서 고르면 창을 연다. 지우면 알림, 지원을 지우면 목록으로
   const { toast, showToast } = useToast();
+  const exporter = useMarkdownExport();
   const [deletingApplication, setDeletingApplication] = useState<{ id: number; name: string; questionCount: number } | null>(null);
   const [deletingQuestion, setDeletingQuestion] = useState<{ id: number; index: number; text: string; hasAnswer: boolean } | null>(null);
   const [editingQuestion, setEditingQuestion] = useState<{ id: number; index: number; text: string } | null>(null);
@@ -238,7 +240,8 @@ export function ApplicationScreen() {
             <header className="grid min-w-0 gap-1">
               <div className="flex min-w-0 items-start gap-1">
                 <div className="min-w-0 flex-1"><OrganizationName key={`name-${open.application.id}`} application={open.application} onSave={req => matching.updateApplication(open.application.id, req)} /></div>
-                <ApplicationMenu label={open.application.organization || "지원처 이름 없음"} onDelete={() => askDeleteApplication(open.application)} />
+                <ApplicationMenu label={open.application.organization || "지원처 이름 없음"} onDelete={() => askDeleteApplication(open.application)}
+                  onExport={exporter.busy ? undefined : () => void exporter.run({ scope: "application", id: open.application.id })} />
               </div>
               <div className="flex flex-wrap items-center gap-x-2 text-note text-muted tabular-nums">
                 <ApplicationStatusTag key={open.application.id} application={open.application} onSave={req => matching.updateApplication(open.application.id, req)} />
@@ -252,6 +255,7 @@ export function ApplicationScreen() {
                 </a>}
               </div>
             </header>
+            <ExportStatus exporter={exporter} target={{ scope: "application", id: open.application.id }} className="mt-2" />
             <QuestionTabs questions={open.application.questions} selectedId={adding ? null : matching.questionId} adding={adding}
               canAdd={open.application.questions.length < MAX_QUESTIONS_PER_APPLICATION}
               onPick={id => { setAdding(false); matching.selectQuestion(id); }} onAdd={() => setAdding(true)} />
