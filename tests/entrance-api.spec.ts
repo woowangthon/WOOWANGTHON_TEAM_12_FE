@@ -42,9 +42,13 @@ test("지원 나누기는 글을 POST 하고 목록 밖 값 · 빈 문항을 칸
   globalThis.fetch = async (url, options) => {
     expect(String(url)).toBe("https://backend.example/api/entrance/parse-application");
     expect(options).toMatchObject({ method: "POST", credentials: "include", body: JSON.stringify({ text }) });
-    return Response.json({ organization: " OO ", organizationType: "SCHOOL", jobRole: "BACKEND", questions: ["문항", " "] });
+    return Response.json({ organization: " OO ", organizationType: "SCHOOL", jobRole: "BACKEND", questions: ["문항", " "],
+      // 공고 요건 줄(S-91) — 목록 밖 칸 · 빈 줄은 버리고, 목록 밖 ksa 는 null, 300자로 자른다
+      postingLines: [{ section: "REQUIRED", text: " 장애 대응 경험 ", ksa: "SKILL" }, { section: "BENEFIT", text: "점심 제공", ksa: null }, { section: "DUTY", text: " ", ksa: null }, { section: "STACK", text: "x".repeat(301), ksa: "TOOL" }],
+      readFrom: "TEXT" });
   };
-  expect(await parseApplication(text)).toEqual({ organization: "OO", organizationType: null, jobRole: "BACKEND", questions: ["문항"] });
+  expect(await parseApplication(text)).toEqual({ organization: "OO", organizationType: null, jobRole: "BACKEND", questions: ["문항"],
+    postingLines: [{ section: "REQUIRED", text: "장애 대응 경험", ksa: "SKILL" }, { section: "STACK", text: "x".repeat(300), ksa: null }], readFrom: "TEXT" });
   for (const status of [502, 504]) {
     globalThis.fetch = async () => Response.json({ error: { code: "AI_FAILED", message: "실패" } }, { status });
     await expect(parseApplication(text)).rejects.toMatchObject({ status });
@@ -58,7 +62,11 @@ test("지원 나누기 한도를 먼저 검사하고 목은 글에 적힌 번호
   globalThis.fetch = async () => { throw new Error("unexpected HTTP"); };
   await expect(parseApplication(" ")).rejects.toMatchObject({ code: "EMPTY_TEXT" });
   await expect(parseApplication("a".repeat(20001))).rejects.toMatchObject({ code: "TEXT_TOO_LONG" });
-  expect(await parseApplication("[OO 백엔드 부트캠프]\n안내\n1. 첫 문항\n2) 둘째 문항")).toEqual({ organization: "OO 백엔드 부트캠프", organizationType: "BOOTCAMP", jobRole: "BACKEND", questions: ["첫 문항", "둘째 문항"] });
+  expect(await parseApplication("[OO 백엔드 부트캠프]\n안내\n1. 첫 문항\n2) 둘째 문항")).toEqual({ organization: "OO 백엔드 부트캠프", organizationType: "BOOTCAMP", jobRole: "BACKEND", questions: ["첫 문항", "둘째 문항"], postingLines: [], readFrom: "TEXT" });
+  // MOCK(posting-lines) — 머리 줄 아래 글머리 줄만 그 칸으로, 글은 그대로
+  expect((await parseApplication("[OO]\n자격요건\n- Java 경험\n- 협업 경험\n복지\n- 점심 제공\n우대:\n- 배포 경험")).postingLines).toEqual([
+    { section: "REQUIRED", text: "Java 경험", ksa: null }, { section: "REQUIRED", text: "협업 경험", ksa: null }, { section: "PREFERRED", text: "배포 경험", ksa: null },
+  ]);
   expect((await parseApplication("문항이 없는 글")).questions).toEqual([]);
 });
 

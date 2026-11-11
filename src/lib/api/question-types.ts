@@ -17,6 +17,15 @@ export const MAX_QUESTIONS_PER_APPLICATION = 20;
 export const MAX_ANSWER_LENGTH = 2000;
 /** 초안 요청 experienceIds 상한 — 추천이 문항당 0 ~ 8개(S-84 · question-api.md) */
 export const MAX_DRAFT_EXPERIENCES = 8;
+/** 공고 요건 줄 — 지원 하나에 0 ~ 40줄, 줄마다 300자(question-api.md · S-91) */
+export const MAX_POSTING_LINES = 40;
+export const MAX_POSTING_LINE_LENGTH = 300;
+
+/** 공고 요건 줄의 칸(contracts README `postingSection`) — 화면 순서 그대로 */
+export const POSTING_SECTIONS: readonly PostingSection[] = ["DUTY", "REQUIRED", "PREFERRED", "STACK"];
+/** 공고를 어디서 읽었나(README `readFrom`) */
+export type ReadFrom = "TEXT" | "URL" | "IMAGE";
+export type PostingLineInput = { section: PostingSection; text: string; ksa: Ksa | null; readFrom: ReadFrom };
 
 export type QuestionExperience = Experience & { supplements: Supplement[] };
 export type RequirementStatus = "SUPPORTED" | "PARTIAL" | "NOT_FOUND";
@@ -168,7 +177,7 @@ export const POSTING_SECTION_LABEL: Record<PostingSection, string> = { DUTY: "�
 export type Ksa = "KNOWLEDGE" | "SKILL" | "ATTITUDE";
 export const KSA_LABEL: Record<Ksa, string> = { KNOWLEDGE: "지식", SKILL: "기술", ATTITUDE: "태도" };
 /** 공고 요건 줄(S-91) — 공고 원문 그대로, 넣은 순서. 넣은 뒤엔 고치지 않는다 */
-export type PostingLine = { id: number; section: PostingSection; text: string; ksa: Ksa | null; readFrom: "TEXT" | "URL" | "IMAGE" };
+export type PostingLine = { id: number; section: PostingSection; text: string; ksa: Ksa | null; readFrom: ReadFrom };
 /** 공고 기준 경험 찾기(S-93 · question-api.md) — 분석 중 · 실패면 lines · clarifications 는 [] */
 export type PostingMatch = {
   status: JobStatus; error: Job["error"];
@@ -196,6 +205,9 @@ export type Application = {
 export type CreateApplicationRequest = {
   organization?: string | null; organizationType?: OrganizationType | null; jobRole?: JobRole | null;
   postingUrl?: string | null;
+  /** 확인 단계에서 사용자가 고친 공고 요건 줄 0 ~ 40줄(S-91). questions 와 둘 다 비면 안 된다 */
+  postingLines?: PostingLineInput[];
+  /** 0 ~ 10개(S-18) */
   questions: { text: string }[];
 };
 /** PATCH /api/applications/{id} — 보낸 필드만 바꾼다. 이름 · 종류 · 직무는 null 이면 비우고, 상태 · 낸 달은 null 을 받지 않는다 */

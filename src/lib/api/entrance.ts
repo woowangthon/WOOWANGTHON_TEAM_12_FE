@@ -1,6 +1,9 @@
 import { ApiError } from "./errors";
 import { isMockMode, request } from "./http";
-import { JOB_ROLE_LABEL, ORGANIZATION_TYPE_LABEL, type JobRole, type OrganizationType } from "./question-types";
+import {
+  JOB_ROLE_LABEL, MAX_POSTING_LINE_LENGTH, MAX_POSTING_LINES, ORGANIZATION_TYPE_LABEL, POSTING_SECTIONS,
+  type JobRole, type Ksa, type OrganizationType, type PostingSection, type ReadFrom,
+} from "./question-types";
 import { MAX_TEXT_LENGTH } from "./types";
 import { mockParseApplication, mockParseApplicationUrl } from "../mock/application-parse";
 import { mockAsk, type MockAskResult } from "../mock/ask";
@@ -11,7 +14,23 @@ export type EntranceKind = typeof ENTRANCE_KINDS[number];
 export type EntranceRoute = { kind: EntranceKind; reason: string };
 /** 지원 나누기 입력 최대 길이(자) — POST /api/entrance/parse-application */
 export const MAX_PARSE_TEXT_LENGTH = 20000;
-export type ParsedApplication = { organization: string | null; organizationType: OrganizationType | null; jobRole: JobRole | null; questions: string[] };
+/** 나눈 공고 요건 줄 하나(S-91) — text 는 공고 원문 그대로, section · ksa 는 AI 해석 */
+export type ParsedPostingLine = { section: PostingSection; text: string; ksa: Ksa | null };
+export type ParsedApplication = {
+  organization: string | null; organizationType: OrganizationType | null; jobRole: JobRole | null; questions: string[];
+  postingLines: ParsedPostingLine[]; readFrom: ReadFrom;
+};
+const KSA: readonly Ksa[] = ["KNOWLEDGE", "SKILL", "ATTITUDE"];
+const READ_FROM: readonly ReadFrom[] = ["TEXT", "URL", "IMAGE"];
+/** 목록 밖 칸 · 빈 줄은 버리고 40줄 · 300자로 자른다 — 넣기 요청이 400 이 되지 않게 */
+function postingLinesOf(value: unknown): ParsedPostingLine[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap(line => {
+    const { section, text, ksa } = (line ?? {}) as Record<string, unknown>;
+    if (!POSTING_SECTIONS.includes(section as PostingSection) || typeof text !== "string" || !text.trim()) return [];
+    return [{ section: section as PostingSection, text: text.trim().slice(0, MAX_POSTING_LINE_LENGTH), ksa: KSA.includes(ksa as Ksa) ? ksa as Ksa : null }];
+  }).slice(0, MAX_POSTING_LINES);
+}
 
 /** S-28: 분류만 한다. 자료 · 지원 저장은 각 입력 화면에서 사용자가 확인한 뒤 한다. */
 export async function routeEntrance(text: string, mockKind: EntranceKind = "UNSURE"): Promise<EntranceRoute> {
@@ -50,7 +69,7 @@ export async function parseApplication(input: string | { url: string }): Promise
     await new Promise(resolve => setTimeout(resolve, 400));
     return "text" in body ? mockParseApplication(body.text) : mockParseApplicationUrl(body.url);
   }
-  const result = await request<ParsedApplication>("/entrance/parse-application", body, "POST");
+  const result = await request<Omit<ParsedApplication, "postingLines"> & { postingLines?: unknown }>("/entrance/parse-application", body, "POST");
   if (!Array.isArray(result?.questions)) throw new ApiError("INVALID_RESPONSE", "지원 나누기 결과를 읽지 못했어요. 다시 시도해 주세요.");
   // 닫힌 목록 밖의 값은 고를 수 없는 칸이 되니 비운다(S-42 — 둘 다 선택 칸)
   return {
@@ -58,6 +77,8 @@ export async function parseApplication(input: string | { url: string }): Promise
     organizationType: result.organizationType && result.organizationType in ORGANIZATION_TYPE_LABEL ? result.organizationType : null,
     jobRole: result.jobRole && result.jobRole in JOB_ROLE_LABEL ? result.jobRole : null,
     questions: result.questions.filter(q => typeof q === "string" && q.trim()),
+    postingLines: postingLinesOf(result.postingLines),
+    readFrom: READ_FROM.includes(result.readFrom) ? result.readFrom : "url" in body ? "URL" : "TEXT",
   };
 }
 

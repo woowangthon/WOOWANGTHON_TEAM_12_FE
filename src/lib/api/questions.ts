@@ -8,7 +8,7 @@ import { activityError } from "./editing";
 import { DRAFT_FRAMES } from "../draft-frames";
 import { MAX_DRAFT_EXPERIENCES, MAX_GROUNDING_TEXT_LENGTH, type GroundingCheck, type CreateDraftRequest, type Draft } from "./question-types";
 import {
-  MAX_ANSWER_LENGTH, MAX_ORGANIZATION_LENGTH, MAX_QUESTION_LENGTH, MAX_QUESTIONS_PER_SUBMIT,
+  MAX_ANSWER_LENGTH, MAX_ORGANIZATION_LENGTH, MAX_POSTING_LINE_LENGTH, MAX_POSTING_LINES, MAX_QUESTION_LENGTH, MAX_QUESTIONS_PER_SUBMIT,
   type AddQuestionRequest, type AnswerClarificationRequest, type Application, type ApplicationSubmitted, type ClarificationAnswered,
   type CreateApplicationRequest, type CreateQuestionRequest, type QuestionAdded, type QuestionDetail, type QuestionSubmitted, type QuestionSummary,
   type QuestionType, type UpdateApplicationRequest,
@@ -65,9 +65,13 @@ export function retryPostingMatch(id: number): Promise<Application> {
   return request(`/applications/${id}/posting-match/retry`, undefined, "POST");
 }
 
-/** POST /api/applications — 지원 + 문항 1 ~ 10개, 문항마다 추천 시작 */
+/** POST /api/applications — 지원 + 문항 0 ~ 10개 · 공고 요건 줄 0 ~ 40줄(둘 다 비면 안 된다, S-18 · S-91). 문항마다 추천, 줄이 있으면 공고 기준 경험 찾기 시작 */
 export async function submitApplication(req: CreateApplicationRequest): Promise<ApplicationSubmitted> {
-  if (!req.questions.length || req.questions.length > MAX_QUESTIONS_PER_SUBMIT) throw new ApiError("INVALID_REQUEST", "문항은 한 번에 1 ~ 10개까지 넣을 수 있어요.");
+  const lines = req.postingLines ?? [];
+  if (req.questions.length > MAX_QUESTIONS_PER_SUBMIT) throw new ApiError("INVALID_REQUEST", "문항은 한 번에 10개까지 넣을 수 있어요.");
+  if (!req.questions.length && !lines.length) throw new ApiError("INVALID_REQUEST", "문항이나 공고 요건을 하나 이상 넣어 주세요.");
+  if (lines.length > MAX_POSTING_LINES || lines.some(l => !l.text.trim() || l.text.length > MAX_POSTING_LINE_LENGTH))
+    throw new ApiError("INVALID_REQUEST", "공고 요건은 40줄까지, 줄마다 300자까지 넣을 수 있어요.");
   req.questions.forEach(q => checkText(q.text));
   checkOrganization(req.organization);
   return request("/applications", req, "POST");

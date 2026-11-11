@@ -7,17 +7,20 @@ import { AnalysisButton, AnalysisCost } from "@/components/auth/analysis-cost";
 import { CommonQuestionPicker, CommonQuestionsInline } from "./common-question-picker";
 import { ParseFailureNotice, useApplicationParse, type ParseFailure, type ParseInput } from "./application-parse";
 import { Mascot } from "./chagok-panel";
-import { isPostingUrl, MAX_PARSE_TEXT_LENGTH, MAX_POSTING_URL_LENGTH, singleLink, type ParsedApplication } from "@/lib/api/entrance";
+import { nextLineKey, PostingLinesReview, type DraftPostingLine } from "./posting-lines-review";
+import { isPostingUrl, MAX_PARSE_TEXT_LENGTH, MAX_POSTING_URL_LENGTH, singleLink, type ParsedApplication, type ParsedPostingLine } from "@/lib/api/entrance";
 import { ApiError } from "@/lib/api/errors";
 import { isMockMode } from "@/lib/api/http";
 import {
   JOB_ROLE_LABEL, MAX_ORGANIZATION_LENGTH, MAX_QUESTION_LENGTH, MAX_QUESTIONS_PER_SUBMIT, ORGANIZATION_TYPE_LABEL,
-  type CreateApplicationRequest, type JobRole, type OrganizationType,
+  type CreateApplicationRequest, type JobRole, type OrganizationType, type ReadFrom,
 } from "@/lib/api/question-types";
 import { Select, optionsOf } from "@/components/ui/select";
 import { InfoTip } from "@/components/ui/info-tip";
 import { AiMark } from "@/components/ui/ai-mark";
 import { targetLengthFromText } from "@/lib/target-length";
+
+const draftLines = (parsed: ParsedPostingLine[], readFrom: ReadFrom): DraftPostingLine[] => parsed.map(l => ({ ...l, readFrom, key: nextLineKey() }));
 
 /** 입력을 돕는 예시 문항 — 칸만 채운다. 결과는 늘 실제 분석이다(question-api.md 문항 41 · 42 의 글) */
 const EXAMPLES = [
@@ -90,6 +93,8 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
   const [jobRole, setJobRole] = useState<JobRole | "">(prefill?.jobRole ?? "");
   const [texts, setTexts] = useState(prefill?.questions.length ? prefill.questions.slice(0, MAX_QUESTIONS_PER_SUBMIT) : [prefill ? "" : initialText]);
   const [paste, setPaste] = useState(pastedText);
+  // 공고 요건 줄(S-91) — 나눈 줄을 사용자가 고치거나 뺀 그대로 넣는다
+  const [lines, setLines] = useState<DraftPostingLine[]>(() => (prefill ? draftLines(prefill.postingLines, prefill.readFrom) : []));
   const [filled, setFilled] = useState<ParsedApplication | null>(prefill ?? null);
   // 원문 링크(S-46) — 링크로 채우는 데 쓰고, 넣을 때 postingUrl 로 보낸다. 못 읽어도 지우지 않는다
   const [postingUrl, setPostingUrl] = useState(initialUrl);
@@ -134,6 +139,8 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
       const next = [...prev.filter(t => mine(t, filled?.questions.find(q => q === t))), ...result.questions].slice(0, MAX_QUESTIONS_PER_SUBMIT);
       return next.length ? next : [""];
     });
+    // 새 공고를 나누면 줄을 바꾼다. 줄이 없는 글(문항만 붙여 넣기)이면 확인하던 줄을 그대로 둔다
+    if (result.postingLines.length) setLines(draftLines(result.postingLines, result.readFrom));
     setFilled(result); setFilledFrom("url" in input ? "url" : "text"); setError(null); setOpen(true);
     // 읽은 링크는 원문 링크 칸으로 옮겨 갔다 — 입력칸을 비워 본문을 붙여 넣을 수 있게 둔다
     if ("url" in input) setPaste("");
@@ -151,6 +158,9 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
   const urlTrimmed = postingUrl.trim();
   const urlInvalid = !!urlTrimmed && !isPostingUrl(urlTrimmed);
   const noQuestions = !!filled && !filled.questions.length && texts.every(t => !t.trim());
+  // 넣을 문항 — 칸이 모두 비었으면 문항 0개(공고 줄만으로 넣기, S-18)
+  const questionCount = texts.every(t => !t.trim()) ? 0 : texts.length;
+  const nothing = !questionCount && !lines.length;
   const filledAny = !!filled && !!(filled.organization || filled.organizationType || filled.jobRole || filled.questions.length);
   // 링크가 아직 입력칸에 있으면 같은 값을 두 번 보이지 않는다
   const urlShown = (open || urlField) && (!urlTrimmed || paste.trim() !== urlTrimmed);
@@ -162,7 +172,7 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
   const dirty = !!(organization || organizationType || jobRole || paste.trim() || urlTrimmed || texts.some(t => t.trim()));
   const reset = () => {
     parse.clear();
-    setOrganization(""); setOrganizationType(""); setJobRole(""); setTexts([""]); setPaste(""); setFilled(null);
+    setOrganization(""); setOrganizationType(""); setJobRole(""); setTexts([""]); setPaste(""); setFilled(null); setLines([]);
     setPostingUrl(""); setFilledFrom(null); setReading("text"); setOpen(false); setWriting(false); setAskingLink(false);
     setUrlField(false); setError(null); setPicking(false); setConfirmingReset(false);
     pasteBox.current?.focus();
@@ -172,7 +182,8 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
     <form className="grid max-w-2xl gap-5" aria-busy={saving || parse.parsing} onSubmit={async event => {
       event.preventDefault();
       if (pending.current) return;
-      const blank = texts.findIndex(t => !t.trim());
+      if (nothing) return;
+      const blank = questionCount ? texts.findIndex(t => !t.trim()) : -1;
       if (blank >= 0) { setError(texts.length === 1 ? "지원 문항을 입력해 주세요." : `비어 있는 문항이 있어요(문항 ${blank + 1}). 채우거나 빼 주세요.`); return; }
       if (texts.some(t => t.length > MAX_QUESTION_LENGTH) || organization.length > MAX_ORGANIZATION_LENGTH) {
         setError("지원처는 100자, 문항은 5,000자까지 입력할 수 있어요."); return;
@@ -182,7 +193,8 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
       onSavingChange?.(true);
       // 고른 칸만 싣는다 — 비운 칸은 보내지 않는다(없거나 null 이면 비움, question-api.md)
       const types = { ...(organizationType && { organizationType }), ...(jobRole && { jobRole }), ...(urlTrimmed && { postingUrl: urlTrimmed }) };
-      try { await onSubmit({ organization: organization.trim() || null, ...types, questions: texts.map(text => ({ text })) }); }
+      const postingLines = lines.map(({ section, text, ksa, readFrom }) => ({ section, text, ksa, readFrom }));
+      try { await onSubmit({ organization: organization.trim() || null, ...types, ...(postingLines.length && { postingLines }), questions: questionCount ? texts.map(text => ({ text })) : [] }); }
       catch (e) { setError(submitErrorMessage(e, "지원을 넣지 못했어요.")); }
       finally { pending.current = false; setSaving(false); onSavingChange?.(false); }
     }}>
@@ -206,10 +218,6 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
         {parse.parsing && <p role="status" className="m-0 text-sm text-muted">{reading === "url" ? "링크를 읽고 지원처와 문항을 나누고 있어요…" : "글을 읽고 지원처와 문항을 나누고 있어요…"}</p>}
         {parse.failure && <ParseFailureNotice failure={parse.failure} onRetry={() => void fill(parse.failure!.input)}
           onManual={() => { const input = parse.failure!.input; if ("text" in input) { insert([input.text]); parse.clear(); } else { setPaste(""); pasteBox.current?.focus(); } }} />}
-        {/* 문항이 없으면 막다른 길 대신 「자주 나오는 문항」을 그 자리에 펼친다(FE#492). 고르거나 문항 칸에 쓰면 사라진다 */}
-        {noQuestions && <CommonQuestionsInline room={room} organizationType={organizationType} onPick={insert} onPickPast={() => setPicking(true)} message={filledFrom === "url"
-          ? "이 링크엔 자소서 문항이 없어요. 문항은 보통 지원서 양식(구글폼 등) 안에 있어요. 자주 나오는 문항에서 고르거나, 문항을 위 칸에 붙여 넣고 「AI 로 나누기」를 눌러 주세요."
-          : "이 글엔 자소서 문항이 없어요. 문항은 보통 지원서 양식(구글폼 등) 안에 있어요. 자주 나오는 문항에서 고르거나, 문항 칸에 붙여 넣어 주세요."} />}
         {!filled && !paste.trim() && <div className="grid gap-2">
           <span className="text-note font-medium text-muted">예시 문항으로 시작하기</span>
           <div className="flex flex-wrap gap-2">
@@ -244,6 +252,14 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
           </div>
           {urlInvalid && <p id="application-url-note" className="m-0 text-note text-error">http:// 나 https:// 로 시작하는 주소 하나를 넣어 주세요.</p>}
         </div>}
+        {/* 공고 요건 확인(S-91) — 나눈 뒤에만. 문항보다 먼저: 공고만 붙여 넣으면 이게 할 일이다 */}
+        {open && filled && <PostingLinesReview lines={lines} onChange={setLines} />}
+        {/* 문항이 없으면 막다른 길 대신 「자주 나오는 문항」을 그 자리에 펼친다(FE#492) — 공고 요건 다음, 문항 자리(DESIGN.md 「지원 넣기 — 공고 확인」). 고르거나 문항 칸에 쓰면 사라진다 */}
+        {noQuestions && <CommonQuestionsInline room={room} organizationType={organizationType} onPick={insert} onPickPast={() => setPicking(true)} message={lines.length
+          ? "이 공고엔 자소서 문항이 없어요 — 공고 요건으로 맞는 경험부터 찾아 둘게요. 문항이 있으면 자주 나오는 문항에서 고르거나 문항 칸에 붙여 넣어 주세요."
+          : filledFrom === "url"
+          ? "이 링크엔 자소서 문항이 없어요. 문항은 보통 지원서 양식(구글폼 등) 안에 있어요. 자주 나오는 문항에서 고르거나, 문항을 위 칸에 붙여 넣고 「AI 로 나누기」를 눌러 주세요."
+          : "이 글엔 자소서 문항이 없어요. 문항은 보통 지원서 양식(구글폼 등) 안에 있어요. 자주 나오는 문항에서 고르거나, 문항 칸에 붙여 넣어 주세요."} />}
         {open && <>
           <ol className="m-0 grid list-none gap-3 p-0" aria-label="문항">
             {texts.map((text, i) => {
@@ -275,6 +291,8 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
       </fieldset>
       <CommonQuestionPicker open={picking} onOpenChange={setPicking} room={room} onPick={insert} />
       {error && <p role="alert" className="m-0 text-sm text-error">{error}</p>}
+      {/* 넣을 게 없으면 버튼을 막고 이유 한 줄(FE#494) */}
+      {open && nothing && !error && <p id="application-nothing" className="m-0 text-right text-note text-muted">{filled ? "문항이나 공고 요건을 하나 이상 넣어 주세요." : "지원 문항을 입력해 주세요."}</p>}
       <div className="flex flex-wrap items-center justify-end gap-2">
         {!open && <Button type="button" variant="link" className="mr-auto min-h-11 lg:min-h-10" disabled={saving} onClick={writeQuestions}>문항 직접 쓰기</Button>}
         {onCancel && <Button type="button" variant="ghost" disabled={saving} onClick={onCancel}>취소</Button>}
@@ -288,8 +306,12 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
         {onMoveToSource && <Button type="button" variant="secondary" disabled={saving || moveToSourceDisabled} onClick={() => onMoveToSource(paste.trim() ? paste : texts.join("\n\n"))}>자료로 쌓기</Button>}
         {(!open || !!paste.trim()) && <Button type="button" className="min-h-11 lg:min-h-10" variant={open ? "secondary" : "default"} disabled={saving || parse.parsing || !paste.trim()} onClick={split}>{parse.parsing ? (reading === "url" ? "읽는 중…" : "나누는 중…") : "AI 로 나누기"}</Button>}
         {/* 문항마다 분석 1회(S-15) — 한 번에 여러 회를 쓰는 곳이라 횟수를 글자로도 보인다(FE#434) */}
-        {open && <AnalysisCost count={texts.length} running={saving} />}
-        {open && <AnalysisButton type="submit" className="min-h-11 lg:min-h-10" cost={texts.length} running={saving} disabled={saving || parse.parsing}>{saving ? "지원을 넣고 있어요…" : texts.length > 1 ? `문항 ${texts.length}개 넣고 경험 찾기` : "지원 넣고 경험 찾기"}</AnalysisButton>}
+        {/* 공고 줄이 있으면 공고 기준 경험 찾기로 1회를 더 센다(S-93) */}
+        {open && <AnalysisCost count={Math.max(1, questionCount + (lines.length ? 1 : 0))} running={saving} />}
+        {open && <AnalysisButton type="submit" className="min-h-11 lg:min-h-10" cost={Math.max(1, questionCount + (lines.length ? 1 : 0))} running={saving} disabled={saving || parse.parsing || nothing}
+          aria-describedby={nothing ? "application-nothing" : undefined}>
+          {saving ? "지원을 넣고 있어요…" : !questionCount && lines.length ? "공고로 경험 찾기" : texts.length > 1 ? `문항 ${texts.length}개 넣고 경험 찾기` : "지원 넣고 경험 찾기"}
+        </AnalysisButton>}
       </div>
     </form>
   );
