@@ -186,7 +186,7 @@ export function ChagokComposer({ control, hasQuestion }: { control: ChagokRunCon
       {PRESETS.map(p => <button key={p.label} type="button" title="분석 1회" disabled={blocked} onClick={() => void control.send(p.text)}
         className="rounded-full border border-hairline-soft bg-surface-soft px-2.5 py-1 text-xs text-ink transition-colors hover:bg-surface-strong disabled:opacity-50">{p.label}</button>)}
     </div>}
-    <form className="flex items-end gap-1.5 rounded-[20px] border border-hairline py-1 pr-1 pl-3.5" onSubmit={e => { e.preventDefault(); submit(); }}>
+    <form className="flex items-end gap-1.5 rounded-md border border-hairline py-1 pr-1 pl-3.5" onSubmit={e => { e.preventDefault(); submit(); }}>
       {/* 높이만 글에 맞춰 늘고(최대 128) 폭은 남은 자리로 고정 — 띄어쓰기 없는 긴 글도 줄을 바꿔 보내기 버튼을 밀지 않는다 */}
       <textarea rows={1} value={draft} onChange={e => control.setDraft(e.target.value)} onKeyDown={onKeyDown} aria-label="차곡이에게 부탁하기"
         placeholder="차곡이에게 부탁하기 — 예: WebSocket 경험 찾아 줘"

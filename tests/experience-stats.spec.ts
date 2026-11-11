@@ -77,6 +77,7 @@ test("the stats tab replaces search and counts blocks, categories, source status
   await expect(page.getByRole("dialog", { name: "나를 보여 주는 역량 설명", exact: true })).toContainText("역량 없는 경험 1개");
   await page.keyboard.press("Escape");
 
+  await page.screenshot({ path: `docs/drawer-name/stats-${page.viewportSize()!.width}.png`, fullPage: true, animations: "disabled" });
   await capture(page, `stats-${page.viewportSize()!.width}`);
   expect(await noOverflow(page)).toBe(true);
 
