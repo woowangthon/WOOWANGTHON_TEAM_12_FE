@@ -44,7 +44,7 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
     return [
       ...(hasEditedAnswer(question.id) ? ["답칸에서 고친 글이 새 초안으로 바뀌어요."] : []),
       ...(open ? [`답하지 않은 빠진 사실 질문 ${open}개가 사라져요. 새 초안이 필요한 것을 다시 물어요.`] : []),
-      ...(question.answer ? ["다 쓴 답은 저장돼 있어요 — 답칸 아래 「다 쓴 답 불러오기」로 돌아갈 수 있어요."] : []),
+      ...(question.answer ? ["다 쓴 답은 저장돼 있어요 — 답칸 위 「수정 이력」에서 불러올 수 있어요."] : []),
     ];
   };
   const ask = () => {

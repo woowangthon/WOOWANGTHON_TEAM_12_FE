@@ -123,7 +123,7 @@ export function DraftFollowUp({ question, onGenerate, onRefresh, savingAnswer, r
       {draft?.status === "FAILED" ? <p className={bubble}>초안을 완성하지 못했어요. 아래 설정에서 다시 요청해 주세요.</p> : <>
         {/* 초안 빈칸 질문은 문항 되묻기와 한 블록(「차곡이가 물어볼 것」)에서 묻는다(FE#336) */}
         <p className={bubble}>{!draft?.sentences.length ? "고른 기록에서 받칠 내용을 찾지 못해 문장을 쓰지 않았어요. 경험이 없다는 뜻은 아니에요."
-          : showsConfirmed ? `지금 답칸엔 다 쓴 답이 있어요. 초안 글은 답칸 아래 「초안 글 다시 넣기」로 넣을 수 있어요.${asks.length ? " 자료에 없어 쓰지 않은 건 위 「차곡이가 물어볼 것」에서 물어봐요." : ""}`
+          : showsConfirmed ? `지금 답칸엔 다 쓴 답이 있어요. 초안 글은 답칸 위 「수정 이력」에서 다시 넣을 수 있어요.${asks.length ? " 자료에 없어 쓰지 않은 건 위 「차곡이가 물어볼 것」에서 물어봐요." : ""}`
           : asks.length ? "초안을 답칸에 넣었어요. 자료에 없어 쓰지 않은 건 위 「차곡이가 물어볼 것」에서 물어봐요." : "초안을 답칸에 넣었어요. 밑줄 · 빈칸 · 회색 문장을 눌러 근거와 이유를 확인해 주세요."}</p>
       </>}
       {savingAnswer && <p role="status" className={bubble}>보완으로 쌓는 중이에요…</p>}

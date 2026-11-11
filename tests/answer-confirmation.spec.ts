@@ -116,13 +116,13 @@ test("다 썼어요 saves only; the line under it finds in the panel; same text 
   await expect(s.getByText(/새 경험 후보 1개를 골라 주세요/)).toBeAttached();
   await closeSheet(page);
   // 같은 글은 다시 확정하지 않는다 — 고치면 켜지고, 되돌리면 다시 막힌다
-  await input.fill("수정한 답"); await expect(s.getByText(/고친 내용이 있어요/)).toBeVisible();
+  await input.fill("수정한 답"); await expect(s.getByText("다 쓴 답과 달라요", { exact: true })).toBeVisible();
   await expect(done).toBeEnabled();
   await expect(s.getByText("저장됨", { exact: true })).toBeVisible();
   expect(drafts().at(-1)?.body).toMatchObject({ text: "수정한 답" });
   await page.reload(); await expect(input).toHaveValue("수정한 답");
   await closeSheet(page);
-  await expect(s.getByText(/고친 내용이 있어요/)).toBeVisible();
+  await expect(s.getByText("다 쓴 답과 달라요", { exact: true })).toBeVisible();
   await input.fill(TEXT); await expect(done).toBeDisabled();
   await expect(s.getByText(/새 경험 후보 1개를 골라 주세요/)).toBeVisible();
   await showFacts(page);

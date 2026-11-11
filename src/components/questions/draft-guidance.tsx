@@ -2,6 +2,7 @@
 
 import { Popover } from "radix-ui";
 import Link from 'next/link';
+import { InfoTip } from '@/components/ui/info-tip';
 import { Select } from '@/components/ui/select';
 import { DRAFT_FRAMES, frameOptions, type DraftFrame } from '@/lib/draft-frames';
 import type { Draft } from '@/lib/api/question-types';
@@ -13,8 +14,11 @@ export function FrameDescription({ frame }: { frame: DraftFrame }) {
 
 export function FramePicker({ frame, suggested, onChange, disabled, proposed }: { frame: DraftFrame; suggested: DraftFrame; onChange: (frame: DraftFrame) => void; disabled: boolean; proposed: boolean }) {
   return <div className="grid min-w-0 gap-2 border-t border-hairline pt-4">
-    <label className="grid gap-2 text-sm font-semibold">구성 틀<Select<DraftFrame> aria-label="구성 틀" value={frame} disabled={disabled} onChange={next => { if (next) onChange(next); }} className="sm:max-w-80" options={frameOptions(suggested)} /></label>
-    {proposed && <p className="m-0 text-note text-muted">문항 유형에 맞춘 제안 · 바꿔도 괜찮아요.</p>}
+    {/* 「문항 유형에 맞춘 제안」은 ⓘ 로 접는다(FE#463) — ⓘ 는 버튼이라 label 밖에 둔다 */}
+    <div className="grid gap-2">
+      <div className="flex items-center gap-0.5 text-sm font-semibold">구성 틀{proposed && <InfoTip label="구성 틀">문항 유형에 맞춘 제안이에요. 바꿔도 괜찮아요.</InfoTip>}</div>
+      <Select<DraftFrame> aria-label="구성 틀" value={frame} disabled={disabled} onChange={next => { if (next) onChange(next); }} className="sm:max-w-80" options={frameOptions(suggested)} />
+    </div>
     <FrameDescription frame={frame} />
     <Link href="/guidelines" className="inline-flex min-h-11 lg:min-h-10 items-center justify-self-start text-sm text-evidence underline underline-offset-3">작성 지침 관리 →</Link>
   </div>;

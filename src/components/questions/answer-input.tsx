@@ -15,7 +15,7 @@ import { Toast, useToast } from "@/components/ui/toast";
 import { confirmDraftSentence } from "@/lib/api/questions";
 import { updateSupplement } from "@/lib/api/experience";
 import { MAX_GROUNDING_TEXT_LENGTH, type Answer, type AnswerDraft, type QuestionDetail } from "@/lib/api/question-types";
-import { analyze, composeDraft, DraftEditor, isSupposedPair, pairLinked, pairOf, type EditorHandle, type Mark, type Selection } from "./answer-draft";
+import { analyze, composeDraft, DraftEditor, pairLinked, pairOf, type EditorHandle, type Mark, type Selection } from "./answer-draft";
 import { setEditedAnswer, setShowsConfirmed } from "./answer-box-state";
 import type { AnswerHandler } from "./clarifications";
 import { DraftGuidance } from "./draft-guidance";
@@ -34,14 +34,10 @@ type DraftHooks = { onAnswer: AnswerHandler; onRefresh: () => Promise<void>; dra
 /** 내가 쓴 답(S-45 · S-48 · S-79): 받아 둔 문항의 확정 답으로 시작하고, 초안이 더 새로우면 초안을 보기 상태로 담는다. 근거 점검은 독립적으로 읽는다.
  *  문항을 못 받았으면 화면의 「다시 불러오기」를 쓴다 */
 export function AnswerInput({ questionId, question, loadFailed, onAnswerChange, onAnswerDraftChange, checks, onAskDraft, ...hooks }: { questionId: number; question: QuestionDetail | null; loadFailed: boolean; onAnswerChange: AnswerChange; onAnswerDraftChange: AnswerDraftChange; checks: GroundingChecks; onAskDraft: () => void } & DraftHooks) {
-  return <section aria-labelledby={`answer-title-${questionId}`} className="mb-8 grid min-w-0 gap-3">
+  return <section id={`answer-title-${questionId}`} aria-label="내가 쓴 답" className="mb-8 grid min-w-0 gap-3">
     {question ? <LoadedAnswer question={question} onAnswerChange={onAnswerChange} onAnswerDraftChange={onAnswerDraftChange} checks={checks} draftLabel={question.status === "ANALYZING" || question.status === "FAILED" ? null : question.draft ? "초안 설정 열기" : "초안 부탁하기"} onAskDraft={onAskDraft} {...hooks} />
-      : <><AnswerTitle questionId={questionId} />{!loadFailed && <p role="status" className="m-0 text-sm text-muted">쓴 답을 불러오고 있어요…</p>}</>}
+      : !loadFailed && <p role="status" className="m-0 text-sm text-muted">쓴 답을 불러오고 있어요…</p>}
   </section>;
-}
-
-function AnswerTitle({ questionId }: { questionId: number }) {
-  return <h3 id={`answer-title-${questionId}`} className="m-0 text-title-md font-semibold">내가 쓴 답</h3>;
 }
 
 function LoadedAnswer({ question, onAnswerChange, onAnswerDraftChange, checks, draftLabel, onAskDraft, ...hooks }: { question: QuestionDetail; onAnswerChange: AnswerChange; onAnswerDraftChange: AnswerDraftChange; checks: GroundingChecks; draftLabel: string | null; onAskDraft: () => void } & DraftHooks) {
@@ -174,6 +170,8 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
     if (draftText === null) return;
     g.setText(draftText); setEditBase(draftText); setSelected(null);
   };
+  // 수정 이력 창의 「다 쓴 답 불러오기」 · 「초안 글 다시 넣기」(FE#463)
+  const canLoadConfirmed = !!a.answer && text !== a.answer.text;
   const copy = async () => {
     setAsk(null);
     try { await navigator.clipboard.writeText(text); showToast("답칸의 글을 복사했어요. 표시는 복사하지 않아요."); }
@@ -207,22 +205,32 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
   // 근거 점검은 필요할 때만(FE#336) — 손대지 않은 초안은 문장마다 근거가 이미 붙어 있다. 고친 사실 문장 · 초안 밖에서 직접 쓴 문장이 있거나 점검이 진행 · 실패 중일 때 보인다
   const ownText = splitSentences(text).some(p => p.text.trim() && !analysis.marks.some(m => m.start < p.end && p.start < m.end));
   const showGround = editedFacts > 0 || ownText || analyzing || g.busy || !!g.failure || g.check?.status === "FAILED";
+  const canLoadDraft = confirmedNotDraft && !drafting;
   const copyAnswer = () => { if (warnFirst) setAsk("copy"); else void copy(); };
   const finish = () => { if (groundFirst) setAsk("ground"); else void confirmAnswer(); };
-  // 빠진 사실 질문은 차곡이 패널에서 답한다 — 답칸 위에서는 한 줄로 알린다(FE#262 · FE#266). 글에 칩으로 남은 빈칸은 「확인할 곳」이 센다
-  const chipped = new Set(analysis?.chips.map(c => c.at) ?? []);
-  // AI 가정의 짝은 그 문장 카드에서 확인하니 세지 않는다
-  const asked = ready?.omitted.filter((o, at) => o.clarificationId !== null && o.supplementId === null && !chipped.has(at) && !isSupposedPair(ready, o)).length ?? 0;
   return <>
-    {/* 답칸 머리줄(FE#336) — 왼쪽 제목, 오른쪽 글자 수 / 목표 · 복사 */}
-    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-      <AnswerTitle questionId={questionId} />
-      <div className="flex items-center gap-1">
-        <span className="inline-flex items-center gap-1 text-xs text-muted tabular-nums">{text.length.toLocaleString()}자 /{" "}
-          <TargetLengthField value={target} onSave={onTargetLength} />
-          {marked && target !== null && text.length < target && <InfoTip label="목표 글자 수" align="end">자료에 있는 내용으로만 써서 목표보다 짧을 수 있어요. 빈칸 · 빠진 사실에 답하면 다음 초안이 길어져요.</InfoTip>}</span>
-        <Button variant="ghost" size="icon" className="size-11 lg:size-9" aria-label="답 복사" title="답 복사" disabled={!text.trim()} onClick={copyAnswer}><CopyIcon aria-hidden="true" /></Button>
-        <Button variant="ghost" size="icon" className="size-11 lg:size-9" aria-label="수정 이력" title="수정 이력" aria-haspopup="dialog" onClick={() => setHistoryOpen(true)}><ClockCounterClockwiseIcon aria-hidden="true" /></Button>
+    {/* 답칸 머리줄 한 줄(FE#336 · FE#463) — 왼쪽 글자 수 / 목표 · 확인할 곳, 오른쪽 다음 확인할 곳 · 복사 · 수정 이력. 제목은 두지 않는다(구역 이름은 aria-label) */}
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <span className="inline-flex items-center gap-1 text-xs text-muted tabular-nums">{text.length.toLocaleString()}자 /{" "}
+        <TargetLengthField value={target} onSave={onTargetLength} />
+        {marked && target !== null && text.length < target && <InfoTip label="목표 글자 수" align="end">자료에 있는 내용으로만 써서 목표보다 짧을 수 있어요. 빈칸 · 빠진 사실에 답하면 다음 초안이 길어져요.</InfoTip>}</span>
+      {marked && <div id={`draft-title-${questionId}`} role="group" aria-label="답변 초안"
+        // 좁은 폭은 글자 수 · 아이콘이 첫 줄, 확인할 곳이 둘째 줄을 통째로 쓴다 — 사이에 끼면 세 줄로 꺾인다
+        className="order-last flex min-w-0 basis-full flex-wrap items-center gap-x-2.5 gap-y-1.5 sm:order-none sm:basis-0 sm:flex-1">
+        {/* 확인할 곳은 부가 정보라 작게 — 남은 개수는 늘 보인다(FE#262 · FE#269). 사용법은 ⓘ 로 접는다 */}
+        <span role="status" className={cn("inline-flex items-center gap-1.5 text-note font-medium tabular-nums", left ? "text-review" : "text-evidence")}>
+          {/* 숫자는 「다음 확인할 곳 →」이 도는 수와 같다 — AI 가정도 그 안에 센다(FE#381). 「AI 가정」은 답칸 표시처럼 물결 밑줄 — 그 자체가 범례다 */}
+          {left > 0 ? <><span aria-hidden="true" className="size-1.5 rounded-full bg-review" /><span>확인할 곳 {left}군데</span>
+            {supposedLeft.length > 0 && <span className="font-normal">· 그중 <span className="underline decoration-wavy decoration-review-line underline-offset-[3px]">AI 가정</span> {supposedLeft.length}</span>}</>
+            : "모두 확인했어요 ✓"}
+        </span>
+        {ready && <DraftGuidance draft={ready} />}
+        <span className="-ml-2 mr-auto inline-flex items-center"><InfoTip label="차곡이 초안">차곡이 초안이에요. 바로 고쳐 쓰고, 밑줄 · 빈칸을 누르면 근거와 이유가 보여요. 최종 문장은 직접 정해요.</InfoTip></span>
+        {left > 0 && <Button variant="secondary" size="sm" className="min-h-11 lg:min-h-10" title="Alt + ↓" onClick={() => editor.current?.next()}>다음 확인할 곳 →</Button>}
+      </div>}
+      <div className="ml-auto flex items-center gap-1">
+        <Button variant="ghost" size="icon" className="size-11 text-muted hover:text-ink lg:size-9" aria-label="답 복사" title="답 복사" disabled={!text.trim()} onClick={copyAnswer}><CopyIcon aria-hidden="true" /></Button>
+        <Button variant="ghost" size="icon" className="size-11 text-muted hover:text-ink lg:size-9" aria-label="수정 이력" title="수정 이력" aria-haspopup="dialog" onClick={() => setHistoryOpen(true)}><ClockCounterClockwiseIcon aria-hidden="true" /></Button>
       </div>
       <RevisionDialog open={historyOpen} onOpenChange={setHistoryOpen} target={{ type: "ANSWER", id: questionId }} title="수정 이력"
         description="이 문항의 답을 「다 썼어요」 · 초안 넣기 · 되돌리기 때 남긴 기록이에요. 쓰는 중 자동 저장은 남지 않아요."
@@ -230,28 +238,17 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
         current={text}
         // 기다리던 자동 저장을 먼저 보낸다 — 늦게 도착해 되돌린 임시 글을 덮지 않게
         beforeRestore={() => autosave.retry()}
-        onRestored={applyRestore} />
+        onRestored={applyRestore}
+        // 다 쓴 답 · 초안 글로 돌아가는 길은 여기 하나(FE#463) — 답칸 아래에 링크를 쌓지 않는다. 답칸에 글이 있으면 덮기 전에 묻는다(FE#384)
+        actions={(canLoadConfirmed || canLoadDraft) && <>
+          {canLoadConfirmed && <Button variant="secondary" size="sm" className="min-h-11 lg:min-h-9" onClick={() => { setHistoryOpen(false); if (text.trim()) setAsk("load"); else loadConfirmed(); }}>다 쓴 답 불러오기</Button>}
+          {canLoadDraft && <Button variant="secondary" size="sm" className="min-h-11 lg:min-h-9" onClick={() => { setHistoryOpen(false); loadDraft(); }}>초안 글 다시 넣기</Button>}
+        </>} />
     </div>
     {drafting && <p role="status" className="m-0 text-sm text-muted">차곡이가 초안을 만들고 있어요. 다 되면 답칸에 들어와요.</p>}
     {draft?.status === "FAILED" && !drafting && <p role="alert" className="m-0 text-sm text-error">{failureReason(draft.error)} 차곡이에서 다시 만들 수 있어요.</p>}
-    {marked && <div id={`draft-title-${questionId}`} role="group" aria-label="답변 초안" className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
-      {/* 확인할 곳은 부가 정보라 작게 — 남은 개수는 늘 보인다(FE#262 · FE#269). 사용법은 ⓘ 로 접는다 */}
-      <span role="status" className={cn("inline-flex items-center gap-1.5 text-note font-medium tabular-nums", left ? "text-review" : "text-evidence")}>
-        {/* 숫자는 「다음 확인할 곳 →」이 도는 수와 같다 — AI 가정도 그 안에 센다(FE#381). 「AI 가정」은 답칸 표시처럼 물결 밑줄 — 그 자체가 범례다 */}
-        {left > 0 ? <><span aria-hidden="true" className="size-1.5 rounded-full bg-review" /><span>확인할 곳 {left}군데</span>
-          {supposedLeft.length > 0 && <span className="font-normal">· 그중 <span className="underline decoration-wavy decoration-review-line underline-offset-[3px]">AI 가정</span> {supposedLeft.length}</span>}</>
-          : "모두 확인했어요 ✓"}
-      </span>
-      {ready && <DraftGuidance draft={ready} />}
-      <span className="-ml-2 mr-auto inline-flex items-center"><InfoTip label="차곡이 초안">차곡이 초안이에요. 바로 고쳐 쓰고, 밑줄 · 빈칸을 누르면 근거와 이유가 보여요. 최종 문장은 직접 정해요.</InfoTip></span>
-      {left > 0 && <Button variant="secondary" size="sm" className="min-h-11 lg:min-h-10" title="Alt + ↓" onClick={() => editor.current?.next()}>다음 확인할 곳 →</Button>}
-    </div>}
-    {ready && asked > 0 && <p role="status" className="m-0 flex flex-wrap items-center gap-x-1.5 text-sm text-body">
-      차곡이가 더 물어본 게 {asked}개 있어요 — 답하면 다음 초안에 들어가요
-      <Button variant="link" size="sm" className="min-h-11 lg:min-h-10" onClick={onAskDraft}>질문 보기</Button>
-    </p>}
     <label htmlFor={`answer-${questionId}`} className="sr-only">내가 쓴 답</label>
-    <div className="grid min-w-0 overflow-hidden rounded-[18px] border border-hairline bg-canvas has-[textarea:focus-visible]:outline-2 has-[textarea:focus-visible]:outline-offset-2 has-[textarea:focus-visible]:outline-ink">
+    <div className="grid min-w-0 overflow-hidden rounded-md border border-hairline bg-canvas has-[textarea:focus-visible]:outline-2 has-[textarea:focus-visible]:outline-offset-2 has-[textarea:focus-visible]:outline-ink">
       <DraftEditor handleRef={editor} inputId={`answer-${questionId}`} question={question} draft={ready} analysis={analysis} local={box.local}
         text={text} onText={g.setText} placeholder="여기에 답을 쓰거나, 차곡이에게 초안을 부탁해 보세요."
         disabled={g.loading || g.busy || analyzing || !g.initialized || locked} cardsDisabled={draftBusy || locked}
@@ -275,6 +272,8 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
             「분석 1회」는 분석을 쓰는 「근거 점검」 옆에만(S-15) — 「다 썼어요」는 저장만 하고(FE#270), 「초안 부탁하기」는 분석을 쓰지 않는다(FE#249) */}
         <div className="flex flex-wrap items-center gap-2">
           <SaveState status={autosave.status} onRetry={() => void autosave.retry()} />
+          {/* 「다 썼어요」가 다시 켜지는 것이 신호 — 따로 안내 줄을 두지 않는다(FE#463) */}
+          {a.answer && !same && <span role="status" className="text-xs text-muted">다 쓴 답과 달라요</span>}
           {/* 같은 글은 다시 점검하지 않는다 — 분석 1회를 아끼고 판정이 오락가락하지 않게(FE#317). 실패한 점검은 아래 「같은 글로 다시 시도」 */}
           {showGround && <><AnalysisButton variant="ghost" className="min-h-11 lg:min-h-10" running={g.busy || analyzing} title={checkedSame ? "이미 점검한 글이에요 — 고치면 다시 점검할 수 있어요" : undefined}
             disabled={!valid || g.loading || g.busy || analyzing || !g.initialized || checkedSame} onClick={() => void g.submit(text)}>
@@ -290,17 +289,13 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
       </div>
     </div>
     {autosave.status === "error" && <p role="alert" className="m-0 text-sm text-error">쓰는 글을 저장하지 못했어요. {autosave.error} 글은 이 화면에 그대로 있어요 — 「다시 저장」을 눌러 주세요.</p>}
-    {/* 답칸 글이 있으면 덮기 전에 늘 묻는다 — 손대지 않은 새 초안도 잃는 글이다(FE#384) */}
-    {a.answer && text !== a.answer.text && <Button variant="link" size="sm" className="min-h-11 lg:min-h-10 justify-self-start" onClick={() => { if (text.trim()) setAsk("load"); else loadConfirmed(); }}>다 쓴 답 불러오기</Button>}
-    {confirmedNotDraft && !drafting && <Button variant="link" size="sm" className="min-h-11 lg:min-h-10 justify-self-start" onClick={loadDraft}>초안 글 다시 넣기</Button>}
     {a.failure && <div className="grid justify-items-start gap-2">
       <p role="alert" className="m-0 text-sm text-error">{a.failure.message}{a.pollFailures >= 3 && " 자동 확인을 멈췄어요."}</p>
       {!a.failure.limit && <Button variant="secondary" className="min-h-11 lg:min-h-10" title={a.failure.action === "find" ? "분석 1회" : undefined} disabled={a.busy || (a.failure.action === "find" && exhausted)} onClick={() => void (a.failure?.action === "confirm" ? a.confirm(a.failure.text!) : a.failure?.action === "find" ? a.retryFind() : a.refresh())}>
         {a.failure.action === "confirm" ? "같은 답으로 다시 저장" : a.failure.action === "find" ? "다시 찾기" : "저장 상태 다시 확인"}
       </Button>}
     </div>}
-    {a.answer && (same ? <SavedLine answer={a.answer} onNewFacts={onNewFacts} />
-      : <p role="status" className="m-0 text-sm text-muted">고친 내용이 있어요 · 「다 썼어요」를 다시 눌러 주세요</p>)}
+    {a.answer && same && <SavedLine answer={a.answer} onNewFacts={onNewFacts} />}
     {g.loading && <p role="status" className="m-0 text-sm text-muted">마지막 근거 점검을 불러오고 있어요…</p>}
     {analyzing && <p role="status" className="m-0 text-sm text-muted">문장을 근거와 대조하고 있어요. 새로고침해도 점검한 글과 진행 상태를 이어서 확인해요.</p>}
     {g.failure && <div className="grid justify-items-start gap-2">

@@ -119,42 +119,21 @@ test("확인할 곳이 없으면 알약이 모두 확인했어요 ✓ 이다", a
   await expect(page.getByText(/확인할 곳 \d/)).toHaveCount(0);
 });
 
-// FE#262 — 빈칸이 아닌 빠진 사실 질문은 차곡이 패널에만 있어서 답칸 머리에서 알린다
-const ASKED_LINE = (n: number) => `차곡이가 더 물어본 게 ${n}개 있어요 — 답하면 다음 초안에 들어가요`;
+// FE#463 — 빈칸이 아닌 빠진 사실 질문은 차곡이 버튼 배지 · 패널이 알린다. 답칸 위 「더 물어본 게 N개」 줄(FE#262)은 뺐다
 const EXTRA_OMISSION = { text: "맡은 역할 · 기간", question: "이 일을 얼마 동안 맡았나요?", experienceId: 101, clarificationId: 66, supplementId: null, placeholder: null, sentenceIndex: null };
 const withExtraQuestion = (q: QuestionDetail) => { q.draft!.omitted.push(structuredClone(EXTRA_OMISSION)); };
-const askedLine = (page: Page) => page.getByRole("status").filter({ hasText: "차곡이가 더 물어본 게" });
 
-test("더 물어본 질문 줄 — 빈칸이 아닌 질문만 세고, 질문 보기가 차곡이 패널의 초안 질문으로 데려간다", async ({ page }) => {
+test("답칸 위에 「더 물어본 게」 줄은 없다 — 빈칸은 확인할 곳이 세고, 칩을 지우면 거기서 빠진다, 옛 구역은 없다", async ({ page }, info) => {
   await open(page, withExtraQuestion); // 빈칸 1(64) + 빈칸 아닌 질문 2(65 · 66)
-  await expect(askedLine(page)).toHaveText(new RegExp(ASKED_LINE(2)));
-  await expect(page.getByText("확인할 곳 4군데", { exact: true })).toBeVisible(); // 빈칸은 확인할 곳이 센다
-  await askedLine(page).getByRole("button", { name: "질문 보기", exact: true }).click();
-  await expect(page.locator('section[aria-label="차곡이의 초안"]:focus-within')).toBeVisible();
-  await expect(page.getByRole("list", { name: "초안의 빠진 사실" })).toBeVisible();
-  if (page.viewportSize()!.width < 1024) await expect(page.getByRole("dialog", { name: "차곡이" })).toBeVisible(); // 좁은 폭은 시트
-});
-
-test("더 물어본 질문 줄 — 답하면 수가 줄고 0 이 되면 사라진다", async ({ page }) => {
-  await open(page, withExtraQuestion);
-  await expect(askedLine(page)).toHaveText(new RegExp(ASKED_LINE(2)));
-  await askedLine(page).getByRole("button", { name: "질문 보기", exact: true }).click();
-  const panel = page.getByRole("list", { name: "초안의 빠진 사실" });
-  await panel.getByRole("textbox", { name: "답: 채팅 방식을 바꾸며 배운 점이나 느낀 점이 있나요?" }).fill("협업이 중요하다는 점");
-  await panel.getByRole("textbox", { name: "답: 채팅 방식을 바꾸며 배운 점이나 느낀 점이 있나요?" }).locator("xpath=ancestor::form[1]").getByRole("button", { name: "답하기", exact: true }).click();
-  if (page.viewportSize()!.width < 1024) { await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toHaveCount(0); }
-  await expect(askedLine(page)).toHaveText(new RegExp(ASKED_LINE(1)));
-  await askedLine(page).getByRole("button", { name: "질문 보기", exact: true }).click();
-  await page.getByRole("list", { name: "초안의 빠진 사실" }).getByRole("textbox", { name: "답: 이 일을 얼마 동안 맡았나요?" }).fill("두 달");
-  await page.getByRole("list", { name: "초안의 빠진 사실" }).getByRole("textbox", { name: "답: 이 일을 얼마 동안 맡았나요?" }).locator("xpath=ancestor::form[1]").getByRole("button", { name: "답하기", exact: true }).click();
-  if (page.viewportSize()!.width < 1024) { await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toHaveCount(0); }
+  await page.screenshot({ path: `docs/fe-463/answer-head-${info.project.name}.png`, animations: "disabled" });
+  if (info.project.name === "desktop") { // 1024 — 아이콘 레일 폭도 같이 남긴다
+    await page.setViewportSize({ width: 1024, height: 1000 });
+    await page.screenshot({ path: "docs/fe-463/answer-head-1024.png", animations: "disabled" });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+  }
   await expect(page.getByText("차곡이가 더 물어본 게")).toHaveCount(0);
-});
-
-test("더 물어본 질문 줄 — 칩을 지우면 확인할 곳에서 빠지고 그 질문이 안내 줄에 남는다, 옛 구역은 없다", async ({ page }) => {
-  await open(page, withExtraQuestion); // 빈칸 1(64) + 빈칸 아닌 질문 2(65 · 66)
-  await expect(askedLine(page)).toHaveText(new RegExp(ASKED_LINE(2)));
-  await expect(page.getByText("확인할 곳 4군데", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "질문 보기", exact: true })).toHaveCount(0);
+  await expect(page.getByText("확인할 곳 4군데", { exact: true })).toBeVisible(); // 빈칸은 확인할 곳이 센다
   const box = answerBox(page);
   await box.focus();
   const end = COMPOSED.indexOf("[줄어든 정도]") + "[줄어든 정도]".length;
@@ -163,13 +142,8 @@ test("더 물어본 질문 줄 — 칩을 지우면 확인할 곳에서 빠지�
   await page.keyboard.press("Backspace"); // 한 번 더 누르면 지운다
   await expect(box).not.toHaveValue(/\[줄어든 정도\]/);
   await expect(page.getByText("확인할 곳 3군데", { exact: true })).toBeVisible();
-  await expect(askedLine(page)).toHaveText(new RegExp(ASKED_LINE(3)));
   await expect(page.getByRole("region", { name: "초안의 빠진 사실" })).toHaveCount(0);
   await expect(page.getByText("초안의 빠진 사실 — 답은 글과 따로")).toHaveCount(0);
-  await askedLine(page).getByRole("button", { name: "질문 보기", exact: true }).click();
-  await expect(page.locator('section[aria-label="차곡이의 초안"]:focus-within')).toBeVisible();
-  await expect(page.getByRole("list", { name: "초안의 빠진 사실" })).toBeVisible();
-  if (page.viewportSize()!.width < 1024) await expect(page.getByRole("dialog", { name: "차곡이" })).toBeVisible();
 });
 
 test("떠나기 경고 — 고친 글이 있을 때만 beforeunload 를 막는다", async ({ page }) => {
@@ -301,12 +275,12 @@ test("확인할 곳이 없으면 다음 확인할 곳 버튼이 없고, 글은 �
   await expect(page.getByText("고친 글의 문장별 근거는")).toHaveCount(0);
 });
 
-test("초안 글이 입력칸에 그대로 들어오고, 빠진 사실은 한 줄로만 알리며 글은 바뀌지 않는다", async ({ page }) => {
+test("초안 글이 입력칸에 그대로 들어오고, 답칸 위에 질문 안내 줄 없이 글은 바뀌지 않는다", async ({ page }) => {
   const api = await open(page);
   await expect(answerBox(page)).toHaveValue(COMPOSED);
   await expect(page.getByText("확인할 곳 4군데", { exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "초안의 빠진 사실" })).toHaveCount(0);
-  await expect(askedLine(page)).toHaveText(new RegExp(ASKED_LINE(1))); // 빈칸(64)은 확인할 곳이 세고, 글에 자리가 없는 빠진 사실(65)만 안내 줄
+  await expect(page.getByText("차곡이가 더 물어본 게")).toHaveCount(0); // 글에 자리가 없는 빠진 사실(65)은 차곡이 패널이 알린다(FE#463)
   expect(posts(api)).toEqual([]);
   await expect(page.getByText("차곡이 초안 보기")).toHaveCount(0);
   await expect(page.getByText("목표보다 짧을 수 있어요", { exact: false })).toHaveCount(0);
