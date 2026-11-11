@@ -6,6 +6,7 @@ import { useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ArrowUpIcon, CaretRightIcon, CheckIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { InfoTip } from "@/components/ui/info-tip";
 import { MCP_ANSWER_NOTE, mcpAnswerName } from "@/components/experience/supplement-list";
 import { mcpClientName } from "@/lib/api/mcp";
 import { MAX_ANSWER_LENGTH, type Clarification, type QuestionExperience, type Supplement } from "@/lib/api/question-types";
@@ -27,7 +28,7 @@ export const clarifyList = "m-0 grid list-none divide-y divide-hairline-soft p-0
 
 /** 되묻기 묶음 — 문항 · 초안 되묻기를 한 블록으로(FE#336). 기본은 접고, 답할 게 남았으면 머리줄에 점 · 개수로 강조한다.
  *  외부 AI 를 거친 답(attention)이 있으면 펼친 채 시작한다. openSignal 이 바뀌면(초안 부탁 · 질문 보기) 답할 게 남았을 때 연다 */
-export function ClarifyBlock({ title, total, answered, attention = false, openSignal = 0, children }: { title: string; total: number; answered: number; attention?: boolean; openSignal?: number; children: ReactNode }) {
+export function ClarifyBlock({ title, info, total, answered, attention = false, openSignal = 0, children }: { title: string; /** 제목 옆 ⓘ — 처음 한 번 읽으면 되는 설명 */ info?: ReactNode; total: number; answered: number; attention?: boolean; openSignal?: number; children: ReactNode }) {
   const left = total - answered;
   // 좁은 폭은 패널이 시트라 질문 보기와 함께 새로 그려진다 — 요청이 이미 있으면 열린 채 시작한다(초안 구역의 초점 이동과 같은 기준)
   const [open, setOpen] = useState(attention || (openSignal > 0 && left > 0));
@@ -36,7 +37,10 @@ export function ClarifyBlock({ title, total, answered, attention = false, openSi
   return <details open={open} onToggle={e => setOpen(e.currentTarget.open)} className="group/block min-w-0 rounded-sm border border-hairline bg-canvas">
     <summary className="flex min-h-11 lg:min-h-10 cursor-pointer list-none items-center gap-2 px-3.5 py-2 [&::-webkit-details-marker]:hidden">
       <CaretRightIcon aria-hidden="true" className="size-4 shrink-0 text-muted transition-transform group-open/block:rotate-90" />
-      <span className="min-w-0 flex-1 text-sm font-semibold text-ink">{title}</span>
+      <span className="min-w-0 text-sm font-semibold text-ink">{title}</span>
+      {/* ⓘ 를 눌러도 블록이 접히거나 펴지지 않게 — 말풍선이 열린 뒤 summary 의 기본 동작만 막는다 */}
+      {info && <span className="-ml-1.5 inline-flex" onClick={e => e.preventDefault()}><InfoTip label={title}>{info}</InfoTip></span>}
+      <span className="flex-1" />
       {left > 0 ? <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-review tabular-nums"><span aria-hidden="true" className="size-1.5 rounded-full bg-review" />답할 것 {left}개</span>
         : <span className="shrink-0 text-xs text-muted tabular-nums">모두 답했어요</span>}
     </summary>
@@ -110,17 +114,30 @@ export function AnswerForm({ head, question, label, disabled, onSave, after }: {
   </>;
 }
 
-export function ClarificationItem({ activityName, clarification: c, experience, onAnswer }: {
-  activityName: string; clarification: Clarification; experience: QuestionExperience; onAnswer?: AnswerHandler;
+/** 되묻기 항목의 머리 — 활동 칩(누르면 그 활동) → 그 경험 한 줄(회색 인용). 문항 되묻기 · 초안 빈칸 질문이 같은 모양(FE#464).
+ *  이동 링크라 근거 색을 쓰지 않는다. 글 길이가 달라도 칩 · 인용 · 질문 순서가 같다 */
+export function AskHead({ activityId, activityName, content, questionId }: { activityId?: number | null; activityName?: string | null; content?: string | null; questionId: number }) {
+  if (!activityName && !content) return null;
+  return <div className="grid min-w-0 justify-items-start gap-1.5">
+    {activityName && (activityId != null
+      ? <Link href={`/experience?activity=${activityId}&fromQuestion=${questionId}`} title="활동 보기" className="inline-flex max-w-full rounded-full transition-opacity hover:opacity-70"><ActivityChip name={activityName} /></Link>
+      : <ActivityChip name={activityName} />)}
+    {content && <p className="m-0 line-clamp-2 border-l-2 border-hairline pl-2.5 text-note leading-relaxed break-words text-muted">{content}</p>}
+  </div>;
+}
+
+export function ClarificationItem({ activityName, clarification: c, experience, questionId, onAnswer }: {
+  activityName: string; clarification: Clarification; experience: QuestionExperience; questionId: number; onAnswer?: AnswerHandler;
 }) {
+  const head = <AskHead activityId={experience.activityId} activityName={activityName} content={experience.content} questionId={questionId} />;
   if (c.supplementId !== null) {
     const supplement = experience.supplements.find(s => s.id === c.supplementId);
     return <AnsweredItem question={c.question} supplement={supplement}
-      head={<span className="grid justify-items-start"><ActivityChip name={activityName} /></span>}
+      head={head}
       note={<SupplementNote supplement={supplement} activityId={experience.activityId} activityName={activityName} />} />;
   }
   return <li className={openItem}>
-    <AnswerForm head={<ActivityChip name={activityName} />} question={<p className="m-0 text-sm leading-relaxed font-semibold text-ink">{c.question}</p>} label={c.question} disabled={!onAnswer} onSave={async text => {
+    <AnswerForm head={head} question={<p className="m-0 text-sm leading-relaxed font-semibold text-ink">{c.question}</p>} label={c.question} disabled={!onAnswer} onSave={async text => {
       try { await onAnswer!(c.id, text); return null; }
       catch (e) { return e instanceof Error ? e.message : "보완을 저장하지 못했어요. 다시 시도해 주세요."; }
     }} />

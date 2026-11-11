@@ -1,16 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import type { DraftFrame } from "@/lib/draft-frames";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api/errors";
 import type { DraftOmission, QuestionDetail } from "@/lib/api/question-types";
-import { AnsweredItem, AnswerForm, bubble, openItem, SupplementNote, type AnswerHandler } from "./clarifications";
+import { AnsweredItem, AnswerForm, AskHead, bubble, openItem, SupplementNote, type AnswerHandler } from "./clarifications";
 import { DraftComposer } from "./draft-composer";
 import { isSupposedPair } from "./answer-draft";
 import { getShowsConfirmed, subscribeShowsConfirmed } from "./answer-box-state";
-import { ActivityChip } from "./question-result";
 import { requestError } from "./draft-errors";
 import { scrollWithinContainer } from "@/lib/scroll";
 import { cn } from "@/lib/utils";
@@ -51,20 +49,15 @@ export function OmissionItem({ item, question, onAnswer, onRefresh, disabled }: 
   onRefresh: () => Promise<void>; disabled: boolean;
 }) {
   const { activityId, activityName, content, supplement } = omissionSource(question, item);
-  const where = <>
-    <p className="m-0 text-note leading-relaxed text-muted">{item.text}</p>
-    {activityId != null && activityName && <Link href={`/experience?activity=${activityId}&fromQuestion=${question.id}`}
-      className="grid min-w-0 gap-1 text-note leading-relaxed text-evidence underline-offset-4 hover:underline">
-      <ActivityChip name={activityName} />
-      {content && <span className="break-words">{content}</span>}
-    </Link>}
-  </>;
+  // 문항 되묻기와 같은 머리(FE#464) — 질문과 같은 말인 요약 줄(item.text)은 경험을 모를 때만 대신 보인다
+  const where = activityName || content ? <AskHead activityId={activityId} activityName={activityName} content={content} questionId={question.id} />
+    : <p className="m-0 text-note leading-relaxed text-muted">{item.text}</p>;
 
   if (item.supplementId !== null) return <AnsweredItem question={item.question!} supplement={supplement} head={where}
     note={<SupplementNote supplement={supplement} activityName={activityName ?? undefined} />} />;
 
   return <li className={openItem}>
-    <AnswerForm head={<span className="flex min-w-0 flex-wrap items-center gap-1.5">{where}</span>} question={<p className="m-0 break-words text-sm font-semibold text-ink">{item.question}</p>} label={item.question!} disabled={disabled} onSave={async text => {
+    <AnswerForm head={where} question={<p className="m-0 break-words text-sm font-semibold text-ink">{item.question}</p>} label={item.question!} disabled={disabled} onSave={async text => {
       try { await onAnswer(item.clarificationId!, text); return null; }
       catch (e) { return answerError(e); }
     }} after={<Button variant="secondary" size="sm" className="min-h-11 lg:min-h-10" disabled={disabled} onClick={() => void onRefresh()}>초안 상태 확인</Button>} />

@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { MAX_QUESTIONS_PER_APPLICATION, type Answer, type AnswerDraft, type Application, type QuestionDetail, type QuestionSummary, type QuestionType, type UpdateApplicationRequest } from "@/lib/api/question-types";
 import { markPrefilled, targetLengthFromText, wasPrefilled } from "@/lib/target-length";
 import { AddQuestionForm, ApplicationForm } from "./application-form";
-import { overlapsOf, sameExperienceElsewhere, type Overlap } from "./overlap";
+import { overlapsOf, type Overlap } from "./overlap";
 import { AnswerInput } from "./answer-input";
 import { createGroundingChecks, type GroundingChecks } from "./use-grounding-check";
 import type { DraftFrame } from "@/lib/draft-frames";
@@ -374,28 +374,6 @@ function QuestionTabs({ questions, selectedId, adding, canAdd, onPick, onAdd }: 
   </div>;
 }
 
-/** 여러 문항에 추천된 활동(S-21) — 참고 경험 뒤에 둔다(FE#148). 문항별로 어떤 경험 · 강조점인지 나란히. 경고가 아니라 정보 */
-function OverlapPanel({ overlaps, onPick }: { overlaps: Overlap[]; onPick: (questionId: number) => void }) {
-  return <section aria-labelledby="overlap-title" className="mt-8 grid gap-3 rounded-md bg-surface-soft p-4.5">
-    <div>
-      <div className="flex items-center gap-0.5"><h3 id="overlap-title" className="m-0 text-ui font-semibold">여러 문항에 추천된 활동</h3><InfoTip label="여러 문항에 추천된 활동">같은 활동이라도 문항마다 강조하는 점이 달라요. 겹쳐 보이면 문항마다 다른 경험을 골라도 돼요.</InfoTip></div>
-      <p className="mt-1 mb-0 text-note text-muted">강조점은 AI 해석이에요.</p>
-    </div>
-    <ul className="m-0 grid list-none gap-3 p-0">{overlaps.map(g => <li key={g.activity.id} className="grid gap-1.5">
-      <span className="text-sm font-semibold">{g.activity.name}</span>
-      <ul className="m-0 grid list-none gap-1.5 p-0">{g.uses.map(u => <li key={`${u.questionId}-${u.recommendation.experience.id}`}>
-        <button type="button" onClick={() => onPick(u.questionId)} className="grid w-full gap-0.5 rounded-sm bg-canvas px-3 py-2 text-left hover:shadow-[inset_0_0_0_1px_var(--hairline)] sm:grid-cols-[64px_minmax(0,1fr)] sm:gap-3">
-          <span className="text-note font-semibold">문항 {u.index + 1}</span>
-          <span className="grid gap-0.5">
-            <span className="text-sm text-body">{u.recommendation.emphasis}</span>
-            <span className="line-clamp-1 text-note text-muted">{u.recommendation.experience.content}</span>
-          </span>
-        </button>
-      </li>)}</ul>
-    </li>)}</ul>
-  </section>;
-}
-
 /** 목표 글자 수가 비어 있고 문항 글에 「500자」가 있으면 한 번 채워 저장한다(S-77 — 코드, LLM 안 씀). 이 브라우저에서 한 번 채운 문항은
  *  다시 채우지 않는다 — 사용자가 지운 칸을 되살리지 않게. 저장에 실패하면 다음에 다시 시도한다 */
 function useTargetLengthPrefill(question: QuestionSummary | null, save: (id: number, targetLength: number | null) => Promise<void>) {
@@ -456,7 +434,6 @@ function SelectedQuestion({ summary, question, application, index, loadError, on
         }}><ArrowsClockwiseIcon aria-hidden="true" />{retrying ? "다시 시작하고 있어요…" : "다시 시도"}</Button>
         <AnalysisCost running={retrying} />
         {retryError && <p role="alert" className="m-0 text-sm text-error">{retryError}</p>}
-      </CenterState> : <QuestionResult key={question.id} question={question} elsewhere={id => sameExperienceElsewhere(overlaps, question.id, id)} onOpenOmissions={onOpenOmissions} savingAnswer={savingAnswer} requestingDraft={requestingDraft} picks={picks} onPick={onPick} onRematch={onRetry} />}
-    {overlaps.length > 0 && <OverlapPanel overlaps={overlaps} onPick={onPickOverlap} />}
+      </CenterState> : <QuestionResult key={question.id} question={question} overlapOf={id => overlaps.find(g => g.activity.id === id)} onPickQuestion={onPickOverlap} onOpenOmissions={onOpenOmissions} savingAnswer={savingAnswer} requestingDraft={requestingDraft} picks={picks} onPick={onPick} onRematch={onRetry} />}
   </section>;
 }
