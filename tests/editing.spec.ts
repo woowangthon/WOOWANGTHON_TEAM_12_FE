@@ -3,6 +3,7 @@ import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import type { ActivityDetail, UpdateActivityRequest, UpdateExperienceRequest } from "../src/lib/api/types";
 import { pickOption } from "./pick-option";
+import { clickOutside } from "./click-outside";
 
 for (const scenario of [
   { by: "AI", status: "USER_ENTERED", values: ["IMPLEMENTATION"], visible: true },
@@ -35,7 +36,7 @@ test("AI marker survives content and actor edits, disappears on competency edit"
   await expect(ai).toHaveCount(1);
   const pop = await openCompetencies(page);
   await pop.getByLabel("협업", { exact: true }).check();
-  await pop.getByRole("button", { name: "저장", exact: true }).click();
+  await clickOutside(page);
   await expect(pop).toHaveCount(0);
   await expect(ai).toHaveCount(0);
   expect(state.patches.map((p) => p.body)).toEqual([
@@ -43,25 +44,21 @@ test("AI marker survives content and actor edits, disappears on competency edit"
   ]);
 });
 
-// ETC#249 — 주체 · 역량만 고치면 「내가 입력」이 되지 않고 안내도 없다. 본문만 그렇다
-test("actor and competency edits keep the source status and show no 내가 입력 note, content edits do", async ({ page }) => {
+// ETC#249 — 주체 · 역량만 고치면 「내가 입력」이 되지 않는다. 본문만 그렇다(고치는 중 안내는 없다 — FE#512)
+test("actor and competency edits keep the source status, content edits do", async ({ page }) => {
   const state = await setup(page);
   const badge = page.getByText("내가 입력", { exact: true });
   await page.getByRole("button", { name: /^수행 주체 고치기:/ }).click();
   await expect(page.getByRole("menuitemradio", { name: "팀" })).toBeVisible();
-  await expect(page.getByText(/고치면 「내가 입력」이 돼요/)).toHaveCount(0);
   await page.getByRole("menuitemradio", { name: "팀" }).click();
   await expect(page.getByRole("button", { name: "수행 주체 고치기: 팀" })).toBeVisible();
   const pop = await openCompetencies(page);
   await pop.getByLabel("협업", { exact: true }).check();
-  await pop.getByRole("button", { name: "저장", exact: true }).click();
+  await clickOutside(page);
   await expect(pop).toHaveCount(0);
   expect(state.patches.map((p) => p.body)).toEqual([{ actor: "TEAM" }, { competencies: ["COLLABORATION"] }]);
   expect(state.activity.experiences[0].sourceStatus).toBe("SOURCE_CONFIRMED");
   await expect(badge).toHaveCount(0);
-  await page.getByRole("button", { name: /^경험 고치기:/ }).click();
-  await expect(page.getByText(/고치면 「내가 입력」이 돼요/)).toBeVisible();
-  await page.getByLabel("경험 내용").press("Escape");
   await editContent(page, "Changed content");
   expect(state.activity.experiences[0].sourceStatus).toBe("USER_ENTERED");
   await expect(badge).toBeVisible();
@@ -188,7 +185,7 @@ test("activity period is picked by year · month in a small menu and applies PM 
       await expect(page.getByLabel("종료 연도")).toBeDisabled();
     }
     const count = state.patches.length;
-    await pop.getByRole("button", { name: "저장", exact: true }).click();
+    await clickOutside(page);
     await expect(pop).toHaveCount(0);
     expect(state.patches).toHaveLength(count + 1);
     expect(state.patches.at(-1)!.body).toEqual({ name: "API test activity", period });
@@ -198,7 +195,7 @@ test("activity period is picked by year · month in a small menu and applies PM 
   for (const [start, end] of [["2026", "2025"], ["2025-04", "2025-03"]]) {
     await pick(page, "시작", start);
     await pick(page, "종료", end);
-    await pop.getByRole("button", { name: "저장", exact: true }).click();
+    await clickOutside(page);
     await expect(pop.getByRole("alert")).toContainText("시작일은 종료일보다 늦을 수 없어요");
     await expect(page.getByLabel("시작 연도")).toHaveText(`${Number(start.slice(0, 4))}년`);
     expect(state.patches).toHaveLength(valid.length);
@@ -218,7 +215,7 @@ test("day precision survives when year · month are unchanged; clearing the year
   await expect(page.getByLabel("시작 연도")).toHaveText("2025년");
   await expect(page.getByLabel("시작 월")).toHaveText("3월");
   await pickOption(page.getByLabel("종료 월"), "7월");
-  await pop.getByRole("button", { name: "저장", exact: true }).click();
+  await clickOutside(page);
   await expect(pop).toHaveCount(0);
   expect(state.patches.at(-1)!.body).toEqual({ name: "API test activity", period: { start: "2025-03-31", end: "2025-07", ongoing: false } });
   pop = await openPeriod(page);
@@ -243,13 +240,12 @@ test("source name opens stored text, marks the cited lines, and shows failure wi
   await expect(dialog.getByLabel("원문")).toContainText("셋째 줄");
 });
 
-test("experience: Esc cancels, no-op, empty validation, Shift+Enter newline, source status note and citations", async ({ page }) => {
+test("experience: Esc cancels, no-op, empty validation, Shift+Enter newline, outside click saves, citations", async ({ page }) => {
   const state = await setup(page);
   await expect(page.getByRole("button", { name: /^경험 수정:/ })).toHaveCount(0);
   const edit = () => page.getByRole("button", { name: /^경험 고치기:/ }).click();
   const field = page.getByLabel("경험 내용");
   await edit();
-  await expect(page.getByText(/고치면 「내가 입력」이 돼요/)).toBeVisible();
   await field.fill("Discarded");
   await field.press("Escape");
   await expect(page.getByText("Original experience", { exact: true })).toBeVisible();
@@ -269,15 +265,19 @@ test("experience: Esc cancels, no-op, empty validation, Shift+Enter newline, sou
   await field.press("Enter");
   await expect(page.getByText("내가 입력", { exact: true })).toBeVisible();
   expect(state.patches[0].body).toEqual({ content: "Updated\nexperience" });
-  // 이미 「내가 입력」이면 고치는 중에 다시 알리지 않는다
+  // 밖을 누르면(포커스가 빠지면) 저장 — 키 안내 · 저장/취소 버튼은 없다(FE#512)
   await edit();
-  await expect(page.getByText(/고치면 「내가 입력」이 돼요/)).toHaveCount(0);
-  await field.press("Escape");
+  await expect(page.getByRole("button", { name: "저장", exact: true })).toHaveCount(0);
+  await expect(page.getByText(/Enter 저장/)).toHaveCount(0);
+  await field.fill("Blurred");
+  await field.blur();
+  await expect(field).toHaveCount(0);
+  expect(state.patches[1].body).toEqual({ content: "Blurred" });
   // 근거를 눌러도 고치기가 열리지 않는다
   await page.getByRole("button", { name: /근거 1/ }).filter({ visible: true }).click();
   await expect(page.getByText("Original quote", { exact: true }).filter({ visible: true })).toBeVisible();
   await expect(field).toHaveCount(0);
-  if (page.viewportSize()!.width < 1024) await expect(page.getByRole("dialog")).toContainText("Updated");
+  if (page.viewportSize()!.width < 1024) await expect(page.getByRole("dialog")).toContainText("Blurred");
 });
 
 // 메뉴의 「고치기」는 뺐다 — 본문을 누르면 고쳐진다(FE#293)
@@ -323,11 +323,10 @@ test("competencies: edit picks up to 3 in order, order-only change counts, clear
   // 저장된 역량이 고른 상태로 열리고, 3개가 차면 나머지는 막힌다
   let pop = await openCompetencies(page);
   const pick = (label: string) => pop.getByLabel(label, { exact: true });
-  const save = async () => { await pop.getByRole("button", { name: "저장", exact: true }).click(); await expect(pop).toHaveCount(0); };
+  const save = async () => { await clickOutside(page); await expect(pop).toHaveCount(0); };
   for (const label of ["협업", "문제 해결", "기술 구현"]) await expect(pick(label)).toBeChecked();
   await expect(pick("기획")).toBeDisabled();
   await expect(pop.getByText("3 / 3", { exact: true })).toBeVisible();
-  await expect(pop.getByText(/고치면 「내가 입력」이 돼요/)).toHaveCount(0); // 역량은 출처 상태를 바꾸지 않으니 안내가 없다(ETC#249)
 
   // 하나를 빼고 새로 고르면 뒤에 붙는다 — 그 순서 그대로 보낸다
   await pick("문제 해결").uncheck();
@@ -398,11 +397,11 @@ test("actor and competency failures keep the old value, show the error, and can 
   await expect(page.getByRole("button", { name: "수행 주체 고치기: 나" })).toBeVisible();
   const pop = await openCompetencies(page);
   await pop.getByLabel("협업", { exact: true }).check();
-  await pop.getByRole("button", { name: "저장", exact: true }).click();
+  await clickOutside(page);
   await expect(pop.getByRole("alert")).toHaveText("Server rejected edit");
   await expect(pop.getByLabel("협업", { exact: true })).toBeChecked();
   state.fail = false;
-  await pop.getByRole("button", { name: "저장", exact: true }).click();
+  await clickOutside(page);
   await expect(pop).toHaveCount(0);
   await expect(page.getByRole("complementary").locator("li").first()).toContainText("협업");
 });
@@ -467,25 +466,3 @@ test("source HTTP failure keeps the text and never shows mock analysis success",
   await expect(page.getByText(/목 분석 결과/)).toHaveCount(0);
 });
 
-// FE#241 — 바로 고치기 안내는 두 줄: 위 「내가 입력」이 된다는 것(S-10), 아래 키. 한 문장으로 이어 붙여 중간에서 꺾이지 않는다
-test("바로 고치기 안내는 「내가 입력」 줄과 키 줄로 나뉘고 세 폭에서 각 줄이 꺾이지 않는다", async ({ page }, info) => {
-  await setup(page);
-  await page.getByRole("button", { name: /^경험 고치기:/ }).click();
-  const field = page.getByLabel("경험 내용");
-  const note = page.getByText("고치면 「내가 입력」이 돼요 · 원래 근거는 남아요", { exact: true });
-  const keys = page.getByText("Enter 저장 · Shift+Enter 줄 바꿈 · Esc 취소", { exact: true });
-  await expect(note).toBeVisible();
-  await expect(keys).toBeVisible();
-  await expect(field).toHaveAccessibleDescription("고치면 「내가 입력」이 돼요 · 원래 근거는 남아요 Enter 저장 · Shift+Enter 줄 바꿈 · Esc 취소");
-  const widths = info.project.name === "desktop" ? [1440, 1024, 390] : [page.viewportSize()!.width];
-  for (const width of widths) {
-    if (info.project.name === "desktop") await page.setViewportSize({ width, height: 1000 });
-    // 위 줄이 아래 줄보다 위 · 각 줄은 한 줄 높이를 넘지 않는다
-    const [n, k] = [(await note.boundingBox())!, (await keys.boundingBox())!];
-    expect(n.y + n.height).toBeLessThanOrEqual(k.y + 1);
-    const lineHeight = (el: typeof note) => el.evaluate((x) => parseFloat(getComputedStyle(x).lineHeight));
-    expect(n.height).toBeLessThan((await lineHeight(note)) * 1.5);
-    expect(k.height).toBeLessThan((await lineHeight(keys)) * 1.5);
-    if (info.project.name === "desktop") await page.screenshot({ path: `artifacts/inline-edit-hint-${width}.png`, style: "nextjs-portal { display: none !important; }" });
-  }
-});

@@ -191,7 +191,7 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
           </span>}
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
-              <Button variant="ghost" size="icon" className="size-11 lg:size-10" aria-label={`경험 메뉴: ${e.content}`}><DotsThreeIcon /></Button>
+              <Button variant="ghost" size="icon" className="size-11 lg:size-10" title="더 보기" aria-label={`경험 메뉴: ${e.content}`}><DotsThreeIcon /></Button>
             </DropdownMenu.Trigger>
             <DropdownMenu.Portal>
               {/* 순서: 켜고 끄는 것(저장 · 프로필) → 옮기기 · 합치기 → 지우기. 본문 고치기는 본문을 누르면 돼서 메뉴에 없다(FE#293) */}

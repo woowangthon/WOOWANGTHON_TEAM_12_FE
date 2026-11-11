@@ -1,4 +1,5 @@
 // 보완 고치기 · 지우기 (FE#33 · SPEC S-24 · experience-api.md 「PATCH · DELETE /api/supplements/{id}」)
+// FE#512 — 줄엔 답 글만(라벨 · 질문 없음). 답을 누르면 그 자리에서 고치고 밖을 누르면 저장 · Esc 취소, 지우기는 휴지통
 // Test-only HTTP fixture; this is not a deployed backend or persistence verification.
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
@@ -7,6 +8,7 @@ import type { ActivityDetail, Supplement } from "../src/lib/api/types";
 const QUESTION = "폴링을 WebSocket 으로 바꿀 때 직접 고친 부분은 어디였나요?";
 const ANSWER = "서버에 STOMP 엔드포인트를 만들고, 앱의 3초 폴링 코드를 구독 방식으로 바꿨다";
 const OTHER_QUESTION = "고친 뒤 정상 동작을 어떻게 확인했나요?";
+const OTHER_ANSWER = "두 기기에서 동시에 알림을 받아 봤다";
 
 async function setup(page: Page) {
   const supplement = (id: number, question: string, answer: string): Supplement =>
@@ -17,7 +19,7 @@ async function setup(page: Page) {
       id: 101, activityId: 7, content: "폴링으로 받던 알림을 WebSocket 으로 바꿨다", competencies: ["IMPLEMENTATION"], competenciesBy: "AI",
       actor: "ME", sourceStatus: "SOURCE_CONFIRMED",
       citations: [{ id: 201, sourceId: 12, sourceName: "회고.md", quote: "알림을 WebSocket 으로 바꿈", matched: true, location: { startLine: 3, endLine: 3 } }],
-      supplements: [supplement(301, QUESTION, ANSWER), supplement(302, OTHER_QUESTION, "두 기기에서 동시에 알림을 받아 봤다")],
+      supplements: [supplement(301, QUESTION, ANSWER), supplement(302, OTHER_QUESTION, OTHER_ANSWER)],
     }],
   };
   const state = { activity, calls: [] as { method: string; path: string; body: unknown }[], fail: false };
@@ -54,9 +56,11 @@ async function open(page: Page) {
 
 test("보완의 답을 바로 고치면 새로고침해도 남고, 경험 본문 · 출처 상태는 그대로다", async ({ page }) => {
   const state = await setup(page);
-  await page.getByRole("button", { name: `보완 고치기: ${QUESTION}` }).click();
+  await page.getByRole("button", { name: `보완 고치기: ${ANSWER}` }).click();
+  await expect(page.getByText("내가 입력 · ")).toHaveCount(0);
+  await expect(page.getByText(QUESTION)).toHaveCount(0);
   await page.getByLabel(`답: ${QUESTION}`).fill("STOMP 엔드포인트를 만들고 재연결도 붙였다");
-  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await page.getByLabel(`답: ${QUESTION}`).blur();
   await expect(page.getByText("STOMP 엔드포인트를 만들고 재연결도 붙였다")).toBeVisible();
   await expect(page.getByLabel(`답: ${QUESTION}`)).toHaveCount(0);
   expect(state.calls).toEqual([{ method: "PATCH", path: "/api/supplements/301", body: { answer: "STOMP 엔드포인트를 만들고 재연결도 붙였다" } }]);
@@ -66,42 +70,44 @@ test("보완의 답을 바로 고치면 새로고침해도 남고, 경험 본문
   await expect(page.getByText("원문 확인")).toBeVisible();
 });
 
-test("고치기가 실패하면 원래 답을 두고 알린다", async ({ page }) => {
+test("고치기가 실패하면 쓴 글을 두고 알리고, Esc 면 원래 답으로", async ({ page }) => {
   const state = await setup(page);
   state.fail = true;
-  await page.getByRole("button", { name: `보완 고치기: ${QUESTION}` }).click();
-  await page.getByLabel(`답: ${QUESTION}`).fill("바뀐 답");
-  await page.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(page.getByRole("alert").filter({ hasText: /./ })).toContainText("원래 답을 그대로 뒀어요");
-  await page.getByRole("button", { name: "취소", exact: true }).click();
+  await page.getByRole("button", { name: `보완 고치기: ${ANSWER}` }).click();
+  const field = page.getByLabel(`답: ${QUESTION}`);
+  await field.fill("바뀐 답");
+  await field.blur();
+  await expect(page.getByRole("alert").filter({ hasText: /./ })).toContainText("쓴 글은 그대로 있어요");
+  await expect(field).toHaveValue("바뀐 답");
+  await field.press("Escape");
   await expect(page.getByText(ANSWER)).toBeVisible();
 });
 
 test("빈 답은 보내지 않는다", async ({ page }) => {
   const state = await setup(page);
-  await page.getByRole("button", { name: `보완 고치기: ${QUESTION}` }).click();
+  await page.getByRole("button", { name: `보완 고치기: ${ANSWER}` }).click();
   await page.getByLabel(`답: ${QUESTION}`).fill("   ");
-  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await page.getByLabel(`답: ${QUESTION}`).press("Enter");
   await expect(page.getByRole("alert").filter({ hasText: /./ })).toContainText("답을 입력해 주세요");
   expect(state.calls).toEqual([]);
 });
 
 test("보완을 지우면 새로고침해도 돌아오지 않는다", async ({ page }) => {
   const state = await setup(page);
-  await page.getByRole("button", { name: `보완 지우기: ${QUESTION}` }).click();
+  await page.getByRole("button", { name: `보완 지우기: ${ANSWER}` }).click();
   await page.getByRole("group", { name: "보완 지우기 확인" }).getByRole("button", { name: "지우기" }).click();
   await expect(page.getByText(ANSWER)).toHaveCount(0);
-  await expect(page.getByText(OTHER_QUESTION)).toBeVisible();
+  await expect(page.getByText(OTHER_ANSWER)).toBeVisible();
   expect(state.calls).toEqual([{ method: "DELETE", path: "/api/supplements/301", body: null }]);
   await page.reload();
   await page.getByRole("button", { name: /실시간 알림 프로젝트/ }).click();
-  await expect(page.getByText(OTHER_QUESTION)).toBeVisible();
+  await expect(page.getByText(OTHER_ANSWER)).toBeVisible();
   await expect(page.getByText(ANSWER)).toHaveCount(0);
 });
 
 test("지우기를 취소하면 아무것도 보내지 않는다", async ({ page }) => {
   const state = await setup(page);
-  await page.getByRole("button", { name: `보완 지우기: ${QUESTION}` }).click();
+  await page.getByRole("button", { name: `보완 지우기: ${ANSWER}` }).click();
   await page.getByRole("group", { name: "보완 지우기 확인" }).getByRole("button", { name: "취소" }).click();
   await expect(page.getByText(ANSWER)).toBeVisible();
   expect(state.calls).toEqual([]);
@@ -110,7 +116,7 @@ test("지우기를 취소하면 아무것도 보내지 않는다", async ({ page
 test("지우기가 실패하면 보완을 되돌리고 알린다", async ({ page }) => {
   const state = await setup(page);
   state.fail = true;
-  await page.getByRole("button", { name: `보완 지우기: ${QUESTION}` }).click();
+  await page.getByRole("button", { name: `보완 지우기: ${ANSWER}` }).click();
   await page.getByRole("group", { name: "보완 지우기 확인" }).getByRole("button", { name: "지우기" }).click();
   await expect(page.getByRole("alert").filter({ hasText: /./ })).toContainText("지우지 못해 되돌렸어요");
   await expect(page.getByText(ANSWER)).toBeVisible();

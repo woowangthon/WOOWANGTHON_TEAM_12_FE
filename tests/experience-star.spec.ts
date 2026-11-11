@@ -72,20 +72,24 @@ async function setup(page: Page, star: Star) {
 /** 점 버튼 — PC 는 아래로 펼치고, 모바일은 하단 시트 */
 const starButton = (page: Page) => page.getByRole("button", { name: /^STAR 칸 — / }).locator("visible=true");
 
-test("경험 펼치기 → 빈칸 답하기 → 점이 바뀜 → 찬 칸 고치기", async ({ page }) => {
+// FE#512 — 빈칸은 질문을 안내 글로 품은 입력칸, 쓰고 밖을 누르면 찬다. 찬 칸은 누르면 그 자리에서 고친다. 저장/취소 버튼 · 「내 답」 꼬리표 없음
+test("경험 펼치기 → 빈칸에 쓰고 밖을 누름 → 점이 바뀜 → 찬 칸 고치기", async ({ page }) => {
   const state = await setup(page, readyStar());
   await expect(starButton(page)).toHaveAccessibleName(/찬 칸 2 · 빈칸 2/);
   await starButton(page).click();
   const panel = page.getByLabel("STAR 칸", { exact: true }).locator("visible=true");
   await expect(panel.getByText("자식 프로세스가 좀비로 남는 버그")).toBeVisible();
   await expect(panel.getByText("원문", { exact: true })).toBeVisible();
-  await expect(panel.getByText("내 답", { exact: true })).toBeVisible();
-  await expect(panel.getByText(T_QUESTION)).toBeVisible();
+  await expect(panel.getByText("내 답", { exact: true })).toHaveCount(0);
+  // 질문은 굵은 글이 아니라 입력칸 안 안내 글
+  const t = panel.getByLabel("과제 · 내 몫 칸 글");
+  await expect(t).toHaveAttribute("placeholder", T_QUESTION);
+  await expect(panel.getByText(T_QUESTION)).toHaveCount(0);
+  await expect(panel.getByRole("button", { name: /답하기|저장|취소/ })).toHaveCount(0);
 
-  await panel.getByLabel(`답: ${T_QUESTION}`).fill("제가 혼자 맡았어요");
-  await panel.getByRole("button", { name: "답하기" }).click();
-  await expect(panel.getByText("제가 혼자 맡았어요")).toBeVisible();
-  await expect(panel.getByLabel(`답: ${T_QUESTION}`)).toHaveCount(0);
+  await t.fill("제가 혼자 맡았어요");
+  await t.blur();
+  await expect(panel.getByRole("button", { name: /^과제 · 내 몫 고치기: 제가 혼자 맡았어요/ })).toBeVisible();
   expect(state.calls[0]).toEqual({ method: "POST", path: "/api/experiences/101/star/T/answer", body: { answer: "제가 혼자 맡았어요" } });
   if ((page.viewportSize()?.width ?? 0) < 1024) await page.keyboard.press("Escape");
   await expect(starButton(page)).toHaveAccessibleName(/찬 칸 3 · 빈칸 1/);
@@ -94,12 +98,18 @@ test("경험 펼치기 → 빈칸 답하기 → 점이 바뀜 → 찬 칸 고치
   const panel2 = page.getByLabel("STAR 칸", { exact: true }).locator("visible=true");
   await panel2.getByRole("button", { name: /^상황 고치기/ }).click();
   await panel2.getByLabel("상황 칸 글").fill("좀비 프로세스가 쌓이는 버그");
-  await panel2.getByRole("button", { name: "저장", exact: true }).click();
+  await panel2.getByLabel("상황 칸 글").press("Enter");
   await expect(panel2.getByText("좀비 프로세스가 쌓이는 버그")).toBeVisible();
   expect(state.calls[1]).toEqual({ method: "PUT", path: "/api/experiences/101/star/S", body: { text: "좀비 프로세스가 쌓이는 버그" } });
-  // 원문 칸을 고치면 「내 답」 — 원문 근거는 그대로(S-10)
+  // 원문 칸을 고치면 원문 근거 버튼이 빠진다(근거는 그대로 — S-10)
   await expect(panel2.getByText("원문", { exact: true })).toHaveCount(0);
-  await expect(panel2.getByText("내 답", { exact: true })).toHaveCount(3);
+
+  // Esc 는 고친 것을 버린다
+  await panel2.getByRole("button", { name: /^행동과 노력 고치기/ }).click();
+  await panel2.getByLabel("행동과 노력 칸 글").fill("버려질 글");
+  await panel2.getByLabel("행동과 노력 칸 글").press("Escape");
+  await expect(panel2.getByText("버려질 글")).toHaveCount(0);
+  expect(state.calls).toHaveLength(2);
 });
 
 test("근거 펼침과 STAR 펼침은 한 번에 하나다", async ({ page }) => {
@@ -120,4 +130,24 @@ test("정리 안 한 경험은 점 대신 목록 머리 「STAR 로 정리」 �
   await expect(page.getByText("STAR 정리 중", { exact: true }).locator("visible=true")).toBeVisible();
   await expect(starButton(page)).toHaveAccessibleName(/찬 칸 2 · 빈칸 2/, { timeout: 15000 });
   await expect(page.getByRole("button", { name: /STAR 로 정리/ })).toHaveCount(0);
+});
+
+// FE#512 PR 스크린샷 — UPDATE_STAR_SCREENSHOTS=1 일 때만. STAR 펼침 · 빈칸 쓰는 중 · 보완 줄(답 글만)
+test("STAR 펼침 · 빈칸 쓰는 중 스크린샷", async ({ page }, info) => {
+  test.skip(process.env.UPDATE_STAR_SCREENSHOTS !== "1", "스크린샷을 새로 찍을 때만");
+  await setup(page, readyStar());
+  for (const width of info.project.name === "desktop" ? [1440, 1024] : [390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    const opened = await page.getByLabel("STAR 칸", { exact: true }).locator("visible=true").count();
+    if (!opened) await starButton(page).click();
+    const panel = page.getByLabel("STAR 칸", { exact: true }).locator("visible=true");
+    await expect(panel.getByText("자식 프로세스가 좀비로 남는 버그")).toBeVisible();
+    await page.waitForTimeout(400); // 시트가 다 올라온 뒤
+    const style = "nextjs-portal { display: none !important; }";
+    await page.screenshot({ path: `docs/fe-512/star-open-${width}.png`, style });
+    await panel.getByLabel("과제 · 내 몫 칸 글").fill("제가 혼자 맡았어요");
+    await page.screenshot({ path: `docs/fe-512/star-writing-${width}.png`, style });
+    await panel.getByLabel("과제 · 내 몫 칸 글").fill("");
+    if (width === 390) await page.keyboard.press("Escape");
+  }
 });

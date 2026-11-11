@@ -4,17 +4,16 @@
 // 칸은 근거 발췌 · 보완 글로만 찬다 — 차곡이는 채우지 않고 빈칸을 묻는다. 퍼센트 · 「N/4」 · 막대는 두지 않는다(SPEC §0)
 import { useRef, useState } from "react";
 import { CaretDownIcon } from "@phosphor-icons/react";
-import { Button } from "@/components/ui/button";
 import { InfoTip } from "@/components/ui/info-tip";
 import { AnalysisButton } from "@/components/auth/analysis-cost";
-import { AnswerForm } from "@/components/questions/clarifications";
+import { InlineTextarea } from "./inline-edit";
 import { answerStarSlot, updateStarSlot } from "@/lib/api/experience";
 import type { Experience, Star, StarSlot, StarSlotName } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
 /** 칸 이름 — 계약의 「과제 · 내 몫」 · 「행동과 노력」을 줄 안에선 짧게(DESIGN.md) */
 export const STAR_LABEL: Record<StarSlotName, string> = { S: "상황", T: "과제", A: "행동", R: "결과 · 배운 점" };
-/** 질문이 없는 빈칸에 답할 때 입력칸 이름 */
+/** 입력칸 이름 · 질문이 없는 빈칸의 안내 글 */
 const STAR_FULL: Record<StarSlotName, string> = { S: "상황", T: "과제 · 내 몫", A: "행동과 노력", R: "결과 및 배운 점" };
 export const STAR_MAX = 1000;
 
@@ -63,81 +62,61 @@ export function StarPanel({ experience: e, onSaved, onShowCitations, onOrganize,
       </p>
       {onOrganize && <AnalysisButton variant="secondary" size="sm" className="min-h-11 lg:min-h-8" running={organizing} disabled={organizing} onClick={onOrganize}>다시 정리</AnalysisButton>}
     </div>}
-    {star.slots.map((slot) => <StarRow key={slot.slot} experience={e} slot={slot} onSaved={onSaved} onShowCitations={onShowCitations} />)}
+    {star.slots.map((slot) => <StarRow key={`${slot.slot}-${slot.text === null}`} experience={e} slot={slot} onSaved={onSaved} onShowCitations={onShowCitations} />)}
   </div>;
 }
 
 const errorText = (err: unknown) => err instanceof Error ? err.message : "다시 시도해 주세요.";
 
+/** 칸 한 줄 — 빈칸은 질문을 안내 글로 품은 입력칸, 찬 칸은 글을 누르면 그 자리에서 고친다(DESIGN.md 「그 자리 고치기」).
+ * 빈칸에 쓰고 밖을 누르면 보완으로 저장(AI 안 부름), 찬 칸을 비우고 저장하면 빈칸이 된다(원문 근거 · 보완은 지우지 않는다 — 계약) */
 function StarRow({ experience: e, slot, onSaved, onShowCitations }: { experience: Experience; slot: StarSlot } & Pick<PanelProps, "onSaved" | "onShowCitations">) {
-  const [editing, setEditing] = useState(false);
-  const [writing, setWriting] = useState(false);
-  const name = <span className="inline-flex items-center gap-1 text-xs font-semibold text-ink">
-    {slot.slot} {STAR_LABEL[slot.slot]}
-    {slot.slot === "R" && <InfoTip label="결과 · 배운 점" className="max-lg:-my-3">배운 점은 차곡이가 채우지 않아요. 내가 답한 글로만 채워져요.</InfoTip>}
-  </span>;
-  // 응답엔 usedIn 이 없다 — 부모가 이어 붙인다
-  const answer = async (text: string) => {
-    try { onSaved(await answerStarSlot(e.id, slot.slot, text)); return null; }
-    catch (err) { return `저장하지 못했어요. ${errorText(err)}`; }
+  const empty = slot.text === null;
+  // 빈칸은 늘 입력칸(draft = "") · 찬 칸은 누를 때만(draft = null 이면 글자)
+  const [draft, setDraft] = useState<string | null>(empty ? "" : null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const pending = useRef(false);
+  const cancelled = useRef(false);
+  const display = useRef<HTMLButtonElement>(null);
+  const reset = (refocus: boolean) => {
+    setDraft(empty ? "" : null); setError(null);
+    if (refocus && !empty) requestAnimationFrame(() => display.current?.focus());
   };
-
-  if (slot.text === null) {
-    const label = slot.question ?? STAR_FULL[slot.slot];
-    return <div className="grid min-w-0 gap-1" data-star-row={slot.slot}>
-      {name}
-      {slot.question || writing
-        ? <AnswerForm head={null} label={label} disabled={false} maxLength={STAR_MAX} onSave={answer} inputClassName="bg-canvas"
-          question={slot.question && <b className="text-sm font-semibold text-ink">{slot.question}</b>} />
-        : <button type="button" onClick={() => setWriting(true)} className="justify-self-start rounded-md px-1 py-0.5 text-note font-medium text-muted underline-offset-3 hover:text-ink hover:underline">
-          직접 쓰기<span className="sr-only">: {STAR_FULL[slot.slot]}</span>
-        </button>}
-    </div>;
-  }
+  const commit = async () => {
+    if (cancelled.current) { cancelled.current = false; return; }
+    if (draft === null || pending.current) return;
+    const text = draft.trim();
+    if (text === (slot.text ?? "")) { reset(false); return; }
+    pending.current = true; setSaving(true); setError(null);
+    try {
+      // 응답엔 usedIn 이 없다 — 부모가 이어 붙인다
+      onSaved(empty ? await answerStarSlot(e.id, slot.slot, text) : await updateStarSlot(e.id, slot.slot, text));
+      // 빈칸 ↔ 찬 칸이 바뀌면 이 줄은 새로 그려진다(key) — 같은 모양이면 여기서 닫는다
+      setDraft(empty ? "" : null);
+    } catch (err) { setError(`저장하지 못했어요. ${errorText(err)}`); }
+    finally { pending.current = false; setSaving(false); }
+  };
 
   return <div className="grid min-w-0 gap-1" data-star-row={slot.slot}>
     <div className="flex items-center gap-2">
-      {name}
+      <span className="inline-flex items-center gap-1 text-xs font-semibold text-ink">
+        {slot.slot} {STAR_LABEL[slot.slot]}
+        {slot.slot === "R" && <InfoTip label="결과 · 배운 점" className="max-lg:-my-3">배운 점은 차곡이가 채우지 않아요. 내가 답한 글로만 채워져요.</InfoTip>}
+      </span>
       <span className="flex-1" />
-      {slot.sourceType === "CITATION"
-        ? <button type="button" onClick={onShowCitations} title="이 칸의 근거 보기" className="rounded-md px-1 text-xs font-medium text-evidence hover:bg-evidence-soft">원문</button>
-        : <span className="text-xs text-muted">내 답</span>}
+      {slot.sourceType === "CITATION" && <button type="button" onClick={onShowCitations} title="이 칸의 근거 보기" className="rounded-md px-1 text-xs font-medium text-evidence hover:bg-evidence-soft">원문</button>}
     </div>
-    {editing
-      ? <StarEdit slot={slot} onCancel={() => setEditing(false)} onSave={async (text) => {
-        try { onSaved(await updateStarSlot(e.id, slot.slot, text)); setEditing(false); return null; }
-        catch (err) { return `저장하지 못해 원래 글을 그대로 뒀어요. ${errorText(err)}`; }
-      }} />
-      : <button type="button" onClick={() => setEditing(true)} aria-label={`${STAR_FULL[slot.slot]} 고치기: ${slot.text}`}
+    {draft !== null
+      ? <InlineTextarea label={`${STAR_FULL[slot.slot]} 칸 글`} value={draft} autoFocus={!empty} maxLength={STAR_MAX}
+        placeholder={empty ? slot.question ?? `${STAR_FULL[slot.slot]}을 적어 주세요` : undefined}
+        onChange={(v) => { setDraft(v); setError(null); }} onCommit={() => void commit()}
+        onCancel={() => { cancelled.current = true; reset(true); if (empty) (document.activeElement as HTMLElement | null)?.blur(); }}
+        saving={saving} error={error} className="bg-canvas text-sm leading-relaxed text-body max-lg:min-h-11" />
+      : <button ref={display} type="button" onClick={() => { cancelled.current = false; setError(null); setDraft(slot.text ?? ""); }}
+        aria-label={`${STAR_FULL[slot.slot]} 고치기: ${slot.text}`} title="눌러서 고치기"
         className="-mx-1 rounded-sm px-1 py-0.5 text-left text-sm leading-relaxed whitespace-pre-wrap break-words text-body hover:bg-surface-strong">
         {slot.text}
       </button>}
   </div>;
-}
-
-/** 찬 칸 그 자리 고치기 — 비우고 저장하면 빈칸이 된다(원문 근거 · 보완은 지우지 않는다 — 계약) */
-function StarEdit({ slot, onSave, onCancel }: { slot: StarSlot; onSave: (text: string) => Promise<string | null>; onCancel: () => void }) {
-  const [draft, setDraft] = useState(slot.text ?? "");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const pending = useRef(false);
-  const save = async () => {
-    if (pending.current) return;
-    const text = draft.trim();
-    if (text === slot.text) { onCancel(); return; }
-    pending.current = true; setSaving(true); setError(null);
-    try { setError(await onSave(text)); }
-    finally { pending.current = false; setSaving(false); }
-  };
-  return <form className="grid gap-2" aria-busy={saving} onSubmit={(ev) => { ev.preventDefault(); void save(); }}>
-    <textarea autoFocus rows={3} maxLength={STAR_MAX} value={draft} disabled={saving} aria-label={`${STAR_FULL[slot.slot]} 칸 글`}
-      onChange={(ev) => { setDraft(ev.target.value); setError(null); }}
-      className="w-full rounded-sm border border-hairline bg-canvas p-2 text-base text-body sm:text-sm" />
-    <p className="m-0 text-xs text-muted">{slot.sourceType === "CITATION" ? "원문 근거는 그대로 남고, 고친 글이 「내 답」으로 이 칸을 채워요." : "비우고 저장하면 빈칸이 돼요."}</p>
-    {error && <p role="alert" className="m-0 text-note text-error">{error}</p>}
-    <div className="flex gap-2">
-      <Button type="submit" size="sm" className="min-h-11 lg:min-h-8" disabled={saving}>{saving ? "저장 중…" : "저장"}</Button>
-      <Button type="button" variant="ghost" size="sm" className="min-h-11 lg:min-h-8" disabled={saving} onClick={onCancel}>취소</Button>
-    </div>
-  </form>;
 }
