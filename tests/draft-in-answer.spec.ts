@@ -53,7 +53,7 @@ test("빈칸 카드와 주체 확인 카드", async ({ page }) => {
   await shot(page, "card-actor");
 });
 
-test("고치기 — 보기 · 고치기 상태 없이 초안 글이 바로 입력칸에 있고, 빠진 사실 질문 한 줄이 남는다", async ({ page }) => {
+test("고치기 — 보기 · 고치기 상태 없이 초안 글이 바로 입력칸에 있고, 답칸 위에 질문 안내 줄은 없다", async ({ page }) => {
   await open(page);
   const box = page.getByRole("textbox", { name: "내가 쓴 답", exact: true });
   await expect(box).toHaveValue(/\[줄어든 정도\]/);
@@ -61,8 +61,8 @@ test("고치기 — 보기 · 고치기 상태 없이 초안 글이 바로 입�
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByText("차곡이 초안 보기")).toHaveCount(0);
   await expect(page.getByRole("region", { name: "초안의 빠진 사실" })).toHaveCount(0);
-  await expect(page.getByRole("status").filter({ hasText: "차곡이가 더 물어본 게" })).toBeVisible();
-  await page.getByRole("status").filter({ hasText: "차곡이가 더 물어본 게" }).scrollIntoViewIfNeeded();
+  // 빠진 사실 질문은 차곡이 버튼 배지 · 패널이 알린다 — 답칸 위에 따로 줄을 두지 않는다(FE#463)
+  await expect(page.getByText("차곡이가 더 물어본 게")).toHaveCount(0);
   await shot(page, "edit-mode");
 });
 

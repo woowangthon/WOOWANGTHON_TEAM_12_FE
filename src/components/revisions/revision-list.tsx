@@ -346,8 +346,10 @@ export const isRevisionPanelOpen = () => activePanel !== null;
 
 /** 이력 패널 — 넓은 화면(1280 이상)은 머리 아래 오른쪽 사이드바(활동 세부 · 차곡이 자리를 덮고, 닫으면 그대로 드러난다).
  *  그보다 좁으면 차곡이처럼 오른쪽 시트 */
-export function RevisionDialog({ open, onOpenChange, title, description, ...list }: Parameters<typeof RevisionList>[0] & {
+export function RevisionDialog({ open, onOpenChange, title, description, actions, ...list }: Parameters<typeof RevisionList>[0] & {
   open: boolean; onOpenChange: (open: boolean) => void; title: string; description: string;
+  /** 목록 위 버튼 줄 — 답칸의 「다 쓴 답 불러오기」 · 「초안 글 다시 넣기」(FE#463). 기록이 없거나 못 불러와도 보인다 */
+  actions?: ReactNode;
 }) {
   const id = useId();
   const { wide } = useSidebar();
@@ -379,7 +381,10 @@ export function RevisionDialog({ open, onOpenChange, title, description, ...list
   }, [wide, open]);
 
   const close = () => onOpenChange(false);
-  const content = open && <RevisionList {...list} onNavigate={() => { list.onNavigate?.(); close(); }} />;
+  const content = open && <>
+    {actions && <div className="flex flex-wrap gap-2 border-b border-hairline-soft py-3">{actions}</div>}
+    <RevisionList {...list} onNavigate={() => { list.onNavigate?.(); close(); }} />
+  </>;
 
   if (wide) return open ? createPortal(
     <section ref={panel} role="dialog" aria-modal="false" aria-labelledby={`${id}-title`} aria-describedby={`${id}-desc`} tabIndex={-1}

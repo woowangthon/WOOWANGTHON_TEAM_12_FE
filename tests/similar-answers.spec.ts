@@ -60,7 +60,7 @@ test("참고로만 보인다 — 근거 표시가 없고, 내가 쓴 답 칸에 
 test("없으면 자리를 만들지 않는다", async ({ page }) => {
   const { reads } = await setup(page, []);
   await open(page);
-  await expect(page.getByRole("heading", { name: "내가 쓴 답" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "내가 쓴 답", exact: true })).toBeVisible();
   await expect.poll(() => reads.count).toBeGreaterThan(0);
   await page.waitForTimeout(300); // 응답이 화면에 닿을 시간을 준 뒤 없음을 본다
   await expect(page.getByText(/비슷한 문항에 쓴 답|예전에 쓴 답/)).toHaveCount(0);

@@ -195,17 +195,20 @@ test("새 초안이 답칸에 있으면 「다 쓴 답 불러오기」는 먼저
   const followUp = page.getByRole("region", { name: "차곡이의 초안", exact: true });
   await expect(answerBox(page)).toHaveText(COMPOSED);
   if (wide) await expect(followUp).toContainText("초안을 답칸에 넣었어요");
+  await page.getByRole("button", { name: "수정 이력", exact: true }).click(); // 돌아가는 길은 수정 이력 창 하나(FE#463)
   await page.getByRole("button", { name: "다 쓴 답 불러오기", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "다 쓴 답을 불러올까요?" });
   await expect(dialog).toContainText("초안 글은 다 쓴 답으로 바뀌어요");
   await page.screenshot({ path: `docs/fe-384/ask-${info.project.name}.png`, animations: "disabled" });
   await dialog.getByRole("button", { name: "취소", exact: true }).click();
   await expect(answerBox(page)).toHaveText(COMPOSED);
+  await page.getByRole("button", { name: "수정 이력", exact: true }).click(); // 돌아가는 길은 수정 이력 창 하나(FE#463)
   await page.getByRole("button", { name: "다 쓴 답 불러오기", exact: true }).click();
   await dialog.getByRole("button", { name: "불러오기", exact: true }).click();
   await expect(answerBox(page)).toHaveText(OLD);
   if (wide) { await expect(followUp).toContainText("지금 답칸엔 다 쓴 답이 있어요"); await expect(followUp).not.toContainText("초안을 답칸에 넣었어요"); }
   await page.screenshot({ path: `docs/fe-384/loaded-${info.project.name}.png` });
+  await page.getByRole("button", { name: "수정 이력", exact: true }).click(); // 돌아가는 길은 수정 이력 창 하나(FE#463)
   await page.getByRole("button", { name: "초안 글 다시 넣기", exact: true }).click();
   await expect(answerBox(page)).toHaveText(COMPOSED);
   if (wide) await expect(followUp).toContainText("초안을 답칸에 넣었어요");

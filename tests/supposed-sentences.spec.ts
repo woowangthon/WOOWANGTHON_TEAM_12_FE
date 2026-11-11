@@ -64,8 +64,6 @@ test("AI 가정은 주황 물결 · 구체 값은 한 단계 진하게, 「확�
     }
     expect(seen.filter(l => l === "AI 가정 카드")).toHaveLength(2);
   }
-  // 짝 되묻기는 「차곡이가 더 물어본 것」에 섞지 않는다 — 배운 점(65)만
-  await expect(page.getByRole("status").filter({ hasText: "차곡이가 더 물어본 게 1개" })).toBeVisible();
   await openMark(page, "s-4");
   await expect(card(page)).toContainText("폴링과 WebSocket 을 바꾸기 전에 어떻게 비교했나요?");
   await expect(card(page).getByRole("button", { name: "비슷했어요" })).toBeVisible();

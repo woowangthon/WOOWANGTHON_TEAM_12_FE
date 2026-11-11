@@ -166,7 +166,7 @@ test('type suggestion table, explicit NONE and saved CARL survive panel regenera
     await page.goto('/questions?question=41');
     const controls = await openComposer(page);
     await expect(controls.getByRole('combobox', { name: '구성 틀', exact: true })).toHaveText(DRAFT_FRAMES[frame].name);
-    await expect(controls.getByText('문항 유형에 맞춘 제안', { exact: false })).toBeVisible();
+    await expect(controls.getByRole('button', { name: '구성 틀 설명', exact: true })).toBeVisible(); // 「문항 유형에 맞춘 제안」은 ⓘ 안(FE#463)
     await expect(controls.getByText(DRAFT_FRAMES[frame].steps, { exact: true })).toBeVisible();
   }
   const controls = composer(page);
@@ -178,7 +178,7 @@ test('type suggestion table, explicit NONE and saved CARL survive panel regenera
   api.edit(41, q => { q.draft = { ...structuredClone(DRAFT_EXAMPLE), frame: 'CARL', status: 'FAILED', sentences: [], omitted: [] }; });
   await page.reload(); await openComposer(page);
   await expect(controls.getByRole('combobox', { name: '구성 틀', exact: true })).toHaveText(DRAFT_FRAMES.CARL.name);
-  await expect(controls.getByText('문항 유형에 맞춘 제안', { exact: false })).toHaveCount(0);
+  await expect(controls.getByRole('button', { name: '구성 틀 설명', exact: true })).toHaveCount(0);
   await controls.getByRole('button', { name: '다시 만들기', exact: true }).click();
   await closePanel(page);
   await expect(draftBody(page)).toBeVisible();
@@ -210,7 +210,7 @@ test('structure cards are listed in the picker and a picked card goes into the d
   await page.getByRole('option', { name: DRAFT_FRAMES.SKILL_STEPS.name, exact: true }).click();
   await expect(controls.getByText(DRAFT_FRAMES.SKILL_STEPS.steps, { exact: true })).toBeVisible();
   // 사용자가 바꾼 틀은 「문항 유형에 맞춘 제안」이 아니다
-  await expect(controls.getByText('문항 유형에 맞춘 제안', { exact: false })).toHaveCount(0);
+  await expect(controls.getByRole('button', { name: '구성 틀 설명', exact: true })).toHaveCount(0);
   await controls.getByRole('button', { name: '초안 만들기', exact: true }).click();
   await expect.poll(() => api.calls.filter(c => c.call.endsWith('/draft')).length).toBe(1);
   expect(api.calls.find(c => c.call.endsWith('/draft'))!.body).toMatchObject({ experienceIds: [101], frame: 'SKILL_STEPS' });
