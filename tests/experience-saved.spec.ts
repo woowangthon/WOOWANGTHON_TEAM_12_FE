@@ -1,6 +1,7 @@
 // FE#163 경험 저장(S-71). 시험 전용 HTTP 응답 — 제품용 목이 아니고 실제 BE 결과도 아니다.
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
+import { closeSheet, detailScope, expandExperience } from "./expand-experience";
 import type { ActivityDetail, Experience } from "../src/lib/api/types";
 
 const PERIOD = { start: "2025-03", end: "2025-06", ongoing: false };
@@ -84,7 +85,9 @@ test("saving in the activity detail stays after reload, says so in words and cha
   expect(api.puts).toEqual([{ id: String(CHAT.id), body: { saved: true } }]);
   await expect(item).toContainText(CHAT.content);
   await expect(item).not.toContainText("원문 확인");
-  await expect(item).toContainText("근거 1");
+  await expandExperience(page, CHAT.content);
+  await expect(detailScope(page)).toContainText("근거 1");
+  await closeSheet(page);
   await expect(savedMark(page, DEPLOY)).toHaveCount(0);
 
   await page.reload();

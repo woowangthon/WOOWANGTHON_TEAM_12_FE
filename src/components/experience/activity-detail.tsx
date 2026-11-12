@@ -11,8 +11,8 @@ import { InfoTip } from "@/components/ui/info-tip";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { ActivityDetail, ActivitySummary, Experience } from "@/lib/api/types";
 import { durationText } from "@/lib/period";
-import { CitationList, SourceFile } from "./citation-list";
-import { ExperienceItem, ExperienceMeta } from "./experience-item";
+import { SourceFile } from "./citation-list";
+import { ExperienceDetail, ExperienceItem } from "./experience-item";
 import { ActivityCategoryField } from "./activity-category";
 import { ActivityNameField, PeriodField } from "./inline-edit";
 import { ActivityNote } from "./activity-note";
@@ -24,7 +24,6 @@ import { MENU_CONTENT, MENU_ITEM } from "@/components/ui/menu";
 import { cn } from "@/lib/utils";
 import { ExportStatus, useMarkdownExport } from "@/components/export/markdown-export";
 import { fetchActivity, organizeStar } from "@/lib/api/experience";
-import { StarPanel } from "./star-slots";
 
 const FIRST_COUNT = 3;
 /** STAR 정리 중일 때 활동 세부를 다시 읽는 간격 — 작업 ID 가 없어 세부의 star.status 로 본다(계약) */
@@ -182,8 +181,6 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
   );
 }
 
-/** 경험 아래 펼침은 한 패널에 하나 — 근거든 STAR 든(DESIGN.md 「경험 줄 — STAR 칸」) */
-type Expanded = { id: number; kind: "citations" | "star" } | null;
 
 /** STAR 정리 진행(S-95) — 정리는 BE 가 알아서 한다(ADR-018). 정리 중이면 세부를 다시 읽어 star.status 를 따라가고,
  *  실패한 경험의 「다시 시도」(활동 단위 · 분석 횟수를 세지 않는다)만 여기서 부른다 */
@@ -224,8 +221,9 @@ function ExperienceList({ activity, onSaved, onAdded, onReplaced, onDelete, onMo
 }) {
   const [adding, setAdding] = useState(false);
   const [showAll, setShowAll] = useState(false);
-  const [expanded, setExpanded] = useState<Expanded>(null);
-  const [sheet, setSheet] = useState<Expanded>(null);
+  // 펼침은 한 번에 한 경험(FE#541) — PC 는 줄 아래, 모바일은 하단 시트
+  const [expanded, setExpanded] = useState<number | null>(null);
+  const [sheet, setSheet] = useState<number | null>(null);
   const star = useStarProgress(activity, onReplaced);
 
   // 「확인 필요」는 할 일이 있어 맨 위로(FE#273). 연 순간의 상태로만 정한다 — 고치거나 맞아요를 눌러도 줄이 튀지 않게(이 목록은 활동마다 key 로 새로 그린다)
@@ -233,10 +231,7 @@ function ExperienceList({ activity, onSaved, onAdded, onReplaced, onDelete, onMo
   const experiences = [...activity.experiences.filter((e) => reviewIds.has(e.id)), ...activity.experiences.filter((e) => !reviewIds.has(e.id))];
   const visible = showAll ? experiences : experiences.slice(0, FIRST_COUNT);
   const rest = experiences.length - FIRST_COUNT;
-  const sheetExp = sheet ? experiences.find((e) => e.id === sheet.id) : undefined;
-
-  const toggle = (id: number, kind: "citations" | "star") =>
-    setExpanded((prev) => prev?.id === id && prev.kind === kind ? null : { id, kind });
+  const sheetExp = sheet !== null ? experiences.find((e) => e.id === sheet) : undefined;
 
   return (
     <>
@@ -260,12 +255,9 @@ function ExperienceList({ activity, onSaved, onAdded, onReplaced, onDelete, onMo
             onMerge={onMerge}
             onDragChange={onDragChange}
             dragging={e.id === draggingId}
-            citationsOpen={expanded?.id === e.id && expanded.kind === "citations"}
-            onToggleCitations={() => toggle(e.id, "citations")}
-            onShowCitations={() => setSheet({ id: e.id, kind: "citations" })}
-            starOpen={expanded?.id === e.id && expanded.kind === "star"}
-            onToggleStar={() => toggle(e.id, "star")}
-            onShowStar={() => setSheet({ id: e.id, kind: "star" })}
+            open={expanded === e.id}
+            onToggle={() => setExpanded((prev) => prev === e.id ? null : e.id)}
+            onShowSheet={() => setSheet(e.id)}
             onRetryStar={() => void star.run()}
             retryingStar={star.busy}
           />
@@ -294,34 +286,22 @@ function ExperienceList({ activity, onSaved, onAdded, onReplaced, onDelete, onMo
         )}
       </div>
 
-      {/* 모바일 — 근거 · STAR 하단 시트 */}
+      {/* 모바일 — 펼친 경험(메타 · STAR · 근거 · 내 답) 하단 시트 */}
       <Sheet open={sheetExp != null} onOpenChange={(open) => !open && setSheet(null)}>
         <SheetContent
           side="bottom"
           className="max-h-[78dvh] gap-3 overflow-auto rounded-t-lg border-t-0 px-5 pt-2.5 pb-7 lg:hidden"
+          // 그 자리 고치기의 Esc 는 고친 것만 버린다 — 시트까지 닫지 않는다
+          onEscapeKeyDown={(ev) => { if (ev.target instanceof HTMLElement && ev.target.matches("textarea, input")) ev.preventDefault(); }}
         >
           <span className="h-1 w-9 justify-self-center rounded-full bg-hairline self-center" aria-hidden="true" />
-          {sheetExp && sheet?.kind === "star" && (
+          {sheetExp && (
             <>
               <SheetHeader className="gap-2 p-0 pr-10">
-                <SheetTitle className="line-clamp-2 text-title-md font-semibold">{sheetExp.content}</SheetTitle>
-                <SheetDescription className="text-note text-muted">STAR 칸 — 빈칸은 차곡이가 물어볼 거리예요</SheetDescription>
+                <SheetTitle className="line-clamp-3 text-title-md font-semibold">{sheetExp.content}</SheetTitle>
+                <SheetDescription className="sr-only">수행 주체 · 역량 · STAR 칸 · 근거 · 내 답</SheetDescription>
               </SheetHeader>
-              {sheetExp.star?.status === "ANALYZING" && <p role="status" className="m-0 text-note text-muted">STAR 정리 중이에요. 끝나면 칸이 나와요.</p>}
-              <StarPanel experience={sheetExp} onSaved={onSaved} onShowCitations={() => setSheet({ id: sheetExp.id, kind: "citations" })}
-                onRetry={() => void star.run()} retrying={star.busy} />
-            </>
-          )}
-          {sheetExp && sheet?.kind === "citations" && (
-            <>
-              <SheetHeader className="gap-2 p-0 pr-10">
-                <SheetTitle className="text-title-md font-semibold">근거 {sheetExp.citations.length}</SheetTitle>
-                <SheetDescription className="text-ui leading-relaxed text-body">{sheetExp.content}</SheetDescription>
-              </SheetHeader>
-              <div className="flex flex-wrap items-center gap-1.5 text-note font-medium text-muted">
-                <ExperienceMeta experience={sheetExp} />
-              </div>
-              <CitationList citations={sheetExp.citations} readOnly={readOnly} />
+              <ExperienceDetail experience={sheetExp} readOnly={readOnly} onSaved={onSaved} onRetryStar={() => void star.run()} retryingStar={star.busy} />
             </>
           )}
         </SheetContent>

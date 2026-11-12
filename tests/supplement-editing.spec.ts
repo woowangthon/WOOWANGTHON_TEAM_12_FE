@@ -4,6 +4,7 @@
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import type { ActivityDetail, Supplement } from "../src/lib/api/types";
+import { expandExperience } from "./expand-experience";
 
 const QUESTION = "폴링을 WebSocket 으로 바꿀 때 직접 고친 부분은 어디였나요?";
 const ANSWER = "서버에 STOMP 엔드포인트를 만들고, 앱의 3초 폴링 코드를 구독 방식으로 바꿨다";
@@ -51,7 +52,9 @@ async function setup(page: Page) {
 async function open(page: Page) {
   await page.goto("/experience");
   await page.getByRole("button", { name: /실시간 알림 프로젝트/ }).click();
-  await expect(page.getByText(ANSWER)).toBeVisible();
+  // 보완(내 답)은 경험을 펼쳐야 보인다(FE#541)
+  await expandExperience(page);
+  await expect(page.getByText(OTHER_ANSWER)).toBeVisible();
 }
 
 test("보완의 답을 바로 고치면 새로고침해도 남고, 경험 본문 · 출처 상태는 그대로다", async ({ page }) => {
@@ -64,8 +67,7 @@ test("보완의 답을 바로 고치면 새로고침해도 남고, 경험 본문
   await expect(page.getByText("STOMP 엔드포인트를 만들고 재연결도 붙였다")).toBeVisible();
   await expect(page.getByLabel(`답: ${QUESTION}`)).toHaveCount(0);
   expect(state.calls).toEqual([{ method: "PATCH", path: "/api/supplements/301", body: { answer: "STOMP 엔드포인트를 만들고 재연결도 붙였다" } }]);
-  await page.reload();
-  await page.getByRole("button", { name: /실시간 알림 프로젝트/ }).click();
+  await open(page);
   await expect(page.getByText("STOMP 엔드포인트를 만들고 재연결도 붙였다")).toBeVisible();
   await expect(page.getByText("원문 확인")).toHaveCount(0);
 });
@@ -99,8 +101,7 @@ test("보완을 지우면 새로고침해도 돌아오지 않는다", async ({ p
   await expect(page.getByText(ANSWER)).toHaveCount(0);
   await expect(page.getByText(OTHER_ANSWER)).toBeVisible();
   expect(state.calls).toEqual([{ method: "DELETE", path: "/api/supplements/301", body: null }]);
-  await page.reload();
-  await page.getByRole("button", { name: /실시간 알림 프로젝트/ }).click();
+  await open(page);
   await expect(page.getByText(OTHER_ANSWER)).toBeVisible();
   await expect(page.getByText(ANSWER)).toHaveCount(0);
 });

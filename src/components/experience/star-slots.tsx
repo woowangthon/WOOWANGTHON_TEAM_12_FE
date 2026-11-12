@@ -3,13 +3,11 @@
 // 경험 STAR 칸(S-95 · S-96 · DESIGN.md 「경험 줄 — STAR 칸」 · FE#497).
 // 칸은 근거 발췌 · 보완 글로만 찬다 — 차곡이는 채우지 않고 빈칸을 묻는다. 퍼센트 · 「N/4」 · 막대는 두지 않는다(SPEC §0)
 import { useRef, useState } from "react";
-import { CaretDownIcon } from "@phosphor-icons/react";
 import { InfoTip } from "@/components/ui/info-tip";
 import { Button } from "@/components/ui/button";
 import { InlineTextarea } from "./inline-edit";
 import { answerStarSlot, resortStar, updateStarSlot } from "@/lib/api/experience";
 import type { Experience, Star, StarSlot, StarSlotName } from "@/lib/api/types";
-import { cn } from "@/lib/utils";
 
 /** 칸 이름 — 계약의 「과제 · 내 몫」 · 「행동과 노력」을 줄 안에선 짧게(DESIGN.md) */
 export const STAR_LABEL: Record<StarSlotName, string> = { S: "상황", T: "과제", A: "행동", R: "결과 · 배운 점" };
@@ -19,27 +17,17 @@ export const STAR_MAX = 1000;
 
 /** 칸을 보일 상태인가 — NONE · ANALYZING 은 칸이 없고, FAILED 는 이전 칸이 있을 때만 */
 export const hasStarSlots = (star: Star | undefined): star is Star => !!star && star.slots.length === 4 && star.status !== "NONE" && star.status !== "ANALYZING";
-/** 메타 줄 오른쪽 — S● T○ A● R○. 글자와 점을 함께(색만으로 가르지 않는다). 정리 중이면 그 자리에 글자.
- * 정리 안 한(NONE) 경험은 BE 가 알아서 나누니 아무것도 안 그린다(ADR-018). 칸이 없는 FAILED 만 「다시 시도」 */
-export function StarToggle({ star, open, onClick, onRetry, retrying = false }: { star: Star | undefined; open: boolean; onClick: () => void; onRetry?: () => void; retrying?: boolean }) {
+/** 칸이 없을 때의 STAR 상태 — 정리 중이면 글자, 칸이 없는 FAILED 만 「다시 시도」. 펼친 경험 안에 둔다(FE#541).
+ * 정리 안 한(NONE) 경험은 BE 가 알아서 나누니 아무것도 안 그린다(ADR-018). 점(S● T○ …)은 접힌 줄에서 뺐다 */
+export function StarStatus({ star, onRetry, retrying = false }: { star: Star | undefined; onRetry?: () => void; retrying?: boolean }) {
   if (star?.status === "ANALYZING") return <span role="status" className="inline-flex items-center gap-1 text-xs text-muted">
     <span aria-hidden="true" className="size-1.5 animate-pulse rounded-full bg-muted" />STAR 정리 중
   </span>;
-  if (star?.status === "FAILED" && !hasStarSlots(star)) return onRetry ? <button type="button" onClick={onRetry} disabled={retrying}
-    className="inline-flex min-h-8 items-center rounded-md px-1 py-0.5 text-xs font-medium text-error hover:bg-surface-soft disabled:opacity-50">
+  if (star?.status === "FAILED" && !hasStarSlots(star) && onRetry) return <button type="button" onClick={onRetry} disabled={retrying}
+    className="inline-flex min-h-8 items-center justify-self-start rounded-md px-1 py-0.5 text-xs font-medium text-error hover:bg-surface-soft disabled:opacity-50">
     STAR 정리하지 못했어요 · 다시 시도
-  </button> : null;
-  if (!hasStarSlots(star)) return null;
-  const filled = star.slots.filter((s) => s.text !== null).length;
-  return <button type="button" onClick={onClick} aria-expanded={open}
-    aria-label={`STAR 칸 — 찬 칸 ${filled} · 빈칸 ${4 - filled}, ${open ? "접기" : "펼치기"}`}
-    className="inline-flex min-h-8 items-center gap-1.5 rounded-md px-1 py-0.5 text-xs text-muted tabular-nums hover:bg-surface-soft hover:text-ink">
-    {star.slots.map((s) => <span key={s.slot} className="inline-flex items-center gap-0.5" data-star-slot={s.slot} data-filled={s.text !== null}>
-      {s.slot}
-      <span aria-hidden="true" className={cn("size-1.5 rounded-full", s.text !== null ? "bg-body" : "border border-muted-soft")} />
-    </span>)}
-    <CaretDownIcon className={cn("size-[1.15em] transition-transform", open && "rotate-180")} aria-hidden="true" />
   </button>;
+  return null;
 }
 
 type PanelProps = {
@@ -115,7 +103,7 @@ function StarRow({ experience: e, slot, onSaved, onShowCitations }: { experience
     finally { pending.current = false; setSaving(false); }
   };
 
-  return <div className="grid min-w-0 gap-1" data-star-row={slot.slot}>
+  return <div className="grid min-w-0 gap-1" data-star-row={slot.slot} data-filled={!empty}>
     <div className="flex items-center gap-2">
       <span className="inline-flex items-center gap-1 text-xs font-semibold text-ink">
         {slot.slot} {STAR_LABEL[slot.slot]}
