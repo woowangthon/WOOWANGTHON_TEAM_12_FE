@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ComponentType, type KeyboardEvent, type ReactNode } from "react";
-import { ArrowsClockwiseIcon, CaretDownIcon, ArrowUpIcon, FileTextIcon, HouseIcon, MagnifyingGlassIcon, PlusIcon, StackIcon } from "@phosphor-icons/react";
+import { ArrowsClockwiseIcon, ArrowUpIcon, FileTextIcon, HouseIcon, MagnifyingGlassIcon, PlusIcon, StackIcon } from "@phosphor-icons/react";
 import { CitationList } from "@/components/experience/citation-list";
 import { ExperienceFilterBar, isFiltered, type ExperienceFilters } from "@/components/experience/experience-filters";
 import { ActivityTag, categoryOf } from "@/components/experience/activity-category";
@@ -34,8 +34,6 @@ const SHORTCUTS: Shortcut[] = [
   { kind: "experience", label: "내 경험", detail: "타임라인으로 가요", icon: StackIcon },
   { kind: "home", label: "홈", detail: "홈으로 가요", icon: HouseIcon },
 ];
-/** 시안과 같이 처음엔 몇 줄만 — 「더 보기」로 창 안에서 이만큼씩 늘린다. 경험 찾기 자리가 이 창 하나라 다른 화면으로 넘기지 않는다(S-61 · FE#274) */
-const PAGE_ROWS = 8;
 const BUSY = "지금 넣은 자료의 분석이 끝나면 더 넣을 수 있어요";
 const LIST_ID = "quick-find-list";
 const optionId = (index: number) => `quick-find-option-${index}`;
@@ -44,7 +42,6 @@ export function QuickFindPanel({ asked, addSourceBusy, initial, onGo }: { asked:
   const [tab, setTab] = useState<Tab>("find");
   const [word, setWord] = useState(initial?.query ?? "");
   const [active, setActive] = useState(0);
-  const [rows, setRows] = useState(PAGE_ROWS);
   const [filters, setFilters] = useState<ExperienceFilters>(() => { const { query: _word, ...rest } = initial ?? {}; void _word; return rest; });
   const [years, setYears] = useState<number[]>([]);
   const input = useRef<HTMLInputElement>(null);
@@ -57,14 +54,13 @@ export function QuickFindPanel({ asked, addSourceBusy, initial, onGo }: { asked:
   // 칩을 누르거나 낱말을 친 순간부터 응답까지 — 이전 결과는 그대로 두되 흐리게 해서 「옛 결과」임을 보인다(FE#248)
   const refreshing = state.status === "ready" && state.refreshing;
 
-  const found = state.status === "ready" ? state.experiences.slice(0, rows) : [];
-  const more = state.status === "ready" && state.experiences.length > rows;
-  // 서버가 한 번에 주는 만큼(limit) 다 펼쳤는데도 맞은 게 더 있으면 더 좁히라고 알린다
-  const capped = state.status === "ready" && !more && state.total > state.experiences.length;
+  // 받은 결과를 한 번에 다 보인다 — 창 안 「더 보기」로 나눠 보이던 것을 없앴다(FE#595). 목록은 창 안에서 스크롤된다
+  const found = state.status === "ready" ? state.experiences : [];
+  // 서버가 한 번에 주는 만큼(limit)보다 맞은 게 더 있으면 더 좁히라고 알린다
+  const capped = state.status === "ready" && state.total > state.experiences.length;
   const shortcuts = SHORTCUTS.filter(s => s.label.includes(query));
   const isDisabled = (s: Shortcut) => s.kind === "source" && addSourceBusy;
-  // 더 있으면 찾기의 마지막 줄은 「더 보기」
-  const count = tab === "find" ? found.length + (more ? 1 : 0) : tab === "go" ? shortcuts.length : 0;
+  const count = tab === "find" ? found.length : tab === "go" ? shortcuts.length : 0;
   const current = Math.max(Math.min(active, count - 1), 0);
   const preview = tab === "find" ? found[current] : undefined;
 
@@ -82,7 +78,7 @@ export function QuickFindPanel({ asked, addSourceBusy, initial, onGo }: { asked:
     return () => { live = false; };
   }, []);
 
-  const changeFilters = (next: ExperienceFilters) => { setFilters(next); setActive(0); setRows(PAGE_ROWS); };
+  const changeFilters = (next: ExperienceFilters) => { setFilters(next); setActive(0); };
   // 화면 키보드가 결과를 가리지 않게 PC 폭에서만 입력칸으로 돌아간다
   const backToInput = () => { if (matchMedia("(min-width: 64rem)").matches) input.current?.focus(); };
   // 창은 열 때마다 새로 그려 입력이 비지만 묻기 답은 남는다(FE#288). 답 카드엔 질문을 다시 적지 않으니(FE#363) 빈 입력에 그 질문을 되살린다(FE#449)
@@ -94,7 +90,6 @@ export function QuickFindPanel({ asked, addSourceBusy, initial, onGo }: { asked:
     if (prefix) { setTab(prefix[1] === "?" ? "ask" : "go"); setWord(value.slice(prefix[0].length)); }
     else setWord(value);
     setActive(0);
-    setRows(PAGE_ROWS);
   };
   const pick = (index: number) => {
     if (tab === "go") {
@@ -104,7 +99,6 @@ export function QuickFindPanel({ asked, addSourceBusy, initial, onGo }: { asked:
     }
     const row = found[index];
     if (row) onGo({ kind: "activity", id: row.activity.id });
-    else if (more) setRows(n => n + PAGE_ROWS); // 고른 자리가 새로 펼친 첫 줄이 된다
   };
   const exhausted = useAnalysisLeft() === 0;
   const send = () => { if (query && !exhausted) void asked.ask(query); };
@@ -184,9 +178,6 @@ export function QuickFindPanel({ asked, addSourceBusy, initial, onGo }: { asked:
           <div className={cn("transition-opacity duration-150", refreshing && "opacity-50")}>
             <OptionList label="찾은 경험">
             {found.map((e, i) => <Option key={e.id} index={i} active={i === current} onPick={pick} onHover={setActive}><ResultLine experience={e} /></Option>)}
-            {more && <Option index={found.length} active={current === found.length} onPick={pick} onHover={setActive}>
-              <span className="flex items-center gap-2 text-sm font-medium text-ink tabular-nums"><CaretDownIcon className="size-4 shrink-0" aria-hidden="true" />더 보기 <span className="font-normal text-muted">{found.length} / {state.status === "ready" ? state.total : found.length}</span></span>
-            </Option>}
           </OptionList>
           </div>
           {capped && !refreshing && state.status === "ready" && <p role="status" className="m-0 px-2.5 pt-2 pb-1 text-note text-muted tabular-nums">{state.total}개 중 {state.experiences.length}개까지 보여 드려요. 낱말이나 거르기로 더 좁혀 보세요.</p>}
@@ -216,7 +207,7 @@ function Key({ name, children }: { name: string; children: ReactNode }) {
 
 function OptionList({ label, children }: { label: string; children: ReactNode }) {
   // 마우스로 눌러도 초점은 입력칸에 그대로 — 계속 치고 ↑↓ · Enter 로 고른다.
-  // 손가락·펜은 붙잡지 않는다: 키보드를 내렸는데 초점이 입력칸에 남아 있으면 「더 보기」를 누를 때마다 키보드가 다시 올라온다(FE#366).
+  // 손가락·펜은 붙잡지 않는다: 키보드를 내렸는데 초점이 입력칸에 남아 있으면 줄을 누를 때마다 키보드가 다시 올라온다(FE#366).
   // pointerdown 이 mousedown 보다 먼저라 거기서 입력 장치를 적어 둔다
   const pointer = useRef("mouse");
   return <ul id={LIST_ID} role="listbox" aria-label={label} onPointerDown={e => { pointer.current = e.pointerType; }}
