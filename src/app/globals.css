@@ -19,6 +19,7 @@
   --muted-soft: #a6a6a6; /* 선 · 점 전용. 대비가 2.4 라 글자에 쓰지 않는다 */
   --hairline: #ededed;
   --hairline-soft: #f4f4f4;
+  --scrollbar-thumb: #d0d0d0; /* 얇은 스크롤바 막대(FE#585) — 선보다 진하고 muted-soft 보다 옅게 */
   --primary: #000000;
   --primary-active: #333333;
   --primary-soft: #f5f5f5;
@@ -182,9 +183,6 @@
   }
   html {
     @apply font-sans;
-    /* 접기 · 펴기로 내용 길이가 바뀌어도 스크롤바 폭만큼 본문이 흔들리지 않게 자리를 비워 둔다(FE#585).
-       overflow-y: scroll 은 안쪽만 스크롤하는 화면(내 경험 등)에도 빈 스크롤바를 그려서 쓰지 않는다 */
-    scrollbar-gutter: stable;
   }
   body {
     @apply bg-background text-foreground;
@@ -192,6 +190,12 @@
     line-height: 1.6;
     word-break: keep-all;
     overflow-wrap: anywhere;
+  }
+  /* 스크롤바는 얇고 옅게 — 윈도우 기본(화살표 달린 굵은 막대)은 페이지 · 패널 스크롤바가 나란히 서면 지저분하다(FE#585).
+     폭이 줄어 접기 · 펴기로 스크롤바가 생겼다 사라질 때 흔들림도 작아진다. 오버레이 스크롤바(맥 · 모바일)는 그대로 */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
   }
   /* 기본값(글자색의 50%)은 대비가 3.98 이라 보조 글자색으로 맞춘다(FE#182) */
   ::placeholder {
