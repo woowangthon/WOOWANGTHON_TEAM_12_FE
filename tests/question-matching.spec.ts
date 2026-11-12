@@ -179,8 +179,8 @@ test("question 41/42 switch shows contract judgments, actors and supplemental ev
   await expect(chagok.getByText("근거 있음", { exact: true })).toHaveCount(1);
   await expect(chagok.getByText("일부 확인됨", { exact: true })).toBeVisible();
   // S-25 — 앞 지원에서 답한 보완을 근거로 다시 썼다고 차곡이가 말한다
-  await expect(chagok).toContainText("OO 백엔드 부트캠프 문항에서 알려 준 답을 「바꿔요」 경험의 근거로 같이 썼어요.");
-  await expect(chagok).toContainText("그 부분은 다시 묻지 않을게요.");
+  // FE#569 — 한 줄 말풍선 하나, 인용은 「보기」를 펼칠 때만 보인다
+  await expect(chagok).toContainText("OO 백엔드 부트캠프 문항에서 알려 준 답을 「바꿔요」 경험의 근거로 같이 썼어요 · 다시 묻지 않을게요");
   await closeChagokSheet(page);
   await expand(page, 2);
   // FE#510 — 펼친 줄은 원본 칩만 보인다. 발췌 · 보완 본문 · 「원문 발췌」 · 「빠진 것」 · 출처 글자는 카드에 없다
@@ -328,6 +328,32 @@ test("three recommendations, UNKNOWN actor and missing evidence never invent quo
   await expect(recommendation(page, 3).getByText("AI 해석", { exact: true })).toHaveCount(0);
   await expect(recommendation(page, 3).getByRole("group", { name: "추천 경험 3의 원본" })).toHaveCount(0);
   await expect(recommendation(page, 3).locator("blockquote")).toHaveCount(0);
+});
+
+// FE#569 — 앞 지원서에서 알려 준 답을 여럿 다시 써도 차곡이 말풍선은 하나, 인용은 「보기」를 펼칠 때만
+test("reused answers from other applications fold into one chagok bubble (FE#569)", async ({ page }) => {
+  const api = await fake(page);
+  const exp = QUESTION_EXAMPLES.find(q => q.id === 42)!.recommendations[0].experience.id;
+  const now = "2026-11-04T10:05:00+09:00";
+  api.supplements.set(exp, [...(api.supplements.get(exp) ?? []),
+    { id: 302, question: "테스트는 어떻게 했나요?", answer: "부하 도구로 동시 접속 200명을 흘려 보았다", questionId: 41, createdAt: now, updatedAt: now },
+    { id: 303, question: "배포는 누가 했나요?", answer: "내가 직접 서버에 올렸다", questionId: 41, createdAt: now, updatedAt: now },
+  ]);
+  api.edit(42, q => { q.recommendations[0].evidence.push({ type: "SUPPLEMENT", id: 302 }, { type: "SUPPLEMENT", id: 303 }); });
+  await page.goto("/questions?question=42");
+  const chagok = await openChagok(page);
+  const bubble = chagok.locator("div").filter({ hasText: "다른 지원서에서 알려 준 답 3개를 근거로 같이 썼어요" }).last();
+  await expect(bubble).toContainText("다른 지원서에서 알려 준 답 3개를 근거로 같이 썼어요 · 다시 묻지 않을게요");
+  await expect(chagok.getByText(/경험의 근거로 같이 썼어요/)).toHaveCount(0);
+  // 접힌 채로는 인용이 안 보이고, 「보기」를 펼치면 경험 · 어느 문항 · 인용이 보인다
+  await expect(bubble.getByText("동시 접속 200명", { exact: false })).toBeHidden();
+  const shot = (name: string) => page.screenshot({ path: `artifacts/reused-bubble-${name}-${page.viewportSize()!.width}.png`, style: "nextjs-portal { display: none !important; }" });
+  await shot("folded");
+  await bubble.getByText("보기", { exact: true }).click();
+  await expect(bubble.getByText("동시 접속 200명", { exact: false })).toBeVisible();
+  await expect(bubble.getByRole("listitem")).toHaveCount(3);
+  await expect(bubble).toContainText("OO 백엔드 부트캠프 문항");
+  await shot("open");
 });
 
 // FE#38 — 지원 = 지원처 하나 + 문항 여러 개(S-18 · S-21)
