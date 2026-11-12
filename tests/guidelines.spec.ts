@@ -148,8 +148,12 @@ test('load error retry, zero candidates invite manual entry and account menu ope
 const composer = (page: Page) => page.getByRole('region', { name: '초안 설정', exact: true });
 async function openComposer(page: Page) {
   const ask = page.getByRole('button', { name: /초안 부탁하기|초안 설정 열기/ });
-  await expect(composer(page).or(ask).first()).toBeVisible();
-  if (!(await composer(page).isVisible())) await ask.click();
+  // 다 된 초안이 있으면 설정은 패널 아래 「초안 다시 만들기」 칩으로 접혀 있다(FE#547)
+  const chip = page.getByRole('button', { name: /(초안|넣어) 다시 만들기$/ });
+  await expect(composer(page).or(ask).or(chip).first()).toBeVisible();
+  if (!(await composer(page).isVisible()) && !(await chip.isVisible())) await ask.click();
+  await expect(composer(page).or(chip).first()).toBeVisible();
+  if (!(await composer(page).isVisible())) await chip.click();
   await expect(composer(page)).toBeVisible();
   return composer(page);
 }

@@ -43,6 +43,10 @@ async function openDraftComposer(page: Page) {
   const ask = page.getByRole("button", { name: /초안 부탁하기|초안 설정 열기/ });
   await expect(panel.or(ask).first()).toBeVisible();
   if (!(await panel.isVisible())) await ask.click();
+  await expect(panel).toBeVisible();
+  // 다 된 초안이 있으면 설정은 패널 아래 「초안 다시 만들기」 칩으로 접혀 있다(FE#547)
+  const chip = page.getByRole("button", { name: /(초안|넣어) 다시 만들기$/ });
+  if (await chip.count() && (await chip.getAttribute("aria-expanded")) === "false") await chip.click();
   return page.getByRole("region", { name: "초안 설정", exact: true });
 }
 

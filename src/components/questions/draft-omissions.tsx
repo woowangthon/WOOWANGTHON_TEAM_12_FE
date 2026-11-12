@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api/errors";
 import type { DraftOmission, QuestionDetail } from "@/lib/api/question-types";
-import { AnsweredItem, AnswerForm, AskHead, bubble, openItem, SupplementNote, type AnswerHandler } from "./clarifications";
+import { AnsweredItem, AskHead, bubble, SupplementNote } from "./clarifications";
 import { DraftComposer } from "./draft-composer";
 import { isSupposedPair } from "./answer-draft";
 import { getBoxShows, subscribeBoxShows } from "./answer-box-state";
@@ -13,7 +13,7 @@ import { requestError } from "./draft-errors";
 import { scrollWithinContainer } from "@/lib/scroll";
 import { cn } from "@/lib/utils";
 
-function answerError(e: unknown) {
+export function answerError(e: unknown) {
   if (e instanceof ApiError) {
     if (e.code === "CLARIFICATION_NOT_FOUND") return "초안이 바뀌어 이 질문에 답할 수 없어요. 초안 상태를 확인해 주세요.";
     if (e.code === "EXPERIENCE_NOT_FOUND") return "이 경험이 지워졌어요. 초안 상태를 확인해 주세요.";
@@ -44,24 +44,18 @@ export function omissionSource(question: QuestionDetail, item: DraftOmission) {
   return { activityId, activityName, content, supplement };
 }
 
-export function OmissionItem({ item, question, onAnswer, onRefresh, disabled }: {
-  item: DraftOmission; question: QuestionDetail; onAnswer: AnswerHandler;
-  onRefresh: () => Promise<void>; disabled: boolean;
-}) {
-  const { activityId, activityName, content, supplement } = omissionSource(question, item);
-  // 문항 되묻기와 같은 머리(FE#464) — 질문과 같은 말인 요약 줄(item.text)은 경험을 모를 때만 대신 보인다
-  const where = activityName || content ? <AskHead activityId={activityId} activityName={activityName} content={content} questionId={question.id} />
+/** 초안 빈칸 질문의 머리 — 문항 되묻기와 같은 모양(FE#464). 질문과 같은 말인 요약 줄(item.text)은 경험을 모를 때만 대신 보인다 */
+export function OmissionHead({ item, question }: { item: DraftOmission; question: QuestionDetail }) {
+  const { activityId, activityName, content } = omissionSource(question, item);
+  return activityName || content ? <AskHead activityId={activityId} activityName={activityName} content={content} questionId={question.id} />
     : <p className="m-0 text-note leading-relaxed text-muted">{item.text}</p>;
+}
 
-  if (item.supplementId !== null) return <AnsweredItem question={item.question!} supplement={supplement} head={where}
+/** 답한 초안 빈칸 질문 — 「답한 질문 N개 보기」 안의 한 줄. 답할 질문은 차곡이 패널이 경험별로 묶어 그린다(FE#547) */
+export function AnsweredOmission({ item, question }: { item: DraftOmission; question: QuestionDetail }) {
+  const { activityName, supplement } = omissionSource(question, item);
+  return <AnsweredItem question={item.question!} supplement={supplement} head={<OmissionHead item={item} question={question} />}
     note={<SupplementNote supplement={supplement} activityName={activityName ?? undefined} />} />;
-
-  return <li className={openItem}>
-    <AnswerForm head={where} question={<p className="m-0 break-words text-sm font-semibold text-ink">{item.question}</p>} label={item.question!} disabled={disabled} onSave={async text => {
-      try { await onAnswer(item.clarificationId!, text); return null; }
-      catch (e) { return answerError(e); }
-    }} after={<Button variant="secondary" size="sm" className="min-h-11 lg:min-h-10" disabled={disabled} onClick={() => void onRefresh()}>초안 상태 확인</Button>} />
-  </li>;
 }
 
 export type DraftPanelActions = {
@@ -70,11 +64,17 @@ export type DraftPanelActions = {
   picks: number[]; onResetPicks: (questionId: number) => void;
 };
 
-/** 시안 6 mateFeed: 빠진 사실 질문 → 내 답 → 보완 저장 안내 → 초안 다시 만들기. */
-export function DraftFollowUp({ question, onGenerate, onRefresh, savingAnswer, requestingDraft, focusRequest, picks, onResetPicks }: {
+/** 시안 6 mateFeed: 빠진 사실 질문 → 내 답 → 보완 저장 안내 → 초안 다시 만들기.
+ *  다 된 초안이 있으면 「초안 다시 만들기」 설정을 늘 펼쳐 두지 않는다 — 패널 아래 칩 줄의 「초안 다시 만들기」가 연다(FE#547) */
+export function DraftFollowUp({ question, onGenerate, onRefresh, savingAnswer, requestingDraft, focusRequest, picks, onResetPicks, composerOpen = false, onComposerClose }: {
   question: QuestionDetail;
+  /** 칩으로 「초안 다시 만들기」를 펼쳤다 */
+  composerOpen?: boolean; onComposerClose?: () => void;
 } & DraftPanelActions) {
   const target = useRef<HTMLElement>(null);
+  const composer = useRef<HTMLDivElement>(null);
+  // 칩을 누르면 펼친 설정이 보이게 — 패널 안에서만 움직인다
+  useEffect(() => { if (composerOpen && composer.current) scrollWithinContainer(composer.current); }, [composerOpen]);
   const pending = useRef(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -97,8 +97,10 @@ export function DraftFollowUp({ question, onGenerate, onRefresh, savingAnswer, r
   const shows = useSyncExternalStore(subscribeBoxShows, () => getBoxShows(question.id), () => null);
   // AI 가정의 짝은 「쓰지 않은 것」이 아니라 회색 문장으로 쓴 것 — 답칸의 그 문장 카드에서 확인한다(S-79 · ADR-014)
   // 경험에 붙지 않은 빈칸(포부 등)은 묻지 않는다 — 문장 속 빈칸이면 답칸의 빈칸 카드가 알린다(FE#382)
-  const asks = question.draft ? draftAsks(question) : [];
+  const asks = question.draft ? draftAsks(question).filter(item => item.supplementId === null) : [];
   const analyzing = requestingDraft || draft?.status === "ANALYZING";
+  // 처음 만들기 · 실패 · 만드는 중은 지금처럼 펼친다
+  const folded = draft?.status === "COMPLETED" && !analyzing && !composerOpen;
   const disabled = savingAnswer || analyzing || refreshing;
   const refresh = async () => {
     if (pending.current || disabled) return;
@@ -121,7 +123,10 @@ export function DraftFollowUp({ question, onGenerate, onRefresh, savingAnswer, r
       </>}
       {savingAnswer && <p role="status" className={bubble}>보완으로 쌓는 중이에요…</p>}
     </> : null}
-    <DraftComposer question={question} onGenerate={onGenerate} onRefresh={onRefresh} savingAnswer={savingAnswer} requestingDraft={requestingDraft || refreshing} picks={picks} onResetPicks={onResetPicks} />
+    {!folded && <div ref={composer} className="min-w-0 scroll-mt-4">
+      <DraftComposer question={question} onRefresh={onRefresh} savingAnswer={savingAnswer} requestingDraft={requestingDraft || refreshing} picks={picks} onResetPicks={onResetPicks}
+        onGenerate={async (...args) => { await onGenerate(...args); onComposerClose?.(); }} />
+    </div>}
     {error && <div className={bubble}>
       <p role="alert" className="m-0 text-error">{error}</p>
       <Button variant="secondary" size="sm" className="min-h-11 lg:min-h-10 justify-self-start" disabled={disabled} onClick={() => void refresh()}>초안 상태 확인</Button>

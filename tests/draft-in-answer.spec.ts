@@ -70,6 +70,8 @@ test("초안 설정 — 보조 재료 토글 없음 · 다시 만들기 전 경�
   await open(page);
   const ask = page.getByRole("button", { name: "초안 설정 열기" });
   await ask.click();
+  // 다 된 초안이 있으면 설정은 패널 아래 「초안 다시 만들기」 칩으로 접혀 있다(FE#547)
+  await page.getByRole("button", { name: /(초안|넣어) 다시 만들기$/ }).click();
   const composer = page.getByRole("region", { name: "초안 설정", exact: true });
   await expect(composer.getByRole("checkbox")).toHaveCount(0); // 같은 활동의 다른 경험은 늘 재료로(ADR-014)
   await composer.scrollIntoViewIfNeeded();
