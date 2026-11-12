@@ -226,3 +226,15 @@ test("문항이 있는 지원서 — 공고 탭은 문항 탭 앞에 있고, 고
   await expect(page).toHaveURL(new RegExp(`question=${q.id}$`));
   await expect(panel(page)).toHaveCount(0);
 });
+
+test("「경험 다시 찾기」는 「내 경험과 맞춰 보기」 머리 줄 오른쪽 끝에 같이 있다 — 한 줄을 따로 차지하지 않는다", async ({ page }) => {
+  await setup(page);
+  await page.goto("/questions");
+  const head = panel(page).locator("summary").filter({ hasText: "내 경험과 맞춰 보기" });
+  const button = panel(page).getByRole("button", { name: "경험 다시 찾기" });
+  await expect(button).toBeVisible();
+  const [h, b, s] = await Promise.all([head.getByRole("heading").boundingBox(), button.boundingBox(), head.boundingBox()]);
+  expect(Math.abs((h!.y + h!.height / 2) - (b!.y + b!.height / 2))).toBeLessThan(4);
+  expect(b!.x).toBeGreaterThan(h!.x + h!.width);
+  expect(b!.x + b!.width).toBeLessThanOrEqual(s!.x + s!.width + 1);
+});
