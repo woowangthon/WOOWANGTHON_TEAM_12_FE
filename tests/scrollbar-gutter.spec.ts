@@ -7,7 +7,8 @@ test.use({ launchOptions: { ignoreDefaultArgs: ["--hide-scrollbars"] } });
 test("스크롤바가 생기고 사라져도 본문 폭이 그대로다", async ({ page }) => {
   await page.goto("/no-such-page"); // 짧은 화면(찾을 수 없음)이라 창 높이로 스크롤 여부가 갈린다
   await page.waitForLoadState("domcontentloaded");
-  const width = () => page.evaluate(() => document.documentElement.clientWidth);
+  // 본문 폭으로 본다 — 크롬은 스크롤바가 없을 때 비워 둔 자리까지 documentElement.clientWidth 에 넣는다
+  const width = () => page.evaluate(() => document.body.getBoundingClientRect().width);
   const scrollable = () => page.evaluate(() => document.documentElement.scrollHeight > innerHeight);
   // 창 높이로 화면이 길어졌다 짧아지는 걸 만든다 — 접기 · 펴기로 내용 길이가 바뀌는 것과 같은 일이다
   const w = page.viewportSize()!.width;
