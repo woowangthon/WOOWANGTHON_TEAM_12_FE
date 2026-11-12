@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CaretDownIcon, PencilSimpleIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
+import { CaretDownIcon, CaretRightIcon, PencilSimpleIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { CaptureReviewTag } from "./capture-input";
 import { AiMark } from "@/components/ui/ai-mark";
@@ -28,12 +28,14 @@ const SECTION_AI = "칸 나누기(담당업무 · 자격요건 · 우대 · 기�
 const SECTION_MOCK = "목 규칙으로 칸을 나눴어요 — 머리 줄(담당업무 · 자격요건 · 우대 · 기술스택) 아래 글머리 줄만 옮겨요.";
 const iconButton = "max-lg:size-11";
 
-/** 공고 요건 줄 확인(S-91 · DESIGN.md 「지원 넣기 — 공고 확인」) — 칸 넷, 공고 순서대로. 줄마다 그 자리에서 고치기 · 빼기(토스트 「되돌리기」),
+/** 공고 요건 줄 확인(S-91 · DESIGN.md 「지원 넣기 — 공고 확인」) — 기본 접힘, 요약 한 줄만(FE#566 — 15줄이 펼쳐져 할 일인 문항 칸이 맨 아래로 묻혔다).
+ *  펼치면 칸 넷, 공고 순서대로. 줄마다 그 자리에서 고치기 · 빼기(토스트 「되돌리기」),
  *  칸마다 「줄 더하기」. 빈 칸은 숨긴다. K · S · A 는 여기서 보이지 않는다(지원 화면 공고 탭에서) */
 export function PostingLinesReview({ lines, onChange }: {
   lines: DraftPostingLine[];
   onChange: (update: (prev: DraftPostingLine[]) => DraftPostingLine[]) => void;
 }) {
+  const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
   const [removed, setRemoved] = useState<{ line: DraftPostingLine; index: number } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -73,17 +75,29 @@ export function PostingLinesReview({ lines, onChange }: {
   };
 
   const sections = POSTING_SECTIONS.filter(section => lines.some(l => l.section === section));
+  // 「공고 요건 15줄 · 담당업무 3 · 자격요건 7 · 기술스택 6」 — 접어도 무엇이 몇 줄인지는 보인다
+  const summary = [`${lines.length}줄`, ...sections.map(section => `${SECTION_TITLE[section]} ${lines.filter(l => l.section === section).length}`)].join(" · ");
   return (
     <section aria-labelledby="posting-lines-title" className="grid gap-3">
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <h3 id="posting-lines-title" className="m-0 text-sm font-semibold text-ink">공고 요건</h3>
-        <span className="text-note text-muted">공고에서 그대로 가져왔어요 · 고치거나 뺄 수 있어요</span>
-        {sections.length > 0 && (isMockMode()
-          ? <span title={SECTION_MOCK} className="inline-block shrink-0 rounded-[4px] border border-hairline px-1 text-xs leading-[15px] font-bold whitespace-nowrap text-muted">목 규칙으로 나눔</span>
-          : <AiMark title={SECTION_AI} />)}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <h3 id="posting-lines-title" className="m-0 min-w-0 text-sm font-semibold text-ink">
+          <button type="button" aria-expanded={open} onClick={() => setOpen(v => !v)}
+            className="-ml-1 flex min-h-11 cursor-pointer items-center gap-1.5 rounded-sm px-1 text-left lg:min-h-10">
+            <CaretRightIcon aria-hidden="true" className={cn("size-3.5 shrink-0 text-muted transition-transform", open && "rotate-90")} />
+            공고 요건<span className="font-normal text-muted">{summary}</span>
+          </button>
+        </h3>
+        {/* 캡처에서 읽은 줄이 있으면 접어도 「확인해 주세요」는 보인다(S-92) */}
+        {!open && lines.some(l => l.readFrom === "IMAGE") && <CaptureReviewTag />}
+        {open && <>
+          <span className="text-note text-muted">공고에서 그대로 가져왔어요 · 고치거나 뺄 수 있어요</span>
+          {sections.length > 0 && (isMockMode()
+            ? <span title={SECTION_MOCK} className="inline-block shrink-0 rounded-[4px] border border-hairline px-1 text-xs leading-[15px] font-bold whitespace-nowrap text-muted">목 규칙으로 나눔</span>
+            : <AiMark title={SECTION_AI} />)}
+        </>}
       </div>
-      {!sections.length && <p className="m-0 text-sm text-muted">공고 요건을 찾지 못했어요.</p>}
-      {sections.map(section => <PostingSectionBlock key={section} section={section} lines={lines.filter(l => l.section === section)}
+      {open && !sections.length && <p className="m-0 text-sm text-muted">공고 요건을 찾지 못했어요.</p>}
+      {open && sections.map(section => <PostingSectionBlock key={section} section={section} lines={lines.filter(l => l.section === section)}
         editing={editing} full={full} onEdit={setEditing} onSave={save} onRemove={remove} onAdd={() => add(section)} />)}
       {removed && <div className={toastStack}>
         <div role="status" className={cn(toastCard, "flex items-center gap-3 py-2 pr-2 pl-4")}>

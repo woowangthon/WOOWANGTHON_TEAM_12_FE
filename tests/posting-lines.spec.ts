@@ -28,15 +28,27 @@ test("a posting without questions shows its lines in sections, lets me fix them,
   await splitPosting(page);
 
   const review = page.getByRole("region", { name: "공고 요건" });
+  // 기본은 접힘 — 요약 한 줄만 보이고 줄 · 칸은 없다(FE#566). 문항 칸은 첫 화면에 보인다
+  const toggle = review.getByRole("button", { name: /^공고 요건\s*5줄 · 담당업무 2 · 자격요건 2 · 우대 1$/ });
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(review.getByRole("group")).toHaveCount(0);
+  await expect(page.getByLabel("문항 1", { exact: true })).toBeInViewport();
+  // 문항이 없으면 「자주 나오는 문항」 고르기 입구를 한 줄로 — 목록을 펼치지 않는다. 종류(기업)에 맞는 묶음 이름이 입구 글에 든다
+  const entry = page.getByRole("region", { name: "자주 나오는 문항" });
+  await expect(entry.getByRole("status")).toHaveText(/^이 공고엔 자소서 문항이 없어요/);
+  await expect(entry.getByRole("button", { name: "자주 나오는 문항(IT 기업 신입)에서 고르기", exact: true })).toBeVisible();
+  await expect(entry.getByRole("checkbox")).toHaveCount(0);
+  await page.screenshot({ path: `docs/fe-566/collapsed-${page.viewportSize()!.width}.png`, fullPage: true });
+
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
   await expect(review.getByText("공고에서 그대로 가져왔어요")).toBeVisible();
   // 칸은 공고 순서대로, 빈 칸(기술스택)은 숨긴다. K · S · A 는 보이지 않는다
   await expect(review.getByRole("group")).toHaveCount(3);
   await expect(review.getByRole("group", { name: "기술스택" })).toHaveCount(0);
   await expect(review.getByRole("group", { name: "담당업무" }).getByRole("listitem")).toHaveText(["Spring 기반 API 설계 · 개발", "서비스 운영 · 장애 대응"]);
   await expect(review.getByText(/SKILL|기술 \(K/)).toHaveCount(0);
-  // 문항이 없으면 「자주 나오는 문항」을 같은 자리에 — 공고 줄이 있으니 공고로 찾는다고 말한다
-  await expect(page.getByRole("region", { name: "자주 나오는 문항" }).getByRole("status")).toHaveText(/^이 공고엔 자소서 문항이 없어요 — 공고 요건으로 맞는 경험부터 찾아 둘게요/);
-  await page.screenshot({ path: `artifacts/posting-lines-${page.viewportSize()!.width}.png`, fullPage: true });
+  await page.screenshot({ path: `docs/fe-566/expanded-${page.viewportSize()!.width}.png`, fullPage: true });
 
   // 줄 하나 고치기 — 그 자리에서
   const required = review.getByRole("group", { name: "자격요건" });
@@ -83,6 +95,7 @@ test("with no posting lines and no questions the submit button stays off with a 
   const api = await new FakeQuestionApi({ empty: true }).install(page);
   await splitPosting(page);
   const review = page.getByRole("region", { name: "공고 요건" });
+  await review.getByRole("button", { name: /^공고 요건/ }).click();
   for (const name of ["담당업무", "자격요건", "우대"]) {
     const group = review.getByRole("group", { name });
     while (await group.count()) await group.getByRole("button", { name: /줄 빼기/ }).first().click();
@@ -92,8 +105,10 @@ test("with no posting lines and no questions the submit button stays off with a 
   await expect(page.getByRole("button", { name: "문항 1개로 경험 찾기", exact: true })).toBeDisabled();
   await expect(page.getByText("문항이나 공고 요건을 하나 이상 넣어 주세요.")).toBeVisible();
   // 문항을 고르면 다시 켜지고 지금 문구로
-  await page.getByRole("region", { name: "자주 나오는 문항" }).getByRole("checkbox").first().check();
-  await page.getByRole("region", { name: "자주 나오는 문항" }).getByRole("button", { name: "고른 문항 1개 넣기", exact: true }).click();
+  await page.getByRole("region", { name: "자주 나오는 문항" }).getByRole("button", { name: /^자주 나오는 문항.*에서 고르기$/ }).click();
+  const picker = page.getByRole("region", { name: "문항 고르기" });
+  await picker.getByRole("checkbox").first().check();
+  await picker.getByRole("button", { name: "고른 문항 1개 넣기", exact: true }).click();
   await expect(page.getByRole("button", { name: "문항 1개로 경험 찾기", exact: true })).toBeEnabled();
   expect(api.calls.filter(c => c.call === "POST /api/applications")).toEqual([]);
 });

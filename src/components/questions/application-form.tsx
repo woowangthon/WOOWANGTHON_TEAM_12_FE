@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { ArrowDownIcon, ArrowUpIcon, ImageSquareIcon, LinkIcon, LockSimpleIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { AnalysisButton, AnalysisCost } from "@/components/auth/analysis-cost";
-import { BackButton, CommonQuestionPicker, CommonQuestionsInline } from "./common-question-picker";
+import { BackButton, CommonQuestionPicker, CommonQuestionsEntry } from "./common-question-picker";
 import { ParseFailureNotice, useApplicationParse, type ParseFailure, type ParseInput } from "./application-parse";
 import { Mascot } from "./chagok-panel";
 import { CapturePane, CaptureReviewTag, CaptureThumbs, useCaptures } from "./capture-input";
@@ -149,7 +149,7 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
     setItems(prev => mergeItems(prev.filter(it => !it.ai && it.text.trim()), result.questions.map(q => itemOf(q, true))));
     // 새 공고를 나누면 줄을 바꾼다. 줄이 없는 글(문항만 붙여 넣기)이면 확인하던 줄을 그대로 둔다
     if (result.postingLines.length) setLines(draftLines(result.postingLines, result.readFrom));
-    // 문항을 못 찾았으면 확인 화면에 「자주 나오는 문항」이 펼쳐진다(FE#492)
+    // 문항을 못 찾았으면 확인 화면에 「자주 나오는 문항」 고르기 입구가 한 줄로 보인다(FE#492 · FE#566)
     setFilled(result); setFilledFrom(from); setError(null); setStep("review");
     // 읽은 캡처는 입력칸에서 확인 단계로 옮긴다 — 칸과 나란히 대조한다
     if ("images" in input) { setReadCaptures(input.images); capture.clear(); }
@@ -287,9 +287,8 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
           {filledAny ? <p className="m-0 flex items-center gap-2 text-note font-semibold text-muted"><Mascot size={18} />{isMockMode() ? (filledFrom === "url" ? "목 모드 — 링크를 읽지 않고 예시 공고로 채웠어요 · 고쳐도 돼요" : "목 모드 — AI 호출 없이 글의 번호 달린 줄만 규칙으로 나눴어요 · 고쳐도 돼요") : filledFrom === "url" ? "링크를 읽어 AI 가 나눠 채웠어요 · 고쳐도 돼요" : filledFrom === "image" ? "캡처를 읽어 AI 가 나눠 채웠어요 · 캡처와 맞는지 확인해 주세요" : "AI 가 나눠 채웠어요 · 고쳐도 돼요"}</p>
             : <p className="m-0 text-ui text-body">문항을 한 칸에 하나씩 넣으면, 문항마다 맞는 경험을 찾아요.</p>}
         </div>
-        <Button type="button" variant="secondary" size="sm" className="min-h-11 lg:min-h-10" disabled={saving} onClick={toInput}>
-          {filled || paste.trim() ? "원문 보기" : "글 · 링크 · 캡처로 채우기"}
-        </Button>
+        {/* 읽은 원문이 있을 때만 — 「직접 쓰기」로 온 빈 확인 화면은 위 「← 돌아가기」가 넣기 화면으로 보낸다(FE#566) */}
+        {(filled || paste.trim()) && <Button type="button" variant="secondary" size="sm" className="min-h-11 lg:min-h-10" disabled={saving} onClick={toInput}>원문 보기</Button>}
       </header>
       <fieldset disabled={saving} className="m-0 grid min-w-0 gap-5 border-0 p-0">
         {/* 캡처를 읽었으면 왼쪽 캡처 · 오른쪽 칸(DESIGN.md 「지원 넣기 — 공고 확인」), 좁은 폭은 칸 위 접힌 줄 */}
@@ -320,14 +319,12 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
             </div>
             {/* 공고 요건 확인(S-91) — 있을 때만. 문항보다 먼저: 공고만 붙여 넣으면 이게 할 일이다 */}
             {lines.length > 0 && <PostingLinesReview lines={lines} onChange={setLines} />}
-            {/* 문항이 없으면 막다른 길 대신 「자주 나오는 문항」을 그 자리에 펼친다(FE#492). 고르거나 문항 칸에 쓰면 사라진다 */}
-            {noQuestions && <CommonQuestionsInline room={room} organizationType={organizationType} onPick={insert} onPickPast={() => openPick("review")} message={lines.length
-              ? "이 공고엔 자소서 문항이 없어요 — 공고 요건으로 맞는 경험부터 찾아 둘게요. 문항이 있으면 자주 나오는 문항에서 고르거나 문항 칸에 붙여 넣어 주세요."
-              : filledFrom === "image"
-              ? "이 캡처엔 자소서 문항이 없어요. 자주 나오는 문항에서 고르거나, 「원문 보기」에서 문항 화면 캡처를 넣고 다시 읽어 주세요."
-              : filledFrom === "url"
-              ? "이 링크엔 자소서 문항이 없어요. 문항은 보통 지원서 양식(구글폼 등) 안에 있어요. 자주 나오는 문항에서 고르거나, 「원문 보기」에서 문항을 붙여 넣고 다시 읽어 주세요."
-              : "이 글엔 자소서 문항이 없어요. 문항은 보통 지원서 양식(구글폼 등) 안에 있어요. 자주 나오는 문항에서 고르거나, 문항 칸에 붙여 넣어 주세요."} />}
+            {/* 문항이 없으면 막다른 길 대신 「자주 나오는 문항」 고르기 입구를 한 줄로(FE#492 · FE#566 — 목록을 펼치면 문항 칸이 묻힌다). 고르거나 문항 칸에 쓰면 사라진다 */}
+            {noQuestions && <CommonQuestionsEntry organizationType={organizationType} onOpen={() => openPick("review")}
+              message={`이 ${lines.length ? "공고" : filledFrom === "image" ? "캡처" : filledFrom === "url" ? "링크" : "글"}엔 자소서 문항이 없어요 —`}
+              hint={lines.length ? "공고 요건으로 맞는 경험부터 찾아 둘게요. 문항이 있으면 자주 나오는 문항에서 고르거나 문항 칸에 붙여 넣어 주세요."
+                : filledFrom === "image" ? "「원문 보기」에서 문항 화면 캡처를 넣고 다시 읽어도 돼요."
+                : "문항은 보통 지원서 양식(구글폼 등) 안에 있어요. 「원문 보기」에서 문항을 붙여 넣고 다시 읽어도 돼요."} />}
             <div className="grid gap-2">
               <h3 className="m-0 text-sm font-semibold text-ink">문항</h3>
               <ol className="@container m-0 grid list-none gap-2 p-0" aria-label="문항">
