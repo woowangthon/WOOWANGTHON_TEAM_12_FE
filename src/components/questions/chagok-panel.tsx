@@ -13,6 +13,7 @@ import { AnsweredOmission, answerError, DraftFollowUp, draftAsks, OmissionHead, 
 import { isSupposedPair } from "./answer-draft";
 import { skipAsks, unskipAsks, useSkippedAsks } from "./ask-memory";
 import { shortName } from "./question-result";
+import { NoExperienceGuide } from "./no-experience-guide";
 import { ChagokComposer, ChagokRunFeed, type RedraftChip } from "./chagok-run";
 import type { Rematch } from "./rematch-button";
 import type { ChagokRunControl } from "./use-chagok-run";
@@ -251,8 +252,12 @@ function Feed({ question: q, originOf, onAnswer, draftActions, composerOpen, onC
       })}</ul>
       <p className="m-0 text-note text-muted">자료에 없다고 경험이 없는 건 아니에요.{q.clarifications.length > 0 && " 몇 가지만 물어볼게요."}</p>
     </section>
-    <p className={bubble}>{top ? <>「{shortName(top.activity.name)}」 경험이 가장 잘 맞아요. 「꺼내 쓸 경험」에 {q.recommendations.length}개 골라 뒀어요.</>
-      : <>지금 자료에서 이 문항에 연결할 경험을 찾지 못했어요. 경험이 없다는 뜻은 아니에요.</>}</p>
+    <div className={bubble}>{top ? <p className="m-0">「{shortName(top.activity.name)}」 경험이 가장 잘 맞아요. 「꺼내 쓸 경험」에 {q.recommendations.length}개 골라 뒀어요.</p>
+      : <>
+        <p className="m-0">지금 자료에서 이 문항에 연결할 경험을 찾지 못했어요. 경험이 없다는 뜻은 아니에요.</p>
+        {/* 유형에 맞는 기록 안내(FE#586) — 사용자가 고친 유형이 있으면 questionType 이 그 값이다 */}
+        <NoExperienceGuide type={q.questionType} questionId={q.id} className="m-0 text-note text-muted" />
+      </>}</div>
     {reused.length > 0 && <ReusedBubble reused={reused} originOf={originOf} asked={text => q.clarifications.some(c => c.question === text)} />}
     <AsksBlock question={q} onAnswer={onAnswer} draftActions={draftActions} />
     <DraftFollowUp question={q} {...draftActions} composerOpen={composerOpen} onComposerClose={onComposerClose} />
