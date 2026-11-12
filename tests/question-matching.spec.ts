@@ -30,8 +30,11 @@ const result = (page: Page) => page.getByRole("tabpanel", { name: "선택한 문
 const analyzingNotice = (page: Page) => result(page).getByRole("status").filter({ hasText: "찾고 있어요" });
 // 지원 목록 — 1280 이상은 사이드바 안(FE#51), 그보다 좁으면 화면 안
 const list = (page: Page) => page.getByRole("complementary", { name: /^(지원서 목록|사이드바)$/ });
-// 지원 목록의 첫 지원 — 사이드바엔 「자료 넣기」 같은 메뉴 버튼도 있어 지원 버튼(aria-pressed)만 센다
-const firstApplication = (page: Page) => list(page).locator("button[aria-pressed]").first();
+// FE#551 — 펼친 사이드바는 최근 지원서 링크, 레일 · 모바일의 화면 안 목록은 선택 버튼이다.
+// 주 메뉴 링크 · 새 지원서 버튼 · 상태 꼬리표는 지원서 항목에 세지 않는다.
+const applications = (page: Page) => list(page).getByRole("region", { name: "최근 지원서", exact: true }).getByRole("link")
+  .or(list(page).locator("button[aria-pressed]"));
+const firstApplication = (page: Page) => applications(page).first();
 /** 1024 미만은 지원을 열면 세부만 보인다(FE#159) — 목록을 보려면 먼저 「지원 목록으로」 */
 async function openList(page: Page) {
   if (page.viewportSize()!.width < 1024) await page.getByRole("button", { name: "지원서 목록으로", exact: true }).click();
@@ -182,7 +185,7 @@ test("question 41/42 switch shows contract judgments, actors and supplemental ev
     await page.screenshot({ path: `docs/fe-30/questions-${info.project.name}.png`, fullPage: true, style: "nextjs-portal { display: none !important; }" });
   }
   await openList(page);
-  await list(page).getByRole("button", { name: /OO 백엔드 부트캠프/ }).click();
+  await applications(page).filter({ hasText: "OO 백엔드 부트캠프" }).click();
   await expect(recommendation(page, 1)).toContainText("WebSocket");
   await expand(page, 1);
   await expect(recommendation(page, 1).getByText("나", { exact: true })).toHaveCount(0); // 수행 주체는 팀 · 알 수 없음일 때만(FE#510)
@@ -229,7 +232,8 @@ test("analysis is polled until done, survives reload and keeps the new applicati
   await expect(result(page).getByRole("heading", { name: QUESTION_EXAMPLES[1].text, exact: true })).toBeVisible();
   await expect(recommendation(page, 1)).toContainText("매주 금요일", { timeout: 10000 });
   await openList(page);
-  await expect(firstApplication(page)).toHaveAttribute("aria-pressed", "true");
+  // 선택은 주소로 확인한다 — 사이드바 링크에는 aria-pressed가 없다.
+  await expect(page).toHaveURL(/question=43/);
   await expect(firstApplication(page)).toContainText("지원처 이름 없음");
 });
 
@@ -524,8 +528,8 @@ test("status tag changes with one choice, the month appears and can be corrected
 
 test("status can be changed from the list without opening that application, and a failed save reverts and retries", async ({ page }) => {
   const api = await fake(page);
-  await page.goto("/questions?question=41");
-  await openList(page);
+  // FE#551 — 펼친 사이드바의 상태는 읽기 전용. 상태를 바꾸는 전체 목록에서 실패 · 재시도를 확인한다.
+  await page.goto("/applications");
   const otherOrganization = QUESTION_EXAMPLES[1].organization!;
   const other = page.getByLabel(`${otherOrganization} 지원 상태`).filter({ visible: true });
   await expect(other).toHaveText("작성 중");
@@ -543,7 +547,7 @@ test("status can be changed from the list without opening that application, and 
   expect(patches(api)).toEqual([["PATCH /api/applications/22", { applicationStatus: "UNKNOWN" }], ["PATCH /api/applications/22", { applicationStatus: "UNKNOWN" }]]);
 });
 
-test("status tags fit every width: touch target 44 under 1024 and 40 on PC, same look for passed and not passed, no sideways scroll", async ({ page }, info) => {
+test("status tags fit every width: editable targets, read-only sidebar labels, same look for passed and not passed, no sideways scroll", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "폭을 직접 바꾼다");
   const api = await fake(page);
   api.statuses.set(21, { applicationStatus: "PASSED", submittedMonth: "2025-02" });
@@ -556,11 +560,19 @@ test("status tags fit every width: touch target 44 under 1024 and 40 on PC, same
     await expect(tags.first()).toBeVisible();
     await expect(page.getByText("2025년 2월 냄").filter({ visible: true }).first()).toBeVisible();
     for (const tag of await tags.all()) expect((await tag.boundingBox())!.height).toBeGreaterThanOrEqual(width < 1024 ? 44 : 40);
-    const look = (label: string) => page.getByLabel(label).filter({ visible: true }).first().locator("span").first().evaluate(el => {
+    const status = (organization: string) => width >= 1280
+      ? list(page).getByRole("listitem").filter({ has: page.getByRole("link", { name: new RegExp(organization) }) }).locator(":scope > span")
+      : page.getByLabel(`${organization} 지원 상태`).filter({ visible: true }).first().locator("span").first();
+    if (width >= 1280) {
+      await expect(list(page).getByRole("combobox")).toHaveCount(0);
+      await expect(status(QUESTION_EXAMPLES[0].organization!)).toHaveText("합격");
+      await expect(status(QUESTION_EXAMPLES[1].organization!)).toHaveText("불합격");
+    }
+    const look = (organization: string) => status(organization).evaluate(el => {
       const { backgroundColor, color } = getComputedStyle(el);
       return { backgroundColor, color };
     });
-    expect(await look(`${QUESTION_EXAMPLES[0].organization} 지원 상태`)).toEqual(await look(`${QUESTION_EXAMPLES[1].organization} 지원 상태`));
+    expect(await look(QUESTION_EXAMPLES[0].organization!)).toEqual(await look(QUESTION_EXAMPLES[1].organization!));
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     if (process.env.UPDATE_STATUS_SCREENSHOTS === "1") await page.screenshot({ path: `docs/fe-96/status-${width}.png`, style: "nextjs-portal { display: none !important; }" });
   }
@@ -623,7 +635,7 @@ test("daily limit (429) keeps the draft and says nothing was saved", async ({ pa
   // 좁은 폭은 넣는 동안 목록이 없다 — 취소하면 지원으로 돌아가고 거기서 목록을 연다(FE#159)
   if (page.viewportSize()!.width < 1024) await page.getByRole("button", { name: "취소", exact: true }).click();
   await openList(page);
-  await expect(list(page).getByRole("button", { name: /지원처 이름 없음|OO/ })).toHaveCount(2);
+  await expect(applications(page).filter({ hasText: /지원처 이름 없음|OO/ })).toHaveCount(2);
 });
 
 /** 「차곡이가 물어볼 것」 — 문항 · 초안 되묻기 한 블록, 기본은 접혀 있다(FE#336) */
@@ -656,7 +668,7 @@ test("answering a clarification posts it and shows it on the experience as user-
 
   // 문항 41 — 61 은 이미 답함(보완 301), 62 에 답한다
   await openList(page);
-  await list(page).getByRole("button", { name: /OO 백엔드 부트캠프/ }).click();
+  await applications(page).filter({ hasText: "OO 백엔드 부트캠프" }).click();
   await expect(result(page).getByRole("heading", { name: QUESTION_EXAMPLES[0].text, exact: true })).toBeVisible();
   await openChagok(page);
   await openAsks(page);
@@ -773,7 +785,7 @@ test("switching tabs and applications uses questions already loaded; only unseen
 
   api.calls = [];
   await openList(page);
-  await list(page).getByRole("button", { name: /OO 백엔드 부트캠프/ }).click();
+  await applications(page).filter({ hasText: "OO 백엔드 부트캠프" }).click();
   await expect(recommendation(page, 1)).toContainText("WebSocket");
   expect(gets(api)).toEqual(["GET /api/questions/41"]);
 
@@ -1133,7 +1145,7 @@ test("390 first screen shows the question and answer; the application list stays
   await openList(page);
   await expect(page.getByRole("tabpanel", { name: "선택한 문항", exact: true })).toBeHidden();
   await expect(page.locator("#application-list")).toBeFocused();
-  await list(page).locator("button[aria-pressed]").last().click();
+  await applications(page).last().click();
   await expect(page.getByRole("tabpanel", { name: "선택한 문항", exact: true })).toBeVisible();
   await expect(page.locator("#application-list")).toBeHidden();
 });
