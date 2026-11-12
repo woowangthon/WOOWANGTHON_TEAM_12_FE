@@ -190,11 +190,12 @@ function ActivityDrawer({ activities, onOpenActivity }: { activities: ActivitySu
                 <span aria-hidden="true" className="absolute top-0 left-0 h-8 w-2/5 rounded-t-md bg-category-soft [clip-path:polygon(0_0,72%_0,100%_100%,0_100%)]" />
                 {/* 마우스를 올리면 폴더가 살짝 열린다 — 뒤판 · 빈 종이 · 앞판. 앞판은 아래 끝을 고정하고 위쪽만 앞으로 기울며 조금 넓어지고 내려온다.
                     종이는 위로 올라오지 않고 뒤판 안에서만 보여 바탕(흰색)과 섞이지 않는다.
-                    앞판은 네 모서리가 다 둥글고, 왼쪽 위 빈틈은 뒤판(모서리 없음)이 메운다. 「움직임 줄이기」에선 움직이지 않는다(motion-safe) */}
+                    앞판은 네 모서리가 다 둥글고, 왼쪽 위 빈틈은 뒤판(모서리 없음)이 메운다. 「움직임 줄이기」에선 움직이지 않는다(motion-safe).
+                    최소 높이는 두지 않는다 — 비율과 같이 쓰면 최소 높이가 최소 너비로 넘어가 좁은 두 열에서 칸을 넘친다(FE#558). 글이 더 길면 자동 최소 높이로 늘어난다 */}
                 <span className="relative block">
                   <span aria-hidden="true" className="absolute inset-0 rounded-md rounded-tl-none bg-category-soft" />
                   <span aria-hidden="true" className="absolute inset-x-4 top-0.5 h-6 rounded-sm bg-canvas opacity-0 motion-safe:transition-opacity motion-safe:duration-200 motion-safe:ease-out group-hover:opacity-100" />
-                  <span className="relative flex aspect-[5/3] min-h-28 origin-bottom flex-col rounded-md bg-category-soft p-4 @xl:p-5 motion-safe:transition-[transform,box-shadow] motion-safe:duration-200 motion-safe:ease-out group-hover:shadow-mode group-hover:[transform:perspective(900px)_rotateX(-8deg)_scaleY(0.92)] group-focus-visible:outline-2 group-focus-visible:outline-ink">
+                  <span className="relative flex aspect-[5/3] origin-bottom flex-col rounded-md bg-category-soft p-4 @xl:p-5 motion-safe:transition-[transform,box-shadow] motion-safe:duration-200 motion-safe:ease-out group-hover:shadow-mode group-hover:[transform:perspective(900px)_rotateX(-8deg)_scaleY(0.92)] group-focus-visible:outline-2 group-focus-visible:outline-ink">
                     <span className="truncate text-sm font-bold text-ink @xl:text-base">{a.name}</span>
                     <span className="mt-1 text-xs text-category-ink tabular-nums @xl:text-sm">경험 {a.experienceCount}</span>
                     <span className="mt-auto pt-4 text-xs text-body tabular-nums sm:pt-6 @xl:text-sm"><PeriodLabel period={a.period} /></span>
