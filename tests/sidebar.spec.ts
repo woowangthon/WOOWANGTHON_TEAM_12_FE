@@ -68,7 +68,7 @@ test("desktop collapse survives reload and navigation; the application list rema
   test.skip(info.project.name !== "desktop");
   await page.goto("/questions");
   await expect(sidebar(page)).toHaveCSS("width", "248px");
-  await expect(sidebar(page).getByRole("button", { name: /OO 연합 동아리/ })).toBeVisible();
+  await expect(sidebar(page).getByRole("link", { name: /OO 연합 동아리/ })).toBeVisible();
   await capture(page, "questions-1440");
   await sidebar(page).getByRole("button", { name: "사이드바 접기", exact: true }).click();
   await expect(sidebar(page)).toHaveCSS("width", "72px");
