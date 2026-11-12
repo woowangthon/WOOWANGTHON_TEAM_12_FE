@@ -95,10 +95,10 @@ export function PostingTab({ application, pollStopped, onResumePoll, onRetry, on
     catch (e) { setRetryError(e instanceof ApiError ? WHY[e.code] ?? e.message : e instanceof Error ? e.message : "경험을 다시 찾지 못했어요. 다시 눌러 주세요."); }
     finally { pending.current = false; setRunning(false); }
   };
-  const retryButton = (label: string, prominent: boolean) => <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+  const retryButton = (label: string, prominent: boolean, cost = true) => <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
     <AnalysisButton variant={prominent ? "default" : "secondary"} size={prominent ? "default" : "sm"} className="min-h-11 lg:min-h-10"
       running={running} disabled={running} onClick={() => void retry()}>{running ? "다시 찾기 시작하는 중…" : label}</AnalysisButton>
-    <AnalysisCost running={running} />
+    {cost && <AnalysisCost running={running} />}
   </span>;
 
   const verdicts = new Map(match?.lines.map(l => [l.postingLineId, l]));
@@ -147,12 +147,14 @@ export function PostingTab({ application, pollStopped, onResumePoll, onRetry, on
     </details>
 
     {/* ② 내 경험과 맞춰 보기 — 판정별 묶음. 판정 말은 묶음 머리에 한 번만 */}
-    <details open className="group/match min-w-0">
-      <summary className="flex min-h-11 lg:min-h-10 cursor-pointer list-none items-center gap-2 py-1 [&::-webkit-details-marker]:hidden">
+    <details open className="group/match relative min-w-0">
+      {/* 맞춰 본 결과가 있으면 「경험 다시 찾기」는 머리 줄 오른쪽 끝에 — <summary> 안에 버튼을 넣을 수 없어 겹쳐 둔다(접으면 같이 숨는다) */}
+      <summary className={cn("flex min-h-11 lg:min-h-10 cursor-pointer list-none items-center gap-2 py-1 [&::-webkit-details-marker]:hidden", completed && "pr-40")}>
         <CaretRightIcon aria-hidden="true" className="size-3.5 shrink-0 text-muted transition-transform group-open/match:rotate-90" />
         <h2 className="m-0 text-sm font-semibold text-ink">내 경험과 맞춰 보기</h2>
         <AiMark title="AI 가 맞춰 본 판정이에요. 원문 사실이 아니에요." />
       </summary>
+      {completed && <div className="absolute top-0 right-0 flex min-h-11 items-center lg:min-h-10">{retryButton("경험 다시 찾기", recorded, false)}</div>}
       <div className="grid min-w-0 gap-3 sm:pl-5.5">
         {/* 찾는 중이면 무엇을 하는지, 실패면 오류와 다시 시도, 끝났으면 다시 찾기 */}
         {analyzing ? <p role="status" aria-live="polite" className="m-0 flex min-h-11 items-center text-sm text-body lg:min-h-10">공고 줄마다 받치는 내 경험을 찾고 있어요. 보통 30초 안에 끝나요.</p>
@@ -160,7 +162,7 @@ export function PostingTab({ application, pollStopped, onResumePoll, onRetry, on
             <p className="m-0 text-sm text-error">{failureText(match?.error ?? null)}</p>
             {retryButton("다시 시도", true)}
           </div>
-          : <div className="flex justify-end">{retryButton("경험 다시 찾기", recorded)}</div>}
+          : <AnalysisCost running={running} className="justify-self-end" />}
         {retryError && <p role="alert" className="m-0 text-note text-error">{retryError}</p>}
         {exhausted && !analyzing && <p className="m-0 text-xs text-muted">{ANALYSIS_EXHAUSTED_NOTE}</p>}
         {analyzing && <div aria-hidden="true" className="grid gap-2"><Skeleton className="h-5 w-2/3" /><Skeleton className="h-5 w-1/2" /><Skeleton className="h-5 w-3/5" /></div>}
