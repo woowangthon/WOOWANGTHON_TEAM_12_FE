@@ -77,7 +77,7 @@ test("find searches while typing, arrow keys pick and the activity detail opens 
   const api = await setup(page);
   await page.goto("/experience");
   await openByButton(page);
-  await expect(rows(page)).toHaveCount(2); // 경험 둘 — 더 볼 게 없으면 「더 보기」 줄도 없다
+  await expect(rows(page)).toHaveCount(2); // 경험 둘 — 받은 만큼 다 보인다
   await expect(rows(page).first()).toHaveAttribute("aria-selected", "true");
   await expect(dialog(page).getByText(/원문 확인|내가 입력/)).toHaveCount(0);
   if (page.viewportSize()!.width >= 1024) await expect(page.locator("[data-slot=quick-find-preview] dt").filter({ hasText: "출처" })).toHaveCount(0);
@@ -109,60 +109,27 @@ test("opens the detail from another screen", async ({ page }) => {
   await expect(page.getByRole("heading", { name: ACTIVITY.name })).toBeVisible();
 });
 
-// FE#274 — 경험 찾기 자리가 이 창 하나라 「검색에서 더 보기」 대신 창 안에서 더 본다
+// FE#595 — 받은 결과를 한 번에 다 보인다(창 안 「더 보기」 나눔 없음). 서버 상한보다 맞은 게 많으면 더 좁히라고 알린다
 const many = (n: number) => Array.from({ length: n }, (_, i) => ({ ...WEBSOCKET, id: 1000 + i, content: `시험 경험 ${i + 1}` }));
-test("more results unfold inside the window, and past the limit it asks to narrow", async ({ page }) => {
-  const api = await setup(page);
-  api.search = { json: { total: 10, experiences: many(10) } };
-  await page.goto("/guidelines");
-  await openByButton(page);
-  await expect(dialog(page).getByRole("option", { name: /검색에서 더 보기/ })).toHaveCount(0);
-  await expect(rows(page)).toHaveCount(9); // 8 + 더 보기
-  await dialog(page).getByRole("option", { name: /더 보기/ }).click();
-  await expect(dialog(page)).toBeVisible();
-  await expect(rows(page)).toHaveCount(10);
-  await expect(dialog(page).getByRole("option", { name: /더 보기/ })).toHaveCount(0);
-
-  await page.keyboard.press("Escape");
-  api.search = { json: { total: 340, experiences: many(10) } };
-  await openByButton(page);
-  await expect(rows(page)).toHaveCount(9);
-  await box(page).press("End"); // 입력칸 그대로 — 엔터로도 펼친다
-  for (let i = 0; i < 8; i++) await page.keyboard.press("ArrowDown");
-  await expect(rows(page).nth(8)).toHaveAttribute("aria-selected", "true");
-  await page.keyboard.press("Enter");
-  await expect(rows(page)).toHaveCount(10);
-  await expect(rows(page).nth(8)).toHaveAttribute("aria-selected", "true"); // 새로 펼친 첫 줄
-  await expect(dialog(page).getByRole("status").filter({ hasText: "340개 중 10개" })).toContainText("더 좁혀");
-});
-
-// FE#366 — 폰에선 「더 보기」를 눌러도 입력칸 초점을 붙잡지 않아 키보드가 다시 올라오지 않는다. PC 는 그대로 입력칸에 남는다
-test("more button does not pull the keyboard back on touch, and keeps the input focus with a mouse", async ({ page }, info) => {
+test("all results show at once without a more row, and past the limit it asks to narrow", async ({ page }) => {
   const api = await setup(page);
   api.search = { json: { total: 30, experiences: many(30) } };
   await page.goto("/guidelines");
   await openByButton(page);
-  const touch = info.project.name === "mobile";
-  const more = dialog(page).getByRole("option", { name: /더 보기/ });
-  if (touch) {
-    await page.evaluate(() => (document.activeElement as HTMLElement).blur()); // 화면 키보드를 내린 것과 같다
-    for (const shown of [16, 24]) {
-      await more.tap();
-      await expect(rows(page)).toHaveCount(shown + 1);
-      await expect(box(page)).not.toBeFocused();
-    }
-    await box(page).tap();
-    await expect(box(page)).toBeFocused();
-  } else {
-    for (const shown of [16, 24]) {
-      await more.click();
-      await expect(rows(page)).toHaveCount(shown + 1);
-      await expect(box(page)).toBeFocused();
-    }
-    await expect(rows(page).nth(16)).toHaveAttribute("aria-selected", "true"); // 마지막으로 누른 「더 보기」 자리 — 새로 펼친 첫 줄
-    await page.keyboard.press("ArrowDown"); // 눌러도 입력칸에 남아 있으니 키가 그대로 듣는다
-    await expect(rows(page).nth(17)).toHaveAttribute("aria-selected", "true");
-  }
+  await expect(rows(page)).toHaveCount(30);
+  await expect(dialog(page).getByRole("option", { name: /더 보기/ })).toHaveCount(0);
+  // 키보드로 끝까지 내려가면 마지막 줄이 보이게 스크롤된다 — 창은 넘치지 않는다
+  await box(page).press("End");
+  for (let i = 0; i < 29; i++) await page.keyboard.press("ArrowDown");
+  await expect(rows(page).nth(29)).toHaveAttribute("aria-selected", "true");
+  await expect(rows(page).nth(29)).toBeInViewport();
+  await expect(dialog(page).getByRole("status").filter({ hasText: /개 중 .*개까지/ })).toHaveCount(0);
+
+  await page.keyboard.press("Escape");
+  api.search = { json: { total: 340, experiences: many(100) } };
+  await openByButton(page);
+  await expect(rows(page)).toHaveCount(100);
+  await expect(dialog(page).getByRole("status").filter({ hasText: "340개 중 100개" })).toContainText("더 좁혀");
 });
 
 test("an old search address opens this window with its word and chips", async ({ page }) => {
@@ -534,7 +501,7 @@ test("results and the preview start from the top again when the search or the pi
   await page.setViewportSize({ width: 1440, height: 560 });
   await page.goto("/experience");
   await openByButton(page);
-  await expect(rows(page)).toHaveCount(9); // 8 + 「더 보기」
+  await expect(rows(page)).toHaveCount(20); // 받은 만큼 한 번에(FE#595)
   const list = dialog(page).getByRole("listbox").locator("xpath=ancestor::div[contains(@class,'overflow-y-auto')][1]");
   const preview = page.locator("[data-slot=quick-find-preview]");
   const top = (target: typeof list) => target.evaluate(el => el.scrollTop);
