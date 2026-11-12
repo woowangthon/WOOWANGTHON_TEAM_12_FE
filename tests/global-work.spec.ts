@@ -125,6 +125,7 @@ test("모든 종류·진행 상태·긴 제목 · 실패와 DONE · 세 폭 스�
   await trigger(page).click();
   for (const text of ["자료 분석 · 기다림", "문항 경험 추천 · 분석 중", "근거 점검 · 실행 중", "답변 초안 · 실행 중", "차곡이 일 · 사용자 확인 대기", "차곡이 일 · 완료"]) await expect(dialog(page).getByText(text, { exact: false })).toBeVisible();
   await expect(dialog(page).getByText("AI_TIMEOUT", { exact: false })).toBeVisible();
+  await expect(dialog(page).getByText("아주긴자료제목", { exact: false })).toHaveClass(/line-clamp-2/);
   expect(await dialog(page).evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
   expect(await dialog(page).getByRole("link").evaluateAll(elements => elements.every(el => el.scrollWidth <= el.clientWidth))).toBe(true);
   // 스크린샷 출처를 이미지 자체에도 명시한다. 테스트 DOM에만 추가한다.

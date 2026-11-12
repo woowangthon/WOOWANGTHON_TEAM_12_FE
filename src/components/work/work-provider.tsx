@@ -164,7 +164,7 @@ function WorkList({ items, seenAt, onNavigate }: { items: WorkItem[]; seenAt: st
         {unread && <i data-slot="row-unread-dot" aria-hidden="true" className="absolute top-1/2 -left-2.5 size-1.75 -translate-y-1/2 rounded-full bg-unread" />}
         <span className={cn("inline-flex min-w-0 items-center gap-1 rounded-full px-2 py-px text-xs font-bold", tagTone(item))}><KindIcon aria-hidden="true" weight="bold" className="size-3.5 shrink-0" />{WORK_KIND[item.kind] ?? item.kind} · {WORK_STATUS[item.status] ?? item.status}{unread && " · 안 읽음"}</span>
       </span>
-      <span className={cn("min-w-0 break-all whitespace-normal", unread ? "font-semibold" : "font-medium")}>{item.label}</span>
+      <span className={cn("min-w-0 line-clamp-2 break-all whitespace-normal", unread ? "font-semibold" : "font-medium")}>{item.label}</span>
       {item.finishedAt && <time className="text-xs text-muted" dateTime={item.finishedAt}>{new Date(item.finishedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}</time>}
       {item.status === "FAILED" && <span className="break-words text-note text-error">{item.errorCode ?? "오류 코드 없음"} · 해당 화면에서 다시 시도해 주세요.</span>}
       {item.status === "WAITING_CONFIRM" && <span className="text-note text-muted">차곡이의 확인 카드를 열어 주세요.</span>}

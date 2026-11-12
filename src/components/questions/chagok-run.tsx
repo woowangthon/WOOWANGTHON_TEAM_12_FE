@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { ArrowUpIcon, CaretDownIcon, CheckIcon, XIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { ANALYSIS_EXHAUSTED_NOTE, LowAnalysisNotice, useAnalysisExhausted } from "@/components/auth/analysis-cost";
 import { ExperienceMeta } from "@/components/experience/experience-item";
 import { foundExperiences, type ChagokConfirmStep, type ChagokRun, type ChagokToolCallStep, type FoundExperience } from "@/lib/api/chagok";
@@ -151,14 +152,26 @@ export function ChagokRunFeed({ control, currentQuestionId, rematch }: {
   rematch: { onRematch: Rematch; busy: boolean } | null;
 }) {
   const { run, pollState, acting, actionError, starting } = control;
+  const [expanded, setExpanded] = useState(false);
+  const [prevRunId, setPrevRunId] = useState(run?.runId);
+  if (run && prevRunId !== run.runId) {
+    setPrevRunId(run.runId);
+    setExpanded(false);
+  }
   const exhausted = useAnalysisExhausted(1, starting);
   if (!run) return null;
+  const isLong = run.text.length > 120 || run.text.split("\n").length > 4;
   // 이 문항에서 한 부탁이 끝났고 찾은 경험이 보일 때만. 차곡이가 스스로 시작하지 않는다 — 사용자가 누른다
   const foundHere = currentQuestionId !== null && run.questionId === currentQuestionId && run.status !== "RUNNING" && run.status !== "WAITING_CONFIRM"
     && run.steps.some(step => step.type === "TOOL_CALL" && foundExperiences(step.result).length > 0);
   return <section aria-label="차곡이의 일" className="mt-2.5 grid gap-2.5 border-t border-hairline-soft pt-3">
     <div className="grid justify-items-end gap-1">
-      <p className="m-0 line-clamp-4 max-w-[92%] rounded-[16px_4px_16px_16px] bg-primary px-3.5 py-2.5 text-sm leading-relaxed break-words whitespace-pre-wrap text-on-primary">{run.text}</p>
+      <div className="max-w-[92%] rounded-[16px_4px_16px_16px] bg-primary px-3.5 py-2.5 text-sm leading-relaxed break-words whitespace-pre-wrap text-on-primary">
+        <p className={cn("m-0", !expanded && isLong && "line-clamp-4")}>{run.text}</p>
+      </div>
+      {isLong && <button type="button" onClick={() => setExpanded(v => !v)} className="text-xs text-muted hover:underline">
+        {expanded ? "접기" : "더 보기"}
+      </button>}
       {run.questionId !== null && run.questionId !== currentQuestionId && <small className="text-note text-muted">다른 문항에서 한 부탁이에요</small>}
     </div>
     <ol aria-live="polite" className="m-0 grid list-none gap-3 p-0">

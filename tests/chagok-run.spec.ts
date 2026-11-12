@@ -222,3 +222,21 @@ test("진행 중에는 받은 마지막 단계 이름과 지난 초가 보이고
   await expect(panel(page).getByRole("button", { name: /「Kafka」로 경험 찾는 중/ })).toHaveCount(0);
   await expect(panel(page).getByRole("button", { name: /「WebSocket」으로 경험 찾는 중/ })).toHaveAttribute("aria-expanded", "false");
 });
+
+test("긴 부탁은 기본으로 접히고 더 보기 · 접기로 펼치고 접을 수 있다", async ({ page }) => {
+  const chagok = await open(page);
+  chagok.script = [{ steps: [SEARCH], status: "DONE" }];
+  const longPrompt = "긴 부탁입니다. ".repeat(15);
+  await ask(page, longPrompt);
+  const bubbleText = panel(page).locator("section[aria-label='차곡이의 일'] p").filter({ hasText: "긴 부탁입니다." });
+  await expect(bubbleText).toHaveClass(/line-clamp-4/);
+  const expandBtn = panel(page).getByRole("button", { name: "더 보기" });
+  await expect(expandBtn).toBeVisible();
+  await expandBtn.click();
+  const collapseBtn = panel(page).getByRole("button", { name: "접기" });
+  await expect(collapseBtn).toBeVisible();
+  await expect(bubbleText).not.toHaveClass(/line-clamp-4/);
+  await collapseBtn.click();
+  await expect(expandBtn).toBeVisible();
+  await expect(bubbleText).toHaveClass(/line-clamp-4/);
+});
