@@ -79,8 +79,10 @@ async function setup(page: Page, app: Partial<Application> = {}, others: Applica
 }
 
 const panel = (page: Page) => page.getByRole("tabpanel", { name: "공고" });
-// 줄 글 뒤에 「캡처에서 읽음」 꼬리표가 붙을 수 있어 글자 포함으로 찾는다 — 바깥 줄(공고 줄)이 먼저 나온다
-const lineRow = (page: Page, text: string) => panel(page).getByRole("listitem").filter({ hasText: text }).first();
+// 「내 경험과 맞춰 보기」의 줄 — 판정 묶음 목록 안에서 글자 포함으로 찾는다(바깥 줄이 먼저 나온다). 판정 말은 줄이 아니라 묶음이 말한다
+const matchList = (page: Page, label: string) => panel(page).getByRole("list", { name: `${label} 공고 줄` });
+const lineRow = (page: Page, text: string) => panel(page).getByRole("list", { name: /^(근거 있음|일부 확인됨|자료에서 확인 안 됨) 공고 줄$/ }).getByRole("listitem").filter({ hasText: text }).first();
+const readSummary = (page: Page) => panel(page).locator("summary").filter({ hasText: "어떤 공고인가" });
 
 test("문항 0개 지원서는 공고 탭이 첫 화면 — 찾는 중에서 판정 셋 · 묶음 · 받치는 경험까지", async ({ page }) => {
   const api = await setup(page, { postingMatch: analyzing() });
@@ -94,16 +96,24 @@ test("문항 0개 지원서는 공고 탭이 첫 화면 — 찾는 중에서 판
   await expect(panel(page).getByText("근거 있음", { exact: true })).toHaveCount(0);
 
   api.app = { ...api.app, postingMatch: completed() };
-  await expect(lineRow(page, "Spring Framework 기반의 B2C 서비스 개발 경험")).toContainText("근거 있음", { timeout: 8000 });
+  // 판정별 묶음 — 판정 말은 묶음 머리에 한 번만, 줄에는 요건 글만
+  await expect(matchList(page, "근거 있음")).toContainText("Spring Framework 기반의 B2C 서비스 개발 경험", { timeout: 8000 });
   expect(api.calls.filter(c => c === "GET /api/applications/31").length).toBeGreaterThan(0);
-  await expect(lineRow(page, "장애 경험 및 문제 해결 경험")).toContainText("일부 확인됨");
-  await expect(lineRow(page, "대규모 실시간 트래픽 처리 시스템 개발 경험")).toContainText("자료에서 확인 안 됨");
-  // 묶음 — 지식 · 기술 · 태도 순, 묶지 않은 줄은 맨 아래. AI 배지는 묶음 머리에만
-  const heads = panel(page).locator("summary").filter({ hasText: /줄$/ });
+  await expect(matchList(page, "일부 확인됨")).toContainText("장애 경험 및 문제 해결 경험");
+  await expect(matchList(page, "자료에서 확인 안 됨")).toContainText("대규모 실시간 트래픽 처리 시스템 개발 경험");
+  for (const label of ["근거 있음", "일부 확인됨", "자료에서 확인 안 됨"]) await expect(panel(page).getByText(label, { exact: true })).toHaveCount(1);
+  await expect(lineRow(page, "Spring Framework 기반의 B2C 서비스 개발 경험")).not.toContainText("우대");
+  // 결과가 나오면 「어떤 공고인가」는 접혀 줄 수만 보인다 — 펼치면 지식 · 기술 · 태도 순, 묶지 않은 줄은 맨 아래. AI 배지는 묶음 머리에만
+  await expect(readSummary(page)).toContainText("6줄");
+  await expect(panel(page).getByRole("list", { name: "묶지 않은 줄 공고 줄" })).toBeHidden();
+  await readSummary(page).click();
+  await expect(panel(page).getByRole("list", { name: "묶지 않은 줄 공고 줄" })).toBeVisible();
+  const heads = panel(page).locator("details").first().locator("p").filter({ hasText: /\d줄$/ });
   await expect(heads).toHaveText([/^지식\s*AI 해석\s*1줄$/, /^기술\s*AI 해석\s*3줄$/, /^태도\s*AI 해석\s*1줄$/, /^묶지 않은 줄\s*1줄$/]);
-  // 칸 꼬리표 · 캡처에서 읽음
-  await expect(lineRow(page, "Spring Framework 기반의 B2C 서비스 개발 경험")).toContainText("우대");
-  await expect(lineRow(page, "동료와 코드 리뷰로 함께 품질을 높이는 분")).toContainText("캡처에서 읽음");
+  // 칸 꼬리표 · 캡처에서 읽음 — 읽기 쪽에만 있다
+  const read = panel(page).getByRole("list", { name: "기술 공고 줄" });
+  await expect(read.getByRole("listitem").filter({ hasText: "Spring Framework 기반의 B2C 서비스 개발 경험" })).toContainText("우대");
+  await expect(panel(page).getByRole("list", { name: "태도 공고 줄" })).toContainText("캡처에서 읽음");
   // 받치는 경험 — 활동 칩, 누르면 그 활동
   const chips = lineRow(page, "Spring Framework 기반의 B2C 서비스 개발 경험").getByRole("link");
   await expect(chips).toHaveCount(2);
@@ -158,11 +168,12 @@ test("공고 줄이 10줄을 넘으면 근거 있음 줄은 한 줄로 접고, �
   await setup(page, { postingLines: many, postingMatch: { status: "COMPLETED", error: null, clarifications: [],
     lines: many.map((l, i) => ({ postingLineId: l.id, status: i === 0 ? "PARTIAL" : i === 1 ? "NOT_FOUND" : "SUPPORTED", experienceIds: i === 1 ? [] : [101] })) } });
   await page.goto("/questions");
-  await expect(panel(page).getByText("요건 1", { exact: true })).toBeVisible();
-  await expect(panel(page).getByText("요건 2", { exact: true })).toBeVisible();
-  await expect(panel(page).getByText("요건 3", { exact: true })).toBeHidden();
-  await panel(page).getByText("근거 있음 10줄").click();
-  await expect(panel(page).getByText("요건 3", { exact: true })).toBeVisible();
+  // 일부 · 확인 안 됨 묶음은 펼쳐 있고, 근거 있음 묶음(10줄)은 접혀 있다
+  await expect(matchList(page, "일부 확인됨").getByText("요건 1", { exact: true })).toBeVisible();
+  await expect(matchList(page, "자료에서 확인 안 됨").getByText("요건 2", { exact: true })).toBeVisible();
+  await expect(matchList(page, "근거 있음").getByText("요건 3", { exact: true })).toBeHidden();
+  await panel(page).locator("summary").filter({ hasText: /^근거 있음\s*10줄$/ }).click();
+  await expect(matchList(page, "근거 있음").getByText("요건 3", { exact: true })).toBeVisible();
 });
 
 test("문항이 있는 지원서 — 공고 탭은 문항 탭 앞에 있고, 고르면 새로고침해도 그 탭이다", async ({ page }) => {
