@@ -240,3 +240,12 @@ test("긴 부탁은 기본으로 접히고 더 보기 · 접기로 펼치고 접
   await expect(expandBtn).toBeVisible();
   await expect(bubbleText).toHaveClass(/line-clamp-4/);
 });
+
+test("띄어쓰기 없는 부탁도 말풍선 안에서 줄을 바꿔 패널이 옆으로 밀리지 않는다", async ({ page }) => {
+  const chagok = await open(page);
+  chagok.script = [{ steps: [SAID], status: "DONE" }];
+  await ask(page, "입니다".repeat(18)); // 120자 아래라 접히지 않는 길이
+  await expect(panel(page).getByText("입니다입니다", { exact: false }).first()).toBeVisible();
+  const body = panel(page).locator("section[aria-label='차곡이의 일']");
+  expect(await body.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+});
