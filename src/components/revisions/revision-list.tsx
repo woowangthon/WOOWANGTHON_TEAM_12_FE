@@ -442,7 +442,7 @@ export function RecentRevisionsButton({ compact = false }: { compact?: boolean }
 }
 
 const openListeners = new Set<() => void>();
-/** 헤더의 「최근 수정」을 연다 — 연결 화면의 「최근 수정에서 보기」(FE#517) */
+/** 헤더의 「최근 수정」을 연다 — 활동 세부에서 못 찾은 외부 AI 변경을 보러 갈 때(FE#517) */
 export const openRecentRevisions = () => openListeners.forEach(listener => listener());
 
 // 오른쪽 이력 패널은 한 번에 하나(FE#424) — 열린 패널의 id. 다른 패널이 열리거나 closeRevisionPanel() 이 불리면 앞의 것이 닫힌다.
