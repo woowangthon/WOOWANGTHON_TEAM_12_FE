@@ -546,6 +546,29 @@ test("글을 고치면 「이미 넣은 자료예요」 안내를 닫고 다시 
 });
 
 // FE#244 — 자료를 넣자마자 우측 상단 「할 일」에, 끝나면 몇 초 안에 「소식」에. 홈의 분석 띠는 입력 바로 아래(세 폭에서 스크롤 없이)
+// FE#593 — 홈 완료 안내의 「내 경험 보기」는 방금 만든 활동(여럿이면 첫 번째)의 세부로 바로 간다
+test("분석이 끝나면 「내 경험 보기」가 방금 만든 첫 활동의 세부를 연다", async ({ page }) => {
+  const calls = await setup(page);
+  const made = { id: 8, name: "새로 만든 활동", period: { start: "2026-10", end: "2026-11", ongoing: false }, category: null, note: null, links: [], experiences: [] };
+  await page.route("**/api/jobs/34", route => route.fulfill({ json: { jobId: 34, sourceId: 12, status: "COMPLETED", activityIds: [8, 9], error: null, createdAt: "2026-11-05T00:00:00Z", updatedAt: "2026-11-05T00:00:10Z" } }));
+  await page.route("**/api/activities**", route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/activities") return route.fulfill({ json: { activities: [{ id: 8, name: made.name, period: made.period, category: null, note: null, experienceCount: 0 }] } });
+    if (path === "/api/activities/8") return route.fulfill({ json: made });
+    return route.fallback();
+  });
+  await page.getByRole("button", { name: "쌓기", exact: true }).click();
+  await page.getByLabel("홈에 넣을 글").fill("오늘 한 일 정리");
+  await page.getByRole("button", { name: "보내기", exact: true }).click();
+  await expect.poll(() => calls.sources.length).toBe(1);
+  const notice = page.getByRole("status").filter({ hasText: "분석이 완료됐어요. 활동 2개를 확인해 보세요." });
+  const link = notice.getByRole("link", { name: "내 경험 보기", exact: true });
+  await expect(link).toHaveAttribute("href", "/experience?activity=8", { timeout: 10000 });
+  await link.click();
+  await expect(page.getByRole("complementary", { name: "활동 세부" }).getByRole("heading", { name: made.name })).toBeVisible();
+  await expect(page).toHaveURL(/\/experience$/); // 연 뒤 링크는 주소에서 지운다(FE#322)
+});
+
 test("자료를 넣으면 몇 초 안에 「할 일」에 뜨고, 끝나면 「소식」으로 옮겨 가며, 홈 분석 띠는 스크롤 없이 보인다", async ({ page }, info) => {
   const calls = await setup(page);
   const analyzing = { key: "SOURCE_ANALYSIS:34", kind: "SOURCE_ANALYSIS", status: "ANALYZING", label: "붙여넣은 텍스트", startedAt: "2026-11-08T10:00:00+09:00", finishedAt: null, errorCode: null, sourceId: 12, jobId: 34, applicationId: null, questionId: null, runId: null };
