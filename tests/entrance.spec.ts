@@ -143,7 +143,7 @@ test("문항을 못 찾으면 그 자리에 자주 나오는 문항이 펼쳐지
   // 같은 입구를 둘 두지 않는다 — 위의 고르기 버튼은 숨고, 넣었던 문항은 이 안의 링크로 고르기 창을 연다
   await expect(dialog.getByRole("button", { name: "넣었던 · 자주 나오는 문항에서 고르기" })).toHaveCount(0);
   await common.getByRole("button", { name: "내가 넣었던 문항에서 고르기", exact: true }).click();
-  const picker = page.getByRole("dialog", { name: "문항 고르기" });
+  const picker = page.getByRole("region", { name: "문항 고르기" });
   await expect(picker.getByText("내가 넣었던 문항", { exact: true })).toBeVisible();
   await picker.getByRole("button", { name: "취소", exact: true }).click();
   await expect(picker).toHaveCount(0);
@@ -176,6 +176,7 @@ test("문항을 못 찾으면 그 자리에 자주 나오는 문항이 펼쳐지
 for (const status of [502, 504]) {
   test(`나누기 ${status} 면 칸을 채우지 않고 다시 시도 · 직접 채우기를 보인다`, async ({ page }) => {
     const calls = await setup(page, "APPLICATION");
+    await page.addStyleTag({ content: "nextjs-portal { display: none; }" }); // 390 에선 버튼 줄이 개발 도구 배지(개발 서버에만 있다) 자리에 온다
     calls.parseStatus = status;
     const text = "공고 원문";
     await page.getByLabel("홈에 넣을 글").fill(text);
@@ -226,7 +227,9 @@ test("새 지원서 화면에서 공고를 붙여 칸을 채우고, 직접 넣�
   await expect(page.getByLabel("지원처 종류", { exact: true })).toHaveText("종류");
   await expect(page.getByText(/이 글엔 자소서 문항이 없어요/)).toHaveCount(0);
   // 실패면 그 글을 문항 칸으로 옮길 수 있다
+  // 읽으면 확인 화면으로 돌아온다 — 원문은 따로 화면(FE#542)
   calls.parseStatus = 502;
+  await page.getByRole("button", { name: "원문 보기", exact: true }).click();
   await page.getByRole("button", { name: "다시 읽기", exact: true }).click();
   await page.getByRole("button", { name: "직접 채우기", exact: true }).click();
   await expect(page.getByLabel("문항 2", { exact: true })).toHaveValue("붙인 공고");
@@ -479,6 +482,8 @@ test("링크에서 문항을 못 찾으면 지원서 양식 안내와 붙여 넣
   await page.getByLabel("문항 1", { exact: true }).fill("");
   await expect(dialog.getByText(/이 링크엔 자소서 문항이 없어요\. 문항은 보통 지원서 양식\(구글폼 등\) 안에 있어요/)).toBeVisible();
   await expect(dialog.getByRole("region", { name: "자주 나오는 문항", exact: true })).toBeVisible();
+  // 원문은 따로 화면 — 「원문 보기」로 열어 붙여 넣는다(FE#542)
+  await dialog.getByRole("button", { name: "원문 보기", exact: true }).click();
   await expect(page.getByLabel("공고 · 문항 글이나 공고 링크")).toBeVisible();
 });
 

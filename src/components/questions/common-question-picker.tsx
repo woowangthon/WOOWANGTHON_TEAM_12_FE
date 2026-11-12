@@ -1,13 +1,12 @@
 "use client";
 
 import { InfoTip } from "@/components/ui/info-tip";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { COMMON_QUESTIONS } from "@/lib/common-questions";
 import { fetchQuestions } from "@/lib/api/questions";
-import { CaretRightIcon } from "@phosphor-icons/react";
+import { ArrowLeftIcon, CaretRightIcon } from "@phosphor-icons/react";
 import { MAX_QUESTIONS_PER_SUBMIT, QUESTION_TYPE_LABEL, type OrganizationType, type QuestionSummary } from "@/lib/api/question-types";
 import { cn } from "@/lib/utils";
 
@@ -40,33 +39,30 @@ export function pickNote(room: number, picked: number) {
     : `${room}개까지 고를 수 있어요.`;
 }
 
-/** 「내가 넣었던 문항」(S-40) · 「자주 나오는 문항」(S-26)에서 여러 개 골라 문항 칸에 넣는다. 넣은 뒤엔 칸에서 고친다 */
-export function CommonQuestionPicker({ open, onOpenChange, room, onPick }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+/** 「내가 넣었던 문항」(S-40) · 「자주 나오는 문항」(S-26)에서 여러 개 골라 문항 칸에 넣는다. 넣은 뒤엔 칸에서 고친다.
+ *  지원 넣기의 따로 화면(단계) — 창 위에 창을 띄우지 않고 「← 돌아가기」로 확인 화면에 돌아간다(FE#542) */
+export function CommonQuestionPicker({ room, onPick, onBack }: {
   /** 더 넣을 수 있는 문항 수 — 빈 칸 + 더할 수 있는 칸 */
   room: number;
   onPick: (texts: string[]) => void;
+  onBack: () => void;
 }) {
   const [picked, setPicked] = useState<string[]>([]);
   const [past, setPast] = useState<Past>({ state: "loading" });
   const [attempt, setAttempt] = useState(0);
   const full = picked.length >= room;
-  const change = (next: boolean) => {
-    if (!next) { setPicked([]); setPast({ state: "loading" }); }
-    onOpenChange(next);
-  };
   const toggle = (text: string) => setPicked(prev => (prev.includes(text) ? prev.filter(t => t !== text) : [...prev, text]));
 
-  // 열 때마다 다시 받는다 — 그사이 넣은 지원이 있을 수 있다. 이미 저장된 문항이라 AI 를 부르지 않는다
+  // 화면을 열 때마다 다시 받는다 — 그사이 넣은 지원이 있을 수 있다. 이미 저장된 문항이라 AI 를 부르지 않는다.
+  // 시도마다 한 번만 — 개발 모드의 두 번 붙이기에도 두 번 부르지 않는다
+  const fetched = useRef(-1);
   useEffect(() => {
-    if (!open) return;
-    let live = true;
+    if (fetched.current === attempt) return;
+    fetched.current = attempt;
     fetchQuestions()
-      .then(questions => { if (live) setPast({ state: "ready", questions: uniqueByText(questions) }); })
-      .catch(e => { if (live) setPast({ state: "error", message: e instanceof Error ? e.message : "넣었던 문항을 불러오지 못했어요." }); });
-    return () => { live = false; };
-  }, [open, attempt]);
+      .then(questions => setPast({ state: "ready", questions: uniqueByText(questions) }))
+      .catch(e => setPast({ state: "error", message: e instanceof Error ? e.message : "넣었던 문항을 불러오지 못했어요." }));
+  }, [attempt]);
 
   const option = (key: string | number, text: string, sub?: string) => {
     const checked = picked.includes(text);
@@ -74,17 +70,11 @@ export function CommonQuestionPicker({ open, onOpenChange, room, onPick }: {
   };
 
   return (
-    <Dialog open={open} onOpenChange={change}>
-      {/* 스크롤은 목록 하나로 — 창은 넘치지 않게 세로로 나눈다(FE#508) */}
-      <DialogContent className="flex flex-col overflow-hidden">
-        <DialogHeader className="pr-10">
-          <DialogTitle>문항 고르기</DialogTitle>
-          <DialogDescription className="text-ui text-body">
-            예전에 넣었던 문항이나 자주 나오는 문항을 골라 넣어요. 넣은 뒤 칸에서 고칠 수 있어요.
-          </DialogDescription>
-        </DialogHeader>
+    <section aria-labelledby="question-picker-title" className="mx-auto grid w-full max-w-2xl gap-5">
+      <StepHeader id="question-picker-title" title="문항 고르기" onBack={onBack}
+        description="예전에 넣었던 문항이나 자주 나오는 문항을 골라 넣어요. 넣은 뒤 칸에서 고칠 수 있어요." />
 
-        <div className="-mx-1 grid min-h-0 flex-1 gap-5 overflow-auto px-1">
+        <div className="grid gap-5">
           <fieldset className="m-0 grid gap-1 border-0 p-0">
             <legend className="mb-1.5 p-0 text-sm font-semibold text-ink">내가 넣었던 문항</legend>
             {/* 고를 문항 줄 자리 — 체크 칸 · 문항 글 · 지원처(FE#402) */}
@@ -118,18 +108,30 @@ export function CommonQuestionPicker({ open, onOpenChange, room, onPick }: {
           ))}
         </div>
 
-        <p className="m-0 text-note text-muted" aria-live="polite">
-          {pickNote(room, picked.length)}
-        </p>
+      {/* 목록이 길어 넣기 버튼은 아래에 붙여 둔다 — 1024 미만은 아래 탭바 위에 */}
+      <div className="sticky bottom-0 flex flex-wrap items-center justify-end gap-x-3 gap-y-2 border-t border-hairline bg-canvas py-3 max-lg:bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))]">
+        <p className="m-0 mr-auto min-w-0 flex-1 basis-48 text-note text-muted" aria-live="polite">{pickNote(room, picked.length)}</p>
+        <Button type="button" variant="ghost" className="min-h-11 lg:min-h-10" onClick={onBack}>취소</Button>
+        <Button type="button" className="min-h-11 lg:min-h-10" disabled={picked.length === 0} onClick={() => onPick(picked)}>
+          {picked.length ? `고른 문항 ${picked.length}개 넣기` : "문항을 골라 주세요"}
+        </Button>
+      </div>
+    </section>
+  );
+}
 
-        <DialogFooter>
-          <Button variant="link" onClick={() => change(false)}>취소</Button>
-          <Button className="min-h-11 lg:min-h-10" disabled={picked.length === 0} onClick={() => { onPick(picked); change(false); }}>
-            {picked.length ? `고른 문항 ${picked.length}개 넣기` : "문항을 골라 주세요"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+/** 지원 넣기의 따로 화면 머리 — 「← 돌아가기」 · 제목 · 한 줄 설명(FE#542) */
+export function StepHeader({ id, title, description, onBack, backDisabled = false }: {
+  id: string; title: string; description: string; onBack: () => void; backDisabled?: boolean;
+}) {
+  return (
+    <header className="grid justify-items-start gap-1.5">
+      <Button type="button" variant="link" className="-ml-1 min-h-11 px-1 text-sm text-muted lg:min-h-10" disabled={backDisabled} onClick={onBack}>
+        <ArrowLeftIcon aria-hidden="true" />돌아가기
+      </Button>
+      <h2 id={id} className="m-0 text-title-lg font-[650] tracking-[-0.3px]">{title}</h2>
+      <p className="m-0 text-ui text-body">{description}</p>
+    </header>
   );
 }
 

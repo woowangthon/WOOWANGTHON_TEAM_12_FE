@@ -1,10 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ArrowDownIcon, ArrowUpIcon, CaretRightIcon, ImageSquareIcon, LinkIcon, LockSimpleIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
+import { ArrowDownIcon, ArrowUpIcon, ImageSquareIcon, LinkIcon, LockSimpleIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { AnalysisButton, AnalysisCost } from "@/components/auth/analysis-cost";
-import { CommonQuestionPicker, CommonQuestionsInline } from "./common-question-picker";
+import { CommonQuestionPicker, CommonQuestionsInline, StepHeader } from "./common-question-picker";
 import { ParseFailureNotice, useApplicationParse, type ParseFailure, type ParseInput } from "./application-parse";
 import { Mascot } from "./chagok-panel";
 import { CapturePane, CaptureReviewTag, CaptureThumbs, useCaptures } from "./capture-input";
@@ -92,7 +92,8 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
   moveToSourceDisabled?: boolean;
 }) {
   // 홈에서 이미 나눈 값 · 옮긴 글이 있으면 확인부터
-  const [step, setStep] = useState<"input" | "review">(prefill || initialText || (initialUrl && !initialFailure) ? "review" : "input");
+  // source · pick 은 확인에서 떼어 낸 따로 화면 — 「← 돌아가기」로 온 자리에 돌아가고, 칸 값은 이 컴포넌트에 그대로 남는다(FE#542)
+  const [step, setStep] = useState<"input" | "review" | "source" | "pick">(prefill || initialText || (initialUrl && !initialFailure) ? "review" : "input");
   const [organization, setOrganization] = useState(prefill?.organization ?? "");
   // 지원처 종류 · 직무(S-42) — 둘 다 선택. 넣은 뒤에도 지원 화면에서 바꾼다
   const [organizationType, setOrganizationType] = useState<OrganizationType | "">(prefill?.organizationType ?? "");
@@ -115,12 +116,12 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
   const [dragging, setDragging] = useState(false);
   const parse = useApplicationParse(initialFailure);
   const pasteBox = useRef<HTMLTextAreaElement>(null);
-  const [sourceOpen, setSourceOpen] = useState(false);
   const [writing, setWriting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const pending = useRef(false);
-  const [picking, setPicking] = useState(false);
+  const [pickFrom, setPickFrom] = useState<"input" | "review">("review");
+  const openPick = (from: "input" | "review") => { setPickFrom(from); setStep("pick"); };
   const edit = (key: number, change: Partial<Item>) => setItems(prev => prev.map(it => (it.key === key ? { ...it, ...change } : it)));
   const move = (i: number, to: number) => setItems(prev => { const next = [...prev]; [next[i], next[to]] = [next[to], next[i]]; return next; });
   // 고른 문항은 빈 칸부터 채우고, 남으면 새 칸에
@@ -135,8 +136,8 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
     setReading(from);
     const outcome = await parse.run(input);
     if (!outcome) return;
-    // 확인 단계에서 다시 읽다 못 읽으면 원문을 펼쳐 이유를 그 자리에 보인다
-    if (!("parsed" in outcome)) { setSourceOpen(true); return; }
+    // 못 읽으면 지금 화면(넣기 · 채우기)에 이유를 보인다
+    if (!("parsed" in outcome)) return;
     const result = outcome.parsed;
     // 채우기 — 사용자가 직접 넣은 값은 두고, 비었거나 지난번 나눈 값 그대로인 칸만 바꾼다
     const mine = (value: string, ai: string | null | undefined) => !!value.trim() && value !== ai;
@@ -146,8 +147,8 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
     setItems(prev => mergeItems(prev.filter(it => !it.ai && it.text.trim()), result.questions.map(q => itemOf(q, true))));
     // 새 공고를 나누면 줄을 바꾼다. 줄이 없는 글(문항만 붙여 넣기)이면 확인하던 줄을 그대로 둔다
     if (result.postingLines.length) setLines(draftLines(result.postingLines, result.readFrom));
-    // 문항도 공고 요건도 못 찾았으면 원문을 펼쳐 둔다 — 문항을 붙여 넣고 다시 읽을 자리다
-    setFilled(result); setFilledFrom(from); setError(null); setStep("review"); setSourceOpen(!result.questions.length && !result.postingLines.length);
+    // 문항을 못 찾았으면 확인 화면에 「자주 나오는 문항」이 펼쳐진다(FE#492)
+    setFilled(result); setFilledFrom(from); setError(null); setStep("review");
     // 읽은 캡처는 입력칸에서 확인 단계로 옮긴다 — 칸과 나란히 대조한다
     if ("images" in input) { setReadCaptures(input.images); capture.clear(); }
   };
@@ -182,8 +183,8 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
   const reset = () => {
     parse.clear();
     setOrganization(""); setOrganizationType(""); setJobRole(""); setItems([blank()]); setPaste(""); setFilled(null); setLines([]);
-    setPostingUrl(""); setFilledFrom(null); setReading("text"); setStep("input"); setWriting(false); setSourceOpen(false);
-    setError(null); setPicking(false); setConfirmingReset(false); capture.clear(); setReadCaptures([]);
+    setPostingUrl(""); setFilledFrom(null); setReading("text"); setStep("input"); setWriting(false);
+    setError(null); setConfirmingReset(false); capture.clear(); setReadCaptures([]);
     requestAnimationFrame(() => pasteBox.current?.focus());
   };
 
@@ -223,10 +224,27 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
   const sendNote = <p id="application-send-note" className="m-0 flex items-start gap-1.5 text-note leading-relaxed text-muted"><LockSimpleIcon className="mt-[3px] size-[13px] shrink-0" aria-hidden="true" />{SEND_NOTE}</p>;
   const moveToSource = onMoveToSource && <Button type="button" variant="secondary" className="min-h-11 lg:min-h-10" disabled={saving || moveToSourceDisabled}
     onClick={() => onMoveToSource(paste.trim() ? paste : items.map(it => it.text).join("\n\n"))}>자료로 쌓기</Button>;
-  const picker = <CommonQuestionPicker open={picking} onOpenChange={setPicking} room={room} onPick={insert} />;
+  if (step === "pick") return <CommonQuestionPicker room={room} onPick={insert} onBack={() => setStep(pickFrom)} />;
+
+  // 글 · 링크 · 캡처로 채우기 — 확인에서 떼어 낸 따로 화면. 읽으면 칸을 채워 확인으로 돌아간다
+  if (step === "source") return (
+    <form className="mx-auto grid w-full max-w-2xl gap-4" aria-busy={parse.parsing} onSubmit={e => { e.preventDefault(); if (canRead) read(); }}>
+      <StepHeader id="application-source-title" title={filled || paste.trim() ? "원문 보기" : "글 · 링크 · 캡처로 채우기"} onBack={() => setStep("review")} backDisabled={parse.parsing}
+        description={filled ? "원문을 고치거나 새로 넣고 다시 읽으면 칸을 다시 채워요. 직접 고친 칸은 그대로 둬요." : "공고 · 문항 글이나 링크 · 캡처를 넣으면 지원처와 문항 칸을 채워요."} />
+      {inputBox}
+      {sendNote}
+      {parseState}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button type="button" variant="ghost" className="min-h-11 lg:min-h-10" disabled={parse.parsing} onClick={() => setStep("review")}>취소</Button>
+        <Button type="submit" className="min-h-11 lg:min-h-10" disabled={!canRead}>
+          {parse.parsing ? "읽는 중…" : capture.captures.length ? `캡처 ${capture.captures.length}장 읽기` : filled ? "다시 읽기" : "읽기"}
+        </Button>
+      </div>
+    </form>
+  );
 
   if (step === "input") return (
-    <form className="grid max-w-2xl gap-4" aria-busy={parse.parsing} onSubmit={e => { e.preventDefault(); if (canRead) read(); }}>
+    <form className="mx-auto grid w-full max-w-2xl gap-4" aria-busy={parse.parsing} onSubmit={e => { e.preventDefault(); if (canRead) read(); }}>
       <h2 className="m-0 text-title-lg font-[650] tracking-[-0.3px]">어디에 지원하나요?</h2>
       {inputBox}
       {/* S-16 — 읽기 전에, 접지 않는다 */}
@@ -237,7 +255,7 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
       <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-3">
         <span className="mr-auto flex flex-wrap items-center gap-x-4">
           <Button type="button" variant="link" className="min-h-11 lg:min-h-10" disabled={parse.parsing} onClick={writeQuestions}>직접 쓰기</Button>
-          <Button type="button" variant="link" className="min-h-11 lg:min-h-10" disabled={parse.parsing} onClick={() => setPicking(true)}>넣었던 · 자주 나오는 문항에서 고르기</Button>
+          <Button type="button" variant="link" className="min-h-11 lg:min-h-10" disabled={parse.parsing} onClick={() => openPick("input")}>넣었던 · 자주 나오는 문항에서 고르기</Button>
         </span>
         {onCancel && <Button type="button" variant="ghost" className="min-h-11 lg:min-h-10" disabled={parse.parsing} onClick={onCancel}>취소</Button>}
         {moveToSource}
@@ -245,13 +263,12 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
           {parse.parsing ? "읽는 중…" : capture.captures.length ? `캡처 ${capture.captures.length}장 읽기` : "읽기"}
         </Button>
       </div>
-      {picker}
     </form>
   );
 
   const cost = Math.max(1, questionCount + (lines.length ? 1 : 0));
   return (
-    <form className={cn("grid gap-5", readCaptures.length ? "max-w-5xl" : "max-w-2xl")} aria-busy={saving || parse.parsing} onSubmit={async event => {
+    <form className={cn("mx-auto grid w-full gap-6", readCaptures.length ? "max-w-5xl" : "max-w-2xl")} aria-busy={saving || parse.parsing} onSubmit={async event => {
       event.preventDefault();
       if (pending.current || nothing) return;
       const blankAt = questionCount ? items.findIndex(it => !it.text.trim()) : -1;
@@ -272,25 +289,18 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
       catch (e) { setError(submitErrorMessage(e, "지원서를 넣지 못했어요.")); }
       finally { pending.current = false; setSaving(false); onSavingChange?.(false); }
     }}>
-      <div className="grid gap-1.5">
-        <h2 className="m-0 text-title-lg font-[650] tracking-[-0.3px]">{filled ? "읽은 내용을 확인해 주세요" : "문항을 넣어 주세요"}</h2>
-        {filledAny && <p className="m-0 flex items-center gap-2 text-note font-semibold text-muted"><Mascot size={18} />{isMockMode() ? (filledFrom === "url" ? "목 모드 — 링크를 읽지 않고 예시 공고로 채웠어요 · 고쳐도 돼요" : "목 모드 — AI 호출 없이 글의 번호 달린 줄만 규칙으로 나눴어요 · 고쳐도 돼요") : filledFrom === "url" ? "링크를 읽어 AI 가 나눠 채웠어요 · 고쳐도 돼요" : filledFrom === "image" ? "캡처를 읽어 AI 가 나눠 채웠어요 · 캡처와 맞는지 확인해 주세요" : "AI 가 나눠 채웠어요 · 고쳐도 돼요"}</p>}
-      </div>
-      <fieldset disabled={saving} className="m-0 grid min-w-0 gap-5 border-0 p-0">
-        {/* 넣은 원문은 접는다 — 고쳐서 「다시 읽기」. 직접 쓰기로 왔으면 같은 자리에서 글 · 링크 · 캡처로 채운다 */}
-        <div className="grid gap-2">
-          <Button type="button" variant="link" aria-expanded={sourceOpen} aria-controls="application-source" className="min-h-11 justify-self-start text-sm lg:min-h-10" onClick={() => setSourceOpen(v => !v)}>
-            <CaretRightIcon aria-hidden="true" className={cn("transition-transform", sourceOpen && "rotate-90")} />{filled || paste.trim() ? "원문 보기" : "글 · 링크 · 캡처로 채우기"}
-          </Button>
-          {sourceOpen && <div id="application-source" className="grid gap-2">
-            {inputBox}
-            {sendNote}
-            <Button type="button" variant="secondary" size="sm" className="min-h-11 justify-self-start lg:min-h-10" disabled={!canRead} onClick={read}>
-              {parse.parsing ? "읽는 중…" : capture.captures.length ? `캡처 ${capture.captures.length}장 읽기` : filled ? "다시 읽기" : "읽기"}
-            </Button>
-          </div>}
-          {parseState}
+      {/* 머리 — 제목 · 한 줄 설명, 오른쪽 위에 채우기 화면 입구(FE#542) */}
+      <header className="flex flex-wrap items-start gap-x-4 gap-y-3">
+        <div className="grid min-w-0 flex-[1_1_16rem] gap-1.5">
+          <h2 className="m-0 text-title-lg font-[650] tracking-[-0.3px]">{filled ? "읽은 내용을 확인해 주세요" : "문항을 넣어 주세요"}</h2>
+          {filledAny ? <p className="m-0 flex items-center gap-2 text-note font-semibold text-muted"><Mascot size={18} />{isMockMode() ? (filledFrom === "url" ? "목 모드 — 링크를 읽지 않고 예시 공고로 채웠어요 · 고쳐도 돼요" : "목 모드 — AI 호출 없이 글의 번호 달린 줄만 규칙으로 나눴어요 · 고쳐도 돼요") : filledFrom === "url" ? "링크를 읽어 AI 가 나눠 채웠어요 · 고쳐도 돼요" : filledFrom === "image" ? "캡처를 읽어 AI 가 나눠 채웠어요 · 캡처와 맞는지 확인해 주세요" : "AI 가 나눠 채웠어요 · 고쳐도 돼요"}</p>
+            : <p className="m-0 text-ui text-body">문항을 한 칸에 하나씩 넣으면, 문항마다 맞는 경험을 찾아요.</p>}
         </div>
+        <Button type="button" variant="secondary" size="sm" className="min-h-11 lg:min-h-10" disabled={saving} onClick={() => { parse.clear(); setStep("source"); }}>
+          {filled || paste.trim() ? "원문 보기" : "글 · 링크 · 캡처로 채우기"}
+        </Button>
+      </header>
+      <fieldset disabled={saving} className="m-0 grid min-w-0 gap-5 border-0 p-0">
         {/* 캡처를 읽었으면 왼쪽 캡처 · 오른쪽 칸(DESIGN.md 「지원 넣기 — 공고 확인」), 좁은 폭은 칸 위 접힌 줄 */}
         <div className={readCaptures.length ? "grid gap-5 lg:grid-cols-[2fr_3fr] lg:items-start" : "contents"}>
           {readCaptures.length > 0 && <CapturePane captures={readCaptures} />}
@@ -320,12 +330,12 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
             {/* 공고 요건 확인(S-91) — 있을 때만. 문항보다 먼저: 공고만 붙여 넣으면 이게 할 일이다 */}
             {lines.length > 0 && <PostingLinesReview lines={lines} onChange={setLines} />}
             {/* 문항이 없으면 막다른 길 대신 「자주 나오는 문항」을 그 자리에 펼친다(FE#492). 고르거나 문항 칸에 쓰면 사라진다 */}
-            {noQuestions && <CommonQuestionsInline room={room} organizationType={organizationType} onPick={insert} onPickPast={() => setPicking(true)} message={lines.length
+            {noQuestions && <CommonQuestionsInline room={room} organizationType={organizationType} onPick={insert} onPickPast={() => openPick("review")} message={lines.length
               ? "이 공고엔 자소서 문항이 없어요 — 공고 요건으로 맞는 경험부터 찾아 둘게요. 문항이 있으면 자주 나오는 문항에서 고르거나 문항 칸에 붙여 넣어 주세요."
               : filledFrom === "image"
-              ? "이 캡처엔 자소서 문항이 없어요. 자주 나오는 문항에서 고르거나, 문항 화면을 캡처해 넣고 「다시 읽기」를 눌러 주세요."
+              ? "이 캡처엔 자소서 문항이 없어요. 자주 나오는 문항에서 고르거나, 「원문 보기」에서 문항 화면 캡처를 넣고 다시 읽어 주세요."
               : filledFrom === "url"
-              ? "이 링크엔 자소서 문항이 없어요. 문항은 보통 지원서 양식(구글폼 등) 안에 있어요. 자주 나오는 문항에서 고르거나, 문항을 원문 칸에 붙여 넣고 「다시 읽기」를 눌러 주세요."
+              ? "이 링크엔 자소서 문항이 없어요. 문항은 보통 지원서 양식(구글폼 등) 안에 있어요. 자주 나오는 문항에서 고르거나, 「원문 보기」에서 문항을 붙여 넣고 다시 읽어 주세요."
               : "이 글엔 자소서 문항이 없어요. 문항은 보통 지원서 양식(구글폼 등) 안에 있어요. 자주 나오는 문항에서 고르거나, 문항 칸에 붙여 넣어 주세요."} />}
             <div className="grid gap-2">
               <h3 className="m-0 text-sm font-semibold text-ink">문항</h3>
@@ -361,17 +371,15 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
                   </span>
                 </li>)}
               </ol>
-              <span className="flex flex-wrap items-center gap-x-4">
-                <Button type="button" variant="link" className="min-h-11 lg:min-h-10" disabled={items.length >= MAX_QUESTIONS_PER_SUBMIT}
-                  onClick={() => setItems(prev => [...prev, blank()])}><PlusIcon />문항 더하기 ({items.length}/{MAX_QUESTIONS_PER_SUBMIT})</Button>
-                {!noQuestions && <Button type="button" variant="link" className="min-h-11 lg:min-h-10" disabled={room === 0}
-                  title={room === 0 ? `문항은 한 번에 ${MAX_QUESTIONS_PER_SUBMIT}개까지 넣을 수 있어요` : undefined} onClick={() => setPicking(true)}>넣었던 · 자주 나오는 문항에서 고르기</Button>}
-              </span>
+              {/* 문항 추가는 점선 칸 — 목록 끝에 한 줄 더(FE#542) */}
+              <Button type="button" variant="ghost" className="min-h-11 w-full rounded-md border border-dashed border-hairline text-muted hover:text-ink lg:min-h-10" disabled={items.length >= MAX_QUESTIONS_PER_SUBMIT}
+                onClick={() => setItems(prev => [...prev, blank()])}><PlusIcon />문항 더하기 ({items.length}/{MAX_QUESTIONS_PER_SUBMIT})</Button>
+              {!noQuestions && <Button type="button" variant="link" className="min-h-11 justify-self-center lg:min-h-10" disabled={room === 0}
+                title={room === 0 ? `문항은 한 번에 ${MAX_QUESTIONS_PER_SUBMIT}개까지 넣을 수 있어요` : undefined} onClick={() => openPick("review")}>넣었던 · 자주 나오는 문항에서 고르기</Button>}
             </div>
           </div>
         </div>
       </fieldset>
-      {picker}
       {error && <p role="alert" className="m-0 text-sm text-error">{error}</p>}
       {/* 넣을 게 없으면 버튼을 막고 이유 한 줄(FE#494) */}
       {nothing && !error && <p id="application-nothing" className="m-0 text-right text-note text-muted">{filled ? "문항이나 공고 요건을 하나 이상 넣어 주세요." : "지원서 문항을 입력해 주세요."}</p>}
@@ -385,8 +393,8 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
             </div>
           : <Button type="button" variant="ghost" className="min-h-11 lg:min-h-10" disabled={saving || parse.parsing} onClick={() => (dirty ? setConfirmingReset(true) : reset())}>처음으로</Button>)}
         {moveToSource}
-        {/* 문항마다 분석 1회(S-15) — 한 번에 여러 회를 쓰는 곳이라 횟수를 글자로도 보인다(FE#434). 공고 줄이 있으면 공고 기준 경험 찾기로 1회를 더 센다(S-93) */}
-        <AnalysisCost count={cost} running={saving} />
+        {/* 문항마다 분석 1회(S-15) · 공고 줄이 있으면 공고 기준 경험 찾기로 1회 더(S-93). 횟수는 ✦ 마우스 올림으로만 — 버튼 옆 「분석 N회」 글자는 뺐다(FE#542). 3회 이하 경고는 남는다 */}
+        <AnalysisCost running={saving} />
         <AnalysisButton type="submit" className="min-h-11 lg:min-h-10" cost={cost} running={saving} disabled={saving || parse.parsing || nothing}
           aria-describedby={nothing ? "application-nothing" : undefined}>
           {saving ? "지원서를 넣고 있어요…" : !questionCount && lines.length ? "공고로 경험 찾기" : `문항 ${questionCount || 1}개로 경험 찾기`}

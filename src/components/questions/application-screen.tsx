@@ -233,13 +233,13 @@ export function ApplicationScreen() {
       </div>)}
       {matching.loading ? <LoadingApplications /> : matching.error ? <div role="alert" className="grid justify-items-start gap-3 py-8">
         <p className="m-0 text-error">{matching.error}</p><Button variant="secondary" onClick={() => { void matching.refresh(); }}>다시 불러오기</Button>
-      </div> : empty ? <section id="selected-application" className="max-w-2xl" aria-label="새 지원서 입력">
+      </div> : empty ? <section id="selected-application" className="grid lg:min-h-[calc(100dvh-14rem)] lg:content-center" aria-label="새 지원서 입력">
         <ApplicationForm key={pasted} pastedText={pasted} onSubmit={(req, targetLengths) => matching.submit(req, targetLengths)} />
       </section> : <div className={cn("grid items-start gap-7 lg:gap-10", collapsed && "lg:grid-cols-[240px_minmax(0,1fr)]")}>
         {collapsed && <aside id="application-list" className={cn("min-w-0 scroll-mt-4 lg:sticky lg:top-20 lg:scroll-mt-20", !listFirst && "max-lg:hidden")} aria-label="지원서 목록">
           <ApplicationList {...list} />
         </aside>}
-        <section id="selected-application" className={cn("min-w-0 scroll-mt-5 lg:scroll-mt-20", listFirst && "max-lg:hidden")} aria-label={composing ? "새 지원서 입력" : "선택한 지원서"}>
+        <section id="selected-application" className={cn("min-w-0 scroll-mt-5 lg:scroll-mt-20", listFirst && "max-lg:hidden", composing && "grid lg:min-h-[calc(100dvh-14rem)] lg:content-center")} aria-label={composing ? "새 지원서 입력" : "선택한 지원서"}>
           {composing ? <ApplicationForm key={pasted} pastedText={pasted} onCancel={() => setComposing(false)} onSubmit={async (req, targetLengths) => {
             const saved = await matching.submit(req, targetLengths);
             if (saved) { setComposing(false); scrollToDetail(); }
