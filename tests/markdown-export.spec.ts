@@ -97,7 +97,8 @@ test("application menu exports that application; ASCII fallback name when the he
     return route.fulfill({ status: 200, headers: { "Content-Type": "text/markdown; charset=UTF-8" }, body: BODY });
   });
   await page.goto("/questions?question=42");
-  await page.getByRole("button", { name: "Markdown 으로 내보내기: OO 연합 동아리" }).click();
+  await page.getByRole("button", { name: "지원서 메뉴: OO 연합 동아리" }).click();
+  await page.getByRole("menuitem", { name: "Markdown 으로 내보내기" }).click();
   const alert = page.locator("#selected-application").getByRole("alert").filter({ hasText: "서버에 연결하지 못했어요" });
   await expect(alert).toBeVisible();
   if (process.env.UPDATE_EXPORT_SCREENSHOTS === "1") await page.screenshot({ path: `docs/fe-149/application-error-${page.viewportSize()!.width}.png`, style: "nextjs-portal { display: none !important; }" });

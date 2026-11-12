@@ -34,7 +34,7 @@ test("문항 글을 그 자리에서 고친다 — 지울 게 없으면 바로 �
   const api = await new FakeQuestionApi({ sameApplication: true }).install(page);
   await page.goto("/questions?question=41");
   await expect(panel(page).getByRole("button", { name: "문항 1 지우기", exact: true })).toBeVisible();
-  // 「문항 N · 상태」는 탭이 보여 준다 — 머리엔 유형 칩 줄 · 휴지통 · 문항 글만(ETC#346)
+  // 「문항 N · 상태」는 탭이 보여 준다 — 머리엔 유형 칩 줄 · 문항 글만, 휴지통은 답칸 머리줄(ETC#346 · FE#543)
   await expect(panel(page).getByText("문항 1 · 완료")).toHaveCount(0);
   if (desktop) for (const [width, height] of [[1440, 1000], [1024, 1000]] as const) { await page.setViewportSize({ width, height }); await shot(page, `head-${width}`); }
   else await shot(page, "head-390");
@@ -145,7 +145,10 @@ test("문항 지우기 → 마지막 문항은 지원서째 지우기로 · 지�
 test("지원서 화면 머리의 휴지통으로 지우면 남은 지원서를 연다 · 실패하면 창에 이유와 다시 시도", async ({ page }) => {
   const api = await new FakeQuestionApi().install(page);
   await page.goto("/questions?question=42");
-  await page.getByRole("button", { name: "지원서 지우기: OO 연합 동아리" }).click();
+  // 지원서 이름 옆은 「…」 하나 — 안에 Markdown 으로 내보내기 · 지원서 지우기(맨 아래)(FE#543)
+  await page.getByRole("button", { name: "지원서 메뉴: OO 연합 동아리" }).click();
+  await expect(page.getByRole("menuitem")).toHaveText(["Markdown 으로 내보내기", "지원서 지우기"]);
+  await page.getByRole("menuitem", { name: "지원서 지우기" }).click();
   const dialog = page.getByRole("dialog", { name: "지원서를 지울까요?" });
   await expect(dialog.getByText("문항 1개와 다 쓴 답도 같이 지워져요.")).toBeVisible();
 

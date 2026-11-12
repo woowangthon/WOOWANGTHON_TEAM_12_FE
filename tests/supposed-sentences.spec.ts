@@ -54,9 +54,9 @@ test("AI 가정은 주황 물결 · 구체 값은 한 단계 진하게, 「확�
   await expect(markOf(page, "s-4")).toHaveClass(/decoration-review-line/);
   await expect(markOf(page, "s-4")).not.toHaveClass(/bg-/); // 평소엔 바탕 없음 — 고르면 다른 확인할 곳과 같은 주황 바탕
   await expect(markOf(page, "s-5")).toHaveClass(/decoration-review(?!-)/);
-  // 숫자와 「다음 확인할 곳 →」 이동 수가 같다 — 여섯 번 돌면 가정 둘을 한 번씩 지난다
+  // 숫자와 Alt + ↓ 이동 수가 같다 — 여섯 번 돌면 가정 둘을 한 번씩 지난다
   if (!narrow(page)) {
-    const next = page.getByRole("button", { name: "다음 확인할 곳 →" });
+    const next = { click: async () => { await answerBox(page).focus(); await page.keyboard.press("Alt+ArrowDown"); } };
     const seen: string[] = [];
     for (let i = 0; i < 6; i++) {
       await next.click();
@@ -79,7 +79,7 @@ test("경험에 붙은 가정 — 비슷했어요는 문장 그대로 보완으�
   await openMark(page, "s-4");
   await card(page).getByRole("button", { name: "비슷했어요" }).click();
   await expect.poll(() => posts(api)).toEqual([{ call: "POST /api/clarifications/66/answer", body: { answer: SUPPOSED_LINKED } }]);
-  await expect(card(page)).toContainText("경험에 보완으로 쌓였어요");
+  await expect(card(page)).toContainText("경험에 쌓였어요 · 다시 만들면 근거로 쓰여요");
   if (narrow(page)) await page.keyboard.press("Escape");
   await supposed(page, 1);
   await expect(markOf(page, "s-4")).not.toHaveClass(/decoration-wavy/);

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckIcon, ClockCounterClockwiseIcon, CopyIcon } from "@phosphor-icons/react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ClockCounterClockwiseIcon, CopyIcon } from "@phosphor-icons/react";
 import { RevisionDialog } from "@/components/revisions/revision-list";
 import { useRestoreListener } from "@/components/revisions/restore-bus";
 import type { RestoreResult } from "@/lib/api/revisions";
@@ -28,8 +28,9 @@ import { useAnswerAutosave } from "./use-answer-autosave";
 type AnswerChange = (id: number, answer: Answer | null) => void;
 type AnswerDraftChange = (id: number, draft: AnswerDraft | null) => void;
 // 목표 글자 수는 답칸 아래 한 곳에서 정한다(FE#269)
-// onNewFacts — 새 경험 후보는 차곡이 패널에서 찾고 고른다(FE#270). find 면 패널을 열며 찾기를 시작한다
-type DraftHooks = { onAnswer: AnswerHandler; onRefresh: () => Promise<void>; draftBusy: boolean; onTargetLength: (targetLength: number | null) => Promise<void>; onNewFacts: (find: boolean) => void };
+// 새 경험 후보는 차곡이 패널에서만 찾고 고른다(FE#270 · FE#543) — 답칸 아래에는 저장 줄도 찾기 버튼도 두지 않는다
+// trailing — 머리줄 오른쪽 아이콘 줄 끝에 더하는 것(문항 지우기)
+type DraftHooks = { onAnswer: AnswerHandler; onRefresh: () => Promise<void>; draftBusy: boolean; onTargetLength: (targetLength: number | null) => Promise<void>; trailing?: ReactNode };
 
 /** 내가 쓴 답(S-45 · S-48 · S-79): 받아 둔 문항의 확정 답으로 시작하고, 초안이 더 새로우면 초안을 보기 상태로 담는다. 근거 점검은 독립적으로 읽는다.
  *  문항을 못 받았으면 화면의 「다시 불러오기」를 쓴다 */
@@ -60,7 +61,7 @@ function readSavedBox(state: AnswerDraft["state"], draftKey: string | null): Pic
   return { local, seen: new Set(s.seen.filter((x): x is string => typeof x === "string")) };
 }
 
-function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, draftLabel, onAskDraft, onAnswer, onRefresh, draftBusy, onTargetLength, onNewFacts }: { question: QuestionDetail; confirmed: ReturnType<typeof useConfirmedAnswer>; onAnswerDraftChange: AnswerDraftChange; checks: GroundingChecks; draftLabel: string | null; onAskDraft: () => void } & DraftHooks) {
+function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, draftLabel, onAskDraft, onAnswer, onRefresh, draftBusy, onTargetLength, trailing }: { question: QuestionDetail; confirmed: ReturnType<typeof useConfirmedAnswer>; onAnswerDraftChange: AnswerDraftChange; checks: GroundingChecks; draftLabel: string | null; onAskDraft: () => void } & DraftHooks) {
   const questionId = question.id;
   const draft = question.draft ?? null;
   const ready = draft?.status === "COMPLETED" && draft.sentences.length > 0 ? draft : null;
@@ -191,7 +192,8 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
     restored: result => { if (!isMine(result.revision) || !result.answerDraft) return false; applyRestore(result); return true; },
   });
   // 「다 썼어요」 전에 기다리던 자동 저장을 버린다 — 늦게 도착하면 지운 임시 글이 되살아난다(계약)
-  const confirmAnswer = async () => { setAsk(null); await autosave.settle(); void a.confirm(text, () => onAnswerDraftChange(questionId, null)); };
+  // 저장했다는 알림은 잠깐 떴다 사라진다 — 답칸 아래에 저장 줄을 두지 않는다(FE#543)
+  const confirmAnswer = async () => { setAsk(null); await autosave.settle(); void a.confirm(text, () => { onAnswerDraftChange(questionId, null); showToast("다 쓴 답으로 저장했어요."); }); };
 
   const locked = a.busy || a.answer?.newFacts?.status === "ANALYZING";
   // 확정 답과 같은 글은 다시 확정하지 않는다 — 서버도 아무것도 바꾸지 않는다(ETC#266)
@@ -212,28 +214,29 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
   const copyAnswer = () => { if (warnFirst) setAsk("copy"); else void copy(); };
   const finish = () => { if (groundFirst) setAsk("ground"); else void confirmAnswer(); };
   return <>
-    {/* 답칸 머리줄 한 줄(FE#336 · FE#463) — 왼쪽 글자 수 / 목표 · 확인할 곳, 오른쪽 다음 확인할 곳 · 복사 · 수정 이력. 제목은 두지 않는다(구역 이름은 aria-label) */}
+    {/* 답칸 머리줄 한 줄(FE#336 · FE#463 · FE#543) — 왼쪽 글자 수 / 목표 · 구성 틀 줄(오른쪽 끝에 확인할 곳), 오른쪽 복사 · 수정 이력 · 문항 지우기. 제목은 두지 않는다(구역 이름은 aria-label) */}
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       <span className="inline-flex items-center gap-1 text-xs text-muted tabular-nums">{text.length.toLocaleString()}자 /{" "}
         <TargetLengthField value={target} onSave={onTargetLength} />
         {marked && target !== null && text.length < target && <InfoTip label="목표 글자 수" align="end">자료에 있는 내용으로만 써서 목표보다 짧을 수 있어요. 빈칸 · 빠진 사실에 답하면 다음 초안이 길어져요.</InfoTip>}</span>
       {marked && <div id={`draft-title-${questionId}`} role="group" aria-label="답변 초안"
-        // 좁은 폭은 글자 수 · 아이콘이 첫 줄, 확인할 곳이 둘째 줄을 통째로 쓴다 — 사이에 끼면 세 줄로 꺾인다
+        // 좁은 폭은 글자 수 · 아이콘이 첫 줄, 구성 틀 줄이 둘째 줄을 통째로 쓴다 — 사이에 끼면 세 줄로 꺾인다
         className="order-last flex min-w-0 basis-full flex-wrap items-center gap-x-2.5 gap-y-1.5 sm:order-none sm:basis-0 sm:flex-1">
-        {/* 확인할 곳은 부가 정보라 작게 — 남은 개수는 늘 보인다(FE#262 · FE#269). 사용법은 ⓘ 로 접는다 */}
-        <span role="status" className={cn("inline-flex items-center gap-1.5 text-note font-medium tabular-nums", left ? "text-review" : "text-evidence")}>
-          {/* 숫자는 「다음 확인할 곳 →」이 도는 수와 같다 — AI 가정도 그 안에 센다(FE#381). 「AI 가정」은 답칸 표시처럼 물결 밑줄 — 그 자체가 범례다 */}
+        {ready && <DraftGuidance draft={ready} />}
+        <span className="-ml-2 inline-flex items-center"><InfoTip label="차곡이 초안">차곡이 초안이에요. 바로 고쳐 쓰고, 밑줄 · 빈칸을 누르면 근거와 이유가 보여요. 최종 문장은 직접 정해요. 답칸에서 Alt + ↓ 를 누르면 다음 확인할 곳으로 가요.</InfoTip></span>
+        {/* 확인할 곳은 부가 정보라 작게 — 구성 틀 줄의 오른쪽 끝, 남은 개수는 늘 보인다(FE#262 · FE#269 · FE#543). 사용법은 ⓘ 로 접는다 */}
+        <span role="status" className={cn("ml-auto inline-flex items-center gap-1.5 text-note font-medium tabular-nums", left ? "text-review" : "text-evidence")}>
+          {/* 숫자는 Alt + ↓ 가 도는 수와 같다 — AI 가정도 그 안에 센다(FE#381). 「AI 가정」은 답칸 표시처럼 물결 밑줄 — 그 자체가 범례다 */}
           {left > 0 ? <><span aria-hidden="true" className="size-1.5 rounded-full bg-review" /><span>확인할 곳 {left}군데</span>
             {supposedLeft.length > 0 && <span className="font-normal">· 그중 <span className="underline decoration-wavy decoration-review-line underline-offset-[3px]">AI 가정</span> {supposedLeft.length}</span>}</>
             : "모두 확인했어요 ✓"}
         </span>
-        {ready && <DraftGuidance draft={ready} />}
-        <span className="-ml-2 mr-auto inline-flex items-center"><InfoTip label="차곡이 초안">차곡이 초안이에요. 바로 고쳐 쓰고, 밑줄 · 빈칸을 누르면 근거와 이유가 보여요. 최종 문장은 직접 정해요.</InfoTip></span>
-        {left > 0 && <Button variant="secondary" size="sm" className="min-h-11 lg:min-h-10" title="Alt + ↓" onClick={() => editor.current?.next()}>다음 확인할 곳 →</Button>}
       </div>}
+      {/* 복사 · 수정 이력 · 문항 지우기 — 같은 줄, 같은 크기(FE#543) */}
       <div className="ml-auto flex items-center gap-1">
         <Button variant="ghost" size="icon" className="size-11 text-muted hover:text-ink lg:size-9" aria-label="답 복사" title="답 복사" disabled={!text.trim()} onClick={copyAnswer}><CopyIcon aria-hidden="true" /></Button>
         <Button variant="ghost" size="icon" className="size-11 text-muted hover:text-ink lg:size-9" aria-label="수정 이력" title="수정 이력" aria-haspopup="dialog" onClick={() => setHistoryOpen(true)}><ClockCounterClockwiseIcon aria-hidden="true" /></Button>
+        {trailing}
       </div>
       <RevisionDialog open={historyOpen} onOpenChange={setHistoryOpen} target={{ type: "ANSWER", id: questionId }} title="수정 이력"
         description="이 문항의 답을 「다 썼어요」 · 초안 넣기 · 되돌리기 때 남긴 기록이에요. 쓰는 중 자동 저장은 남지 않아요."
@@ -294,11 +297,10 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
     {autosave.status === "error" && <p role="alert" className="m-0 text-sm text-error">쓰는 글을 저장하지 못했어요. {autosave.error} 글은 이 화면에 그대로 있어요 — 「다시 저장」을 눌러 주세요.</p>}
     {a.failure && <div className="grid justify-items-start gap-2">
       <p role="alert" className="m-0 text-sm text-error">{a.failure.message}{a.pollFailures >= 3 && " 자동 확인을 멈췄어요."}</p>
-      {!a.failure.limit && <Button variant="secondary" className="min-h-11 lg:min-h-10" title={a.failure.action === "find" ? "분석 1회" : undefined} disabled={a.busy || (a.failure.action === "find" && exhausted)} onClick={() => void (a.failure?.action === "confirm" ? a.confirm(a.failure.text!) : a.failure?.action === "find" ? a.retryFind() : a.refresh())}>
+      {!a.failure.limit && <Button variant="secondary" className="min-h-11 lg:min-h-10" title={a.failure.action === "find" ? "분석 1회" : undefined} disabled={a.busy || (a.failure.action === "find" && exhausted)} onClick={() => void (a.failure?.action === "confirm" ? a.confirm(a.failure.text!, () => showToast("다 쓴 답으로 저장했어요.")) : a.failure?.action === "find" ? a.retryFind() : a.refresh())}>
         {a.failure.action === "confirm" ? "같은 답으로 다시 저장" : a.failure.action === "find" ? "다시 찾기" : "저장 상태 다시 확인"}
       </Button>}
     </div>}
-    {a.answer && same && <SavedLine answer={a.answer} onNewFacts={onNewFacts} />}
     {g.loading && <p role="status" className="m-0 text-sm text-muted">마지막 근거 점검을 불러오고 있어요…</p>}
     {analyzing && <p role="status" className="m-0 text-sm text-muted">문장을 근거와 대조하고 있어요. 새로고침해도 점검한 글과 진행 상태를 이어서 확인해요.</p>}
     {g.failure && <div className="grid justify-items-start gap-2">
@@ -351,24 +353,6 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
     </Dialog>
     <Toast toast={toast} />
   </>;
-}
-
-/** 다 쓴 답 저장 뒤 한 줄(S-48 · FE#270) — 저장된 걸 분명히 보이고, 바로 옆에서 새 경험 후보 찾기로 잇는다. 찾기 · 고르기는 차곡이 패널에서 */
-function SavedLine({ answer, onNewFacts }: { answer: Answer; onNewFacts: (find: boolean) => void }) {
-  const facts = answer.newFacts;
-  const pending = facts?.status === "COMPLETED" ? facts.candidates.filter(c => c.status === "PENDING").length : 0;
-  const show = <Button variant="link" size="sm" className="min-h-11 lg:min-h-10" onClick={() => onNewFacts(false)}>차곡이에서 보기</Button>;
-  return <div role="status" className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-sm bg-surface-soft px-3.5 py-2 text-sm text-body">
-    <span className="inline-flex items-center gap-1.5 font-medium text-positive"><CheckIcon aria-hidden="true" weight="bold" />다 쓴 답으로 저장했어요</span>
-    <span aria-hidden="true" className="text-muted">·</span>
-    {!facts ? <span className="inline-flex flex-wrap items-center gap-x-1.5">
-      <AnalysisButton variant="link" size="sm" className="min-h-11 lg:min-h-10" onClick={() => onNewFacts(true)}>새 경험 후보 찾기</AnalysisButton>
-      <AnalysisCost />
-    </span>
-      : facts.status === "ANALYZING" ? <span className="inline-flex items-center gap-x-1.5">새 경험 후보를 찾고 있어요 {show}</span>
-      : facts.status === "FAILED" ? <span className="inline-flex items-center gap-x-1.5 text-error">새 경험 후보를 찾지 못했어요 {show}</span>
-      : <span className="inline-flex items-center gap-x-1.5">{!facts.candidates.length ? "새로 쓴 사실이 없어요" : pending ? `새 경험 후보 ${pending}개를 골라 주세요` : "새 경험 후보를 모두 정했어요"} {facts.candidates.length > 0 && show}</span>}
-  </div>;
 }
 
 /** 답칸 줄의 자동 저장 상태(S-72) — 저장 중 · 저장됨 · 실패면 다시 저장 */

@@ -238,11 +238,12 @@ test("다 썼어요 — 빈칸이 남았으면 같은 알림을 띄우고 저장
   expect(posts(api)).toEqual([]);
 });
 
-test("다음 확인할 곳 → — 글 순서로 확인할 곳의 카드를 차례로 열고, 끝에서 처음으로 돌아온다", async ({ page }) => {
+test("Alt + ↓ — 글 순서로 확인할 곳의 카드를 차례로 열고, 끝에서 처음으로 돌아온다", async ({ page }) => {
   await open(page);
   await answerBox(page).focus();
   await answerBox(page).evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(0, 0));
-  const next = page.getByRole("button", { name: "다음 확인할 곳 →", exact: true });
+  // 「다음 확인할 곳 →」 버튼은 없다(FE#543) — 답칸에서 Alt + ↓ 로 같은 이동을 한다
+  const next = { click: async () => { await answerBox(page).focus(); await page.keyboard.press("Alt+ArrowDown"); } };
   // 글 순서: 802(AI 보탬) → 804 문장 → 804 안의 빈칸 → 805(AI 제안) → 처음으로
   const steps = [
     () => expect(sentenceCard(page).getByText("왜 확인이 필요한가요 — 대화가 끊긴 불편은 자료에 없어 AI 가 풀어 썼어요")).toBeVisible(),
@@ -256,19 +257,17 @@ test("다음 확인할 곳 → — 글 순서로 확인할 곳의 카드를 차�
   // 좁은 폭은 시트가 뒤 화면을 덮는다 — 첫 카드까지만 본다
   if (narrow(page)) { await expect(page.getByRole("dialog")).toBeVisible(); return; }
   for (const step of steps.slice(1)) { await next.click(); await step(); }
-  // 단축키 — 글 안에서 Alt + ↓
-  await answerBox(page).focus();
-  await page.keyboard.press("Alt+ArrowDown");
+  await next.click();
   await expect(sentenceCard(page).getByText("왜 확인이 필요한가요 — 누가 했는지 확인해 주세요")).toBeVisible();
 });
 
-test("확인할 곳이 없으면 다음 확인할 곳 버튼이 없고, 글은 입력칸 그대로다", async ({ page }) => {
+test("확인할 곳은 구성 틀 줄 오른쪽에 개수만 보이고(버튼 없음), 다 확인하면 「모두 확인했어요」다 — 글은 입력칸 그대로다", async ({ page }) => {
   await open(page, q => { q.draft!.sentences = q.draft!.sentences.slice(0, 2); q.draft!.omitted = []; });
-  await expect(page.getByRole("button", { name: "다음 확인할 곳 →", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "다음 확인할 곳 →", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("status").filter({ hasText: /확인할 곳 \d+군데/ })).toBeVisible();
   await openMark(page, S_802);
   await sentenceCard(page).getByRole("button", { name: "맞아요", exact: true }).click();
   await expect(page.getByText("모두 확인했어요 ✓", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "다음 확인할 곳 →", exact: true })).toHaveCount(0);
   await closeCard(page); // 맞아요 뒤에도 카드는 남는다(FE#325)
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(answerBox(page)).toBeVisible();
