@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { CaretDownIcon, CaretRightIcon, PencilSimpleIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { CaptureReviewTag } from "./capture-input";
@@ -76,7 +76,7 @@ export function PostingLinesReview({ lines, onChange }: {
 
   const sections = POSTING_SECTIONS.filter(section => lines.some(l => l.section === section));
   // 「공고 요건 15줄 · 담당업무 3 · 자격요건 7 · 기술스택 6」 — 접어도 무엇이 몇 줄인지는 보인다
-  const summary = [`${lines.length}줄`, ...sections.map(section => `${SECTION_TITLE[section]} ${lines.filter(l => l.section === section).length}`)].join(" · ");
+  const summary = [`${lines.length}줄`, ...sections.map(section => `${SECTION_TITLE[section]} ${lines.filter(l => l.section === section).length}`)];
   return (
     <section aria-labelledby="posting-lines-title" className="grid gap-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -84,7 +84,14 @@ export function PostingLinesReview({ lines, onChange }: {
           <button type="button" aria-expanded={open} onClick={() => setOpen(v => !v)}
             className="-ml-1 flex min-h-11 cursor-pointer items-center gap-1.5 rounded-sm px-1 text-left lg:min-h-10">
             <CaretRightIcon aria-hidden="true" className={cn("size-3.5 shrink-0 text-muted transition-transform", open && "rotate-90")} />
-            공고 요건<span className="font-normal text-muted">{summary}</span>
+            {/* 좁으면 제목이 「공고 / 요건」으로 갈라지지 않게 한 덩어리로 두고, 요약은 통째로 아랫줄 · 넘치면 항목 사이에서만 줄을 바꾼다(FE#591).
+                「·」는 앞 항목에 붙여 줄이 「·」로 시작하지 않게 한다 */}
+            <span className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
+              <span className="shrink-0 whitespace-nowrap">공고 요건</span>
+              <span className="min-w-0 font-normal text-muted">{summary.map((part, i) => <Fragment key={i}>
+                {i > 0 && " "}<span className="whitespace-nowrap">{part}{i < summary.length - 1 && " ·"}</span>
+              </Fragment>)}</span>
+            </span>
           </button>
         </h3>
         {/* 캡처에서 읽은 줄이 있으면 접어도 「확인해 주세요」는 보인다(S-92) */}
