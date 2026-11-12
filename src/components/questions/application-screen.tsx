@@ -30,6 +30,7 @@ import type { AnswerHandler } from "./clarifications";
 import { QuestionResult } from "./question-result";
 import { SimilarAnswers } from "./similar-answers";
 import { ChagokPanel, chagokAsks, Mascot, type SupplementOrigin } from "./chagok-panel";
+import { useSkippedAsks } from "./ask-memory";
 import { useApplications } from "./use-applications";
 import { useChagokRun } from "./use-chagok-run";
 import { useDraftPicks } from "./use-draft-picks";
@@ -144,8 +145,8 @@ export function ApplicationScreen() {
     return () => clearTimeout(timer);
   }, [linkedArea, linkedQuestion, selectedQuestionId]);
   // 패널의 「차곡이가 물어볼 것」과 같은 질문을 센다(FE#383)
-  const asked = selected ? chagokAsks(selected) : null;
-  const unanswered = asked ? asked.total - asked.answered : 0;
+  const skippedAsks = useSkippedAsks();
+  const unanswered = selected ? chagokAsks(selected, skippedAsks).left : 0;
   const picks = useDraftPicks(selected);
   const draftActions = {
     picks: picks.ids, onResetPicks: picks.reset,

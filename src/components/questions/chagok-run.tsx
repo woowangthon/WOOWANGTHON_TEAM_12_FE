@@ -3,7 +3,7 @@
 // 차곡이 일(S-31 · ETC ADR-007) — 시안 6 mock.js 의 mate__foot(부탁 칩 + 입력) · msg--me(내 부탁) · msg--ask(묻는 카드) · chagok.css .steps(단계).
 // 보이는 단계는 전부 BE 의 Run 그대로다 — 지어낸 진행을 보이지 않고, 실패를 정해진 답으로 채우지 않는다(대회 규칙 1 · 2). 채팅창이 아니라 일 하나만 보인다
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { ArrowUpIcon, CaretDownIcon, CheckIcon, XIcon } from "@phosphor-icons/react";
+import { ArrowsClockwiseIcon, ArrowUpIcon, CaretDownIcon, CheckIcon, XIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ANALYSIS_EXHAUSTED_NOTE, LowAnalysisNotice, useAnalysisExhausted } from "@/components/auth/analysis-cost";
@@ -202,7 +202,11 @@ export function ChagokRunFeed({ control, currentQuestionId, rematch }: {
   </section>;
 }
 
-export function ChagokComposer({ control, hasQuestion, hasDraft }: { control: ChagokRunControl; hasQuestion: boolean; hasDraft: boolean }) {
+/** 칩 줄의 「초안 다시 만들기」(FE#547) — 다 된 초안이 있을 때만. 차곡이에게 말을 보내는 칩(분석 1회)과 달리 위 설정을 펼치는 버튼이라
+ *  아이콘 · 흰 바탕으로 모양을 달리 한다. 새 답이 있어 공짜일 때만(draft.freeRegenerate) 진하게 강조한다 */
+export type RedraftChip = { open: boolean; free: boolean; newAnswers: number; onToggle: () => void };
+
+export function ChagokComposer({ control, hasQuestion, hasDraft, redraft }: { control: ChagokRunControl; hasQuestion: boolean; hasDraft: boolean; redraft?: RedraftChip | null }) {
   const { run, draft, starting, failure, conflict, conflictError } = control;
   const waitingConfirm = run?.status === "WAITING_CONFIRM";
   // 0회면 보내기 · 칩을 막는다(S-15 · FE#391). 채팅처럼 연달아 쓰는 곳이라 「분석 1회」는 늘 보이지 않고 3회 이하일 때만 경고한다(FE#434)
@@ -231,6 +235,13 @@ export function ChagokComposer({ control, hasQuestion, hasDraft }: { control: Ch
     {hasQuestion && <div className="flex flex-wrap gap-1.5">
       {PRESETS[hasDraft ? "afterDraft" : "beforeDraft"].map(p => <button key={p.label} type="button" title="분석 1회" disabled={blocked} onClick={() => void control.send(p.text)}
         className="rounded-full border border-hairline-soft bg-surface-soft px-2.5 py-1 text-xs text-ink transition-colors hover:bg-surface-strong disabled:opacity-50">{p.label}</button>)}
+      {redraft && <button type="button" aria-expanded={redraft.open} onClick={redraft.onToggle}
+        className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+          redraft.free ? "border-primary bg-primary text-on-primary hover:opacity-90" : "border-hairline bg-canvas text-ink hover:bg-surface-soft",
+          redraft.open && !redraft.free && "bg-surface-strong")}>
+        <ArrowsClockwiseIcon aria-hidden="true" className="size-3.5" />
+        {redraft.free ? redraft.newAnswers > 0 ? `새 답 ${redraft.newAnswers}개 넣어 다시 만들기` : "새 답 넣어 다시 만들기" : "초안 다시 만들기"}
+      </button>}
     </div>}
     <form className="flex items-end gap-1.5 rounded-md border border-hairline py-1 pr-1 pl-3.5" onSubmit={e => { e.preventDefault(); submit(); }}>
       {/* 높이만 글에 맞춰 늘고(최대 128) 폭은 남은 자리로 고정 — 띄어쓰기 없는 긴 글도 줄을 바꿔 보내기 버튼을 밀지 않는다 */}

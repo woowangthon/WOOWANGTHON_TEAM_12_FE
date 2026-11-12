@@ -28,8 +28,15 @@ async function openSentence(page: Page, index: number) {
   await openMark(page, `s-${index}`);
   return sentenceCard(page);
 }
+/** 다 된 초안이 있으면 「초안 다시 만들기」 설정은 패널 아래 칩으로 접혀 있다(FE#547) — 접혀 있으면 펼친다 */
+const redraftChip = (page: Page) => page.getByRole("button", { name: /(초안|넣어) 다시 만들기$/ });
+async function openRedraft(page: Page) {
+  const chip = redraftChip(page);
+  if (await chip.count() && (await chip.getAttribute("aria-expanded")) === "false") await chip.click();
+}
 /** 다시 만들기 — 덮이는 것이 있으면(답하지 않은 빠진 사실 질문 · 고친 글) 확인 대화상자가 먼저 뜬다 */
 async function regenerate(page: Page, scope: Locator) {
+  await openRedraft(page);
   await scope.getByRole("button", { name: "다시 만들기", exact: true }).click();
   const confirm = page.getByRole("dialog", { name: "다시 만들면 답칸이 새 초안으로 바뀌어요" }).getByRole("button", { name: "그래도 다시 만들기", exact: true });
   if (await confirm.waitFor({ state: "visible", timeout: 1500 }).then(() => true, () => false)) await confirm.click();
@@ -42,16 +49,24 @@ async function openDraftFollowUp(page: Page) {
   await expect(draftFollowUp(page)).toBeVisible();
   return draftFollowUp(page);
 }
-/** 차곡이 패널의 「차곡이가 물어볼 것」 — 문항 · 초안 되묻기 한 블록, 기본은 접혀 있다(FE#336). 펼치고 초안 빈칸 질문 목록을 준다 */
+/** 차곡이 패널의 「차곡이가 물어볼 것」 — 문항 · 초안 되묻기 한 블록, 처음 볼 때만 펼친다(FE#547). 펼친 블록을 준다 —
+ *  답할 질문은 경험별로 묶여 있고 초안 빈칸 질문이 위, 답한 질문은 「답한 질문 N개 보기」에 접혀 있다 */
 const asksBlock = (page: Page) => page.locator("details").filter({ has: page.locator("summary", { hasText: "차곡이가 물어볼 것" }) });
 async function omissionList(page: Page) {
   const block = asksBlock(page);
   await expect(block).toBeVisible();
   if (!(await block.evaluate(el => (el as HTMLDetailsElement).open))) await block.locator(":scope > summary").click({ position: { x: 14, y: 14 } }); // 제목 옆 ⓘ 를 피해 꺾쇠 쪽을 누른다(FE#464)
-  return block.getByRole("list", { name: "초안의 빠진 사실" });
+  return block;
+}
+/** 「답한 질문 N개 보기」를 펼친 목록 */
+async function answeredList(page: Page) {
+  const fold = (await omissionList(page)).locator("details").filter({ has: page.locator(":scope > summary", { hasText: /^답한 질문/ }) });
+  if (!(await fold.evaluate(el => (el as HTMLDetailsElement).open))) await fold.locator(":scope > summary").click();
+  return fold.getByRole("list", { name: "답한 질문" });
 }
 async function openDraftComposer(page: Page) {
   await openDraftFollowUp(page);
+  await openRedraft(page);
   return page.getByRole("region", { name: "초안 설정", exact: true });
 }
 /** 좁은 폭은 패널이 화면을 덮으니 닫고 참고 카드에서 고른다 */
@@ -90,6 +105,23 @@ async function generate(page: Page) {
   await expect(draftBody(page)).toBeVisible();
 }
 
+/** FE#547 PR 스크린샷 — UPDATE_ASK_SCREENSHOTS=1 일 때만. 데스크톱 프로젝트는 1440 · 1024, 모바일은 390 */
+async function askShot(page: Page, project: string, name: string) {
+  if (process.env.UPDATE_ASK_SCREENSHOTS !== "1") return;
+  const style = "nextjs-portal { display: none !important; }";
+  if (project !== "desktop") { await page.screenshot({ path: `docs/fe-547/${name}-390.png`, style }); return; }
+  const size = page.viewportSize()!;
+  await page.screenshot({ path: `docs/fe-547/${name}-1440.png`, style });
+  // 1024 는 패널이 닫힌 채 시트로 열린다 — 열어 찍고 닫은 뒤 넓은 폭으로 돌아가 다시 연다
+  const toggle = page.getByRole("button", { name: /^차곡이( ?질문 \d+)?$/ });
+  const open = async () => { await page.waitForTimeout(300); if (!(await page.getByRole("button", { name: "차곡이 닫기" }).isVisible())) await toggle.click(); await page.waitForTimeout(600); };
+  await page.setViewportSize({ width: 1024, height: size.height });
+  await open();
+  await page.screenshot({ path: `docs/fe-547/${name}-1024.png`, style });
+  await page.getByRole("button", { name: "차곡이 닫기" }).click();
+  await page.setViewportSize(size);
+  await open();
+}
 test("default selection, zero-selection guard, generating, evidence details and text-only copy", async ({ page }, info) => {
   const api = await setup(page);
   await closeDraftPanel(page);
@@ -356,18 +388,19 @@ test("omitted facts have optional experience questions, while unlinked gaps stay
   const api = await setup(page, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
   const panel = await openDraftFollowUp(page);
   const omissions = await omissionList(page);
-  await expect(omissions.getByRole("listitem")).toHaveCount(2);
-  await expect(omissions.getByRole("textbox")).toHaveCount(2);
+  // 초안 빈칸 질문 2개 + 같은 경험의 문항 되묻기 1개가 경험 머리 하나 아래 모인다(FE#547)
+  await expect(omissions.getByRole("listitem")).toHaveCount(3);
+  await expect(omissions.getByRole("textbox")).toHaveCount(3);
   await omissions.scrollIntoViewIfNeeded();
   await page.screenshot({ path: `docs/fe-464/asks-${info.project.name}.png`, animations: "disabled" });
   // 경험에 붙지 않은 빈칸(문장 밖)은 패널에 맥락 없이 늘어놓지 않는다(FE#382)
   await expect(panel.getByRole("list", { name: "직접 쓸 거리" })).toHaveCount(0);
   await expect(panel).not.toContainText("보완으로 저장하지 않아요");
   // 머리는 활동 칩(링크) → 경험 한 줄(인용) — 문항 되묻기와 같은 모양(FE#464)
-  await expect(omissions.getByRole("listitem").first()).toContainText(QUESTION_EXAMPLES[0].recommendations[0].experience.content);
+  await expect(omissions.getByText(QUESTION_EXAMPLES[0].recommendations[0].experience.content).filter({ visible: true })).toHaveCount(1); // 경험 머리는 한 번
   const first = omissions.getByRole("listitem").first();
-  // 답은 선택 — 건너뛰기 버튼이 없고, 쓰기 전엔 보내기도 없다(FE#320)
-  await expect(first.getByRole("button", { name: "건너뛰기", exact: true })).toHaveCount(0);
+  // 답은 선택 — 건너뛰기는 질문 줄 끝 작은 글자 하나, 쓰기 전엔 보내기가 없다(FE#320 · FE#547)
+  await expect(first.getByRole("button", { name: /^건너뛰기/ })).toHaveCount(1);
   await expect(first.getByRole("button", { name: "답하기", exact: true })).toHaveCount(0);
   await expect(first.getByRole("textbox")).toHaveAttribute("maxlength", "2000");
   await closeDraftPanel(page);
@@ -394,8 +427,10 @@ test("saving an omitted answer uses its server ID, persists after reload and reg
   const answer = "두 기기로 메시지를 보내고 양쪽 화면에 도착하는지 확인했다";
   await first.getByRole("textbox").fill("  " + answer + "  ");
   await first.getByRole("button", { name: "답하기", exact: true }).click();
-  await expect(first).toContainText("경험에 보완으로 쌓았어요");
-  await expect(first).toContainText(answer);
+  // 답한 질문은 목록에서 빠져 「답한 질문 N개 보기」로 접힌다(FE#547)
+  await expect(omissions.getByRole("textbox")).toHaveCount(2);
+  await expect(await answeredList(page)).toContainText("경험에 보완으로 쌓았어요");
+  await expect(await answeredList(page)).toContainText(answer);
   if (process.env.UPDATE_DRAFT_OMISSION_SCREENSHOTS === "1" && info.project.name === "desktop") {
     await first.scrollIntoViewIfNeeded();
     await page.screenshot({ path: "docs/fe-103/draft-answered-1440.png", fullPage: false, style: "nextjs-portal { display: none !important; }" });
@@ -407,11 +442,12 @@ test("saving an omitted answer uses its server ID, persists after reload and reg
   await expect(draftBody(page)).toContainText(DRAFT_EXAMPLE.sentences[0].text);
   await page.reload();
   await openDraftFollowUp(page);
-  await omissionList(page);
-  await expect(first).toContainText(answer);
-  await expect(first.getByRole("textbox")).toHaveCount(0);
+  await expect(await answeredList(page)).toContainText(answer);
+  await expect(omissions.getByRole("textbox")).toHaveCount(2);
   await regenerate(page, panel);
-  await expect(panel.getByRole("button", { name: "다시 만들기", exact: true })).toBeEnabled();
+  // 새 초안이 다 되면 설정은 다시 칩 하나로 접힌다(FE#547)
+  await expect(redraftChip(page)).toBeEnabled();
+  await expect(page.getByRole("region", { name: "초안 설정", exact: true })).toHaveCount(0);
   await expect(omissions).not.toContainText(DRAFT_EXAMPLE.omitted[0].text);
   expect(api.calls.filter(c => c.call.endsWith("/draft"))).toMatchObject([
     { call: "POST /api/questions/41/draft", body: { experienceIds: [101], frame: "NONE" } },
@@ -427,15 +463,18 @@ test("보조 재료 경험(추천 밖)의 빠진 사실도 답 · 활동 칩 · 
     activityId: 7, activityName: "바꿔요 — 캠퍼스 중고거래 앱", experienceContent: "채팅 알림이 몰리면 30초 단위로 묶어 보냈다", supplement: null };
   await setup(page, q => { q.draft = { ...structuredClone(DRAFT_EXAMPLE), omitted: [aux] }; });
   await openDraftFollowUp(page);
-  const item = (await omissionList(page)).getByRole("listitem").first();
-  await expect(item).toContainText(aux.experienceContent);
-  await expect(item.getByRole("link")).toContainText("바꿔요"); // 칩이 그 활동으로 가는 링크다
-  await expect(item.getByRole("link")).toHaveAttribute("href", "/experience?activity=7&fromQuestion=41");
+  const block = await omissionList(page);
+  const item = block.getByRole("listitem").first();
+  await expect(item).toContainText(aux.question);
+  await expect(block).toContainText(aux.experienceContent);
+  await expect(block.getByRole("link").first()).toContainText("바꿔요"); // 칩이 그 활동으로 가는 링크다
+  await expect(block.getByRole("link").first()).toHaveAttribute("href", "/experience?activity=7&fromQuestion=41");
   const answer = "같은 방의 알림은 30초 동안 모아 한 번만 보냈다";
   await item.getByRole("textbox").fill(answer);
   await item.getByRole("button", { name: "답하기", exact: true }).click();
-  // 답한 줄은 접힌 한 줄 — 펼쳐서 본다
+  // 답한 줄은 「답한 질문」 안의 접힌 한 줄 — 펼쳐서 본다
   const check = async () => {
+    const item = (await answeredList(page)).getByRole("listitem").filter({ hasText: aux.question });
     await expect(item.locator("details")).toBeVisible();
     if (!(await item.locator("details").evaluate(el => (el as HTMLDetailsElement).open))) await item.locator("summary").click();
     await expect(item).toContainText(answer);
@@ -446,7 +485,6 @@ test("보조 재료 경험(추천 밖)의 빠진 사실도 답 · 활동 칩 · 
   await check();
   await page.reload();
   await openDraftFollowUp(page);
-  await omissionList(page);
   await check();
 });
 
@@ -457,7 +495,7 @@ test("AI 가정이 든 초안에서도 위 막대 「차곡이 질문 N」이 �
   const label = await toggle.getAttribute("aria-label");
   const count = Number(label!.replace("차곡이 질문 ", ""));
   await toggle.click();
-  await expect(asksBlock(page).locator(":scope > summary")).toContainText(`답할 것 ${count}개`);
+  await expect(asksBlock(page).locator(":scope > summary")).toContainText(`${count}개`);
 });
 
 test("saving blocks regeneration and duplicate answers until the save response arrives", async ({ page }) => {
@@ -469,15 +507,14 @@ test("saving blocks regeneration and duplicate answers until the save response a
   const omissions = await omissionList(page);
   await omissions.getByRole("textbox").first().fill("메시지가 도착하는지 확인했다");
   await omissions.getByRole("button", { name: "답하기", exact: true }).first().click();
-  await expect(panel.getByRole("button", { name: "다시 만들기", exact: true })).toBeDisabled();
-  await expect(omissions.getByRole("textbox").last()).toBeDisabled();
+  await expect((await openDraftComposer(page)).getByRole("button", { name: "다시 만들기", exact: true })).toBeDisabled();
+  await expect(omissions.getByRole("textbox").nth(1)).toBeDisabled(); // 같은 초안의 다른 빈칸 질문
   await expect(panel.getByRole("status").filter({ hasText: "보완으로 쌓는 중" })).toBeVisible();
   await closeDraftPanel(page);
   await expect((await openDraftComposer(page)).getByRole("button", { name: "다시 만들기", exact: true })).toBeDisabled();
   await closeDraftPanel(page);
   await expect(copyButton(page)).toBeEnabled();
-  await openDraftFollowUp(page);
-  await expect(panel.getByRole("button", { name: "다시 만들기", exact: true })).toBeDisabled();
+  await expect((await openDraftComposer(page)).getByRole("button", { name: "다시 만들기", exact: true })).toBeDisabled();
   release();
   await expect(omissions).toContainText("경험에 보완으로 쌓았어요");
   await closeDraftPanel(page);
@@ -502,7 +539,7 @@ test("save errors preserve the answer and draft, and retry stores it once", asyn
   await expect(first).not.toContainText("경험에 보완으로 쌓았어요");
   down = false;
   await first.getByRole("button", { name: "다시 시도", exact: true }).click();
-  await expect(first).toContainText("경험에 보완으로 쌓았어요");
+  await expect(await answeredList(page)).toContainText("경험에 보완으로 쌓았어요");
   expect(api.calls.filter(c => c.call.endsWith("/answer"))).toHaveLength(1);
   await closeDraftPanel(page);
   await expect(copyButton(page)).toBeEnabled();
@@ -522,7 +559,7 @@ for (const [status, code, note] of [
     await expect(first.getByRole("alert")).toContainText(note);
     api.edit(41, q => { q.draft!.omitted = []; });
     await first.getByRole("button", { name: "초안 상태 확인", exact: true }).click();
-    await expect(first).toHaveCount(0);
+    await expect(page.getByRole("textbox", { name: `답: ${DRAFT_EXAMPLE.omitted[0].question}` })).toHaveCount(0);
     expect(api.calls.filter(c => c.call.endsWith("/draft"))).toHaveLength(0);
   });
 }
@@ -547,14 +584,14 @@ test("the panel reports a rejected regeneration and keeps the draft available fo
   api.draftError = { status: 429, code: "DAILY_LIMIT_EXCEEDED" };
   await regenerate(page, panel);
   await expect(panel.getByRole("alert")).toContainText("오늘 분석 횟수를 다 썼어요");
-  await expect((await omissionList(page)).getByRole("textbox")).toHaveCount(2);
+  await expect((await omissionList(page)).getByRole("textbox")).toHaveCount(3);
   await closeDraftPanel(page);
   await expect(draftBody(page)).toContainText(DRAFT_EXAMPLE.sentences[0].text);
   await openDraftFollowUp(page);
   api.draftError = null;
   await regenerate(page, panel);
   await expect(panel.getByRole("status")).toContainText("초안을 만드는 중");
-  await expect(panel.getByRole("button", { name: "다시 만들기", exact: true })).toBeEnabled();
+  await expect(redraftChip(page)).toBeEnabled();
   expect(api.calls.filter(c => c.call.endsWith("/draft"))).toHaveLength(2);
 });
 
@@ -564,10 +601,10 @@ test("the panel shows an AI failure and retries with the same experiences", asyn
   api.failDraft = true;
   await regenerate(page, panel);
   await expect(panel.getByRole("alert")).toContainText("시간이 초과됐어요");
-  await expect(page.getByRole("list", { name: "초안의 빠진 사실" })).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: `답: ${DRAFT_EXAMPLE.omitted[0].question}` })).toHaveCount(0);
   api.failDraft = false;
   await regenerate(page, panel);
-  await expect(panel.getByRole("button", { name: "다시 만들기", exact: true })).toBeEnabled();
+  await expect(redraftChip(page)).toBeEnabled();
   await expect(panel.getByRole("alert")).toHaveCount(0);
   expect(api.calls.filter(c => c.call.endsWith("/draft")).map(c => c.body)).toMatchObject([{ experienceIds: [101], frame: "NONE" }, { experienceIds: [101], frame: "NONE" }]);
 });
@@ -757,4 +794,30 @@ test("activity cards: group by activity in first-recommendation order, check act
   await expect(controls).toContainText("체크한 활동 2개로 만들어요");
   await controls.getByRole("button", { name: "초안 만들기", exact: true }).click();
   await expect.poll(() => api.calls.filter(c => c.call.endsWith("/draft")).map(c => c.body)).toMatchObject([{ experienceIds: [101, 103, 104, 105, 106, 102] }]);
+});
+
+// FE#547 — 다 된 초안이 있으면 「초안 다시 만들기」 설정을 늘 펼쳐 두지 않는다. 칩 줄의 칩 하나 — 새 답이 있어 공짜일 때만 강조한다
+test("a completed draft folds regeneration into one chip that is highlighted only when free", async ({ page }, info) => {
+  await setup(page, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
+  const composer = page.getByRole("region", { name: "초안 설정", exact: true });
+  await openDraftFollowUp(page);
+  await expect(composer).toHaveCount(0);
+  await expect(redraftChip(page)).toHaveText("초안 다시 만들기");
+  await redraftChip(page).click();
+  await expect(redraftChip(page)).toHaveAttribute("aria-expanded", "true");
+  await expect(composer.getByRole("button", { name: "다시 만들기", exact: true })).toBeVisible();
+  await expect(composer).not.toContainText("분석 횟수를 쓰지 않아요");
+  await redraftChip(page).click();
+  await expect(composer).toHaveCount(0);
+
+  await setup(page, q => {
+    const draft = structuredClone(DRAFT_EXAMPLE);
+    draft.omitted[0].supplementId = 301;
+    q.draft = { ...draft, freeRegenerate: true };
+  });
+  await openDraftFollowUp(page);
+  await expect(redraftChip(page)).toHaveText("새 답 1개 넣어 다시 만들기");
+  await askShot(page, info.project.name, "redraft-free");
+  await redraftChip(page).click();
+  await expect(composer).toContainText("이번 다시 만들기는 분석 횟수를 쓰지 않아요");
 });

@@ -5,6 +5,7 @@
   "pairs": [
     { "name": "지원처 이름", "design": ".ap-head h1", "app": "button[aria-label^='지원처 이름 고치기']" },
     { "name": "문항 탭", "design": ".qtabs button.is-active", "app": "[role=tablist][aria-label='문항'] [role=tab][aria-selected=true]" },
-    { "name": "문항 글", "design": ".q-text h2", "app": "#question-panel h3" }
+    { "name": "문항 글", "design": ".q-text h2", "app": "#question-panel h3" },
+    { "name": "되묻기 질문", "design": ".msg--ask .ask__q", "app": "#chagok-panel li[class*='group/ask'] p" }
   ]
 }

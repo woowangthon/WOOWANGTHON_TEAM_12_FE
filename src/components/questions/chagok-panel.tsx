@@ -3,15 +3,17 @@
 // 차곡이 패널 — 시안 6 apply.html 오른쪽 「AI 동료」. 문항을 읽고 → 맞는 경험을 고르고 → 지난 보완을 다시 쓰고 → 빠진 것만 묻는다.
 // 보이는 말은 전부 이 문항의 실제 결과(요구사항 · 추천 · evidence · 되묻기)에서 만든다 — 지어낸 진행 단계를 보이지 않는다(대회 규칙 1 · 2).
 // 그 아래에 부탁 입력과 차곡이가 도구로 일하는 과정(S-31)이 붙는다 — chagok-run.tsx
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CheckIcon, MinusCircleIcon, WarningCircleIcon, XIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { Answer, QuestionDetail, RequirementStatus, Supplement } from "@/lib/api/question-types";
-import { bubble, ClarificationItem, ClarifyBlock, clarifyList, type AnswerHandler } from "./clarifications";
-import { DraftFollowUp, draftAsks, OmissionItem, omissionSource, type DraftPanelActions } from "./draft-omissions";
+import type { Answer, Clarification, DraftOmission, QuestionDetail, QuestionExperience, RequirementStatus, Supplement } from "@/lib/api/question-types";
+import { AnsweredClarification, AnswerForm, AskFold, AskHead, AskQuestion, bubble, ClarifyBlock, clarifyList, openItem, type AnswerHandler } from "./clarifications";
+import { AnsweredOmission, answerError, DraftFollowUp, draftAsks, OmissionHead, omissionSource, type DraftPanelActions } from "./draft-omissions";
+import { isSupposedPair } from "./answer-draft";
+import { skipAsks, unskipAsks, useSkippedAsks } from "./ask-memory";
 import { shortName } from "./question-result";
-import { ChagokComposer, ChagokRunFeed } from "./chagok-run";
+import { ChagokComposer, ChagokRunFeed, type RedraftChip } from "./chagok-run";
 import type { Rematch } from "./rematch-button";
 import type { ChagokRunControl } from "./use-chagok-run";
 import { NewFactCandidates } from "./new-fact-candidates";
@@ -65,6 +67,15 @@ export function ChagokPanel({ question, index, originOf, onAnswer, onClose, draf
   const restoredQuestionStatus = control.restoreRunId !== null ? question?.status : null;
   // S-47: 복원한 일이 먼저 도착하고 문항 Feed가 늦게 붙어도 확인 카드가 아래로 밀리지 않게 한다.
   useEffect(() => { if (progress && body.current) body.current.scrollTop = body.current.scrollHeight; }, [progress, restoredQuestionId, restoredQuestionStatus]);
+  // 「초안 다시 만들기」 칩으로 펼친 설정 — 문항을 바꾸면 접힌 채로 돌아간다(FE#547)
+  const [redraftFor, setRedraftFor] = useState<number | null>(null);
+  const redraftOpen = question !== null && redraftFor === question.id;
+  const draft = question?.draft;
+  const redraft: RedraftChip | null = question && draft?.status === "COMPLETED" ? {
+    open: redraftOpen, free: !!draft.freeRegenerate,
+    newAnswers: draft.omitted.filter(o => o.supplementId !== null && !isSupposedPair(draft, o)).length,
+    onToggle: () => setRedraftFor(redraftOpen ? null : question.id),
+  } : null;
   return <div className="flex h-full min-h-0 flex-col bg-surface-soft">
     <header className="flex items-center gap-2 border-b border-hairline bg-canvas px-4 py-3">
       <Mascot />
@@ -75,13 +86,13 @@ export function ChagokPanel({ question, index, originOf, onAnswer, onClose, draf
     <div ref={body} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
       {control.restoring && <p role="status" className={bubble}>차곡이 일을 다시 열고 있어요…</p>}
       {control.restoreError && <div role="alert" className={bubble}><p>{control.restoreError}</p><Button variant="secondary" onClick={control.restore}>일 다시 불러오기</Button></div>}
-      {question ? <Feed key={question.id} question={question} originOf={originOf} onAnswer={onAnswer} draftActions={draftActions} /> : <p className={bubble}>{postingOpen ? "공고 줄 되묻기는 공고 탭에서 답할 수 있어요. 문항을 더하면 문항도 같이 봐 둘게요." : "문항을 고르면 읽어 보고 맞는 경험을 찾아 둘게요."}</p>}
+      {question ? <Feed key={question.id} question={question} originOf={originOf} onAnswer={onAnswer} draftActions={draftActions} composerOpen={redraftOpen} onComposerClose={() => setRedraftFor(null)} /> : <p className={bubble}>{postingOpen ? "공고 줄 되묻기는 공고 탭에서 답할 수 있어요. 문항을 더하면 문항도 같이 봐 둘게요." : "문항을 고르면 읽어 보고 맞는 경험을 찾아 둘게요."}</p>}
       {/* 흐름의 끝 — 다 쓴 답에서 새로 쓴 사실을 경험으로(S-48) */}
       {question?.answer && <PanelNewFacts key={`facts-${question.id}`} question={question} {...newFacts} />}
       {!control.restoring && !control.restoreError && <ChagokRunFeed control={control} currentQuestionId={question?.id ?? null}
         rematch={question?.status === "COMPLETED" ? { onRematch, busy: draftActions.savingAnswer || draftActions.requestingDraft || question.draft?.status === "ANALYZING" } : null} />}
     </div>
-    <ChagokComposer control={control} hasQuestion={!!question} hasDraft={question?.draft?.status === "COMPLETED"} />
+    <ChagokComposer control={control} hasQuestion={!!question} hasDraft={question?.draft?.status === "COMPLETED"} redraft={redraft} />
   </div>;
 }
 
@@ -91,36 +102,121 @@ function PanelNewFacts({ question, onAnswerChange }: { question: QuestionDetail 
   return <div className="mt-2.5"><NewFactCandidates confirmed={confirmed} /></div>;
 }
 
-/** 「차곡이가 물어볼 것」 한 블록의 질문 — 문항 되묻기(추천 경험에 붙은 것) + 초안 빈칸 질문(S-27 · S-22).
+/** 「차곡이가 물어볼 것」의 질문 하나 — 문항 되묻기(S-22) 또는 초안 빈칸 질문(S-27). 글자가 같은 중복은 ids 에 모은다 */
+type AskEntry = {
+  key: string; question: string; experienceId: number | null; answered: boolean;
+  /** 이 줄이 대신하는 되묻기 ID — 답은 첫 ID 로 보내고, 건너뛰기는 전부 */
+  ids: number[];
+  supplement?: Supplement;
+  source: { kind: "draft"; item: DraftOmission } | { kind: "ask"; c: Clarification; experience: QuestionExperience; activityName: string };
+};
+
+/** 「거의 같은」 질문 — 공백 · 문장부호 · 기호를 빼고 글자가 같다(AI 를 부르지 않는다 · FE#547) */
+const sameText = (text: string) => text.replace(/[\s\p{P}\p{S}]/gu, "");
+
+/** 「차곡이가 물어볼 것」 한 블록의 질문 — 초안 빈칸 질문(S-27, 위) + 문항 되묻기(추천 경험에 붙은 것 · S-22).
+ *  같은 경험의 같은 글 질문은 하나로, 건너뛴 질문(S-23 · 이 브라우저에만)은 따로 뺀다.
  *  위 막대의 「차곡이 질문 N」도 이것으로 센다 — 둘이 어긋나지 않게(FE#383) */
-export function chagokAsks(q: QuestionDetail) {
-  const asks = q.clarifications.flatMap(c => {
-    const experience = q.recommendations.find(r => r.experience.id === c.experienceId)?.experience;
-    return experience ? [{ c, experience }] : [];
+export function chagokAsks(q: QuestionDetail, skipped: ReadonlySet<number>) {
+  const fromDraft: AskEntry[] = draftAsks(q).map(item => ({
+    key: `d${item.clarificationId}`, question: item.question!, experienceId: item.experienceId, answered: item.supplementId !== null,
+    ids: [item.clarificationId!], supplement: omissionSource(q, item).supplement, source: { kind: "draft", item },
+  }));
+  const asks: AskEntry[] = q.clarifications.flatMap(c => {
+    const r = q.recommendations.find(r => r.experience.id === c.experienceId);
+    return r ? [{
+      key: `c${c.id}`, question: c.question, experienceId: c.experienceId, answered: c.supplementId !== null,
+      ids: [c.id], supplement: r.experience.supplements.find(s => s.id === c.supplementId), source: { kind: "ask" as const, c, experience: r.experience, activityName: r.activity.name },
+    }] : [];
   });
-  // 초안 빈칸 질문(S-27)과 문항 되묻기(S-22)는 답이 같은 보완으로 쌓이니 한 블록으로 — 초안 질문이 위(FE#336)
-  const fromDraft = draftAsks(q);
-  const total = asks.length + fromDraft.length;
-  const answered = asks.filter(({ c }) => c.supplementId !== null).length + fromDraft.filter(item => item.supplementId !== null).length;
-  return { asks, fromDraft, total, answered };
+  // 초안 빈칸 질문과 문항 되묻기는 답이 같은 보완으로 쌓이니 한 블록으로 — 초안 질문이 위(FE#336)
+  const all = [...fromDraft, ...asks];
+  const answered = all.filter(e => e.answered);
+  const textKey = (e: AskEntry) => `${e.experienceId ?? e.key}|${sameText(e.question) || e.key}`;
+  // 같은 경험에서 이미 답한 글과 같은 질문은 다시 묻지 않는다
+  const answeredKeys = new Set(answered.map(textKey));
+  const open = new Map<string, AskEntry>();
+  for (const e of all) {
+    if (e.answered || answeredKeys.has(textKey(e))) continue;
+    const prev = open.get(textKey(e));
+    open.set(textKey(e), prev ? { ...prev, ids: [...prev.ids, ...e.ids] } : e);
+  }
+  const pending = [...open.values()];
+  const isSkipped = (e: AskEntry) => e.ids.some(id => skipped.has(id));
+  const live = pending.filter(e => !isSkipped(e));
+  return { live, answered, skipped: pending.filter(isSkipped), left: live.length, attention: answered.some(e => e.supplement?.mcpChange) };
 }
 
-function Feed({ question: q, originOf, onAnswer, draftActions }: { question: QuestionDetail; originOf: SupplementOrigin; onAnswer: AnswerHandler; draftActions: DraftPanelActions }) {
+/** 답할 질문을 경험별로 — 경험 머리 한 번, 그 아래 질문들. 묶음 순서 · 안 순서는 처음 나온 순서 그대로 */
+function byExperience(entries: AskEntry[]) {
+  const groups: { key: string; entries: AskEntry[] }[] = [];
+  for (const e of entries) {
+    const key = e.experienceId !== null ? `e${e.experienceId}` : e.key;
+    const group = groups.find(g => g.key === key);
+    if (group) group.entries.push(e); else groups.push({ key, entries: [e] });
+  }
+  return groups;
+}
+
+function AskGroupHead({ entry, question }: { entry: AskEntry; question: QuestionDetail }) {
+  const s = entry.source;
+  return s.kind === "draft" ? <OmissionHead item={s.item} question={question} />
+    : <AskHead activityId={s.experience.activityId} activityName={s.activityName} content={s.experience.content} questionId={question.id} />;
+}
+
+function OpenAsk({ entry, onAnswer, draftDisabled, onRefreshDraft }: { entry: AskEntry; onAnswer: AnswerHandler; draftDisabled: boolean; onRefreshDraft: () => void }) {
+  const fromDraft = entry.source.kind === "draft";
+  return <li className={cn(openItem, "group/ask")}>
+    <AnswerForm label={entry.question} disabled={fromDraft && draftDisabled}
+      question={<AskQuestion text={entry.question} onSkip={() => skipAsks(entry.ids)}
+        note={entry.ids.length > 1 && `비슷한 질문 ${entry.ids.length}개를 하나로 모았어요`} />}
+      onSave={async text => {
+        try { await onAnswer(entry.ids[0], text); return null; }
+        catch (e) { return fromDraft ? answerError(e) : e instanceof Error ? e.message : "보완을 저장하지 못했어요. 다시 시도해 주세요."; }
+      }}
+      after={fromDraft && <Button variant="secondary" size="sm" className="min-h-11 lg:min-h-10" disabled={draftDisabled} onClick={onRefreshDraft}>초안 상태 확인</Button>} />
+  </li>;
+}
+
+function AsksBlock({ question: q, onAnswer, draftActions }: { question: QuestionDetail; onAnswer: AnswerHandler; draftActions: DraftPanelActions }) {
+  const skippedIds = useSkippedAsks();
+  const { live, answered, skipped, left, attention } = chagokAsks(q, skippedIds);
+  // 답한 것만 남으면 블록을 숨긴다 — 이미 경험에 쌓였다. 건너뛴 것이 있으면 되돌릴 자리로 남긴다
+  if (!left && !skipped.length && !attention) return null;
+  const draftDisabled = draftActions.savingAnswer || draftActions.requestingDraft || q.draft?.status === "ANALYZING";
+  const refreshDraft = () => { void draftActions.onRefresh().catch(() => { /* 실패하면 다음 갱신에서 다시 읽는다 */ }); };
+  return <ClarifyBlock questionId={q.id} title="차곡이가 물어볼 것" info="답은 그 경험에 보완으로 쌓이고 다음 초안에 들어가요. 기억나지 않는 질문은 건너뛰어도 돼요." left={left} attention={attention} openSignal={draftActions.focusRequest}>
+    {byExperience(live).map((group, i) => <div key={group.key} className={cn("grid min-w-0 pt-3", i > 0 && "border-t border-hairline-soft")}>
+      <AskGroupHead entry={group.entries[0]} question={q} />
+      <ul aria-label="차곡이의 질문" className={clarifyList}>
+        {group.entries.map(e => <OpenAsk key={e.key} entry={e} onAnswer={onAnswer} draftDisabled={draftDisabled} onRefreshDraft={refreshDraft} />)}
+      </ul>
+    </div>)}
+    {answered.length > 0 && <AskFold label={`답한 질문 ${answered.length}개 보기`} defaultOpen={attention}>
+      <ul aria-label="답한 질문" className={clarifyList}>{answered.map(e => e.source.kind === "draft"
+        ? <AnsweredOmission key={e.key} item={e.source.item} question={q} />
+        : <AnsweredClarification key={e.key} activityName={e.source.activityName} clarification={e.source.c} experience={e.source.experience} questionId={q.id} />)}</ul>
+    </AskFold>}
+    {skipped.length > 0 && <AskFold label={`건너뛴 질문 ${skipped.length}`}>
+      <ul aria-label="건너뛴 질문" className={cn(clarifyList, "pb-1")}>{skipped.map(e => <li key={e.key} className="flex min-w-0 items-start gap-2 py-2">
+        <p className="m-0 min-w-0 flex-1 text-note leading-relaxed break-words text-muted">{e.question}</p>
+        <button type="button" onClick={() => unskipAsks(e.ids)} aria-label={`다시 답하기: ${e.question}`}
+          className="-my-2 inline-flex min-h-11 shrink-0 items-center text-xs font-medium text-ink underline-offset-3 hover:underline lg:min-h-10">다시 답하기</button>
+      </li>)}</ul>
+    </AskFold>}
+  </ClarifyBlock>;
+}
+
+function Feed({ question: q, originOf, onAnswer, draftActions, composerOpen, onComposerClose }: { question: QuestionDetail; originOf: SupplementOrigin; onAnswer: AnswerHandler; draftActions: DraftPanelActions; composerOpen: boolean; onComposerClose: () => void }) {
   if (q.status === "ANALYZING") return <div role="status" aria-live="polite" className={bubble}>문항을 읽고, 쌓인 경험에서 맞는 걸 찾고 있어요…</div>;
   if (q.status === "FAILED") return <p className={bubble}>이 문항은 분석하지 못했어요. 가운데의 「다시 시도」를 눌러 주세요.</p>;
 
-  const activityOf = (experienceId: number) => q.recommendations.find(r => r.experience.id === experienceId)?.activity.name ?? "이 경험";
   // S-25 — 이 문항 뒤가 아니라 앞에서 답한 보완이 근거로 쓰였으면 그렇다고 말한다
   const reused = q.recommendations.flatMap(r => r.evidence.filter(e => e.type === "SUPPLEMENT").flatMap(e => {
     const supplement = r.experience.supplements.find(s => s.id === e.id);
     return supplement && supplement.questionId !== q.id ? [{ activity: r.activity.name, supplement }] : [];
   }));
   const top = q.recommendations[0];
-  const { asks, fromDraft, total, answered } = chagokAsks(q);
-  const supplementOf = (experienceId: number | null, supplementId: number | null) => q.recommendations.find(r => r.experience.id === experienceId)?.experience.supplements.find(s => s.id === supplementId);
-  const attention = asks.some(({ c }) => supplementOf(c.experienceId, c.supplementId)?.mcpChange) || fromDraft.some(item => omissionSource(q, item).supplement?.mcpChange);
-  const draftDisabled = draftActions.savingAnswer || draftActions.requestingDraft || q.draft?.status === "ANALYZING";
-  const refreshDraft = async () => { try { await draftActions.onRefresh(); } catch { /* 실패하면 다음 갱신에서 다시 읽는다 */ } };
 
   return <div className="grid gap-2.5">
     <section aria-label="문항이 보려는 것" className={bubble}>
@@ -141,15 +237,7 @@ function Feed({ question: q, originOf, onAnswer, draftActions }: { question: Que
       <p className="m-0 border-l-2 border-hairline pl-3 text-note whitespace-pre-wrap text-muted">{supplement.answer}</p>
       {!q.clarifications.some(c => c.question === supplement.question) && <p className="m-0 text-note text-muted">그 부분은 다시 묻지 않을게요.</p>}
     </div>)}
-    {total > 0 && <ClarifyBlock title={`차곡이가 물어볼 것 ${total}개`} info="답은 그 경험에 보완으로 쌓이고 다음 초안에 들어가요." total={total} answered={answered} attention={attention} openSignal={draftActions.focusRequest}>
-      {/* 초안 빈칸 질문이 위 — 목록은 둘이지만 같은 가는 선으로 이어 보인다 */}
-      {fromDraft.length > 0 && <ul aria-label="초안의 빠진 사실" className={clarifyList}>
-        {fromDraft.map(item => <OmissionItem key={item.clarificationId} item={item} question={q} onAnswer={onAnswer} onRefresh={refreshDraft} disabled={draftDisabled} />)}
-      </ul>}
-      {asks.length > 0 && <ul aria-label="차곡이의 질문" className={cn(clarifyList, fromDraft.length > 0 && "border-t border-hairline-soft")}>
-        {asks.map(({ c, experience }) => <ClarificationItem key={c.id} activityName={activityOf(c.experienceId)} clarification={c} experience={experience} questionId={q.id} onAnswer={onAnswer} />)}
-      </ul>}
-    </ClarifyBlock>}
-    <DraftFollowUp question={q} {...draftActions} />
+    <AsksBlock question={q} onAnswer={onAnswer} draftActions={draftActions} />
+    <DraftFollowUp question={q} {...draftActions} composerOpen={composerOpen} onComposerClose={onComposerClose} />
   </div>;
 }
