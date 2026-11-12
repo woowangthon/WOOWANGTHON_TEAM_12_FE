@@ -3,6 +3,7 @@
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import type { ActivityDetail, Experience, Star, StarSlotName } from "../src/lib/api/types";
+import { clickOutside } from "./click-outside";
 
 const T_QUESTION = "이 버그는 누가 맡았나요?";
 const R_QUESTION = "고친 뒤 무엇이 달라졌나요?";
@@ -25,9 +26,10 @@ async function setup(page: Page, star: Star) {
     citations: [{ id: 201, sourceId: 12, sourceName: "회고.md", quote: "fork/exec 흐름에서 자식 프로세스가 좀비로 남는 버그", matched: true, location: { startLine: 3, endLine: 3 } }],
     supplements: [{ id: 301, question: "어떻게 고쳤나요?", answer: "SIGCHLD 핸들러에서 waitpid 반복 호출", questionId: null, createdAt: "2026-11-04T10:05:00+09:00", updatedAt: "2026-11-04T10:05:00+09:00" }],
     star,
+    usedIn: [{ applicationId: 22, organization: "시험 지원서", applicationStatus: "WRITING", submittedMonth: null, questions: [{ id: 42, text: "문제 해결 경험" }] }],
   };
   const activity: ActivityDetail = { id: 7, name: "미니 셸 프로젝트", period: { start: "2025-03", end: "2025-06", ongoing: false }, experiences: [experience] };
-  const state = { activity, calls: [] as { method: string; path: string; body: unknown }[], polls: 0 };
+  const state = { activity, calls: [] as { method: string; path: string; body: unknown }[], polls: 0, detailReads: 0, failDetail: false };
   let nextSupplement = 400;
   const fill = (slot: StarSlotName, text: string) => {
     const s = experience.star!.slots.find((x) => x.slot === slot)!;
@@ -44,6 +46,21 @@ async function setup(page: Page, star: Star) {
     const path = new URL(req.url()).pathname;
     if (path.startsWith("/api/auth/") || path === "/api/work") return route.fallback();
     const body = req.method() === "GET" ? null : req.postDataJSON();
+    if (path === "/api/experiences/101" && req.method() === "PATCH") {
+      state.calls.push({ method: req.method(), path, body });
+      if (experience.actor === "ME" && body.actor && body.actor !== "ME") {
+        const t = experience.star?.slots.find((s) => s.slot === "T");
+        if (t?.sourceType === "CITATION") Object.assign(t, { text: null, sourceType: null, sourceId: null, question: T_QUESTION });
+      }
+      if (body.content !== undefined) experience.sourceStatus = "USER_ENTERED";
+      if (body.competencies !== undefined) experience.competenciesBy = "USER";
+      Object.assign(experience, body);
+      // 실제 PATCH ExperienceResponse 처럼 star · usedIn 은 싣지 않는다(FE#540).
+      const response = { ...experience };
+      delete response.star;
+      delete response.usedIn;
+      return route.fulfill({ json: response });
+    }
     const answer = path.match(/^\/api\/experiences\/101\/star\/([STAR])\/answer$/);
     const put = path.match(/^\/api\/experiences\/101\/star\/([STAR])$/);
     if (answer || put) {
@@ -62,11 +79,14 @@ async function setup(page: Page, star: Star) {
       return route.fulfill({ status: 202, json: activity });
     }
     if (path === "/api/activities/7") {
+      state.detailReads++;
+      if (state.failDetail) return route.fulfill({ status: 500, json: { error: { code: "INTERNAL_ERROR", message: "시험: 활동 세부 조회 실패" } } });
       // 정리 중이면 한 번 더 읽힐 때 끝난다
       if (experience.star?.status === "ANALYZING" && state.polls++ > 0) experience.star = readyStar();
       return route.fulfill({ json: activity });
     }
     if (path === "/api/activities") return route.fulfill({ json: { activities: [{ id: 7, name: activity.name, period: activity.period, experienceCount: 1 }] } });
+    if (path === "/api/applications") return route.fulfill({ json: { applications: [] } });
     return route.fulfill({ json: {} });
   });
   await page.goto("/experience");
@@ -77,6 +97,76 @@ async function setup(page: Page, star: Star) {
 
 /** 점 버튼 — PC 는 아래로 펼치고, 모바일은 하단 시트 */
 const starButton = (page: Page) => page.getByRole("button", { name: /^STAR 칸 — / }).locator("visible=true");
+
+test("본문 · 역량 고친 뒤 STAR 점과 펼친 칸 · 쓰인 지원이 남는다", async ({ page }, info) => {
+  const state = await setup(page, readyStar());
+  const mobile = (page.viewportSize()?.width ?? 0) < 1024;
+  if (!mobile) await starButton(page).click();
+  await page.getByRole("button", { name: /^경험 고치기:/ }).click();
+  await page.getByLabel("경험 내용").fill("waitpid 를 반복 호출해 좀비 프로세스 문제를 해결했다");
+  await page.getByLabel("경험 내용").press("Enter");
+  await expect(page.getByLabel("경험 내용")).toHaveCount(0);
+  await expect(starButton(page)).toHaveAccessibleName(/찬 칸 2 · 빈칸 2/);
+  await page.getByRole("button", { name: /^역량 고치기:/ }).click();
+  const competencies = page.getByRole("dialog", { name: "역량 고치기" });
+  await competencies.getByLabel("협업", { exact: true }).check();
+  await clickOutside(page);
+  await expect(competencies).toHaveCount(0);
+  await expect(starButton(page)).toHaveAccessibleName(/찬 칸 2 · 빈칸 2/);
+  await expect(page.getByRole("button", { name: /지원서 1곳에 쓰임/ })).toBeVisible();
+  if (mobile) await starButton(page).click();
+  const panel = page.getByLabel("STAR 칸", { exact: true }).locator("visible=true");
+  await expect(panel.getByText("자식 프로세스가 좀비로 남는 버그")).toBeVisible();
+  await expect(panel.getByText("SIGCHLD 핸들러에서 waitpid 반복 호출")).toBeVisible();
+  await expect(panel.getByLabel("과제 · 내 몫 칸 글")).toHaveAttribute("placeholder", T_QUESTION);
+  expect(state.calls.map((c) => c.body)).toEqual([
+    { content: "waitpid 를 반복 호출해 좀비 프로세스 문제를 해결했다" },
+    { competencies: ["PROBLEM_SOLVING", "COLLABORATION"] },
+  ]);
+  expect(state.detailReads).toBe(1); // 본문 · 역량은 다시 읽을 필요 없다.
+  if (process.env.UPDATE_STAR_540_SCREENSHOTS === "1") {
+    for (const width of info.project.name === "desktop" ? [1440, 1024] : [390]) {
+      await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
+      await expect(panel).toBeVisible();
+      await page.screenshot({ path: `docs/fe-540/edited-star-${width}.png`, animations: "disabled", style: "nextjs-portal { display: none !important; }" });
+    }
+  }
+});
+
+for (const actor of ["TEAM", "UNKNOWN"] as const) {
+  for (const sourceType of ["CITATION", "SUPPLEMENT"] as const) {
+    test(`나 → ${actor}: 세부를 다시 읽어 ${sourceType} T 칸을 반영한다`, async ({ page }) => {
+      const star = readyStar();
+      star.slots[1] = { slot: "T", text: "제가 맡은 버그 수정", sourceType, sourceId: sourceType === "CITATION" ? 201 : 301, question: null };
+      const state = await setup(page, star);
+      const mobile = (page.viewportSize()?.width ?? 0) < 1024;
+      if (!mobile) await starButton(page).click();
+      await page.getByRole("button", { name: /^수행 주체 고치기:/ }).click();
+      await page.getByRole("menuitemradio", { name: actor === "TEAM" ? "팀" : "알 수 없음", exact: true }).click();
+      await expect.poll(() => state.detailReads).toBe(2);
+      await expect(starButton(page)).toHaveAccessibleName(sourceType === "CITATION" ? /찬 칸 2 · 빈칸 2/ : /찬 칸 3 · 빈칸 1/);
+      if (mobile) await starButton(page).click();
+      const panel = page.getByLabel("STAR 칸", { exact: true }).locator("visible=true");
+      await expect(panel.getByText("자식 프로세스가 좀비로 남는 버그")).toBeVisible();
+      if (sourceType === "CITATION") {
+        await expect(panel.getByText("제가 맡은 버그 수정")).toHaveCount(0);
+        await expect(panel.getByLabel("과제 · 내 몫 칸 글")).toHaveAttribute("placeholder", T_QUESTION);
+      } else await expect(panel.getByText("제가 맡은 버그 수정")).toBeVisible();
+    });
+  }
+}
+
+test("수행 주체 변경 뒤 세부 조회 실패를 알리고 다시 시도하면 새 칸을 보인다", async ({ page }) => {
+  const state = await setup(page, readyStar());
+  state.failDetail = true;
+  await page.getByRole("button", { name: /^수행 주체 고치기:/ }).click();
+  await page.getByRole("menuitemradio", { name: "팀", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "시험: 활동 세부 조회 실패" })).toBeVisible();
+  state.failDetail = false;
+  await page.getByRole("button", { name: "다시 시도", exact: true }).click();
+  await expect(starButton(page)).toHaveAccessibleName(/찬 칸 2 · 빈칸 2/);
+  await expect(page.getByRole("button", { name: "수행 주체 고치기: 팀" })).toBeVisible();
+});
 
 // FE#512 — 빈칸은 질문을 안내 글로 품은 입력칸, 쓰고 밖을 누르면 찬다. 찬 칸은 누르면 그 자리에서 고친다. 저장/취소 버튼 · 「내 답」 꼬리표 없음
 test("경험 펼치기 → 빈칸에 쓰고 밖을 누름 → 점이 바뀜 → 찬 칸 고치기", async ({ page }) => {
