@@ -40,12 +40,14 @@ export function pickNote(room: number, picked: number) {
 }
 
 /** 「내가 넣었던 문항」(S-40) · 「자주 나오는 문항」(S-26)에서 여러 개 골라 문항 칸에 넣는다. 넣은 뒤엔 칸에서 고친다.
- *  지원 넣기의 따로 화면(단계) — 창 위에 창을 띄우지 않고 「← 돌아가기」로 확인 화면에 돌아간다(FE#542) */
-export function CommonQuestionPicker({ room, onPick, onBack }: {
+ *  지원 넣기의 따로 화면(단계) — 창 위에 창을 띄우지 않고 「← 돌아가기」로 온 화면에 돌아간다(FE#542). 아래 「취소」는 넣기 전체 닫기(FE#565) */
+export function CommonQuestionPicker({ room, onPick, onBack, onCancel }: {
   /** 더 넣을 수 있는 문항 수 — 빈 칸 + 더할 수 있는 칸 */
   room: number;
   onPick: (texts: string[]) => void;
   onBack: () => void;
+  /** 넣기 전체 닫기 — 닫을 창이 없는 자리(지원서 0개 화면)면 없다 */
+  onCancel?: () => void;
 }) {
   const [picked, setPicked] = useState<string[]>([]);
   const [past, setPast] = useState<Past>({ state: "loading" });
@@ -111,12 +113,21 @@ export function CommonQuestionPicker({ room, onPick, onBack }: {
       {/* 목록이 길어 넣기 버튼은 아래에 붙여 둔다 — 1024 미만은 아래 탭바 위에 */}
       <div className="sticky bottom-0 flex flex-wrap items-center justify-end gap-x-3 gap-y-2 border-t border-hairline bg-canvas py-3 max-lg:bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))]">
         <p className="m-0 mr-auto min-w-0 flex-1 basis-48 text-note text-muted" aria-live="polite">{pickNote(room, picked.length)}</p>
-        <Button type="button" variant="ghost" className="min-h-11 lg:min-h-10" onClick={onBack}>취소</Button>
+        {onCancel && <Button type="button" variant="ghost" className="min-h-11 lg:min-h-10" onClick={onCancel}>취소</Button>}
         <Button type="button" className="min-h-11 lg:min-h-10" disabled={picked.length === 0} onClick={() => onPick(picked)}>
           {picked.length ? `고른 문항 ${picked.length}개 넣기` : "문항을 골라 주세요"}
         </Button>
       </div>
     </section>
+  );
+}
+
+/** 지원 넣기에서 첫 화면을 뺀 단계 맨 위 「← 돌아가기」 — 온 곳으로, 쓰던 칸은 그대로(FE#565) */
+export function BackButton({ onClick, disabled = false }: { onClick: () => void; disabled?: boolean }) {
+  return (
+    <Button type="button" variant="link" className="-ml-1 min-h-11 px-1 text-sm text-muted lg:min-h-10" disabled={disabled} onClick={onClick}>
+      <ArrowLeftIcon aria-hidden="true" />돌아가기
+    </Button>
   );
 }
 
@@ -126,9 +137,7 @@ export function StepHeader({ id, title, description, onBack, backDisabled = fals
 }) {
   return (
     <header className="grid justify-items-start gap-1.5">
-      <Button type="button" variant="link" className="-ml-1 min-h-11 px-1 text-sm text-muted lg:min-h-10" disabled={backDisabled} onClick={onBack}>
-        <ArrowLeftIcon aria-hidden="true" />돌아가기
-      </Button>
+      <BackButton onClick={onBack} disabled={backDisabled} />
       <h2 id={id} className="m-0 text-title-lg font-[650] tracking-[-0.3px]">{title}</h2>
       <p className="m-0 text-ui text-body">{description}</p>
     </header>

@@ -145,7 +145,7 @@ test("문항을 못 찾으면 그 자리에 자주 나오는 문항이 펼쳐지
   await common.getByRole("button", { name: "내가 넣었던 문항에서 고르기", exact: true }).click();
   const picker = page.getByRole("region", { name: "문항 고르기" });
   await expect(picker.getByText("내가 넣었던 문항", { exact: true })).toBeVisible();
-  await picker.getByRole("button", { name: "취소", exact: true }).click();
+  await picker.getByRole("button", { name: "돌아가기", exact: true }).click();
   await expect(picker).toHaveCount(0);
   // 동아리 · 학회 → 동아리 묶음 둘만 펼친다
   const group = (kind: string) => common.locator("details").filter({ has: page.locator("summary", { hasText: kind }) });
