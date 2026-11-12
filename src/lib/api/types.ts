@@ -101,7 +101,7 @@ export type ActivitySummary = {
   categoryBy?: CategoryBy | null;
   experienceCount: number;
   mergeSuggestion?: MergeSuggestion | null;
-  /** S-97 — 이 활동 경험들의 STAR 빈칸 수. 이전 응답엔 없을 수 있다 */
+  /** 이 활동 경험들의 STAR 빈칸 수(계약에 있지만 S-97 폐기로 화면에서 쓰지 않는다). 이전 응답엔 없을 수 있다 */
   starGapCount?: number;
   /** STAR 를 아직 정리하지 않았거나(NONE) 실패한(FAILED) 경험 수 — 정리는 BE 가 알아서 해서 화면은 이 수로 버튼을 띄우지 않는다 */
   starUnsortedCount?: number;

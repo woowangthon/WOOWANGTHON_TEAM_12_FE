@@ -1,4 +1,4 @@
-import type { ActivityDetail, ActivitySummary } from "./api/types";
+import type { ActivityDetail } from "./api/types";
 import { monthNumber, spanOf } from "./period";
 
 const historyKey = (userId?: number) => `chagok:last-activity:${process.env.NEXT_PUBLIC_API_BASE_URL?.trim() || "mock"}:${userId ?? "mock"}`;
@@ -19,17 +19,3 @@ export function thisTimeLastYear(activities: ActivityDetail[], now: Date): Activ
     .filter(a => { const span = spanOf(a.period, monthNumber(now)); return span && span.start <= month && span.end >= month; })
     .sort((a, b) => b.period.start!.localeCompare(a.period.start!) || a.id - b.id)[0] ?? null;
 }
-
-/** 홈 · 서랍의 「차곡이가 물어볼 게 N개」(S-97). 저장된 활동 요약의 숫자로만 센다.
- *  빈칸이 없고 정리 안 한 경험만 있으면 「STAR 로 정리할 경험 N개」. 누르면 그 숫자가 가장 큰 활동으로(같으면 앞의 것) */
-export type StarAsk = { kind: "gap" | "unsorted"; count: number; activityId: number };
-export function starAsk(activities: ActivitySummary[] | null | undefined): StarAsk | null {
-  if (!activities?.length) return null;
-  for (const kind of ["gap", "unsorted"] as const) {
-    const of = (a: ActivitySummary) => (kind === "gap" ? a.starGapCount : a.starUnsortedCount) ?? 0;
-    const count = activities.reduce((n, a) => n + of(a), 0);
-    if (count > 0) return { kind, count, activityId: activities.reduce((top, a) => (of(a) > of(top) ? a : top)).id };
-  }
-  return null;
-}
-export const starAskText = (ask: StarAsk) => ask.kind === "gap" ? `차곡이가 물어볼 게 ${ask.count}개` : `STAR 로 정리할 경험 ${ask.count}개`;

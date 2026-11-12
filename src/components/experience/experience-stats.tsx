@@ -15,7 +15,6 @@ import { cn } from "@/lib/utils";
 import { CATEGORY_KEYS, CategoryIcon, categoryOf } from "./activity-category";
 import { ExperienceBlocks, experienceYears } from "./experience-blocks";
 import { PeriodLabel } from "./timeline";
-import { starAsk, starAskText } from "@/lib/home-overview";
 
 type DetailState = { status: "loading" } | { status: "ready"; details: ActivityDetail[]; failed: number };
 
@@ -63,7 +62,6 @@ export function ExperienceStats({ activities, version, hiddenIds, addSource, onO
   for (const e of experiences) for (const c of e.competencies) competencyCounts.set(c, (competencyCounts.get(c) ?? 0) + 1);
   const byCompetency = [...competencyCounts].sort((a, b) => b[1] - a[1]);
   const noCompetency = experiences.filter((e) => e.competencies.length === 0).length;
-  const ask = starAsk(activities);
   const reviewFirst = (details ?? []).find((d) => d.experiences.some((e) => e.sourceStatus === "NEEDS_REVIEW" && !hiddenIds.has(e.id)));
 
   if (total === 0) {
@@ -93,16 +91,13 @@ export function ExperienceStats({ activities, version, hiddenIds, addSource, onO
     <section aria-label="쌓인 경험 요약" className="grid gap-4 @2xl:grid-cols-2 @5xl:grid-cols-3">
       <Card className="@2xl:col-span-2 @5xl:col-span-1" title="쌓인 블록" info="활동 시작 연도별 경험 수예요. 블록 하나가 경험 하나이고, 점선은 확인이 필요한 경험이에요.">
         <ExperienceBlocks years={years} size="md" perColumn={8} className="min-h-20 flex-1 content-end" />
-        {(detailNote || reviewCount > 0 || ask) && <div className="mt-3">
+        {(detailNote || (reviewCount > 0 && reviewFirst)) && <div className="mt-3">
           {detailNote || <>
             {reviewCount > 0 && reviewFirst && <button type="button" onClick={() => onOpenActivity(reviewFirst.id)} title="확인할 경험 보기"
               className="inline-flex cursor-pointer items-center gap-1.5 text-note text-muted underline-offset-3 hover:text-ink hover:underline">
               <span aria-hidden="true" className="inline-block h-2 w-3.5 rounded-sm outline-1 outline-offset-1 outline-dashed outline-review-line" />
               확인 필요 <b className="font-semibold text-ink tabular-nums">{reviewCount}</b>
             </button>}
-            {/* S-97 — 출처 상태 줄 아래 같은 글자 · 줄 높이. 블록 표시는 붙이지 않는다(블록은 경험 수) */}
-            {ask && <button type="button" onClick={() => onOpenActivity(ask.activityId)} title="차곡이가 물어볼 활동 열기"
-              className="mt-1 block cursor-pointer text-note text-muted underline-offset-3 hover:text-ink hover:underline max-lg:min-h-11">{starAskText(ask)}</button>}
           </>}
         </div>}
       </Card>
