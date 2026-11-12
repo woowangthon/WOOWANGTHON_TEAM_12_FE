@@ -786,7 +786,7 @@ function SupposedCard({ question, sentence, mark, pair, local, disabled, onSuppo
     {mark.edited && <p className="m-0 text-note leading-relaxed break-words text-muted">원래 문장 — {mark.original}</p>}
     {done ? <p className="m-0 flex items-start gap-1.5 text-note leading-relaxed text-evidence">
       <CheckIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-      {answer ? <span className="min-w-0 break-words">경험에 보완으로 쌓였어요 — 「{answer}」. 다시 만들면 근거로 쓰여요.</span> : "확인했어요 — 이대로 둘게요."}
+      {answer ? <span className="min-w-0 break-words">경험에 쌓였어요 · 다시 만들면 근거로 쓰여요</span> : "확인했어요 — 이대로 둘게요."}
     </p> : <>
       <p className="m-0 flex items-start gap-1.5 text-note leading-relaxed text-review">
         <WarningCircleIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />자료에 없는 장면이라 차곡이가 그럴 법하게 쓴 문장이에요. 실제와 비슷했는지 확인하고, 없던 일이면 글에서 지워 주세요.</p>

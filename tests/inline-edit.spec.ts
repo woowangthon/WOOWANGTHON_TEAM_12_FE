@@ -265,13 +265,14 @@ test("빈칸 카드에서 답하면 글의 자리 표시가 답으로 바뀌고 
   await checks(page, 3);
 });
 
-test("다음 확인할 곳 → 은 고쳐서 생긴 확인할 곳까지 글 순서로 돈다", async ({ page }) => {
+test("Alt + ↓ 는 고쳐서 생긴 확인할 곳까지 글 순서로 돈다", async ({ page }) => {
   await open(page);
   await change(page, "3초", "5초");
   await checks(page, 5);
   await answerBox(page).focus();
   await answerBox(page).evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(0, 0));
-  const next = page.getByRole("button", { name: "다음 확인할 곳 →", exact: true });
+  // 「다음 확인할 곳 →」 버튼은 없다(FE#543) — 답칸에서 Alt + ↓ 로 같은 이동을 한다
+  const next = { click: async () => { await answerBox(page).focus(); await page.keyboard.press("Alt+ArrowDown"); } };
   await next.click();
   await expect(sentenceCard(page).getByText("왜 확인이 필요한가요 — 대화가 끊긴 불편은 자료에 없어 AI 가 풀어 썼어요")).toBeVisible();
   if (narrow(page)) { await expect(page.getByRole("dialog")).toBeVisible(); return; } // 좁은 폭은 시트가 뒤 화면을 덮는다
@@ -336,7 +337,7 @@ test("(버그) 초안 문장 앞에 마침표 없이 숫자 든 새 글을 써�
   await expect(sentenceCard(page).getByText("숫자가 원래 근거와 달라요", { exact: false })).toHaveCount(0);
 });
 
-test("좁은 폭 — 확인할 곳은 「확인하기」, 빈칸은 「답하기」 말풍선을 거치고, 「다음 확인할 곳 →」만 시트를 바로 연다", async ({ page }) => {
+test("좁은 폭 — 확인할 곳은 「확인하기」, 빈칸은 「답하기」 말풍선을 거치고, Alt + ↓ 만 시트를 바로 연다", async ({ page }) => {
   test.skip(!narrow(page), "넓은 폭은 카드를 바로 연다");
   await open(page);
   await clickMark(page, "s-1"); // AI 보탬 — 확인할 곳
@@ -350,7 +351,8 @@ test("좁은 폭 — 확인할 곳은 「확인하기」, 빈칸은 「답하기
   await expect(blankCard(page)).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page.getByRole("button", { name: "다음 확인할 곳 →", exact: true }).click();
+  await answerBox(page).focus();
+  await page.keyboard.press("Alt+ArrowDown");
   await expect(page.getByRole("dialog")).toBeVisible();
 });
 

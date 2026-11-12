@@ -50,8 +50,8 @@ export function Mascot({ size = 28, animate = false, className }: { size?: numbe
 /** 보완이 어디서 나왔나 — 「OO 부트캠프 문항」 · 「이 지원의 문항 2」 */
 export type SupplementOrigin = (supplement: Supplement) => string;
 
-/** 새 경험 후보(S-48)를 패널에서 찾고 고른다(FE#270) — 답은 화면이 받아 둔 문항의 것을 같이 쓴다 */
-export type NewFactActions = { onAnswerChange: (id: number, answer: Answer | null) => void; findRequested: boolean; onFindStarted: () => void; focusRequest: number; onFocused: (request: number) => void };
+/** 「이 답에서 경험 쌓기」(S-48 · FE#543 — 옛 「새 경험 후보」)를 패널에서 찾고 고른다(FE#270) — 답은 화면이 받아 둔 문항의 것을 같이 쓴다 */
+export type NewFactActions = { onAnswerChange: (id: number, answer: Answer | null) => void };
 
 export function ChagokPanel({ question, index, originOf, onAnswer, onClose, draftActions, control, newFacts, onRematch, postingOpen = false }: {
   question: QuestionDetail | null; index: number; originOf: SupplementOrigin; onAnswer: AnswerHandler; onClose: () => void; draftActions: DraftPanelActions; control: ChagokRunControl; newFacts: NewFactActions; onRematch: Rematch;
@@ -85,10 +85,10 @@ export function ChagokPanel({ question, index, originOf, onAnswer, onClose, draf
   </div>;
 }
 
-function PanelNewFacts({ question, onAnswerChange, findRequested, onFindStarted, focusRequest, onFocused }: { question: QuestionDetail } & NewFactActions) {
+function PanelNewFacts({ question, onAnswerChange }: { question: QuestionDetail } & NewFactActions) {
   // 진행 중 확인은 답칸이 한다 — 패널이 닫혀도 「다 썼어요」 잠금이 풀리게
   const confirmed = useConfirmedAnswer(question.id, question.answer ?? null, onAnswerChange, { poll: false });
-  return <div className="mt-2.5"><NewFactCandidates confirmed={confirmed} findRequested={findRequested} onFindStarted={onFindStarted} focusRequest={focusRequest} onFocused={onFocused} /></div>;
+  return <div className="mt-2.5"><NewFactCandidates confirmed={confirmed} /></div>;
 }
 
 /** 「차곡이가 물어볼 것」 한 블록의 질문 — 문항 되묻기(추천 경험에 붙은 것) + 초안 빈칸 질문(S-27 · S-22).

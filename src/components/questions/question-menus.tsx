@@ -3,7 +3,9 @@
 // 지원 · 문항 동작 아이콘과 지우기 확인 창 · 문항 글 저장 확인 창 (S-89 · FE#411 · FE#511 — ETC question-api.md 「지원 지우기」 · 「문항 지우기」 · 「문항 고치기」)
 // 시안 없음 — DESIGN.md 「아이콘」(⋯ 항목이 1 ~ 2개면 아이콘) · 「상태」. 지운 것은 되돌릴 수 없어 창에서 같이 지워지는 것을 먼저 보인다
 import { useState, type ReactNode } from "react";
-import { DownloadSimpleIcon, TrashIcon } from "@phosphor-icons/react";
+import { DotsThreeIcon, TrashIcon } from "@phosphor-icons/react";
+import { DropdownMenu } from "radix-ui";
+import { MENU_CONTENT, MENU_ITEM } from "@/components/ui/menu";
 import { AnalysisButton, AnalysisCost } from "@/components/auth/analysis-cost";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -40,21 +42,33 @@ function IconAction({ label, title, onClick, children, className }: { label: str
   return <Button variant="ghost" size="icon" className={cn("size-11 shrink-0 text-muted hover:text-ink lg:size-9", className)} aria-label={label} title={title ?? label} onClick={onClick}>{children}</Button>;
 }
 
-/** 지원 동작 — 지원 화면 머리(내려받기 · 지우기) · 내 지원서 줄(지우기). 항목이 둘 이하라 ⋯ 대신 아이콘 */
-export function ApplicationActions({ label, onDelete, onExport, className }: { label: string; onDelete: () => void; onExport?: () => void; className?: string }) {
-  return <div className={cn("flex shrink-0 items-center", className)}>
-    {onExport && <IconAction label={`Markdown 으로 내보내기: ${label}`} title="Markdown 으로 내보내기" onClick={onExport}><DownloadSimpleIcon aria-hidden="true" /></IconAction>}
+/** 지원 동작 — 지원 화면 머리는 「…」 하나(Markdown 으로 내보내기 · 지원서 지우기 — 지우기는 맨 아래 · 빨강, 경험 메뉴와 같은 순서 · FE#543),
+ *  내 지원서 줄은 항목이 지우기 하나라 휴지통 아이콘. exporting 이면 내보내기 항목을 막는다 */
+export function ApplicationActions({ label, onDelete, onExport, exporting = false, className }: { label: string; onDelete: () => void; onExport?: () => void; exporting?: boolean; className?: string }) {
+  if (!onExport) return <div className={cn("flex shrink-0 items-center", className)}>
     <IconAction label={`지원서 지우기: ${label}`} title="지원서 지우기" onClick={onDelete} className="hover:text-error"><TrashIcon aria-hidden="true" /></IconAction>
   </div>;
+  return <DropdownMenu.Root>
+    <DropdownMenu.Trigger asChild>
+      <Button variant="ghost" size="icon" className={cn("size-11 shrink-0 text-muted hover:text-ink lg:size-9", className)} title="더 보기" aria-label={`지원서 메뉴: ${label}`}><DotsThreeIcon aria-hidden="true" /></Button>
+    </DropdownMenu.Trigger>
+    <DropdownMenu.Portal>
+      <DropdownMenu.Content align="end" sideOffset={4} className={cn(MENU_CONTENT, "z-50 min-w-40")}>
+        <DropdownMenu.Item disabled={exporting} onSelect={onExport} className={MENU_ITEM}>Markdown 으로 내보내기</DropdownMenu.Item>
+        <DropdownMenu.Item onSelect={onDelete} className={cn(MENU_ITEM, "text-error")}>지원서 지우기</DropdownMenu.Item>
+      </DropdownMenu.Content>
+    </DropdownMenu.Portal>
+  </DropdownMenu.Root>;
 }
 
-/** 문항 지우기 — 휴지통 하나(글 고치기는 문항 글을 눌러서). 지원의 마지막 문항은 문항만 지울 수 없어(409 LAST_QUESTION) 지원 지우기로 데려간다 */
+/** 문항 지우기 — 휴지통 하나(글 고치기는 문항 글을 눌러서). 답칸 머리줄 오른쪽 복사 · 수정 이력 옆에 같은 크기로 놓는다(FE#543).
+ *  지원의 마지막 문항은 문항만 지울 수 없어(409 LAST_QUESTION) 지원 지우기로 데려간다 */
 export function DeleteQuestionButton({ index, last, onDelete, onDeleteApplication }: {
   index: number; last: boolean; onDelete: () => void; onDeleteApplication: () => void;
 }) {
   return last
-    ? <IconAction label={`지원서째 지우기 — 문항 ${index + 1}이 마지막 문항이에요`} title="지원서째 지우기 — 마지막 문항이라 문항만 지울 수 없어요" onClick={onDeleteApplication} className="-my-2 hover:text-error"><TrashIcon aria-hidden="true" /></IconAction>
-    : <IconAction label={`문항 ${index + 1} 지우기`} title="문항 지우기" onClick={onDelete} className="-my-2 hover:text-error"><TrashIcon aria-hidden="true" /></IconAction>;
+    ? <IconAction label={`지원서째 지우기 — 문항 ${index + 1}이 마지막 문항이에요`} title="지원서째 지우기 — 마지막 문항이라 문항만 지울 수 없어요" onClick={onDeleteApplication} className="hover:text-error"><TrashIcon aria-hidden="true" /></IconAction>
+    : <IconAction label={`문항 ${index + 1} 지우기`} title="문항 지우기" onClick={onDelete} className="hover:text-error"><TrashIcon aria-hidden="true" /></IconAction>;
 }
 
 function ConfirmDialog({ open, onOpenChange, title, subject, lines, action, onConfirm, fallback }: {

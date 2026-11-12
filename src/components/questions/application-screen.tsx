@@ -2,7 +2,7 @@
 
 import { InfoTip } from "@/components/ui/info-tip";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { handOffRecordHint } from "@/lib/record-hint";
 import { PostingTab } from "./posting-tab";
@@ -158,19 +158,9 @@ export function ApplicationScreen() {
     setPanelChoice(true);
     setDraftFocus(previous => ({ questionId: selected.id, request: (previous?.request ?? 0) + 1 }));
   };
-  // 새 경험 후보(S-48)는 패널에서 찾고 고른다 — 답칸 한 줄에서 누르면 패널을 열고, find 면 그 문항의 찾기를 한 번 시작한다(FE#270)
-  const [findFor, setFindFor] = useState<number | null>(null);
-  const onFindStarted = useCallback(() => setFindFor(null), []);
-  // 「차곡이에서 보기」 · 「새 경험 후보 찾기」는 누를 때마다 패널의 새 경험 후보로 데려간다 — 패널이 이미 열려 있어도(FE#390).
-  // 요청은 문항마다 따로 두고, 한 번 데려가면 done — 다른 문항을 보다 돌아와 다시 그려져도 저절로 또 움직이지 않는다
-  const [factsFocus, setFactsFocus] = useState<{ questionId: number; request: number; done: boolean } | null>(null);
-  const onFactsFocused = useCallback((request: number) => setFactsFocus(prev => (prev && prev.request === request ? { ...prev, done: true } : prev)), []);
-  const openNewFacts = (find: boolean) => {
-    if (!selected) return;
-    setPanelChoice(true);
-    setFactsFocus(prev => ({ questionId: selected.id, request: (prev?.request ?? 0) + 1, done: false }));
-    if (find) setFindFor(selected.id);
-  };
+  // 새 경험 후보(S-48)는 차곡이 패널에서만 찾고 고른다 — 답칸에는 상태 줄을 두지 않고, 찾는 중 · 고를 후보가 있으면 위 막대 차곡이 버튼에 점 하나로 알린다(FE#543)
+  const newFacts = selected?.answer?.newFacts;
+  const factsPending = newFacts?.status === "ANALYZING" || (newFacts?.status === "COMPLETED" && newFacts.candidates.some(c => c.status === "PENDING"));
   const originOf: SupplementOrigin = supplement => {
     const owner = matching.applications.find(a => a.questions.some(q => q.id === supplement.questionId));
     if (!owner) return "지난 문항";
@@ -183,8 +173,7 @@ export function ApplicationScreen() {
     postingOpen={!composing && !adding && matching.postingFor !== null}
     onAnswer={(clarificationId, answer) => selected ? matching.answer(selected.id, clarificationId, answer) : Promise.resolve()}
     draftActions={{ ...draftActions, focusRequest: draftFocus?.questionId === selected?.id ? draftFocus?.request ?? 0 : 0 }}
-    newFacts={{ onAnswerChange: matching.keepAnswer, findRequested: findFor !== null && findFor === selected?.id, onFindStarted,
-      focusRequest: factsFocus && !factsFocus.done && factsFocus.questionId === selected?.id ? factsFocus.request : 0, onFocused: onFactsFocused }}
+    newFacts={{ onAnswerChange: matching.keepAnswer }}
     onClose={() => setPanelChoice(false)} />;
   const startNew = () => { setPasted(takeApplicationText()); setComposing(true); setAdding(false); setListShown(false); setPanelChoice(null); scrollToDetail(); };
   const pick = (a: Application) => {
@@ -210,8 +199,9 @@ export function ApplicationScreen() {
 
   return <ActivityCategoriesProvider><div className="flex min-h-dvh flex-col bg-canvas">
     <AppHeader activePage="questions" onNewApplication={startNew}
-      panelToggle={open && !composing && <Button variant="secondary" size="sm" className="shrink-0 max-lg:h-11 max-lg:min-w-11 max-lg:gap-1 max-lg:border-0 max-lg:px-1" aria-label={unanswered > 0 && !panelOpen ? `차곡이 질문 ${unanswered}` : "차곡이"} aria-expanded={panelOpen} aria-controls="chagok-panel" onClick={() => { if (isRevisionPanelOpen()) { closeRevisionPanel(); setPanelChoice(true); } else setPanelChoice(!panelOpen); }}>
+      panelToggle={open && !composing && <Button variant="secondary" size="sm" className="shrink-0 max-lg:h-11 max-lg:min-w-11 max-lg:gap-1 max-lg:border-0 max-lg:px-1" aria-label={unanswered > 0 && !panelOpen ? `차곡이 질문 ${unanswered}` : factsPending && !panelOpen ? "차곡이 — 새 경험 후보" : "차곡이"} aria-expanded={panelOpen} aria-controls="chagok-panel" onClick={() => { if (isRevisionPanelOpen()) { closeRevisionPanel(); setPanelChoice(true); } else setPanelChoice(!panelOpen); }}>
         <Mascot size={20} /><span className="max-lg:sr-only">차곡이</span>{unanswered > 0 && !panelOpen && <span className="rounded-full bg-primary px-1.5 text-xs leading-5 text-on-primary tabular-nums"><span className="max-lg:hidden">질문 </span>{unanswered}</span>}
+        {factsPending && !panelOpen && <span aria-hidden="true" data-testid="chagok-facts-dot" className="size-2 shrink-0 rounded-full bg-primary" />}
       </Button>}
       applicationList={{ applications: matching.applications, loading: matching.loading, error: matching.error, onRetry: () => { void matching.refresh(); } }} />
     <div className="flex-1 xl:flex xl:items-start">
@@ -250,7 +240,7 @@ export function ApplicationScreen() {
               <div className="flex min-w-0 items-start gap-1">
                 <div className="min-w-0 flex-1"><OrganizationName key={`name-${open.application.id}`} application={open.application} onSave={req => matching.updateApplication(open.application.id, req)} /></div>
                 <ApplicationActions label={open.application.organization || "지원처 이름 없음"} onDelete={() => askDeleteApplication(open.application)}
-                  onExport={exporter.busy ? undefined : () => void exporter.run({ scope: "application", id: open.application.id })} />
+                  onExport={() => void exporter.run({ scope: "application", id: open.application.id })} exporting={exporter.busy} />
               </div>
               <div className="flex flex-wrap items-center gap-x-2 text-note text-muted tabular-nums">
                 <ApplicationStatusTag key={open.application.id} application={open.application} onSave={req => matching.updateApplication(open.application.id, req)} />
@@ -279,7 +269,7 @@ export function ApplicationScreen() {
                 onRecord={recordLine} /> : <SelectedQuestion key={matching.questionId} summary={summary} question={selected} application={open.application} index={selectedIndex}
                 loadError={matching.detailError} onReload={matching.reloadQuestion}
                 overlaps={overlaps} onPickOverlap={id => { matching.selectQuestion(id); scrollToDetail(); }} onRetry={id => matching.retry(id)} onTypeChange={(id, type) => matching.updateQuestionType(id, type)} onTargetLengthChange={(id, length) => matching.updateTargetLength(id, length)} onAnswerChange={matching.keepAnswer} onAnswerDraftChange={matching.keepAnswerDraft} groundingChecks={groundingChecks}
-                {...draftActions} onPick={picks.toggle} onOpenOmissions={openDraftQuestions} onNewFacts={openNewFacts}
+                {...draftActions} onPick={picks.toggle} onOpenOmissions={openDraftQuestions}
                 onAnswerClarification={(clarificationId, answer) => selected ? matching.answer(selected.id, clarificationId, answer) : Promise.resolve()}
                 onTextChange={async (id, text) => {
                   await matching.updateQuestionText(id, text);
@@ -413,13 +403,13 @@ function useTargetLengthPrefill(question: QuestionSummary | null, save: (id: num
 }
 
 /** 고른 문항 — 받아 둔 내용이 있으면 바로, 처음 보는 문항이면 받는 동안 자리만(FE#60). 문항 글 · 상태는 지원 목록에 이미 있다 */
-function SelectedQuestion({ summary, question, application, index, loadError, onReload, overlaps, onPickOverlap, onRetry, onTypeChange, onTargetLengthChange, onAnswerChange, onAnswerDraftChange, onAnswerClarification, groundingChecks, onOpenOmissions, onNewFacts, onRefresh, savingAnswer, requestingDraft, picks, onPick, onTextChange, menu }: {
-  /** 문항 지우기 휴지통(S-89) */
+function SelectedQuestion({ summary, question, application, index, loadError, onReload, overlaps, onPickOverlap, onRetry, onTypeChange, onTargetLengthChange, onAnswerChange, onAnswerDraftChange, onAnswerClarification, groundingChecks, onOpenOmissions, onRefresh, savingAnswer, requestingDraft, picks, onPick, onTextChange, menu }: {
+  /** 문항 지우기 휴지통(S-89) — 답칸 머리줄 오른쪽, 복사 · 수정 이력 옆(FE#543) */
   menu?: ReactNode;
   /** 문항 글 그 자리 고치기(S-89) — 실패는 던진다 */
   onTextChange: (id: number, text: string) => Promise<void>;
   summary: QuestionSummary | null; question: QuestionDetail | null; application: Application; index: number; loadError: string | null; onReload: (id: number) => void;
-  overlaps: Overlap[]; onPickOverlap: (questionId: number) => void; onRetry: (id: number) => Promise<unknown>; onTypeChange: (id: number, type: QuestionType) => Promise<void>; onTargetLengthChange: (id: number, targetLength: number | null) => Promise<void>; onAnswerChange: (id: number, answer: Answer | null) => void; onAnswerDraftChange: (id: number, draft: AnswerDraft | null) => void; groundingChecks: GroundingChecks; onPick: (experienceId: number, on: boolean) => void; onAnswerClarification: AnswerHandler; onNewFacts: (find: boolean) => void;
+  overlaps: Overlap[]; onPickOverlap: (questionId: number) => void; onRetry: (id: number) => Promise<unknown>; onTypeChange: (id: number, type: QuestionType) => Promise<void>; onTargetLengthChange: (id: number, targetLength: number | null) => Promise<void>; onAnswerChange: (id: number, answer: Answer | null) => void; onAnswerDraftChange: (id: number, draft: AnswerDraft | null) => void; groundingChecks: GroundingChecks; onPick: (experienceId: number, on: boolean) => void; onAnswerClarification: AnswerHandler;
 } & DraftActions) {
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
@@ -432,15 +422,14 @@ function SelectedQuestion({ summary, question, application, index, loadError, on
   const needsConfirm = () => !question || !!question.draft || !!question.answer || !groundingChecks.has(summary.id) || groundingChecks.get(summary.id) !== null;
   return <section id="question-panel" role="tabpanel" aria-label="선택한 문항" className="min-w-0">
     <header className="mb-5">
-      {/* 유형 칩 줄 — 칩 혼자, 오른쪽 끝 휴지통. 「문항 N · 상태」는 탭이 보여 준다(ETC#346 · DESIGN.md 「지원 화면」) */}
+      {/* 유형 칩 줄 — 칩 혼자. 「문항 N · 상태」는 탭이 보여 준다(ETC#346 · DESIGN.md 「지원 화면」). 휴지통은 답칸 머리줄(FE#543) */}
       <div className="flex items-center gap-x-2">
         <QuestionTypeField question={question ?? summary} onSave={type => onTypeChange(summary.id, type)} />
-        {menu && <div className="ml-auto">{menu}</div>}
       </div>
       <QuestionText key={summary.id} id={summary.id} index={index} text={summary.text} needsConfirm={needsConfirm} onSave={text => onTextChange(summary.id, text)} />
       {question && <SimilarAnswers question={question} application={application} />}
     </header>
-    <AnswerInput key={`answer-${summary.id}`} questionId={summary.id} question={question} loadFailed={!!loadError} onAnswerChange={onAnswerChange} onAnswerDraftChange={onAnswerDraftChange} checks={groundingChecks} onAskDraft={onOpenOmissions} onNewFacts={onNewFacts}
+    <AnswerInput key={`answer-${summary.id}`} questionId={summary.id} question={question} loadFailed={!!loadError} onAnswerChange={onAnswerChange} onAnswerDraftChange={onAnswerDraftChange} checks={groundingChecks} onAskDraft={onOpenOmissions} trailing={menu}
       onAnswer={onAnswerClarification} onRefresh={onRefresh} draftBusy={savingAnswer || requestingDraft} onTargetLength={length => onTargetLengthChange(summary.id, length)} />
     {!question ? loadError ? <div role="alert" className="grid justify-items-start gap-3 py-8">
       <p className="m-0 text-error">{loadError}</p><Button variant="secondary" onClick={() => onReload(summary.id)}>다시 불러오기</Button>
