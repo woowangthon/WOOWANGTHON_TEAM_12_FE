@@ -207,6 +207,27 @@ function AsksBlock({ question: q, onAnswer, draftActions }: { question: Question
   </ClarifyBlock>;
 }
 
+/** S-25 — 앞 지원서에서 답한 보완을 근거로 다시 썼다는 말 · 여럿이어도 말풍선 하나(FE#569).
+ *  접힌 한 줄이 기본이고, 「보기」를 펼치면 경험 · 어느 지원서 문항 · 인용 */
+function ReusedBubble({ reused, originOf, asked }: { reused: { activity: string; supplement: Supplement }[]; originOf: SupplementOrigin; asked: (question: string) => boolean }) {
+  const one = reused.length === 1;
+  // 되묻기에 같은 질문이 남아 있으면 「다시 묻지 않는다」는 거짓이다 — 하나라도 안 남았을 때만 말한다
+  const noAsk = reused.some(({ supplement }) => !asked(supplement.question));
+  const head = one ? `${originOf(reused[0].supplement)}에서 알려 준 답을 「${shortName(reused[0].activity)}」 경험의 근거로 같이 썼어요`
+    : `다른 지원서에서 알려 준 답 ${reused.length}개를 근거로 같이 썼어요`;
+  const quote = "m-0 border-l-2 border-hairline pl-3 text-note whitespace-pre-wrap text-muted";
+  return <div className={bubble}>
+    <p className="m-0">{head}{noAsk && " · 다시 묻지 않을게요"}</p>
+    <AskFold label="보기">
+      {one ? <p className={cn(quote, "mb-1")}>{reused[0].supplement.answer}</p>
+        : <ul aria-label="근거로 쓴 답" className={cn(clarifyList, "pb-1")}>{reused.map(({ activity, supplement }) => <li key={supplement.id} className="grid min-w-0 gap-1 py-2">
+          <p className="m-0 text-note break-words text-ink">「{shortName(activity)}」 경험 · {originOf(supplement)}</p>
+          <p className={quote}>{supplement.answer}</p>
+        </li>)}</ul>}
+    </AskFold>
+  </div>;
+}
+
 function Feed({ question: q, originOf, onAnswer, draftActions, composerOpen, onComposerClose }: { question: QuestionDetail; originOf: SupplementOrigin; onAnswer: AnswerHandler; draftActions: DraftPanelActions; composerOpen: boolean; onComposerClose: () => void }) {
   if (q.status === "ANALYZING") return <div role="status" aria-live="polite" className={bubble}>문항을 읽고, 쌓인 경험에서 맞는 걸 찾고 있어요…</div>;
   if (q.status === "FAILED") return <p className={bubble}>이 문항은 분석하지 못했어요. 가운데의 「다시 시도」를 눌러 주세요.</p>;
@@ -232,11 +253,7 @@ function Feed({ question: q, originOf, onAnswer, draftActions, composerOpen, onC
     </section>
     <p className={bubble}>{top ? <>「{shortName(top.activity.name)}」 경험이 가장 잘 맞아요. 「꺼내 쓸 경험」에 {q.recommendations.length}개 골라 뒀어요.</>
       : <>지금 자료에서 이 문항에 연결할 경험을 찾지 못했어요. 경험이 없다는 뜻은 아니에요.</>}</p>
-    {reused.map(({ activity, supplement }) => <div key={supplement.id} className={bubble}>
-      <p className="m-0">{originOf(supplement)}에서 알려 준 답을 「{shortName(activity)}」 경험의 근거로 같이 썼어요.</p>
-      <p className="m-0 border-l-2 border-hairline pl-3 text-note whitespace-pre-wrap text-muted">{supplement.answer}</p>
-      {!q.clarifications.some(c => c.question === supplement.question) && <p className="m-0 text-note text-muted">그 부분은 다시 묻지 않을게요.</p>}
-    </div>)}
+    {reused.length > 0 && <ReusedBubble reused={reused} originOf={originOf} asked={text => q.clarifications.some(c => c.question === text)} />}
     <AsksBlock question={q} onAnswer={onAnswer} draftActions={draftActions} />
     <DraftFollowUp question={q} {...draftActions} composerOpen={composerOpen} onComposerClose={onComposerClose} />
   </div>;
