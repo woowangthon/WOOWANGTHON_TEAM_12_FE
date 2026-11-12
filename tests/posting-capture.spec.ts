@@ -121,12 +121,12 @@ test("adding an application is two steps: one box and one button, then a review 
     await expect(page.getByLabel("문항 1 목표 글자 수", { exact: true })).toHaveValue("500");
     await expect(input).toHaveCount(0);
 
-    // 채우기는 따로 화면 — 「돌아가기」로 오면 쓰던 칸이 그대로다(FE#542)
+    // 채우기는 첫 화면과 하나 — 첫 화면에서 「직접 쓰기」로 오면 쓰던 칸이 그대로다(FE#542 · FE#565)
     await page.getByLabel("지원처 이름", { exact: true }).fill("직접 쓴 지원처");
     await page.getByRole("button", { name: "글 · 링크 · 캡처로 채우기", exact: true }).click();
     await expect(page.getByLabel("문항 1", { exact: true })).toHaveCount(0);
-    await page.screenshot({ path: `docs/fe-542/source-${width}.png`, fullPage: true });
-    await page.getByRole("button", { name: "돌아가기", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "어디에 지원하나요?" })).toBeVisible();
+    await page.getByRole("button", { name: "직접 쓰기", exact: true }).click();
     await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(common);
     await expect(page.getByLabel("지원처 이름", { exact: true })).toHaveValue("직접 쓴 지원처");
     await page.getByLabel("지원처 이름", { exact: true }).fill("");

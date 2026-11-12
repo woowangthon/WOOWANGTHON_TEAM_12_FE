@@ -1133,6 +1133,53 @@ test("a new application on a screen with applications still closes with 취소, 
   await expect(page.getByRole("button", { name: "처음으로", exact: true })).toHaveCount(0);
 });
 
+// FE#565 — 첫 화면을 뺀 단계는 위 「← 돌아가기」(온 곳으로, 칸 그대로) · 아래 「취소」는 어디서나 넣기 전체 닫기
+test("every step but the first goes back with 돌아가기 keeping the fields, and 취소 always closes the whole form", async ({ page }) => {
+  await fake(page);
+  await page.goto("/questions");
+  await startApplication(page);
+  await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
+  const input = page.getByLabel("공고 · 문항 글이나 공고 링크");
+  const back = page.getByRole("button", { name: "돌아가기", exact: true });
+  // 스크린샷은 1440 프로젝트에서 세 폭(1440 · 1024 · 390)으로 찍고 원래 폭으로 돌린다
+  const shot = async (name: string) => {
+    if (test.info().project.name !== "desktop") return;
+    for (const w of [1440, 1024, 390]) {
+      await page.setViewportSize({ width: w, height: w < 1024 ? 844 : 1000 });
+      await page.screenshot({ path: `docs/fe-565/${name}-${w}.png`, fullPage: true });
+    }
+    await page.setViewportSize({ width: 1440, height: 1000 });
+  };
+  // 첫 화면엔 돌아가기가 없다
+  await input.fill("OO 동아리 지원 동기");
+  await expect(back).toHaveCount(0);
+  // 첫 화면 → 직접 쓰기 → 돌아가기 → 첫 화면(입력 그대로)
+  await page.getByRole("button", { name: "직접 쓰기", exact: true }).click();
+  await page.getByLabel("문항 1", { exact: true }).fill("내가 쓴 문항");
+  await page.getByLabel("지원처 이름", { exact: true }).fill("내 지원처");
+  await shot("review");
+  await back.click();
+  await expect(input).toHaveValue("OO 동아리 지원 동기");
+  await shot("input-back");
+  await page.getByRole("button", { name: "직접 쓰기", exact: true }).click();
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("내가 쓴 문항");
+  // 확인 → 고르기 → 돌아가기 → 확인(칸 그대로)
+  await page.getByRole("button", { name: "넣었던 · 자주 나오는 문항에서 고르기", exact: true }).click();
+  const picker = page.getByRole("region", { name: "문항 고르기" });
+  await expect(picker).toBeVisible();
+  await shot("pick");
+  await back.click();
+  await expect(picker).toHaveCount(0);
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("내가 쓴 문항");
+  await expect(page.getByLabel("지원처 이름", { exact: true })).toHaveValue("내 지원처");
+  // 고르기의 「취소」는 넣기 전체를 닫는다
+  await page.getByRole("button", { name: "넣었던 · 자주 나오는 문항에서 고르기", exact: true }).click();
+  await picker.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(picker).toHaveCount(0);
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveCount(0);
+  await expect(input).toHaveCount(0);
+});
+
 // FE#95 — 공고 원문 링크(S-46)
 test("the posting link is sent with the application and opens in a new tab from the header; no link, no row", async ({ page }) => {
   const api = await fake(page);
