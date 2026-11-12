@@ -1,6 +1,7 @@
 // 지원 · 문항 · 추천 · 되묻기 화면 — 실제 API 모드에서 가짜 BE(fake-question-api.ts)를 상대로 (FE#30 · #38 · #31 · #51 → FE#32)
 import { pickOption } from "./pick-option";
 import { openAddSource } from "./add-source";
+import { detailScope, expandExperience } from "./expand-experience";
 import type { Locator, Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import { FakeQuestionApi, type FakeOptions } from "./fake-question-api";
@@ -740,7 +741,7 @@ test("answering a clarification posts it and shows it on the experience as user-
   await expect(asks()).toHaveCount(0);
   await closeChagokSheet(page);
 
-  // 활동 세부(실제 타임라인) — 원문 확인 표시는 그대로, 보완은 「내가 입력한 보완」으로 따로(답 글만)
+  // 활동 세부 — 경험을 펼쳐 「내 답」을 본다(PC 는 줄 아래, 모바일은 하단 시트 — S-08 · S-23 · FE#541)
   await expand(page, 1);
   await activityCard(page, 1).getByRole("link", { name: /내 경험에서 보기/ }).click();
   await expect(page).toHaveURL(/\/experience\?activity=7&fromQuestion=41/);
@@ -748,7 +749,10 @@ test("answering a clarification posts it and shows it on the experience as user-
   const first = activity.locator("li").first();
   await expect(first).toContainText("WebSocket");
   await expect(first.getByText("원문 확인", { exact: true })).toHaveCount(0);
-  const supplements = first.getByRole("list", { name: "내가 입력한 보완", exact: true });
+  await expect(first.getByRole("list", { name: "내가 입력한 보완", exact: true })).toHaveCount(0);
+  await expandExperience(page, QUESTION_EXAMPLES[0].recommendations[0].experience.content);
+  const supplements = detailScope(page).getByRole("list", { name: "내가 입력한 보완", exact: true });
+  await expect(supplements).toBeVisible();
   await expect(supplements.getByRole("listitem")).toHaveCount(2);
   await expect(supplements.getByText(/내가 입력 · |문항에서 답함/)).toHaveCount(0); // 줄엔 답 글만(FE#512)
   await expect(supplements).toContainText("두 기기로 동시에 보내 보며 지연이 사라졌는지 확인했다");
