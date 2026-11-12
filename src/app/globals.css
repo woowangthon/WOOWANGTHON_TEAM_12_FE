@@ -182,6 +182,9 @@
   }
   html {
     @apply font-sans;
+    /* 접기 · 펴기로 내용 길이가 바뀌어도 스크롤바 폭만큼 본문이 흔들리지 않게 스크롤바 자리를 늘 둔다(FE#585).
+       scrollbar-gutter: stable 은 크롬에서 값만 적용되고 자리를 안 비우는 때가 있어 overflow 로 한다 */
+    overflow-y: scroll;
   }
   body {
     @apply bg-background text-foreground;
