@@ -124,7 +124,6 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
   const save = useExperienceSave(e, (saved) => onSaved({ ...e, saved }));
   const usedIn = e.usedIn ?? [];
   const n = e.citations.length;
-  const keepUsedIn = (result: Experience) => onSaved({ ...result, usedIn: result.usedIn ?? e.usedIn });
   const citeBtn =
     "inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-note font-semibold text-evidence hover:bg-evidence-soft";
   return (
@@ -154,7 +153,7 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
       {usedInOpen && usedIn.length > 0 && <UsedInList usedIn={usedIn} id={`used-in-${e.id}`} />}
       <div className="flex items-start gap-2">
           <ExperienceContentField experience={e} readOnly={readOnly} onEditingChange={setEditing}
-            onSaved={(result) => onSaved({ ...result, usedIn: result.usedIn ?? e.usedIn })} />
+            onSaved={onSaved} />
           {!readOnly && <>
           {/* 저장 · 프로필에 넣기는 「…」 메뉴 안(FE#272 · FE#293). 저장한 경험은 표시만 — 누르는 건 메뉴에서 */}
           {save.saved && !editing && <span title="저장한 경험이에요" className="flex h-11 lg:h-10 shrink-0 items-center text-ink">
@@ -180,7 +179,7 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
 </>}
       </div>
       <div className="flex flex-wrap items-center gap-1.5 text-note font-medium text-muted">
-        <ExperienceMeta experience={e} edit={readOnly ? undefined : { experience: e, onSaved: (result) => onSaved({ ...result, usedIn: result.usedIn ?? e.usedIn }) }} />
+        <ExperienceMeta experience={e} edit={readOnly ? undefined : { experience: e, onSaved }} />
         <span className="ml-auto inline-flex items-center gap-1.5">
         {!readOnly && <SourceStatusMark status={e.sourceStatus} />}
         {n === 0 ? (
@@ -223,7 +222,7 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
       )}
       {starOpen && !readOnly && (
         <div className="mt-1.5 hidden lg:block">
-          <StarPanel experience={e} onSaved={keepUsedIn} onShowCitations={onToggleCitations} onRetry={onRetryStar} retrying={retryingStar} />
+          <StarPanel experience={e} onSaved={onSaved} onShowCitations={onToggleCitations} onRetry={onRetryStar} retrying={retryingStar} />
         </div>
       )}
       {(readOnly ? <SupplementList supplements={e.supplements ?? []} /> : <SupplementList supplements={e.supplements ?? []}

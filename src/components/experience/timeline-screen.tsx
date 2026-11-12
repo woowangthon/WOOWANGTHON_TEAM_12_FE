@@ -120,10 +120,10 @@ export function TimelineScreen() {
     );
   };
 
-  const loadDetail = (id: number) => {
+  const loadDetail = (id: number, background = false) => {
     const request = ++detailRequest.current;
     const noteAtRequest = savedNotes.current.get(id);
-    setDetail({ status: "loading" });
+    if (!background) setDetail({ status: "loading" });
     fetchActivity(id).then(
       (activity) => {
         if (request !== detailRequest.current) return;
@@ -365,8 +365,15 @@ export function TimelineScreen() {
   };
 
   const experienceSaved = (experience: Experience) => {
+    const previous = detail.status === "ready" ? detail.activity.experiences.find((e) => e.id === experience.id) : undefined;
+    const actorLeftMe = previous?.actor === "ME" && experience.actor !== "ME";
     refreshStats();
-    setDetail((prev) => prev.status === "ready" && prev.activity.id === experience.activityId ? { ...prev, activity: { ...prev.activity, experiences: prev.activity.experiences.map((e) => e.id === experience.id ? experience : e) } } : prev);
+    // PATCH 응답엔 활동 세부의 usedIn · star 가 없다. 보존은 이 상태 갱신 한 곳에서 한다(FE#540).
+    setDetail((prev) => prev.status === "ready" && prev.activity.id === experience.activityId ? { ...prev, activity: { ...prev.activity, experiences: prev.activity.experiences.map((e) => e.id === experience.id ? {
+      ...experience, usedIn: experience.usedIn ?? e.usedIn, star: experience.star ?? (actorLeftMe ? undefined : e.star),
+    } : e) } } : prev);
+    // 나 → 팀/알 수 없음이면 BE 가 원문으로 찬 T 칸을 비운다. 펼친 상태는 두고 새 칸을 읽는다.
+    if (actorLeftMe && selectedRef.current === experience.activityId) loadDetail(experience.activityId, true);
   };
 
   // STAR 「다시 시도」 응답 · 정리 중 다시 읽기(S-95) — 고치는 중인 기간은 화면 값을 지킨다(loadDetail 과 같다)

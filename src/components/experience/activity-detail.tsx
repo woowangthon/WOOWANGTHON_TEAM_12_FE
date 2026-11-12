@@ -237,7 +237,6 @@ function ExperienceList({ activity, onSaved, onAdded, onReplaced, onDelete, onMo
 
   const toggle = (id: number, kind: "citations" | "star") =>
     setExpanded((prev) => prev?.id === id && prev.kind === kind ? null : { id, kind });
-  const savedKeepingUsedIn = (prev: Experience) => (result: Experience) => onSaved({ ...result, usedIn: result.usedIn ?? prev.usedIn });
 
   return (
     <>
@@ -309,7 +308,7 @@ function ExperienceList({ activity, onSaved, onAdded, onReplaced, onDelete, onMo
                 <SheetDescription className="text-note text-muted">STAR 칸 — 빈칸은 차곡이가 물어볼 거리예요</SheetDescription>
               </SheetHeader>
               {sheetExp.star?.status === "ANALYZING" && <p role="status" className="m-0 text-note text-muted">STAR 정리 중이에요. 끝나면 칸이 나와요.</p>}
-              <StarPanel experience={sheetExp} onSaved={savedKeepingUsedIn(sheetExp)} onShowCitations={() => setSheet({ id: sheetExp.id, kind: "citations" })}
+              <StarPanel experience={sheetExp} onSaved={onSaved} onShowCitations={() => setSheet({ id: sheetExp.id, kind: "citations" })}
                 onRetry={() => void star.run()} retrying={star.busy} />
             </>
           )}
