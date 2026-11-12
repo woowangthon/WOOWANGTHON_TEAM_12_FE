@@ -130,3 +130,69 @@ test("a failed experience read says what is missing and retries; zero experience
   await expect(page.getByText("아직 쌓인 경험이 없어요")).toBeVisible();
   await expect(stats(page)).toHaveCount(0);
 });
+
+// FE#558 — 폴더 앞판이 칸보다 넓어 옆 폴더를 덮던 회귀(#470 의 비율 + 최소 높이). 모바일 두 열 · 1440 네 열 · 1024 옆 창 두 열에서
+// 앞판이 제 칸 안에 있고 이웃과 겹치지 않으며, 긴 이름 · 경험 수 · 기간이 앞판 밖으로 넘치지 않는다
+const FOLDERS: Row[] = ["바꿔요 — 캠퍼스 중고거래 앱", "알고리즘 스터디", "개발 동아리 운영진", "캡스톤", "오픈소스 기여 — 런타임 문서 번역과 예제 정리", "웹 서비스 인턴", "해커톤", "데이터 분석"]
+  .map((name, i) => ({ id: 30 + i, name, category: (["PROJECT", "STUDY", "CLUB", null] as const)[i % 4], note: null, links: [],
+    period: i % 3 === 0 ? { start: `2024-0${i % 8 + 1}`, end: null, ongoing: true } : i === 7 ? { start: null, end: null, ongoing: false } : { start: `2023-0${i % 8 + 1}`, end: `2025-1${i % 3}`, ongoing: false },
+    experiences: Array.from({ length: i % 4 + 1 }, (_, k) => experience(300 + i * 10 + k, 30 + i, "USER_ENTERED", [])) }));
+const drawer = (page: Page) => page.locator('section[aria-labelledby="activity-drawer"]');
+/** 칸(li) · 앞판 상자와 넘침 — 앞판은 글이 든 상자(폴더 탭 · 뒤판 말고) */
+const folderBoxes = (page: Page) => drawer(page).locator("ul > li").evaluateAll(lis => lis.map(li => {
+  const front = li.querySelector("button span[class*=\"aspect-\"]") as HTMLElement;
+  const c = li.getBoundingClientRect(), f = front.getBoundingClientRect();
+  return { cell: { x: c.x, right: c.right }, front: { x: f.x, y: f.y, right: f.right, bottom: f.bottom }, overflow: front.scrollHeight - front.clientHeight };
+}));
+async function expectFoldersInPlace(page: Page, columns: number) {
+  const boxes = await folderBoxes(page);
+  expect(new Set(boxes.map(b => Math.round(b.cell.x))).size, "열 수").toBe(columns);
+  // 모든 폴더 앞판이 같은 크기 — 기간이 두 줄로 꺾인 폴더가 섞여도 높이가 들쭉날쭉하지 않다(FE#558 후속)
+  const [w0, h0] = [boxes[0].front.right - boxes[0].front.x, boxes[0].front.bottom - boxes[0].front.y];
+  for (const [i, b] of boxes.entries()) {
+    expect(Math.abs(b.front.right - b.front.x - w0), `폴더 ${i + 1} 너비`).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(b.front.bottom - b.front.y - h0), `폴더 ${i + 1} 높이`).toBeLessThanOrEqual(0.5);
+  }
+  for (const [i, b] of boxes.entries()) {
+    expect(b.front.x, `폴더 ${i + 1} 왼쪽`).toBeGreaterThanOrEqual(b.cell.x - 0.5);
+    expect(b.front.right, `폴더 ${i + 1} 오른쪽`).toBeLessThanOrEqual(b.cell.right + 0.5);
+    expect(b.overflow, `폴더 ${i + 1} 글 넘침`).toBeLessThanOrEqual(0);
+    for (const [j, o] of boxes.entries()) {
+      if (j === i) continue;
+      const overlap = Math.min(b.front.right, o.front.right) - Math.max(b.front.x, o.front.x) > 0.5 && Math.min(b.front.bottom, o.front.bottom) - Math.max(b.front.y, o.front.y) > 0.5;
+      expect(overlap, `폴더 ${i + 1} · ${j + 1} 겹침`).toBe(false);
+    }
+  }
+}
+
+test("mobile drawer folders stay inside their two columns at the same size at 320 · 360 · 375 · 390 · 430, also after opening one (FE#558)", async ({ page }, info) => {
+  test.skip(info.project.name !== "mobile");
+  await setup(page, FOLDERS);
+  await page.goto("/experience");
+  await page.getByRole("button", { name: "서랍", exact: true }).click();
+  await expect(drawer(page).locator("ul > li")).toHaveCount(FOLDERS.length);
+  for (const width of [320, 360, 375, 390, 430]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expectFoldersInPlace(page, 2);
+  }
+  // 폴더를 열었다가 「내 경험」으로 돌아와도 그대로
+  await page.setViewportSize({ width: 390, height: 844 });
+  await drawer(page).getByRole("button").filter({ hasText: "캡스톤" }).click();
+  await expect(page.getByRole("complementary", { name: "활동 세부" })).toBeVisible();
+  await page.getByRole("button", { name: "내 경험", exact: true }).click();
+  await expect(drawer(page)).toBeVisible();
+  await expectFoldersInPlace(page, 2);
+});
+
+test("desktop drawer keeps four columns at 1440 and two beside the open detail at 1024 (FE#558)", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop");
+  await setup(page, FOLDERS);
+  await page.goto("/experience");
+  await page.getByRole("button", { name: "서랍", exact: true }).click();
+  await expect(drawer(page).locator("ul > li")).toHaveCount(FOLDERS.length);
+  await expectFoldersInPlace(page, 4);
+  await page.setViewportSize({ width: 1024, height: 1000 });
+  await drawer(page).getByRole("button").filter({ hasText: "캡스톤" }).click();
+  await expect(page.getByRole("complementary", { name: "활동 세부" })).toBeVisible();
+  await expectFoldersInPlace(page, 2);
+});
