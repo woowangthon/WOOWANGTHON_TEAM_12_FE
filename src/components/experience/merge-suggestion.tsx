@@ -3,7 +3,7 @@
 // 같은 활동 제안(S-44 · FE#246) — 결정은 비교 창 하나, 입구는 여럿(활동 세부 양쪽 · 종 「할 일」 · 분석 결과 줄).
 // 방향(A 를 B 에 붙이기) 없이 두 활동을 나란히 놓고 남길 이름 · 기간만 고른다 — 어느 쪽에서 열어도 같다
 import { useEffect, useRef, useState } from "react";
-import { ArrowsClockwiseIcon, CaretLeftIcon, CaretRightIcon, FileTextIcon, SparkleIcon } from "@phosphor-icons/react";
+import { ArrowsClockwiseIcon, CaretLeftIcon, CaretRightIcon, FileTextIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -37,8 +37,8 @@ export function SuggestionLines({ activityId, activities, onCompare }: {
     <ul aria-label="같은 활동 제안" className="m-0 grid list-none gap-1.5 border-b border-hairline px-4.5 py-3 lg:px-7">
       {lines.map((l) => (
         <li key={l.key} className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-note">
+          {/* ✦ 는 분석 횟수를 쓰는 버튼에만(DESIGN.md 「아이콘」 · S-15) — 여긴 정할 것이라 호박 글자만(FE#600) */}
           <span className="flex min-w-0 flex-1 basis-56 items-start gap-1.5 text-body">
-            <SparkleIcon weight="fill" className="mt-0.5 size-3.5 shrink-0 text-review" aria-hidden="true" />
             <span className="min-w-0 break-words">
               <span className="font-semibold text-review">AI 제안</span> · {l.side} 활동 「<b className="font-semibold text-ink">{l.other}</b>」{l.side === "새" ? "이 이 활동과" : "과"} 같아 보여요
             </span>
@@ -139,7 +139,6 @@ function PairView({ pair, position, total, onMove, onMerge, onDismiss }: {
           )}
         </div>
         <DialogDescription className="flex items-start gap-1.5 text-note text-muted">
-          <SparkleIcon weight="fill" className="mt-0.5 size-3.5 shrink-0 text-review" aria-hidden="true" />
           <span><span className="font-semibold text-review">AI 제안</span> · 이름과 기간을 보고 같아 보인다고 했어요. 맞는지는 직접 봐 주세요.</span>
         </DialogDescription>
       </DialogHeader>
