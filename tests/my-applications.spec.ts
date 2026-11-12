@@ -1,6 +1,7 @@
 // FE#347 — 내 지원서: 실제 목록을 시기별 · 종류별로 묶어 보고, 줄을 누르면 그 지원서의 지원 화면으로
 import { test, expect } from "./signed-in";
 import { FakeQuestionApi } from "./fake-question-api";
+import { pickOption } from "./pick-option";
 import type { Application } from "../src/lib/api/question-types";
 
 const q = (id: number, applicationId: number, text: string) => ({ id, applicationId, organization: null, text, status: "MATCHED" as const, createdAt: "2026-11-01T00:00:00Z" });
@@ -62,4 +63,28 @@ test("내 지원서의 「새 지원서」 · 「첫 지원서 넣기」는 새 
   await page.goto("/applications");
   await page.getByRole("button", { name: "첫 지원서 넣기" }).click();
   await expect(section).toHaveAttribute("aria-label", "새 지원서 입력");
+});
+
+test("내 지원서 목록에서 지원 상태를 직접 변경할 수 있다", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop");
+  await page.route("https://cdn.jsdelivr.net/**", route => route.abort());
+  await new FakeQuestionApi().install(page);
+  let patched: { id: number; status: string } | null = null;
+  await page.route("**/api/applications/3", async route => {
+    if (route.request().method() === "PATCH") {
+      const data = route.request().postDataJSON();
+      patched = { id: 3, status: data.applicationStatus };
+      return route.fulfill({ json: { ...list[0], applicationStatus: data.applicationStatus } });
+    }
+    return route.fallback();
+  });
+  await page.route("**/api/applications", route => route.request().method() === "GET" ? route.fulfill({ json: { applications: list } }) : route.fallback());
+  await page.goto("/applications");
+
+  const tag = page.getByRole("main").getByLabel("OO 백엔드 부트캠프 지원 상태");
+  await expect(tag).toHaveText("작성 중");
+  await pickOption(tag, "냈음");
+
+  expect(patched).toEqual({ id: 3, status: "SUBMITTED" });
+  await expect(tag).toHaveText("냈음");
 });

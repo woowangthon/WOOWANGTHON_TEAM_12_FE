@@ -11,7 +11,7 @@ import { ArrowSquareOutIcon, ArrowsClockwiseIcon, MagnifyingGlassIcon, PlusIcon,
 import { isPostingUrl } from "@/lib/api/entrance";
 import { AppHeader } from "@/components/app-header";
 import { useSidebar } from "@/components/sidebar-layout";
-import { SidebarApplicationText, dateText, monthText, progressText, recentApplications, sidebarApplicationRow } from "@/components/sidebar-applications";
+import { SidebarApplicationText, dateText, monthText, progressText, sidebarApplicationRow } from "@/components/sidebar-applications";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { CenterState } from "@/components/center-state";
 import { Button } from "@/components/ui/button";
@@ -213,7 +213,7 @@ export function ApplicationScreen() {
       panelToggle={open && !composing && <Button variant="secondary" size="sm" className="shrink-0 max-lg:h-11 max-lg:min-w-11 max-lg:gap-1 max-lg:border-0 max-lg:px-1" aria-label={unanswered > 0 && !panelOpen ? `차곡이 질문 ${unanswered}` : "차곡이"} aria-expanded={panelOpen} aria-controls="chagok-panel" onClick={() => { if (isRevisionPanelOpen()) { closeRevisionPanel(); setPanelChoice(true); } else setPanelChoice(!panelOpen); }}>
         <Mascot size={20} /><span className="max-lg:sr-only">차곡이</span>{unanswered > 0 && !panelOpen && <span className="rounded-full bg-primary px-1.5 text-xs leading-5 text-on-primary tabular-nums"><span className="max-lg:hidden">질문 </span>{unanswered}</span>}
       </Button>}
-      applicationList={{ applications: matching.applications, loading: matching.loading, error: matching.error, onRetry: () => { void matching.refresh(); }, rows: <ApplicationList {...list} applications={recentApplications(matching.applications, activeId)} sidebar /> }} />
+      applicationList={{ applications: matching.applications, loading: matching.loading, error: matching.error, onRetry: () => { void matching.refresh(); } }} />
     <div className="flex-1 xl:flex xl:items-start">
     <div className="min-w-0 flex-1">
     <main className="mx-auto max-w-[1280px] px-4.5 py-5 lg:px-8 lg:py-6">
