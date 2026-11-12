@@ -123,7 +123,7 @@ test("adding an application is two steps: one box and one button, then a review 
 
     // 채우기는 첫 화면과 하나 — 첫 화면에서 「직접 쓰기」로 오면 쓰던 칸이 그대로다(FE#542 · FE#565)
     await page.getByLabel("지원처 이름", { exact: true }).fill("직접 쓴 지원처");
-    await page.getByRole("button", { name: "글 · 링크 · 캡처로 채우기", exact: true }).click();
+    await page.getByRole("button", { name: "돌아가기", exact: true }).click();
     await expect(page.getByLabel("문항 1", { exact: true })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "어디에 지원하나요?" })).toBeVisible();
     await page.getByRole("button", { name: "직접 쓰기", exact: true }).click();
@@ -132,7 +132,7 @@ test("adding an application is two steps: one box and one button, then a review 
     await page.getByLabel("지원처 이름", { exact: true }).fill("");
 
     // 같은 문항이 든 글을 읽으면 하나로 합치고 목표는 새로 읽은 쪽
-    await page.getByRole("button", { name: "글 · 링크 · 캡처로 채우기", exact: true }).click();
+    await page.getByRole("button", { name: "돌아가기", exact: true }).click();
     await input.fill("[OO 연합 동아리 12기]\n1. 지원 동기 (1000자)\n2. 팀 프로젝트 (공백 포함 700자 이내)");
     await page.getByRole("button", { name: "읽기", exact: true }).click();
     await expect(page.getByLabel("문항 2", { exact: true })).toHaveValue("팀 프로젝트에서 맡은 역할과 협업 방식을 적어 주세요.");
