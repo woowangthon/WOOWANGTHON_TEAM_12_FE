@@ -112,14 +112,26 @@ test("adding an application is two steps: one box and one button, then a review 
 
     // 넣었던 · 자주 나오는 문항 고르기는 확인 단계로 바로 간다
     await page.getByRole("button", { name: "넣었던 · 자주 나오는 문항에서 고르기", exact: true }).click();
-    const picker = page.getByRole("dialog", { name: "문항 고르기" });
+    const picker = page.getByRole("region", { name: "문항 고르기" });
+    await expect(picker.getByRole("group", { name: "내가 넣었던 문항" })).toBeVisible();
+    await page.screenshot({ path: `docs/fe-542/pick-${width}.png`, fullPage: true });
     await picker.getByRole("checkbox", { name: new RegExp(`^${common.slice(0, 20)}`) }).check();
     await picker.getByRole("button", { name: "고른 문항 1개 넣기", exact: true }).click();
     await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(common);
     await expect(page.getByLabel("문항 1 목표 글자 수", { exact: true })).toHaveValue("500");
     await expect(input).toHaveCount(0);
 
-    // 원문을 펼쳐 같은 문항이 든 글을 읽으면 하나로 합치고 목표는 새로 읽은 쪽
+    // 채우기는 따로 화면 — 「돌아가기」로 오면 쓰던 칸이 그대로다(FE#542)
+    await page.getByLabel("지원처 이름", { exact: true }).fill("직접 쓴 지원처");
+    await page.getByRole("button", { name: "글 · 링크 · 캡처로 채우기", exact: true }).click();
+    await expect(page.getByLabel("문항 1", { exact: true })).toHaveCount(0);
+    await page.screenshot({ path: `docs/fe-542/source-${width}.png`, fullPage: true });
+    await page.getByRole("button", { name: "돌아가기", exact: true }).click();
+    await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(common);
+    await expect(page.getByLabel("지원처 이름", { exact: true })).toHaveValue("직접 쓴 지원처");
+    await page.getByLabel("지원처 이름", { exact: true }).fill("");
+
+    // 같은 문항이 든 글을 읽으면 하나로 합치고 목표는 새로 읽은 쪽
     await page.getByRole("button", { name: "글 · 링크 · 캡처로 채우기", exact: true }).click();
     await input.fill("[OO 연합 동아리 12기]\n1. 지원 동기 (1000자)\n2. 팀 프로젝트 (공백 포함 700자 이내)");
     await page.getByRole("button", { name: "읽기", exact: true }).click();
@@ -132,7 +144,9 @@ test("adding an application is two steps: one box and one button, then a review 
     await expect(page.getByRole("button", { name: /나누기|^읽기$/ })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "문항 2개로 경험 찾기", exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({ path: `artifacts/fe-508/review-${width}.png`, fullPage: true });
+    // 버튼 옆 「분석 N회」 글자는 없다 — ✦ 마우스 올림으로만(S-15 · FE#542)
+    await expect(page.getByText("분석 2회", { exact: true })).toHaveCount(0);
+    await page.screenshot({ path: `docs/fe-542/review-${width}.png`, fullPage: true });
 
     // 캡처 확인 — 같은 칸에 고르면 캡처로 읽고, 확인 단계에서 캡처와 칸을 나란히
     parsed = PARSED;

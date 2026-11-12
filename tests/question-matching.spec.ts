@@ -365,7 +365,7 @@ test("common questions fill blank slots first, stay editable and stop at the sub
   await page.getByRole("button", { name: /^문항 더하기/ }).click();
   await page.getByLabel("문항 2", { exact: true }).fill("직접 쓴 문항");
   await page.getByRole("button", { name: "넣었던 · 자주 나오는 문항에서 고르기", exact: true }).click();
-  const picker = page.getByRole("dialog", { name: "문항 고르기" });
+  const picker = page.getByRole("region", { name: "문항 고르기" });
   await expect(picker.getByRole("group", { name: "IT 연합 동아리" })).toBeVisible();
   await expect(picker.getByRole("button", { name: "문항을 골라 주세요" })).toBeDisabled();
   await picker.getByRole("checkbox", { name: /^실천의 관점에서 성공과 실패/ }).check();
@@ -393,7 +393,7 @@ test("common questions fill blank slots first, stay editable and stop at the sub
   await expect(boxes.nth(7)).toBeDisabled();
   await picker.getByRole("button", { name: "고른 문항 7개 넣기", exact: true }).click();
   await expect(page.getByLabel("문항 10", { exact: true })).toHaveValue(/\S/);
-  await expect(page.getByRole("button", { name: /^문항 더하기/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^문항 더하기/ })).toBeDisabled();
   await expect(page.getByRole("button", { name: "넣었던 · 자주 나오는 문항에서 고르기", exact: true })).toBeDisabled();
 
   await page.getByRole("button", { name: "문항 10개로 경험 찾기", exact: true }).click();
@@ -414,7 +414,7 @@ test("past questions show newest first with organization and type, once per text
   await page.goto("/questions");
   await startApplication(page);
   await page.getByRole("button", { name: "넣었던 · 자주 나오는 문항에서 고르기", exact: true }).click();
-  const past = page.getByRole("dialog", { name: "문항 고르기" }).getByRole("group", { name: "내가 넣었던 문항" });
+  const past = page.getByRole("region", { name: "문항 고르기" }).getByRole("group", { name: "내가 넣었던 문항" });
   const boxes = past.getByRole("checkbox");
   await expect(boxes).toHaveCount(2);
   await expect(past.locator("label").nth(0)).toContainText(q41.detail.text);
@@ -437,7 +437,7 @@ test("past questions: empty account shows a hint only, and a failed load can be 
   await page.route("**/api/questions", route => (down ? route.fulfill({ status: 503, json: { error: { code: "INTERNAL_ERROR", message: "잠시 뒤 다시 시도해 주세요" } } }) : route.fallback()));
   await page.goto("/questions");
   await page.getByRole("button", { name: "넣었던 · 자주 나오는 문항에서 고르기", exact: true }).click();
-  const past = page.getByRole("dialog", { name: "문항 고르기" }).getByRole("group", { name: "내가 넣었던 문항" });
+  const past = page.getByRole("region", { name: "문항 고르기" }).getByRole("group", { name: "내가 넣었던 문항" });
   await expect(past.getByRole("alert")).toContainText("잠시 뒤 다시 시도해 주세요");
   await expect(past.getByRole("checkbox")).toHaveCount(0);
   down = false;
@@ -445,7 +445,7 @@ test("past questions: empty account shows a hint only, and a failed load can be 
   await expect(past).toContainText("아직 넣은 문항이 없어요");
   await expect(past.getByRole("checkbox")).toHaveCount(0);
   // 자주 나오는 문항은 그대로 고를 수 있다
-  await expect(page.getByRole("dialog", { name: "문항 고르기" }).getByRole("group", { name: "IT 연합 동아리" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "문항 고르기" }).getByRole("group", { name: "IT 연합 동아리" })).toBeVisible();
 });
 
 // FE#81 — 지원처 종류 · 직무(S-42) · 문항 유형(S-41)
