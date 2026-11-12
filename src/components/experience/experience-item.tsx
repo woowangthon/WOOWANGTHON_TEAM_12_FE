@@ -1,13 +1,13 @@
 "use client";
 
-// 경험 하나 — 이 화면의 주인공. 상자 없이 구분선, 근거는 접어 둔다 (SPEC S-08 · DESIGN.md 「경험」)
+// 경험 하나 — 이 화면의 주인공. 상자 없이 구분선, 메타 · STAR · 근거 · 내 답은 접어 둔다 (SPEC S-08 · DESIGN.md 「경험」 · FE#541)
 import { BookmarkSimpleIcon, CaretDownIcon, DotsSixVerticalIcon, DotsThreeIcon, QuotesIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { DropdownMenu } from "radix-ui";
 import { cn } from "@/lib/utils";
-import { COMPETENCIES, type Actor, type Experience, type SourceStatus } from "@/lib/api/types";
+import { COMPETENCIES, type Actor, type Experience, type SourceStatus, type Supplement } from "@/lib/api/types";
 import { CitationList } from "./citation-list";
-import { Fragment, useState } from "react";
+import { Fragment, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ActorField, CompetencyField, ExperienceContentField } from "./inline-edit";
 import { ExperienceMcpChange } from "./experience-mcp-change";
@@ -15,7 +15,7 @@ import { SAVE_ERROR, useExperienceSave } from "./experience-save";
 import { MENU_ITEM, MenuCheckBox, ProfileMenuItems, ProfileShareNote, useProfileShare } from "./profile-toggle";
 import { SupplementList } from "./supplement-list";
 import { UsedInChip, UsedInList } from "./used-in";
-import { StarPanel, StarToggle } from "./star-slots";
+import { hasStarSlots, StarPanel, StarStatus } from "./star-slots";
 import { AiMark } from "@/components/ui/ai-mark";
 import { MENU_CONTENT } from "@/components/ui/menu";
 
@@ -93,15 +93,12 @@ export function ExperienceProperties({ experience: e, period }: {
 type Props = {
   readOnly?: boolean;
   experience: Experience;
-  citationsOpen: boolean;
-  /** PC — 경험 아래에 근거를 펼친다 */
-  onToggleCitations: () => void;
-  /** 모바일 — 하단 시트로 근거를 띄운다 */
-  onShowCitations: () => void;
-  /** STAR 칸(S-95) — PC 는 경험 아래, 모바일은 하단 시트. 근거 펼침과 한 번에 하나 */
-  starOpen?: boolean;
-  onToggleStar?: () => void;
-  onShowStar?: () => void;
+  /** PC — 이 줄을 아래로 펼쳤나(한 번에 한 경험 — FE#541) */
+  open: boolean;
+  /** PC — 줄 아래로 펼치고 접는다 */
+  onToggle: () => void;
+  /** 모바일 — 펼친 내용을 하단 시트로 띄운다 */
+  onShowSheet: () => void;
   /** FAILED 「다시 시도」 — 활동 단위(계약) */
   onRetryStar?: () => void;
   retryingStar?: boolean;
@@ -116,16 +113,32 @@ type Props = {
   dragging: boolean;
 };
 
-export function ExperienceItem({ experience, citationsOpen, onToggleCitations, onShowCitations, starOpen = false, onToggleStar, onShowStar, onRetryStar, retryingStar, onSaved, onDelete, onMove, onMerge, onDragChange, dragging, readOnly = false }: Props) {
+/** STAR 칸을 채운 보완 ID — 그 보완은 STAR 칸에서만 보이고 고친다(FE#541 · experience-api.md 「STAR 칸」 sourceType · sourceId) */
+const starSupplementIds = (e: Experience) => new Set(hasStarSlots(e.star)
+  ? e.star.slots.flatMap((s) => s.sourceType === "SUPPLEMENT" && s.sourceId !== null ? [s.sourceId] : []) : []);
+
+/** 보완을 고치거나 지운 결과를 경험에 반영한다 */
+const supplementHandlers = (e: Experience, onSaved: (experience: Experience) => void) => ({
+  onSaved: (s: Supplement) => onSaved({ ...e, supplements: (e.supplements ?? []).map((x) => x.id === s.id ? s : x) }),
+  onDeleted: (id: number) => onSaved({ ...e, supplements: (e.supplements ?? []).filter((x) => x.id !== id) }),
+});
+
+/** 활동 세부의 경험 줄(FE#541). 접힌 줄엔 본문 + 예외만 — 수행 주체 팀 · 알 수 없음, 「확인 필요」, 지원서에 쓰임, 맞아요 대기 답.
+ *  나 · 역량 · 근거 수 · STAR 점은 펼쳐야 보인다(ExperienceDetail). 본문을 누르면 그 자리 고치기, 펼침은 오른쪽 끝 꺾쇠 */
+export function ExperienceItem({ experience, open, onToggle, onShowSheet, onRetryStar, retryingStar, onSaved, onDelete, onMove, onMerge, onDragChange, dragging, readOnly = false }: Props) {
   const [editing, setEditing] = useState(false);
   const [usedInOpen, setUsedInOpen] = useState(false);
   const e = experience;
   const share = useProfileShare(e, onSaved);
   const save = useExperienceSave(e, (saved) => onSaved({ ...e, saved }));
   const usedIn = e.usedIn ?? [];
-  const n = e.citations.length;
-  const citeBtn =
-    "inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-note font-semibold text-evidence hover:bg-evidence-soft";
+  const pendingAnswers = (e.supplements ?? []).filter((s) => s.mcpChange);
+  // 팀 · 알 수 없음은 접힌 줄에서도 그 자리에서 고친다(알 수 없음은 「누가 했나요?」). 펼치면 펼친 칸에서 고치니 여기선 뺀다
+  const exceptions: React.ReactNode[] = [];
+  if (e.actor !== "ME" && !open) exceptions.push(readOnly ? <span key="actor">{ACTOR[e.actor]}</span> : <ActorField key="actor" experience={e} onSaved={onSaved} />);
+  if (e.origin?.type === "ANSWER") exceptions.push(<Link key="origin" href={`/questions?question=${e.origin.questionId}`} className="min-w-0 break-words underline-offset-3 hover:underline">내가 쓴 지원서 · {e.origin.organization || "지원처 미입력"} · {e.origin.questionText}</Link>);
+  if (e.sourceStatus === "NEEDS_REVIEW") exceptions.push(<SourceStatusMark key="source" status={e.sourceStatus} />);
+  const caret = "size-11 shrink-0 text-muted hover:text-ink lg:size-10";
   return (
     <li id={`experience-${e.id}`} className={cn("group relative grid gap-1.5 border-b border-hairline py-4", dragging && "opacity-40")}>
       {!editing && !readOnly && (
@@ -151,12 +164,11 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
         <UsedInChip usedIn={usedIn} open={usedInOpen} onToggle={() => setUsedInOpen((v) => !v)} controls={`used-in-${e.id}`} />
       </div>}
       {usedInOpen && usedIn.length > 0 && <UsedInList usedIn={usedIn} id={`used-in-${e.id}`} />}
-      <div className="flex items-start gap-2">
-          <ExperienceContentField experience={e} readOnly={readOnly} onEditingChange={setEditing}
-            onSaved={onSaved} />
-          {!readOnly && <>
+      <div className="flex items-start gap-1">
+        <ExperienceContentField experience={e} readOnly={readOnly} onEditingChange={setEditing} onSaved={onSaved} />
+        {!readOnly && <>
           {/* 저장 · 프로필에 넣기는 「…」 메뉴 안(FE#272 · FE#293). 저장한 경험은 표시만 — 누르는 건 메뉴에서 */}
-          {save.saved && !editing && <span title="저장한 경험이에요" className="flex h-11 lg:h-10 shrink-0 items-center text-ink">
+          {save.saved && !editing && <span title="저장한 경험이에요" className="flex h-11 lg:h-10 shrink-0 items-center px-1 text-ink">
             <BookmarkSimpleIcon className="size-4" weight="fill" aria-hidden="true" /><span className="sr-only">저장함</span>
           </span>}
           <DropdownMenu.Root>
@@ -176,58 +188,69 @@ export function ExperienceItem({ experience, citationsOpen, onToggleCitations, o
               </DropdownMenu.Content>
             </DropdownMenu.Portal>
           </DropdownMenu.Root>
-</>}
-      </div>
-      <div className="flex flex-wrap items-center gap-1.5 text-note font-medium text-muted">
-        <ExperienceMeta experience={e} edit={readOnly ? undefined : { experience: e, onSaved }} />
-        <span className="ml-auto inline-flex items-center gap-1.5">
-        {!readOnly && <SourceStatusMark status={e.sourceStatus} />}
-        {n === 0 ? (
-          <span className="text-muted">근거 없음</span>
-        ) : (
-          <>
-            <button
-              type="button"
-              className={cn(citeBtn, "hidden lg:inline-flex")}
-              aria-expanded={citationsOpen}
-              onClick={onToggleCitations}
-            >
-              <QuotesIcon className="size-[1.15em]" aria-hidden="true" />
-              근거 {n}
-              <CaretDownIcon
-                className={cn("size-[1.15em] transition-transform", citationsOpen && "rotate-180")}
-                aria-hidden="true"
-              />
-            </button>
-            <button type="button" className={cn(citeBtn, "lg:hidden")} onClick={onShowCitations}>
-              <QuotesIcon className="size-[1.15em]" aria-hidden="true" />
-              근거 {n}
-            </button>
-          </>
-        )}
-        {/* STAR 점 넷 — 근거 열기 옆, 줄 높이 그대로(DESIGN.md 「경험 줄 — STAR 칸」). PC 는 아래로 펼치고 모바일은 시트 */}
-        {!readOnly && onToggleStar && onShowStar && <>
-          <span className="hidden lg:inline-flex"><StarToggle star={e.star} open={starOpen} onClick={onToggleStar} onRetry={onRetryStar} retrying={retryingStar} /></span>
-          <span className="inline-flex lg:hidden"><StarToggle star={e.star} open={false} onClick={onShowStar} onRetry={onRetryStar} retrying={retryingStar} /></span>
         </>}
-        </span>
+        {/* 펼침 — 본문 누르기(고치기)와 겹치지 않게 오른쪽 끝 꺾쇠만. PC 는 줄 아래, 모바일은 하단 시트 */}
+        {!editing && <>
+          <Button variant="ghost" size="icon" className={cn(caret, "hidden lg:inline-flex")} aria-expanded={open} aria-controls={`experience-detail-${e.id}`}
+            title={open ? "접기" : "자세히"} aria-label={`${open ? "접기" : "자세히"}: ${e.content}`} onClick={onToggle}>
+            <CaretDownIcon className={cn("transition-transform", open && "rotate-180")} aria-hidden="true" />
+          </Button>
+          <Button variant="ghost" size="icon" className={cn(caret, "lg:hidden")} title="자세히" aria-label={`자세히: ${e.content}`} onClick={onShowSheet}>
+            <CaretDownIcon aria-hidden="true" />
+          </Button>
+        </>}
       </div>
-      {<ExperienceMcpChange experience={e} readOnly={readOnly} onSaved={onSaved} />}
+      {exceptions.length > 0 && <div className="flex flex-wrap items-center gap-1.5 text-note font-medium text-muted">
+        {exceptions.map((part, i) => <Fragment key={i}>{i > 0 && <span className="text-hairline">·</span>}{part}</Fragment>)}
+      </div>}
+      <ExperienceMcpChange experience={e} readOnly={readOnly} onSaved={onSaved} />
       {!readOnly && <ProfileShareNote share={share} />}
       {!readOnly && save.error && <p role="alert" className="m-0 text-note font-medium text-error">{SAVE_ERROR}</p>}
-      {citationsOpen && (
-        <div className="mt-1.5 hidden lg:block">
-          <CitationList citations={e.citations} readOnly={readOnly} />
-        </div>
-      )}
-      {starOpen && !readOnly && (
-        <div className="mt-1.5 hidden lg:block">
-          <StarPanel experience={e} onSaved={onSaved} onShowCitations={onToggleCitations} onRetry={onRetryStar} retrying={retryingStar} />
-        </div>
-      )}
-      {(readOnly ? <SupplementList supplements={e.supplements ?? []} /> : <SupplementList supplements={e.supplements ?? []}
-        onSaved={(s) => onSaved({ ...e, supplements: (e.supplements ?? []).map((x) => x.id === s.id ? s : x) })}
-        onDeleted={(id) => onSaved({ ...e, supplements: (e.supplements ?? []).filter((x) => x.id !== id) })} />)}
+      {/* 외부 AI 가 전한 답은 맞아요를 기다리는 예외라 접혀 있어도 보인다(S-56). 펼치면 펼친 자리에서 */}
+      {!open && (readOnly ? <SupplementList supplements={pendingAnswers} />
+        : <SupplementList supplements={pendingAnswers} {...supplementHandlers(e, onSaved)} />)}
+      {open && <div id={`experience-detail-${e.id}`} className="mt-1.5 hidden lg:block">
+        <ExperienceDetail experience={e} readOnly={readOnly} onSaved={onSaved} onRetryStar={onRetryStar} retryingStar={retryingStar} />
+      </div>}
     </li>
   );
+}
+
+const SECTION = "m-0 text-xs font-semibold text-ink";
+
+/** 펼친 경험 — 수행 주체 · 역량(고치기) → STAR 칸 → 근거 → 내 답(STAR 칸에 안 들어간 보완). PC 는 줄 아래, 모바일은 하단 시트 */
+export function ExperienceDetail({ experience: e, readOnly = false, onSaved, onRetryStar, retryingStar }: {
+  experience: Experience;
+  readOnly?: boolean;
+  onSaved: (experience: Experience) => void;
+  onRetryStar?: () => void;
+  retryingStar?: boolean;
+}) {
+  const citations = useRef<HTMLElement>(null);
+  // 읽기 전용 화면엔 STAR 칸이 없으니 보완을 거르지 않는다
+  const inStar = readOnly ? new Set<number>() : starSupplementIds(e);
+  const answers = (e.supplements ?? []).filter((s) => !s.mcpChange && !inStar.has(s.id));
+  const pending = (e.supplements ?? []).filter((s) => s.mcpChange);
+  const n = e.citations.length;
+  // 지원서 출처 · 확인 필요는 접힌 줄에 있다 — 여기선 수행 주체 · 역량만
+  const meta = { ...e, origin: null };
+  return <div className="grid gap-4">
+    <div className="flex flex-wrap items-center gap-1.5 text-note font-medium text-muted">
+      {readOnly ? <ExperienceMeta experience={meta} noSource /> : <ExperienceMeta experience={meta} edit={{ experience: e, onSaved }} />}
+    </div>
+    {!readOnly && (hasStarSlots(e.star)
+      ? <StarPanel experience={e} onSaved={onSaved} onRetry={onRetryStar} retrying={retryingStar}
+        onShowCitations={() => citations.current?.scrollIntoView({ block: "nearest", behavior: "smooth" })} />
+      : <StarStatus star={e.star} onRetry={onRetryStar} retrying={retryingStar} />)}
+    <section ref={citations} aria-label={`근거 ${n}`} className="grid gap-2">
+      <p className={cn(SECTION, "inline-flex items-center gap-1")}><QuotesIcon className="size-[1.15em] text-evidence" aria-hidden="true" />근거 {n}</p>
+      {n === 0 ? <p className="m-0 text-note text-muted">근거 없음</p> : <CitationList citations={e.citations} readOnly={readOnly} />}
+    </section>
+    {/* 비어도 둔다 — 맞아요 · 되돌리기 결과 글이 이 목록 안에 남는다 */}
+    {(readOnly ? <SupplementList supplements={pending} /> : <SupplementList supplements={pending} {...supplementHandlers(e, onSaved)} />)}
+    {answers.length > 0 && <section aria-label="내 답" className="grid gap-2">
+      <p className={SECTION}>내 답</p>
+      {readOnly ? <SupplementList supplements={answers} /> : <SupplementList supplements={answers} {...supplementHandlers(e, onSaved)} />}
+    </section>}
+  </div>;
 }

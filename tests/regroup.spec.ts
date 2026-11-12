@@ -263,7 +263,9 @@ test("메뉴로 다른 활동에 옮긴다 — 출처 상태 · 근거는 그대
   await open(page, "Swap deploy");
   const moved = detail(page).locator("li").filter({ hasText: "Deploy" });
   await expect(moved).toContainText("확인 필요");
-  await expect(moved.getByRole("button", { name: /근거 1/ }).filter({ visible: true })).toBeVisible();
+  // 근거는 펼친 자리에 그대로(FE#541)
+  await moved.getByRole("button", { name: /^자세히: / }).filter({ visible: true }).click();
+  await expect(page.getByRole("region", { name: "근거 1" }).filter({ visible: true })).toBeVisible();
 });
 
 test("옮기기가 실패하면 원래 자리 · 개수로 돌리고 실패를 알린다", async ({ page }) => {
@@ -357,8 +359,10 @@ test("경험 합치기 — 남길 경험에 근거 둘이 모이고 새로고침
   await page.reload();
   await open(page, "Swap app");
   const kept = detail(page).locator("li").filter({ hasText: "Chat fix" }).first();
-  await expect(kept).toContainText("200명"); // 보완도 따라왔다
-  await kept.getByRole("button", { name: /근거 2/ }).filter({ visible: true }).click();
+  // 보완 · 근거는 펼친 자리에(FE#541)
+  await kept.getByRole("button", { name: /^자세히: / }).filter({ visible: true }).click();
+  await expect(page.getByRole("region", { name: "내 답" }).filter({ visible: true })).toContainText("200명"); // 보완도 따라왔다
+  await expect(page.getByRole("region", { name: "근거 2" }).filter({ visible: true })).toBeVisible();
   // 근거를 열면 두 원본 이름이 다 보인다(S-09)
   await expect(page.getByText("retro.md", { exact: false }).filter({ visible: true }).first()).toBeVisible();
   await expect(page.getByText("README.md", { exact: false }).filter({ visible: true }).first()).toBeVisible();

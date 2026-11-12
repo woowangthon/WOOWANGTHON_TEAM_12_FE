@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import type { ActivityDetail, UpdateActivityRequest, UpdateExperienceRequest } from "../src/lib/api/types";
 import { pickOption } from "./pick-option";
-import { clickOutside } from "./click-outside";
+import { clickAway, closeSheet, detailScope, openDetail } from "./expand-experience";
 
 for (const scenario of [
   { by: "AI", status: "USER_ENTERED", values: ["IMPLEMENTATION"], visible: true },
@@ -20,7 +20,8 @@ for (const scenario of [
     await page.reload();
     await page.getByRole("button", { name: /API test activity/ }).click();
     await expect(page.getByText("Original experience", { exact: true })).toBeVisible();
-    await expect(page.getByRole("complementary").getByText("AI 해석", { exact: true })).toHaveCount(scenario.visible ? 1 : 0);
+    await openDetail(page);
+    await expect(detailScope(page).getByText("AI 해석", { exact: true })).toHaveCount(scenario.visible ? 1 : 0);
   });
 }
 
@@ -29,14 +30,15 @@ test("AI marker survives content and actor edits, disappears on competency edit"
   state.activity.experiences[0].competencies = ["IMPLEMENTATION"];
   await page.reload();
   await page.getByRole("button", { name: /API test activity/ }).click();
-  const ai = page.getByRole("complementary").getByText("AI 해석", { exact: true });
+  const ai = detailScope(page).getByText("AI 해석", { exact: true });
   await editContent(page, "Content only edit");
+  await openDetail(page);
   await expect(ai).toHaveCount(1);
   await pickActor(page, "팀");
   await expect(ai).toHaveCount(1);
   const pop = await openCompetencies(page);
   await pop.getByLabel("협업", { exact: true }).check();
-  await clickOutside(page);
+  await clickAway(page);
   await expect(pop).toHaveCount(0);
   await expect(ai).toHaveCount(0);
   expect(state.patches.map((p) => p.body)).toEqual([
@@ -48,13 +50,14 @@ test("AI marker survives content and actor edits, disappears on competency edit"
 test("actor and competency edits keep the source status, content edits do", async ({ page }) => {
   const state = await setup(page);
   const badge = page.getByText("내가 입력", { exact: true });
+  await openDetail(page);
   await page.getByRole("button", { name: /^수행 주체 고치기:/ }).click();
   await expect(page.getByRole("menuitemradio", { name: "팀" })).toBeVisible();
   await page.getByRole("menuitemradio", { name: "팀" }).click();
   await expect(page.getByRole("button", { name: "수행 주체 고치기: 팀" })).toBeVisible();
   const pop = await openCompetencies(page);
   await pop.getByLabel("협업", { exact: true }).check();
-  await clickOutside(page);
+  await clickAway(page);
   await expect(pop).toHaveCount(0);
   expect(state.patches.map((p) => p.body)).toEqual([{ actor: "TEAM" }, { competencies: ["COLLABORATION"] }]);
   expect(state.activity.experiences[0].sourceStatus).toBe("SOURCE_CONFIRMED");
@@ -66,17 +69,20 @@ test("actor and competency edits keep the source status, content edits do", asyn
 
 // S-10 · FE#232 — 누르면 그 자리에서 고친다. 본문은 Enter 저장 · Esc 취소, 주체는 메뉴, 역량 · 기간은 작은 창
 async function editContent(page: Page, text: string) {
+  await closeSheet(page);
   await page.getByRole("button", { name: /^경험 고치기:/ }).click();
   await page.getByLabel("경험 내용").fill(text);
   await page.getByLabel("경험 내용").press("Enter");
   await expect(page.getByLabel("경험 내용")).toHaveCount(0);
 }
 async function pickActor(page: Page, label: string) {
+  await openDetail(page);
   await page.getByRole("button", { name: /^수행 주체 고치기:/ }).click();
   await page.getByRole("menuitemradio", { name: label }).click();
   await expect(page.getByRole("button", { name: `수행 주체 고치기: ${label}` })).toBeVisible();
 }
 async function openCompetencies(page: Page) {
+  await openDetail(page);
   await page.getByRole("button", { name: /^역량 (고치기|붙이기)/ }).click();
   const pop = page.getByRole("dialog", { name: "역량 고치기" });
   await expect(pop).toBeVisible();
@@ -185,7 +191,7 @@ test("activity period is picked by year · month in a small menu and applies PM 
       await expect(page.getByLabel("종료 연도")).toBeDisabled();
     }
     const count = state.patches.length;
-    await clickOutside(page);
+    await clickAway(page);
     await expect(pop).toHaveCount(0);
     expect(state.patches).toHaveLength(count + 1);
     expect(state.patches.at(-1)!.body).toEqual({ name: "API test activity", period });
@@ -195,7 +201,7 @@ test("activity period is picked by year · month in a small menu and applies PM 
   for (const [start, end] of [["2026", "2025"], ["2025-04", "2025-03"]]) {
     await pick(page, "시작", start);
     await pick(page, "종료", end);
-    await clickOutside(page);
+    await clickAway(page);
     await expect(pop.getByRole("alert")).toContainText("시작일은 종료일보다 늦을 수 없어요");
     await expect(page.getByLabel("시작 연도")).toHaveText(`${Number(start.slice(0, 4))}년`);
     expect(state.patches).toHaveLength(valid.length);
@@ -215,7 +221,7 @@ test("day precision survives when year · month are unchanged; clearing the year
   await expect(page.getByLabel("시작 연도")).toHaveText("2025년");
   await expect(page.getByLabel("시작 월")).toHaveText("3월");
   await pickOption(page.getByLabel("종료 월"), "7월");
-  await clickOutside(page);
+  await clickAway(page);
   await expect(pop).toHaveCount(0);
   expect(state.patches.at(-1)!.body).toEqual({ name: "API test activity", period: { start: "2025-03-31", end: "2025-07", ongoing: false } });
   pop = await openPeriod(page);
@@ -274,7 +280,7 @@ test("experience: Esc cancels, no-op, empty validation, Shift+Enter newline, out
   await expect(field).toHaveCount(0);
   expect(state.patches[1].body).toEqual({ content: "Blurred" });
   // 근거를 눌러도 고치기가 열리지 않는다
-  await page.getByRole("button", { name: /근거 1/ }).filter({ visible: true }).click();
+  await openDetail(page);
   await expect(page.getByText("Original quote", { exact: true }).filter({ visible: true })).toBeVisible();
   await expect(field).toHaveCount(0);
   if (page.viewportSize()!.width < 1024) await expect(page.getByRole("dialog")).toContainText("Blurred");
@@ -307,7 +313,7 @@ test("editing content and actor keeps competencies and omits the untouched field
   // 같은 주체를 고르면 보내지 않는다
   await pickActor(page, "알 수 없음");
   expect(state.patches).toHaveLength(2);
-  await page.getByRole("button", { name: /근거 1/ }).filter({ visible: true }).click();
+  await openDetail(page);
   await expect(page.getByText("Original quote", { exact: true }).filter({ visible: true })).toBeVisible();
 });
 
@@ -317,13 +323,14 @@ test("competencies: edit picks up to 3 in order, order-only change counts, clear
   state.activity.experiences[0].competencies = ["COLLABORATION", "PROBLEM_SOLVING", "IMPLEMENTATION"];
   await page.reload();
   await page.getByRole("button", { name: /API test activity/ }).click();
-  const meta = page.getByRole("complementary").locator("li").first();
+  await openDetail(page);
+  const meta = detailScope(page);
   await expect(meta).toContainText("협업 · 문제 해결 · 기술 구현");
 
   // 저장된 역량이 고른 상태로 열리고, 3개가 차면 나머지는 막힌다
   let pop = await openCompetencies(page);
   const pick = (label: string) => pop.getByLabel(label, { exact: true });
-  const save = async () => { await clickOutside(page); await expect(pop).toHaveCount(0); };
+  const save = async () => { await clickAway(page); await expect(pop).toHaveCount(0); };
   for (const label of ["협업", "문제 해결", "기술 구현"]) await expect(pick(label)).toBeChecked();
   await expect(pick("기획")).toBeDisabled();
   await expect(pop.getByText("3 / 3", { exact: true })).toBeVisible();
@@ -391,19 +398,20 @@ for (const kind of ["activity", "experience"] as const) {
 test("actor and competency failures keep the old value, show the error, and can be retried", async ({ page }) => {
   const state = await setup(page);
   state.fail = true;
+  await openDetail(page);
   await page.getByRole("button", { name: /^수행 주체 고치기:/ }).click();
   await page.getByRole("menuitemradio", { name: "팀" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "수행 주체를 저장하지 못했어요" })).toBeVisible();
   await expect(page.getByRole("button", { name: "수행 주체 고치기: 나" })).toBeVisible();
   const pop = await openCompetencies(page);
   await pop.getByLabel("협업", { exact: true }).check();
-  await clickOutside(page);
+  await clickAway(page);
   await expect(pop.getByRole("alert")).toHaveText("Server rejected edit");
   await expect(pop.getByLabel("협업", { exact: true })).toBeChecked();
   state.fail = false;
-  await clickOutside(page);
+  await clickAway(page);
   await expect(pop).toHaveCount(0);
-  await expect(page.getByRole("complementary").locator("li").first()).toContainText("협업");
+  await expect(detailScope(page)).toContainText("협업");
 });
 
 test("API list failure shows error and retry, without mock fallback", async ({ page }) => {
@@ -445,7 +453,7 @@ test("PATCH response values replace drafts in activity, timeline and experience"
   await page.getByLabel("경험 내용").press("Enter");
   await expect(page.getByText("Server experience", { exact: true })).toBeVisible();
   await expect(page.getByText("내가 입력", { exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: /근거 1/ }).filter({ visible: true }).click();
+  await openDetail(page);
   await expect(page.getByText("Original quote", { exact: true }).filter({ visible: true })).toBeVisible();
   if (page.viewportSize()!.width < 1024) {
     await page.keyboard.press("Escape");

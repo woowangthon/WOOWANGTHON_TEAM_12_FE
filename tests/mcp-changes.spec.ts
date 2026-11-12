@@ -1,4 +1,5 @@
 import { test, expect } from "./signed-in";
+import { openDetail } from "./expand-experience";
 import type { Locator, Page } from "@playwright/test";
 import { openCard, MCP_CARD } from "./fold-card";
 
@@ -351,6 +352,8 @@ async function openAnswer(page: Page, list: Record<string, unknown>[]) {
   const mine = page.getByRole("list", { name: "내가 입력한 보완", exact: true });
   const viaMcp = page.getByRole("list", { name: "외부 AI 를 거친 답", exact: true });
   await expect(viaMcp).toContainText("Claude 를 거친 답");
+  // 내 답은 펼쳐야 보인다 — 펼치면 맞아요 대기 답도 펼친 자리로(FE#541)
+  await openDetail(page);
   return { state, mine, viaMcp };
 }
 
