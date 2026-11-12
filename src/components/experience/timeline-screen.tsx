@@ -373,7 +373,7 @@ export function TimelineScreen() {
       ...experience, usedIn: experience.usedIn ?? e.usedIn, star: experience.star ?? (actorLeftMe ? undefined : e.star),
     } : e) } } : prev);
     // 나 → 팀/알 수 없음이면 BE 가 원문으로 찬 T 칸을 비운다. 펼친 상태는 두고 새 칸을 읽는다.
-    if (actorLeftMe) loadDetail(experience.activityId, true);
+    if (actorLeftMe && selectedRef.current === experience.activityId) loadDetail(experience.activityId, true);
   };
 
   // STAR 「다시 시도」 응답 · 정리 중 다시 읽기(S-95) — 고치는 중인 기간은 화면 값을 지킨다(loadDetail 과 같다)

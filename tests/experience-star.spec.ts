@@ -29,7 +29,7 @@ async function setup(page: Page, star: Star) {
     usedIn: [{ applicationId: 22, organization: "시험 지원서", applicationStatus: "WRITING", submittedMonth: null, questions: [{ id: 42, text: "문제 해결 경험" }] }],
   };
   const activity: ActivityDetail = { id: 7, name: "미니 셸 프로젝트", period: { start: "2025-03", end: "2025-06", ongoing: false }, experiences: [experience] };
-  const state = { activity, calls: [] as { method: string; path: string; body: unknown }[], polls: 0, detailReads: 0, failDetail: false };
+  const state = { activity, calls: [] as { method: string; path: string; body: unknown }[], polls: 0, detailReads: 0, failDetail: false, patchGate: null as Promise<void> | null };
   let nextSupplement = 400;
   const fill = (slot: StarSlotName, text: string) => {
     const s = experience.star!.slots.find((x) => x.slot === slot)!;
@@ -48,6 +48,7 @@ async function setup(page: Page, star: Star) {
     const body = req.method() === "GET" ? null : req.postDataJSON();
     if (path === "/api/experiences/101" && req.method() === "PATCH") {
       state.calls.push({ method: req.method(), path, body });
+      if (state.patchGate) await state.patchGate;
       if (experience.actor === "ME" && body.actor && body.actor !== "ME") {
         const t = experience.star?.slots.find((s) => s.slot === "T");
         if (t?.sourceType === "CITATION") Object.assign(t, { text: null, sourceType: null, sourceId: null, question: T_QUESTION });
@@ -155,6 +156,25 @@ for (const actor of ["TEAM", "UNKNOWN"] as const) {
     });
   }
 }
+
+test("수행 주체 저장을 기다리다 활동을 닫으면 늦은 응답으로 세부를 다시 읽지 않는다", async ({ page }) => {
+  const state = await setup(page, readyStar());
+  let release!: () => void;
+  state.patchGate = new Promise<void>((resolve) => { release = resolve; });
+  const saved = page.waitForResponse((response) => response.url().endsWith("/api/experiences/101") && response.request().method() === "PATCH");
+  await page.getByRole("button", { name: /^수행 주체 고치기:/ }).click();
+  await page.getByRole("menuitemradio", { name: "팀", exact: true }).click();
+  await expect.poll(() => state.calls.length).toBe(1);
+  await page.getByRole("button", { name: (page.viewportSize()?.width ?? 0) < 1024 ? "내 경험" : "세부 닫기", exact: true }).click();
+  // 닫은 뒤에는 추가 GET 이 없어야 한다. 네트워크 감시는 PATCH 응답을 풀기 전에 건다.
+  const unexpectedRead = page.waitForRequest((request) => new URL(request.url()).pathname === "/api/activities/7", { timeout: 1500 });
+  const noRead = expect(unexpectedRead).rejects.toThrow(/Timeout/);
+  release();
+  await (await saved).finished();
+  await noRead;
+  expect(state.detailReads).toBe(1);
+  await expect(page.getByRole("button", { name: "세부 닫기", exact: true })).toHaveCount(0);
+});
 
 test("수행 주체 변경 뒤 세부 조회 실패를 알리고 다시 시도하면 새 칸을 보인다", async ({ page }) => {
   const state = await setup(page, readyStar());
