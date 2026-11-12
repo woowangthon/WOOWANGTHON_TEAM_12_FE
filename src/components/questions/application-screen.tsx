@@ -3,8 +3,7 @@
 import { InfoTip } from "@/components/ui/info-tip";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { handOffRecordHint } from "@/lib/record-hint";
+import { useSearchParams } from "next/navigation";
 import { PostingTab } from "./posting-tab";
 import { peekApplicationText, takeApplicationText } from "@/lib/application-handoff";
 import { ArrowSquareOutIcon, ArrowsClockwiseIcon, MagnifyingGlassIcon, PlusIcon, WarningCircleIcon } from "@phosphor-icons/react";
@@ -193,9 +192,6 @@ export function ApplicationScreen() {
   const [deletingApplication, setDeletingApplication] = useState<{ id: number; name: string; questionCount: number } | null>(null);
   const [deletingQuestion, setDeletingQuestion] = useState<{ id: number; index: number; text: string; hasAnswer: boolean } | null>(null);
   const askDeleteApplication = (a: Application) => setDeletingApplication({ id: a.id, name: a.organization || "지원처 이름 없음", questionCount: a.questions.length });
-  // 공고 탭의 「직접 기록하기」(S-93) — 그 줄 글을 자리 표시로 넘기고 자료 쌓기 창(내 경험 화면)을 연다
-  const router = useRouter();
-  const recordLine = (line: string) => { handOffRecordHint(line); router.push("/experience?add=line"); };
   const postingOpen = !adding && open !== null && matching.postingFor === open.application.id;
 
   return <ActivityCategoriesProvider><div className="flex min-h-dvh flex-col bg-canvas">
@@ -266,8 +262,7 @@ export function ApplicationScreen() {
                 if (saved) setAdding(false);
               }} /> : postingOpen ? <PostingTab key={`posting-${open.application.id}`} application={open.application}
                 pollStopped={matching.postingPollStopped(open.application.id)} onResumePoll={() => matching.resumePostingPoll(open.application.id)}
-                onRetry={() => matching.retryPosting(open.application.id)} onAnswer={(id, answer) => matching.answerPosting(open.application.id, id, answer)}
-                onRecord={recordLine} /> : <SelectedQuestion key={matching.questionId} summary={summary} question={selected} application={open.application} index={selectedIndex}
+                onRetry={() => matching.retryPosting(open.application.id)} onAnswer={(id, answer) => matching.answerPosting(open.application.id, id, answer)} /> : <SelectedQuestion key={matching.questionId} summary={summary} question={selected} application={open.application} index={selectedIndex}
                 loadError={matching.detailError} onReload={matching.reloadQuestion}
                 overlaps={overlaps} onPickOverlap={id => { matching.selectQuestion(id); scrollToDetail(); }} onRetry={id => matching.retry(id)} onTypeChange={(id, type) => matching.updateQuestionType(id, type)} onTargetLengthChange={(id, length) => matching.updateTargetLength(id, length)} onAnswerChange={matching.keepAnswer} onAnswerDraftChange={matching.keepAnswerDraft} groundingChecks={groundingChecks}
                 {...draftActions} onPick={picks.toggle} onOpenOmissions={openDraftQuestions}
