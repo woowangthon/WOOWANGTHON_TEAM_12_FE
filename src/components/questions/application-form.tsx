@@ -30,7 +30,8 @@ const INPUT_LABEL = "공고 · 문항 글이나 공고 링크";
 const SEND_NOTE = "넣은 글 · 링크 · 캡처는 분석을 위해 외부 AI 제공사(OpenAI)로 보내져요 · 학습엔 안 쓰여요 · 캡처는 저장하지 않아요";
 const LINK_NOTE = "링크를 한 번 읽어 칸을 채우고, 넣은 지원서에서 원문을 열 수 있게 남겨요. 읽은 본문은 저장하지 않아요.";
 /** 예시 버튼 대신 칸 안 안내 글(FE#508) */
-const PLACEHOLDER = "공고나 지원서 문항을 그대로 붙여 넣거나, 공고 링크 · 화면 캡처를 넣어 주세요(캡처는 끌어 놓거나 Ctrl V).\n\n예: [OO 부트캠프 백엔드 과정] 1. 기술적인 문제를 해결한 경험을 적어 주세요 (700자) 2. 지원 동기 …";
+// 안내는 제목 아래 설명 줄에 두고(FE#564), 칸에는 짧은 예시만 — 치면 사라지는 플레이스홀더에 안내를 두면 안내로 읽히지 않는다
+const PLACEHOLDER = "예: [OO 부트캠프 백엔드] 1. 기술적인 문제를 해결한 경험 (700자) 2. 지원 동기 …";
 const field = "min-h-11 w-full min-w-0 rounded-sm border border-hairline bg-canvas px-3 text-sm outline-none placeholder:text-muted focus-visible:border-ink lg:min-h-10";
 // 글자 수는 한도의 80% 부터 보인다(FE#493)
 const NEAR_ORGANIZATION = MAX_ORGANIZATION_LENGTH * 0.8;
@@ -233,7 +234,8 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
       <header className="grid gap-1.5">
         <h2 className="m-0 text-title-lg font-[650] tracking-[-0.3px]">어디에 지원하나요?</h2>
         {/* 확인에서 「원문 보기」로 돌아왔으면 — 다시 읽으면 확인으로, 직접 고친 칸은 지킨다(FE#565) */}
-        {filled && <p className="m-0 text-ui text-body">원문을 고치거나 새로 넣고 다시 읽으면 칸을 다시 채워요. 직접 고친 칸은 그대로 둬요.</p>}
+        {filled ? <p className="m-0 text-ui text-body">원문을 고치거나 새로 넣고 다시 읽으면 칸을 다시 채워요. 직접 고친 칸은 그대로 둬요.</p>
+          : <p className="m-0 text-ui text-body">공고나 지원서 문항을 글로 붙여 넣거나, 공고 링크 · 화면 캡처를 넣어 주세요. 캡처는 끌어 놓거나 Ctrl V 로 붙여 넣어요.</p>}
       </header>
       {inputBox}
       {/* S-16 — 읽기 전에, 접지 않는다 */}

@@ -160,3 +160,18 @@ test("adding an application is two steps: one box and one button, then a review 
       questions: [`${common} (1000자)`, "팀 프로젝트에서 맡은 역할과 협업 방식을 적어 주세요. (공백 포함 700자 이내)"] };
   }
 });
+
+// FE#564 — 넣기 첫 화면의 안내는 치면 사라지는 플레이스홀더가 아니라 제목 아래 설명 줄에 둔다. 칸에는 짧은 예시 한 줄만
+test("the first step explains what to put in under the title, and the box only holds a short example", async ({ page }) => {
+  await new FakeQuestionApi({ empty: true }).install(page);
+  await page.goto("/questions");
+  await expect(page.getByRole("heading", { name: "어디에 지원하나요?" })).toBeVisible();
+  await expect(page.getByText(/^공고나 지원서 문항을 글로 붙여 넣거나, 공고 링크 · 화면 캡처를 넣어 주세요\./)).toBeVisible();
+  const box = page.getByLabel("공고 · 문항 글이나 공고 링크");
+  const placeholder = await box.getAttribute("placeholder");
+  expect(placeholder).toMatch(/^예: \[OO 부트캠프 백엔드\]/);
+  expect(placeholder).not.toContain("\n");
+  expect(placeholder).not.toContain("Ctrl");
+  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+  await page.screenshot({ path: `docs/fe-564/intro-${page.viewportSize()!.width}.png`, fullPage: true });
+});
