@@ -166,7 +166,8 @@ export function ChagokRunFeed({ control, currentQuestionId, rematch }: {
     && run.steps.some(step => step.type === "TOOL_CALL" && foundExperiences(step.result).length > 0);
   return <section aria-label="차곡이의 일" className="mt-2.5 grid gap-2.5 border-t border-hairline-soft pt-3">
     <div className="grid justify-items-end gap-1">
-      <div className="max-w-[92%] rounded-[16px_4px_16px_16px] bg-primary px-3.5 py-2.5 text-sm leading-relaxed break-words whitespace-pre-wrap text-on-primary">
+      {/* 띄어쓰기 없는 긴 글도 말풍선 안에서 줄을 바꾼다 — break-words 만으로는 최소 폭이 줄지 않아 패널이 옆으로 밀린다 */}
+      <div className="max-w-[92%] min-w-0 rounded-[16px_4px_16px_16px] bg-primary px-3.5 py-2.5 text-sm leading-relaxed [overflow-wrap:anywhere] whitespace-pre-wrap text-on-primary">
         <p className={cn("m-0", !expanded && isLong && "line-clamp-4")}>{run.text}</p>
       </div>
       {isLong && <button type="button" onClick={() => setExpanded(v => !v)} className="text-xs text-muted hover:underline">
