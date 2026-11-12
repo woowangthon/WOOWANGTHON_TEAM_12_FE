@@ -6,7 +6,7 @@
 // 줄 글은 공고 원문 그대로이고, 묶음 · 판정은 AI 해석이다(배지는 묶음 머리 · 맞춰 보기 머리에 한 번). 점수 · 비율 · 「N줄 중 M줄」은 보이지 않는다(S-93).
 // 배치 · 모양은 ETC DESIGN.md 「지원 화면 — 공고 탭」. 판정 글자 · 아이콘 · 색은 차곡이 패널의 요구사항 판정(S-19)과 같다
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CaretRightIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { JUDGMENT } from "./chagok-panel";
 import { ActivityChip } from "./question-result";
 import { AnsweredItem, AnswerForm, AskHead, clarifyList, openItem, SupplementNote } from "./clarifications";
+import { PostingRecord } from "./posting-record";
 
 /** 묶음 순서 — 지식 · 기술 · 태도, 묶을 수 없던 줄은 맨 아래 */
 const GROUPS: (Ksa | null)[] = ["KNOWLEDGE", "SKILL", "ATTITUDE", null];
@@ -60,13 +61,11 @@ function useExperienceIndex(key: string) {
 
 export type PostingAnswer = (clarificationId: number, answer: string) => Promise<Supplement>;
 
-export function PostingTab({ application, pollStopped, onResumePoll, onRetry, onAnswer, onRecord }: {
+export function PostingTab({ application, pollStopped, onResumePoll, onRetry, onAnswer }: {
   application: Application;
   /** 상태 확인을 멈췄다(연속 실패) — 다시 불러오기 */
   pollStopped: boolean; onResumePoll: () => void;
   onRetry: () => Promise<void>; onAnswer: PostingAnswer;
-  /** 「직접 기록하기」 — 확인 안 된 줄 글을 자료 쌓기 창의 자리 표시로 */
-  onRecord: (line: string) => void;
 }) {
   const lines = application.postingLines ?? [];
   const match = application.postingMatch ?? null;
@@ -83,6 +82,8 @@ export function PostingTab({ application, pollStopped, onResumePoll, onRetry, on
     setAnswered(prev => new Map(prev).set(clarificationId, supplement));
   };
 
+  // 「직접 기록하기」로 새 자료가 분석됐다 — 「경험 다시 찾기」를 강조해 판정을 다시 보게 한다(자동으로 돌리지 않는다, FE#567)
+  const [recorded, setRecorded] = useState(false);
   const [running, setRunning] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
   const pending = useRef(false);
@@ -104,7 +105,8 @@ export function PostingTab({ application, pollStopped, onResumePoll, onRetry, on
   const asksOf = (line: PostingLine) => match?.clarifications.filter(c => c.postingLineId === line.id) ?? [];
   const fold = completed && lines.length > FOLD_OVER;
   const row = (line: PostingLine) => <PostingMatchRow key={line.id} line={line} verdict={verdicts.get(line.id) ?? null}
-    asks={asksOf(line)} experiences={experiences} answered={answered} onAnswer={answer} onRecord={onRecord} />;
+    asks={asksOf(line)} experiences={experiences} answered={answered} onAnswer={answer}
+    refind={retryButton("경험 다시 찾기", true)} onRecorded={() => setRecorded(true)} />;
 
   return <section id="posting-panel" role="tabpanel" aria-label="공고" className="grid min-w-0 gap-3">
     {pollStopped && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border-y border-hairline py-3 text-sm">
@@ -158,7 +160,7 @@ export function PostingTab({ application, pollStopped, onResumePoll, onRetry, on
             <p className="m-0 text-sm text-error">{failureText(match?.error ?? null)}</p>
             {retryButton("다시 시도", true)}
           </div>
-          : <div className="flex justify-end">{retryButton("경험 다시 찾기", false)}</div>}
+          : <div className="flex justify-end">{retryButton("경험 다시 찾기", recorded)}</div>}
         {retryError && <p role="alert" className="m-0 text-note text-error">{retryError}</p>}
         {exhausted && !analyzing && <p className="m-0 text-xs text-muted">{ANALYSIS_EXHAUSTED_NOTE}</p>}
         {analyzing && <div aria-hidden="true" className="grid gap-2"><Skeleton className="h-5 w-2/3" /><Skeleton className="h-5 w-1/2" /><Skeleton className="h-5 w-3/5" /></div>}
@@ -184,11 +186,14 @@ export function PostingTab({ application, pollStopped, onResumePoll, onRetry, on
 }
 
 /** 맞춰 보기의 한 줄 — 요건 글과 그 줄의 동작(받치는 경험 · 되묻기 · 직접 기록하기)만. 판정 말은 묶음 머리가 말한다 */
-function PostingMatchRow({ line, verdict, asks, experiences, answered, onAnswer, onRecord }: {
+function PostingMatchRow({ line, verdict, asks, experiences, answered, onAnswer, refind, onRecorded }: {
   line: PostingLine; verdict: PostingMatch["lines"][number] | null; asks: Clarification[];
   experiences: Map<number, ExperienceResult> | null; answered: Map<number, Supplement>;
-  onAnswer: (clarificationId: number, answer: string) => Promise<void>; onRecord: (line: string) => void;
+  onAnswer: (clarificationId: number, answer: string) => Promise<void>;
+  /** 「직접 기록하기」 분석이 끝난 뒤 그 자리의 「경험 다시 찾기」 */
+  refind: ReactNode; onRecorded: () => void;
 }) {
+  const [recording, setRecording] = useState(false);
   // 받치는 경험은 활동 칩으로 — 같은 활동의 경험이 여럿이면 칩은 하나
   const backing = verdict?.experienceIds.flatMap(id => experiences?.get(id) ?? []).filter((e, i, all) => all.findIndex(x => x.activity.id === e.activity.id) === i) ?? [];
   const loading = experiences === null && !!verdict?.experienceIds.length;
@@ -200,9 +205,11 @@ function PostingMatchRow({ line, verdict, asks, experiences, answered, onAnswer,
         {loading && <Skeleton aria-hidden="true" className="h-5 w-14 rounded-full" />}
         {backing.map(e => <Link key={e.id} href={`/experience?activity=${e.activity.id}`} title={e.content}
           className="inline-flex max-w-full rounded-full transition-opacity hover:opacity-70"><ActivityChip name={e.activity.name} /></Link>)}
-        {record && <Button type="button" variant="link" size="sm" className="min-h-11 px-0 lg:min-h-10" onClick={() => onRecord(line.text)}>직접 기록하기</Button>}
+        {record && !recording && <Button type="button" variant="link" size="sm" className="min-h-11 px-0 lg:min-h-10" aria-expanded={false} onClick={() => setRecording(true)}>직접 기록하기</Button>}
       </div>}
     </div>
+    {/* 확인 안 됨 — 그 줄 아래에 한 줄 입력(FE#567). 화면을 옮기지 않는다 */}
+    {record && recording && <PostingRecord lineText={line.text} refind={refind} onRecorded={onRecorded} onClose={() => setRecording(false)} />}
     {/* 일부 — 그 경험에 되묻기. 줄과 떨어지지 않게 줄 아래에 둔다 */}
     {asks.length > 0 && <ul aria-label="이 줄에 차곡이가 물어볼 것" className={cn(clarifyList, "mt-2 rounded-sm bg-surface-faint px-3.5")}>
       {asks.map(c => <PostingAsk key={c.id} clarification={c} experience={experiences?.get(c.experienceId) ?? null} answered={answered.get(c.id)} onAnswer={onAnswer} />)}

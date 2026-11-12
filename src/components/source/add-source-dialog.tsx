@@ -48,11 +48,9 @@ type Props = {
   onMoveToApplication?: (text: string) => void;
   /** 「자료 더하기」 대상 활동 (S-60) */
   target?: { id: number; name: string };
-  /** 입력칸 자리 표시 — 공고 탭 「직접 기록하기」(S-93)가 그 줄 글을 보인다. 없으면 기본 예시 */
-  placeholder?: string;
 };
 
-export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initialText = "", onMoveToApplication, target, placeholder }: Props) {
+export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initialText = "", onMoveToApplication, target }: Props) {
   const maxFiles = target ? 1 : MAX_BATCH_SOURCES;
   const [text, setText] = useState(initialText);
   const { picks, reading, pick, remove, clear } = useFilePicks(maxFiles);
@@ -217,7 +215,7 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
                 setText(e.target.value);
                 clearNotice();
               }}
-              placeholder={placeholder ?? "예) 오늘 스터디에서 처음 발표했다\n예) 바꿔요 앱 회고 — 백엔드, 채팅 지연을 WebSocket 으로 해결"}
+              placeholder={"예)오늘 스터디에서 처음 발표했다\n예) 바꿔요 앱 회고 — 백엔드, 채팅 지연을 WebSocket 으로 해결"}
               aria-label="붙여넣을 자료"
               aria-invalid={!!pasteError}
               className="min-h-32 w-full resize-y rounded-sm border border-hairline px-3.5 py-3 text-base leading-relaxed outline-none placeholder:text-muted focus:border-ink focus:shadow-[0_0_0_1px_var(--ink)] disabled:bg-surface-soft disabled:text-muted"

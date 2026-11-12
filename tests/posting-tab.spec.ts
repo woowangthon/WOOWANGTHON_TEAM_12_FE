@@ -37,13 +37,16 @@ const completed = (): PostingMatch => ({
 });
 const analyzing = (): PostingMatch => ({ status: "ANALYZING", error: null, lines: [], clarifications: [] });
 
-type Api = { app: Application; others: Application[]; calls: string[]; answers: unknown[]; supplements: Supplement[] };
+type Api = { app: Application; others: Application[]; calls: string[]; answers: unknown[]; supplements: Supplement[];
+  /** 「직접 기록하기」로 넣은 자료 · 그 분석 작업 상태(FE#567) — 시험이 바꿔 가며 돌려준다 */
+  sources: unknown[]; job: { status: "ANALYZING" | "COMPLETED" | "FAILED"; activityIds: number[]; error: { code: string; message: string } | null } };
+const job = (api: Api) => ({ jobId: 61, sourceId: 81, targetActivityId: null, targetMatched: null, createdAt: "2026-11-12T10:00:00+09:00", updatedAt: "2026-11-12T10:00:00+09:00", ...api.job });
 
 async function setup(page: Page, app: Partial<Application> = {}, others: Application[] = []) {
   const api: Api = {
     app: { id: 31, organization: "OO 커머스", organizationType: "JOB", jobRole: "BACKEND", applicationStatus: "WRITING", submittedMonth: null, postingUrl: null,
       postingLines: LINES, postingMatch: completed(), questions: [], createdAt: "2026-11-11T10:00:00+09:00", ...app },
-    others, calls: [], answers: [], supplements: [],
+    others, calls: [], answers: [], supplements: [], sources: [], job: { status: "ANALYZING", activityIds: [], error: null },
   };
   await page.route("**/api/**", async route => {
     const req = route.request();
@@ -64,6 +67,12 @@ async function setup(page: Page, app: Partial<Application> = {}, others: Applica
       api.app = { ...api.app, postingMatch: { ...match, clarifications: match.clarifications.map(c => c.id === 71 ? { ...c, supplementId: 501 } : c) } };
       return route.fulfill({ status: 201, json: { experienceId: 101, supplement } });
     }
+    if (path === "/api/sources" && req.method() === "POST") {
+      api.sources.push(req.postDataJSON());
+      return route.fulfill({ status: 202, json: { sourceId: 81, jobId: 61, status: "QUEUED" } });
+    }
+    if (path === "/api/jobs/61") return route.fulfill({ json: job(api) });
+    if (path === "/api/jobs/61/retry") { api.job = { status: "ANALYZING", activityIds: [], error: null }; return route.fulfill({ status: 202, json: job(api) }); }
     if (path === "/api/experiences") return route.fulfill({ json: { total: 2, experiences: EXPERIENCES.map(e => e.id === 101 ? { ...e, supplements: api.supplements } : e) } });
     if (path === "/api/activities") return route.fulfill({ json: { activities: [] } });
     if (path === "/api/questions") return route.fulfill({ json: { questions: [] } });
@@ -125,7 +134,7 @@ test("문항 0개 지원서는 공고 탭이 첫 화면 — 찾는 중에서 판
   await expect(page.locator("#chagok-panel")).toContainText("공고 줄 되묻기는 공고 탭에서 답할 수 있어요.");
 });
 
-test("일부인 줄은 그 자리에서 되묻기에 답하고, 확인 안 된 줄은 직접 기록하기로 자료 쌓기 창을 연다", async ({ page }) => {
+test("일부인 줄은 그 자리에서 되묻기에 답한다", async ({ page }) => {
   const api = await setup(page);
   await page.goto("/questions");
   const partial = lineRow(page, "장애 경험 및 문제 해결 경험");
@@ -137,14 +146,38 @@ test("일부인 줄은 그 자리에서 되묻기에 답하고, 확인 안 된 �
   await partial.getByText(ASK, { exact: true }).click();
   await expect(partial).toContainText("사용자 문의가 몰려 로그를 보다 알았다");
   await expect(partial).toContainText("이 줄의 판정은 「경험 다시 찾기」 때 다시 봐요.");
+});
 
-  // 직접 기록하기 — 입력칸은 비운 채, 그 줄 글은 자리 표시로만
-  await lineRow(page, "대규모 실시간 트래픽 처리 시스템 개발 경험").getByRole("button", { name: "직접 기록하기" }).click();
-  await expect(page).toHaveURL(/\/experience/);
-  const input = page.getByLabel("붙여넣을 자료");
-  await expect(input).toBeVisible();
-  await expect(input).toHaveValue("");
-  await expect(input).toHaveAttribute("placeholder", /공고 줄: 대규모 실시간 트래픽 처리 시스템 개발 경험/);
+// FE#567 — 확인 안 된 줄의 「직접 기록하기」는 그 줄 아래 한 줄 입력. 화면을 옮기지 않고 새 자료로 넣어 분석한다
+test("확인 안 된 줄은 그 자리에서 직접 기록 → 분석 중 · 실패 · 다시 시도 · 완료 뒤 「경험 다시 찾기」 강조", async ({ page }) => {
+  const api = await setup(page);
+  await page.goto("/questions");
+  const row = lineRow(page, "대규모 실시간 트래픽 처리 시스템 개발 경험");
+  await row.getByRole("button", { name: "직접 기록하기" }).click();
+  const input = row.getByRole("textbox", { name: /이 요건과 관련해 한 일/ });
+  await expect(input).toHaveAttribute("placeholder", "이 요건과 관련해 한 일을 적어 주세요");
+  await expect(row).toContainText("외부 AI(OpenAI)로 보내져요");
+  await input.fill("동아리 축제 예매 서버에서 동시 접속 3천 명을 Redis 대기열로 버텼다");
+  await row.getByRole("button", { name: "보내기 — 분석 1회" }).click();
+  await expect(row.getByRole("status")).toContainText("정리하고 있어요");
+  await expect(page).toHaveURL(/\/questions/);
+  expect(api.sources).toEqual([{ kind: "TEXT", name: null, text: "동아리 축제 예매 서버에서 동시 접속 3천 명을 Redis 대기열로 버텼다" }]);
+
+  // 실패 — 오류와 다시 시도. 정해진 결과로 채우지 않는다
+  api.job = { status: "FAILED", activityIds: [], error: { code: "AI_TIMEOUT", message: "AI 응답 시간이 지났습니다" } };
+  await expect(row.getByRole("alert")).toContainText("AI 응답이 너무 오래 걸렸어요", { timeout: 8000 });
+  await row.getByRole("button", { name: "다시 시도" }).click();
+  await expect(row.getByRole("status")).toContainText("정리하고 있어요");
+  expect(api.calls).toContain("POST /api/jobs/61/retry");
+
+  // 완료 — 내 경험 링크와 그 자리의 「경험 다시 찾기」. 자동으로 다시 찾지 않는다
+  api.job = { status: "COMPLETED", activityIds: [12], error: null };
+  await expect(row).toContainText("기록했어요", { timeout: 8000 });
+  await expect(row.getByRole("link", { name: "내 경험" })).toHaveAttribute("href", "/experience?activity=12");
+  expect(api.calls).not.toContain("POST /api/applications/31/posting-match/retry");
+  await row.getByRole("button", { name: "경험 다시 찾기" }).click();
+  await expect(panel(page).getByRole("status").first()).toContainText("찾고 있어요");
+  expect(api.calls).toContain("POST /api/applications/31/posting-match/retry");
 });
 
 test("경험 다시 찾기 · 실패하면 오류와 다시 시도 — 정해진 판정으로 채우지 않는다", async ({ page }) => {
