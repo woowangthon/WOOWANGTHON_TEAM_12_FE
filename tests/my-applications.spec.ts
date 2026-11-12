@@ -2,6 +2,7 @@
 import { test, expect } from "./signed-in";
 import { FakeQuestionApi } from "./fake-question-api";
 import { pickOption } from "./pick-option";
+import type { Page } from "@playwright/test";
 import type { Application } from "../src/lib/api/question-types";
 
 const q = (id: number, applicationId: number, text: string) => ({ id, applicationId, organization: null, text, status: "MATCHED" as const, createdAt: "2026-11-01T00:00:00Z" });
@@ -142,4 +143,56 @@ for (const width of [1440, 1024, 390]) {
     await expect(page).toHaveURL(/question=41$/);
     await expect(page.getByRole("tabpanel", { name: "선택한 문항", exact: true })).toBeVisible();
   });
+}
+
+// FE#581 — 최종 URL뿐 아니라 화면 전환 중 실제로 노출되는 문항도 검사한다.
+async function startApplicationFlashProbe(page: Page) {
+  await page.evaluate(() => {
+    const probeWindow = window as typeof window & { stopApplicationFlashProbe?: () => string[] };
+    const exposed: string[] = [];
+    const sample = () => {
+      if (document.querySelector<HTMLElement>('section[aria-label="선택한 지원서"]')?.checkVisibility()) exposed.push(location.pathname + location.search);
+    };
+    let frame = 0;
+    const tick = () => { sample(); frame = requestAnimationFrame(tick); };
+    const observer = new MutationObserver(sample);
+    observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["style", "hidden", "aria-label"] });
+    frame = requestAnimationFrame(tick);
+    probeWindow.stopApplicationFlashProbe = () => { sample(); observer.disconnect(); cancelAnimationFrame(frame); return exposed; };
+  });
+}
+async function stopApplicationFlashProbe(page: Page) {
+  return page.evaluate(() => (window as typeof window & { stopApplicationFlashProbe?: () => string[] }).stopApplicationFlashProbe!());
+}
+
+for (const width of [1440, 1024, 390]) {
+  for (const action of ["open", "cancel"] as const) {
+    test(`기존 문항을 거치지 않고 만들기 화면을 전환한다 — ${action} — ${width}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
+      await page.route("https://cdn.jsdelivr.net/**", route => route.abort());
+      await new FakeQuestionApi().install(page);
+      await page.goto("/questions?question=41");
+      await expect(page.getByRole("tabpanel", { name: "선택한 문항", exact: true })).toBeVisible();
+      await page.locator('a[href="/applications"]:visible').first().click();
+      await expect(page.getByRole("heading", { name: /^내 지원서/, level: 1 })).toBeVisible();
+      for (let visit = 0; visit < 2; visit++) {
+        if (action === "open") await startApplicationFlashProbe(page);
+        await page.getByRole("main").getByRole("button", { name: "새 지원서", exact: true }).click();
+        const form = page.getByRole("region", { name: "새 지원서 입력", exact: true });
+        await expect(form).toBeVisible();
+        if (action === "open") expect(await stopApplicationFlashProbe(page), "만들기를 여는 동안 문항 화면 노출").toEqual([]);
+        if (visit === 1 && action === "open") await page.screenshot({ path: `docs/fe-581/new-${width}.png`, fullPage: true, animations: "disabled", style: "nextjs-portal { display: none !important; }" });
+        if (action === "cancel") {
+          const input = form.getByRole("textbox", { name: "공고 · 문항 글이나 공고 링크", exact: true });
+          await expect(input).toHaveValue("");
+          await input.fill("취소할 공고 본문");
+          await startApplicationFlashProbe(page);
+        }
+        await form.getByRole("button", { name: "취소", exact: true }).click();
+        await expect(page).toHaveURL(/\/applications$/);
+        await expect(page.getByRole("heading", { name: /^내 지원서/, level: 1 })).toBeVisible();
+        if (action === "cancel") expect(await stopApplicationFlashProbe(page), "취소하는 동안 문항 화면 노출").toEqual([]);
+      }
+    });
+  }
 }

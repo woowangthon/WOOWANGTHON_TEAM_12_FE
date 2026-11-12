@@ -2,7 +2,7 @@
 
 import { InfoTip } from "@/components/ui/info-tip";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PostingTab } from "./posting-tab";
 import { peekApplicationText, takeApplicationText } from "@/lib/application-handoff";
@@ -83,15 +83,16 @@ export function ApplicationScreen() {
   // 주소에서 `new` 를 먼저 지워 한 요청은 한 번만 연다(개발 모드에서 효과가 두 번 돌아도). 다시 받는 목록이 주소를 덮지 않게 알린다
   const newRequested = params.get("new") === "1";
   const { keepComposing } = matching;
-  useEffect(() => {
-    const text = takeApplicationText();
+  useLayoutEffect(() => {
     const url = new URL(window.location.href);
     if (!url.searchParams.has("new")) return;
+    const text = takeApplicationText();
+    // 캐시된 화면을 다시 보일 때도 첫 페인트 전에 만들기로 바꾼다(FE#581).
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- URL의 일회성 요청을 표시 전에 동기화해야 문항이 한 프레임도 보이지 않는다.
+    setPasted(text); setComposing(true); setAdding(false); setListShown(false); setPanelChoice(null);
     url.searchParams.delete("new");
     window.history.replaceState(window.history.state, "", url);
     keepComposing();
-    // 처음 그릴 때는 초깃값이 이미 같다. 떠나도 지우지 않는다 — 두 번째 효과는 `new` 가 없어 다시 열지 않는다
-    setTimeout(() => { setPasted(text); setComposing(true); setAdding(false); setListShown(false); setPanelChoice(null); }, 0);
   }, [newRequested, keepComposing]);
   const open = matching.open;
   const overlaps = useMemo(() => (open ? overlapsOf(open.details) : []), [open]);
@@ -228,7 +229,7 @@ export function ApplicationScreen() {
           <ApplicationList {...list} />
         </aside>}
         <section id="selected-application" className={cn("min-w-0 scroll-mt-5 lg:scroll-mt-20", listFirst && "max-lg:hidden", composing && "grid lg:min-h-[calc(100dvh-14rem)] lg:content-center")} aria-label={composing ? "새 지원서 입력" : "선택한 지원서"}>
-          {composing ? <ApplicationForm key={pasted} pastedText={pasted} onCancel={() => { setComposing(false); router.push("/applications"); }} onSubmit={async (req, targetLengths) => {
+          {composing ? <ApplicationForm key={pasted} pastedText={pasted} onCancel={() => startTransition(() => { setComposing(false); router.push("/applications"); })} onSubmit={async (req, targetLengths) => {
             const saved = await matching.submit(req, targetLengths);
             if (saved) { setComposing(false); scrollToDetail(); }
           }} /> : open ? <>
