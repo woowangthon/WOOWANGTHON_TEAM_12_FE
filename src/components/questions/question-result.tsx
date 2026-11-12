@@ -16,6 +16,7 @@ import { useActivityCategory } from "./activity-categories";
 import type { DraftActions } from "./answer-draft";
 import { groupByActivity, type ActivityGroup } from "./use-draft-picks";
 import { RematchButton, type Rematch } from "./rematch-button";
+import { NoExperienceGuide } from "./no-experience-guide";
 
 /** 「바꿔요 — 캠퍼스 중고거래 앱」 → 「바꿔요」 (시안의 활동 칩) */
 export const shortName = (name: string) => name.split(" — ")[0];
@@ -65,6 +66,7 @@ export function QuestionResult({ question, overlapOf, onPickQuestion, savingAnsw
     {groups.length === 0 ? <div className="mt-4 grid gap-2 rounded-sm bg-surface-soft p-5">
       <p className="m-0 font-medium">현재 자료에서 연결된 경험을 찾지 못했어요.</p>
       <p className="m-0 text-sm text-muted">경험이 없다는 뜻은 아니에요. 관련 기록을 더 확인하면 좋겠어요.</p>
+      <NoExperienceGuide type={question.questionType} questionId={question.id} />
       <p className="m-0 mt-1 text-sm text-body">경험을 더 넣으셨나요? 지금 쌓인 경험으로 다시 찾아볼 수 있어요.</p>
       <RematchButton prominent questionId={question.id} onRematch={onRematch} busy={picksLocked} />
     </div> : <ol className="m-0 mt-4 grid list-none gap-2.5 p-0">{groups.map((g, i) => <ActivityCard key={g.activity.id} group={g} index={i} question={question} overlap={overlapOf?.(g.activity.id)} onPickQuestion={onPickQuestion}

@@ -6,6 +6,7 @@ import type { Locator, Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import { FakeQuestionApi, type FakeOptions } from "./fake-question-api";
 import { QUESTION_EXAMPLES } from "./fixtures/question-examples";
+import { QUESTION_TYPE_LABEL } from "../src/lib/api/question-types";
 
 const pageErrors = new WeakMap<Page, string[]>();
 test.beforeEach(async ({ page }) => {
@@ -92,18 +93,18 @@ async function compose(page: Page, text: string) {
 }
 
 /** FE#547 PR 스크린샷 — UPDATE_ASK_SCREENSHOTS=1 일 때만. 데스크톱 프로젝트는 1440 · 1024, 모바일은 390 */
-async function askShot(page: Page, project: string, name: string) {
+async function askShot(page: Page, project: string, name: string, dir = "fe-547") {
   if (process.env.UPDATE_ASK_SCREENSHOTS !== "1") return;
   const style = "nextjs-portal { display: none !important; }";
-  if (project !== "desktop") { await page.screenshot({ path: `docs/fe-547/${name}-390.png`, style }); return; }
+  if (project !== "desktop") { await page.screenshot({ path: `docs/${dir}/${name}-390.png`, style }); return; }
   const size = page.viewportSize()!;
-  await page.screenshot({ path: `docs/fe-547/${name}-1440.png`, style });
+  await page.screenshot({ path: `docs/${dir}/${name}-1440.png`, style });
   // 1024 는 패널이 닫힌 채 시트로 열린다 — 열어 찍고 닫은 뒤 넓은 폭으로 돌아가 다시 연다
   const toggle = page.getByRole("button", { name: /^차곡이( ?질문 \d+)?$/ });
   const open = async () => { await page.waitForTimeout(300); if (!(await page.getByRole("button", { name: "차곡이 닫기" }).isVisible())) await toggle.click(); await page.waitForTimeout(600); };
   await page.setViewportSize({ width: 1024, height: size.height });
   await open();
-  await page.screenshot({ path: `docs/fe-547/${name}-1024.png`, style });
+  await page.screenshot({ path: `docs/${dir}/${name}-1024.png`, style });
   await page.getByRole("button", { name: "차곡이 닫기" }).click();
   await page.setViewportSize(size);
   await open();
@@ -278,6 +279,34 @@ test("zero recommendations show record-focused guidance", async ({ page }) => {
   await expect(chagok.getByText("자료에서 확인 안 됨", { exact: true })).toHaveCount(3);
   await expect(chagok).toContainText("지금 자료에서 이 문항에 연결할 경험을 찾지 못했어요. 경험이 없다는 뜻은 아니에요.");
   await expect(page.getByText(/역량 부족|합격 가능성/)).toHaveCount(0);
+});
+
+test("zero recommendations tell what to record for the question type, following the user's fix (FE#586)", async ({ page }, info) => {
+  const api = await fake(page, { noMatch: true });
+  await page.goto("/questions");
+  await compose(page, "현재 자료에서 연결할 기록이 없는 문항");
+  await expect(result(page).getByText("현재 자료에서 연결된 경험을 찾지 못했어요.", { exact: true })).toBeVisible({ timeout: 10000 });
+  // 41번 예시 유형은 PROBLEM_SOLVING — 그 유형 안내 한 줄과 기록하러 가는 링크
+  const hint = result(page).getByText("막혔던 일과 원인을 찾아 해결한 과정", { exact: false });
+  await expect(hint).toBeVisible();
+  const link = result(page).getByRole("link", { name: "기록하러 가기 →" });
+  await expect(link).toHaveAttribute("href", /^\/experience\?add=1&fromQuestion=\d+$/);
+  await expect(page.getByText(/역량 부족|합격 가능성/)).toHaveCount(0);
+  await openChagok(page);
+  await expect(chagokPanel(page).getByText("막혔던 일과 원인을 찾아 해결한 과정", { exact: false })).toBeVisible();
+  await askShot(page, info.project.name, "problem-solving", "fe-586");
+  // 좁은 폭에서는 차곡이 시트가 화면을 덮는다 — 닫고 유형을 고친다
+  if (await page.getByRole("button", { name: "차곡이 닫기" }).isVisible() && page.viewportSize()!.width < 1280) await page.getByRole("button", { name: "차곡이 닫기" }).click();
+  // 사용자가 유형을 고치면 그 유형의 안내로 바뀐다
+  await pickOption(page.getByLabel("문항 유형", { exact: true }), QUESTION_TYPE_LABEL.FAILURE);
+  await expect.poll(() => api.calls.find(c => c.call.startsWith("PATCH /api/questions/"))?.body).toMatchObject({ questionType: "FAILURE" });
+  await expect(result(page).getByText("잘 안 된 일과 그때 한 행동", { exact: false })).toBeVisible();
+  await expect(result(page).getByText("막혔던 일과 원인을 찾아 해결한 과정", { exact: false })).toHaveCount(0);
+  await askShot(page, info.project.name, "failure", "fe-586");
+  // 안내가 없는 유형(기타)은 공통 문구만
+  await pickOption(page.getByLabel("문항 유형", { exact: true }), QUESTION_TYPE_LABEL.OTHER);
+  await expect(result(page).getByRole("link", { name: "기록하러 가기 →" })).toHaveCount(0);
+  await expect(result(page).getByText("경험이 없다는 뜻은 아니에요.")).toBeVisible();
 });
 
 test("a finished question finds experiences again: zero results offer it, results keep a small button (S-90)", async ({ page }) => {
