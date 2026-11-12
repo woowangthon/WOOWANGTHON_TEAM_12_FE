@@ -2,7 +2,7 @@
 
 import { InfoTip } from "@/components/ui/info-tip";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CaretRightIcon, ClockCounterClockwiseIcon, DownloadSimpleIcon } from "@phosphor-icons/react";
+import { CaretRightIcon, DownloadSimpleIcon } from "@phosphor-icons/react";
 import { AppHeader } from "@/components/app-header";
 import { Mascot } from "@/components/questions/chagok-panel";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,6 @@ import { cn } from "@/lib/utils";
 import { createMcpConnection, deleteMcpConnection, fetchMcpConnection, setMcpWrite, type McpConnection } from "@/lib/api/mcp";
 import { isMockMode } from "@/lib/api/http";
 import { timestamp } from "./mcp-changes";
-import { openRecentRevisions } from "@/components/revisions/revision-list";
 import { PublicProfileSection } from "./public-profile-section";
 import { CONNECTION_CARD, FoldCard } from "./fold-card";
 import { ExportStatus, useMarkdownExport } from "@/components/export/markdown-export";
@@ -31,16 +30,6 @@ function MarkdownExportSection() {
       </Button>
     </div>
     <ExportStatus exporter={exporter} target={ALL} />
-  </section>;
-}
-
-/** 외부 AI 변경 기록은 헤더 「최근 수정」 한 목록에 있다 — 여기엔 여는 길 하나만(S-54 · FE#517) */
-function McpChangeLink() {
-  return <section aria-labelledby="mcp-changes-title" className={cn(CONNECTION_CARD, "mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-1")}>
-    <div className="flex items-center gap-0.5"><h2 id="mcp-changes-title" className="text-lg font-bold tracking-tight">변경 기록</h2><InfoTip label="변경 기록">외부 AI 가 바꾼 것(자료 넣기 · 경험 본문 고치기 · 지원서 만들기 · 되묻기 답)은 웹에서 고친 기록과 같이 「최근 수정」에 모여요. 맞아요 · 되돌리기도 그 줄에서 해요.</InfoTip></div>
-    <Button className="min-h-11 lg:min-h-10" variant="secondary" onClick={openRecentRevisions}>
-      <ClockCounterClockwiseIcon aria-hidden="true" />최근 수정에서 보기
-    </Button>
   </section>;
 }
 
@@ -256,7 +245,6 @@ export function ConnectionScreen() {
           </div>
         </details>
       </FoldCard>
-      <McpChangeLink />
       <PublicProfileSection />
       <MarkdownExportSection />
     </main>
