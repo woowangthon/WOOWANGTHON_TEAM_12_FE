@@ -12,15 +12,15 @@ import { applicationHref, monthText, useSidebarApplications } from "@/components
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isMockMode } from "@/lib/api/http";
-import { APPLICATION_STATUS_LABEL, JOB_ROLE_LABEL, ORGANIZATION_TYPE_LABEL, type Application } from "@/lib/api/question-types";
+import { JOB_ROLE_LABEL, ORGANIZATION_TYPE_LABEL, type Application, type UpdateApplicationRequest } from "@/lib/api/question-types";
 import { groupApplications, type GroupBy } from "@/lib/application-groups";
 import { cn } from "@/lib/utils";
-import { deleteApplication } from "@/lib/api/questions";
+import { deleteApplication, updateApplication } from "@/lib/api/questions";
 import { Toast, useToast } from "@/components/ui/toast";
 import { ApplicationActions, DeleteApplicationDialog } from "@/components/questions/question-menus";
+import { ApplicationStatusTag } from "@/components/questions/type-fields";
 
 const GROUP_BY: [GroupBy, string][] = [["period", "시기별"], ["type", "종류별"]];
-const statusTag = "inline-flex h-6 shrink-0 items-center rounded-full bg-surface-soft px-2.5 text-xs font-medium whitespace-nowrap text-body";
 
 export function ApplicationsScreen() {
   const router = useRouter();
@@ -32,6 +32,10 @@ export function ApplicationsScreen() {
   // 지원 지우기(S-89) — 줄의 ⋯ 메뉴 → 확인 창 → 목록에서 뺀다
   const [deleting, setDeleting] = useState<{ id: number; name: string; questionCount: number } | null>(null);
   const { toast, showToast } = useToast();
+  const onSaveStatus = async (id: number, req: UpdateApplicationRequest) => {
+    const updated = await updateApplication(id, req);
+    list.update(id, updated);
+  };
 
   return (
     <>
@@ -73,7 +77,15 @@ export function ApplicationsScreen() {
                     {group.label}<span className="font-normal text-muted tabular-nums">{group.applications.length}</span>
                   </h2>
                   <ul className="m-0 list-none p-0">
-                    {group.applications.map((a) => <ApplicationRow key={a.id} application={a} by={by} onDelete={() => setDeleting({ id: a.id, name: a.organization || "지원처 이름 없음", questionCount: a.questions.length })} />)}
+                    {group.applications.map((a) => (
+                      <ApplicationRow
+                        key={a.id}
+                        application={a}
+                        by={by}
+                        onSave={(req) => onSaveStatus(a.id, req)}
+                        onDelete={() => setDeleting({ id: a.id, name: a.organization || "지원처 이름 없음", questionCount: a.questions.length })}
+                      />
+                    ))}
                   </ul>
                 </section>
               ))}
@@ -92,8 +104,13 @@ export function ApplicationsScreen() {
   );
 }
 
-/** 지원서 한 줄 — 지원처 · 상태 꼬리표 · 종류 · 직무 / 첫 문항 글 / 문항 수 · 낸 달. 묶음 제목과 겹치는 값(종류별의 종류 · 시기별의 낸 달)은 뺀다. 없는 값은 비운다(지어내지 않는다) */
-function ApplicationRow({ application: a, by, onDelete }: { application: Application; by: GroupBy; onDelete: () => void }) {
+/** 지원서 한 줄 — 지원처 · 상태 변경 태그 · 종류 · 직무 / 첫 문항 글 / 문항 수 · 낸 달. 묶음 제목과 겹치는 값(종류별의 종류 · 시기별의 낸 달)은 뺀다. 없는 값은 비운다(지어내지 않는다) */
+function ApplicationRow({ application: a, by, onSave, onDelete }: {
+  application: Application;
+  by: GroupBy;
+  onSave: (req: UpdateApplicationRequest) => Promise<void>;
+  onDelete: () => void;
+}) {
   const name = a.organization || "지원처 이름 없음";
   const count = (status: Application["questions"][number]["status"]) => a.questions.filter((q) => q.status === status).length;
   const meta = [by !== "type" && a.organizationType && ORGANIZATION_TYPE_LABEL[a.organizationType], a.jobRole && JOB_ROLE_LABEL[a.jobRole]].filter(Boolean);
@@ -107,12 +124,16 @@ function ApplicationRow({ application: a, by, onDelete }: { application: Applica
   const first = a.questions[0];
   const href = applicationHref(a);
   return (
-    // 링크 안에 버튼을 둘 수 없어 메뉴는 줄의 형제로 오른쪽에 둔다
-    <li className="flex items-center gap-1 border-b border-hairline">
-      <Link href={href} className="-ml-2 grid min-w-0 flex-1 gap-1 rounded-sm px-2 py-3.5 transition-colors hover:bg-surface-soft lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-x-8">
+    // 링크 안에 버튼을 둘 수 없어 상태 태그와 메뉴는 z-10으로 두고 줄 전체를 stretched link로 이동하게 한다
+    <li className="group relative flex items-center gap-1 border-b border-hairline transition-colors hover:bg-surface-soft">
+      <div className="-ml-2 grid min-w-0 flex-1 gap-1 rounded-sm px-2 py-3.5 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-x-8">
         <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="min-w-0 truncate text-ui font-semibold text-ink" title={name}>{name}</span>
-          <span className={statusTag}>{APPLICATION_STATUS_LABEL[a.applicationStatus]}</span>
+          <Link href={href} className="min-w-0 truncate text-ui font-semibold text-ink hover:underline after:absolute after:inset-0 after:content-['']" title={name}>
+            {name}
+          </Link>
+          <div className="relative z-10">
+            <ApplicationStatusTag application={a} onSave={onSave} className="min-h-0 lg:min-h-0 h-6" />
+          </div>
           {meta.length > 0 && <span className="text-note text-muted">{meta.join(" · ")}</span>}
         </span>
         <span className="text-note text-muted tabular-nums max-lg:order-last lg:row-span-2 lg:self-center lg:text-right">{progress}</span>
@@ -120,8 +141,8 @@ function ApplicationRow({ application: a, by, onDelete }: { application: Applica
           <span className="min-w-0 truncate" title={first.text}>{first.text}</span>
           {a.questions.length > 1 && <span className="shrink-0 pl-1.5 text-muted">외 {a.questions.length - 1}</span>}
         </span>}
-      </Link>
-      <ApplicationActions label={name} onDelete={onDelete} className="-mr-2" />
+      </div>
+      <ApplicationActions label={name} onDelete={onDelete} className="relative z-10 -mr-2" />
     </li>
   );
 }

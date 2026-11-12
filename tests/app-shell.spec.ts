@@ -50,7 +50,7 @@ test("sidebar shows the applications anywhere and a row opens that application",
   await row.click();
   await expect(page).toHaveURL(/\/questions\?question=\d+/);
   await expect(page.getByRole("tabpanel", { name: "선택한 문항", exact: true })).toBeVisible();
-  await expect(sidebar(page).locator("button[aria-pressed=true]")).toContainText("OO 연합 동아리");
+  await expect(sidebar(page).getByRole("link", { name: /OO 연합 동아리/ })).toBeVisible();
   await expect(sidebar(page).getByRole("link", { name: "내 지원서", exact: true })).toHaveAttribute("aria-current", "page"); // 지원서 화면도 내 지원서 영역(FE#347)
   await capture(page, "questions-1440");
 });

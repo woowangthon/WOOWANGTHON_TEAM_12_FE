@@ -39,7 +39,10 @@ export function recentApplications(applications: Application[], activeId: number
 export type ApplicationsLoad = { applications: Application[]; loading: boolean; error: string | null; onRetry: () => void };
 
 /** 지원 화면 밖의 사이드바 목록 — 지원 화면은 자기가 받아 둔 목록을 넘겨 다시 받지 않는다(FE#60) */
-export function useSidebarApplications(enabled: boolean): ApplicationsLoad & { remove: (id: number) => void } {
+export function useSidebarApplications(enabled: boolean): ApplicationsLoad & {
+  remove: (id: number) => void;
+  update: (id: number, patch: Partial<Application>) => void;
+} {
   const [state, setState] = useState<{ applications: Application[] | null; error: string | null }>({ applications: null, error: null });
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
@@ -56,6 +59,11 @@ export function useSidebarApplications(enabled: boolean): ApplicationsLoad & { r
     onRetry: () => { setState({ applications: null, error: null }); setAttempt(a => a + 1); },
     /** 지운 지원(S-89)을 다시 받지 않고 뺀다 */
     remove: id => setState(prev => prev.applications ? { ...prev, applications: prev.applications.filter(a => a.id !== id) } : prev),
+    /** 상태 등 정보가 바뀐 지원(FE#347)을 목록에 반영한다 */
+    update: (id, patch) => setState(prev => prev.applications ? {
+      ...prev,
+      applications: prev.applications.map(a => a.id === id ? { ...a, ...patch } : a),
+    } : prev),
   };
 }
 

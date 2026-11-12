@@ -134,7 +134,7 @@ test("automatic rail overlays without moving content, supports Escape and resets
   const overlay = page.getByRole("dialog", { name: "사이드바", exact: true });
   await expect(overlay).toBeVisible();
   await expect(overlay).toHaveCSS("width", "248px");
-  await expect(overlay.getByRole("button", { name: /OO 연합 동아리/ })).toBeVisible();
+  await expect(overlay.getByRole("link", { name: /OO 연합 동아리/ })).toBeVisible();
   const after = (await page.locator("#selected-application").boundingBox())!;
   expect(after.x).toBe(before.x);
   expect(after.width).toBe(before.width);
@@ -143,7 +143,7 @@ test("automatic rail overlays without moving content, supports Escape and resets
   await expect(overlay).toHaveCount(0);
   await expect(sidebar(page).getByRole("button", { name: "사이드바 펼치기", exact: true })).toBeFocused();
   await sidebar(page).getByRole("button", { name: "사이드바 펼치기", exact: true }).click();
-  await overlay.getByRole("button", { name: /OO 연합 동아리/ }).click();
+  await overlay.getByRole("link", { name: /OO 연합 동아리/ }).click();
   await expect(overlay).toHaveCount(0);
   await sidebar(page).getByRole("button", { name: "사이드바 펼치기", exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
