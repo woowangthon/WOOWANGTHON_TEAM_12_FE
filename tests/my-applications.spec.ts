@@ -88,3 +88,58 @@ test("내 지원서 목록에서 지원 상태를 직접 변경할 수 있다", 
   expect(patched).toEqual({ id: 3, status: "SUBMITTED" });
   await expect(tag).toHaveText("냈음");
 });
+
+// FE#579 — 만들기 상태가 기존 문항으로 이동하거나 취소한 뒤에 남지 않는다.
+for (const width of [1440, 1024]) {
+  test(`만들기 중 같은 문항과 다른 지원서를 다시 열 수 있다 — ${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.route("https://cdn.jsdelivr.net/**", route => route.abort());
+    await new FakeQuestionApi().install(page);
+    await page.goto("/questions?question=41");
+    const selected = page.locator("#selected-application");
+    await expect(selected).toHaveAttribute("aria-label", "선택한 지원서");
+    const openSidebar = async () => {
+      if (width === 1024) {
+        await page.getByRole("button", { name: "사이드바 펼치기", exact: true }).click();
+        return page.getByRole("dialog", { name: "사이드바", exact: true });
+      }
+      return page.getByRole("complementary", { name: "사이드바", exact: true });
+    };
+    for (const id of [41, 42, 41]) {
+      let sidebar = await openSidebar();
+      await sidebar.getByRole("button", { name: "새 지원서", exact: true }).click();
+      await expect(selected).toHaveAttribute("aria-label", "새 지원서 입력");
+      sidebar = await openSidebar();
+      await sidebar.locator(`a[href='/questions?question=${id}']`).click();
+      await expect(page).toHaveURL(new RegExp(`question=${id}$`));
+      await expect(selected).toHaveAttribute("aria-label", "선택한 지원서");
+      await expect(selected).toBeVisible();
+      await expect(page.getByRole("tab", { name: /^문항 1/ })).toHaveAttribute("aria-selected", "true");
+    }
+  });
+}
+
+for (const width of [1440, 1024, 390]) {
+  test(`만들기의 모든 단계에서 취소하면 내 지원서 목록으로 돌아간다 — ${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
+    await page.route("https://cdn.jsdelivr.net/**", route => route.abort());
+    await new FakeQuestionApi().install(page);
+    await page.goto("/applications");
+    for (const step of ["input", "review", "pick"]) {
+      await page.getByRole("main").getByRole("button", { name: "새 지원서", exact: true }).click();
+      const form = page.getByRole("region", { name: "새 지원서 입력", exact: true });
+      await expect(form).toBeVisible();
+      if (step === "review") await form.getByRole("button", { name: "직접 쓰기", exact: true }).click();
+      if (step === "pick") await form.getByRole("button", { name: "넣었던 · 자주 나오는 문항에서 고르기", exact: true }).click();
+      await form.getByRole("button", { name: "취소", exact: true }).click();
+      await expect(page).toHaveURL(/\/applications$/);
+      await expect(page.getByRole("heading", { name: /^내 지원서/, level: 1 })).toBeVisible();
+    }
+    await page.screenshot({ path: `docs/fe-579/applications-${width}.png`, fullPage: true, animations: "disabled", style: "nextjs-portal { display: none !important; }" });
+    // 취소한 화면이 캐시에 있어도 목록의 링크로 문항을 열 수 있다.
+    await page.locator("main a[href='/questions?question=41']").click();
+    await expect(page.locator("#selected-application")).toHaveAttribute("aria-label", "선택한 지원서");
+    await expect(page).toHaveURL(/question=41$/);
+    await expect(page.getByRole("tabpanel", { name: "선택한 문항", exact: true })).toBeVisible();
+  });
+}

@@ -13,6 +13,7 @@ import { SidebarApplications, useExperienceCount, useSidebarApplications, type A
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import type { Application } from "@/lib/api/question-types";
 import { WorkStatus } from "@/components/work/work-provider";
 import { RecentRevisionsButton } from "@/components/revisions/revision-list";
 import { MENU_CONTENT } from "@/components/ui/menu";
@@ -24,7 +25,7 @@ type HeaderProps = {
   /** 스크롤해도 붙어 있는 위 막대에 둘 화면 버튼 — 지원 화면의 차곡이 */
   panelToggle?: React.ReactNode;
   /** 지원 화면이 받아 둔 목록과 그 줄. 없으면 사이드바가 직접 받는다 */
-  applicationList?: ApplicationsLoad & { rows?: React.ReactNode };
+  applicationList?: ApplicationsLoad & { rows?: React.ReactNode; onPick?: (application: Application) => void };
   /** 지원 화면 안에서 새 지원을 연다. 없으면 지원 화면으로 가서 연다 */
   onNewApplication?: () => void;
   /** 활동을 이미 받는 화면이 넘긴다(받는 중이면 null). 없으면 사이드바가 직접 받는다 */

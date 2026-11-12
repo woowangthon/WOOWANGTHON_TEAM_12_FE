@@ -92,8 +92,10 @@ export function SidebarApplicationText({ application }: { application: Applicati
 export const sidebarApplicationRow = "grid w-full gap-0.5 rounded-sm px-3.5 py-2 text-left transition-colors";
 
 /** 사이드바 「최근 지원서」 — 어느 화면에서나 같은 자리. 최근 5개 — 전체는 위 「내 지원서」 메뉴(FE#347 · FE#364). 못 받으면 빈 목록이 아니라 오류 · 다시 시도(FE#147) */
-export function SidebarApplications({ applications, loading, error, onRetry, onNew, rows }: ApplicationsLoad & {
+export function SidebarApplications({ applications, loading, error, onRetry, onNew, rows, onPick }: ApplicationsLoad & {
   onNew: () => void;
+  /** 지원 화면에서는 같은 주소도 직접 선택해 만들기 상태를 닫는다(FE#579). 새 탭 열기는 링크 동작 그대로다. */
+  onPick?: (application: Application) => void;
   /** 지원 화면의 줄(고르기 · 상태 바꾸기 — 거기서 최근 5개로 줄여 넘긴다). 없으면 그 지원으로 가는 링크 */
   rows?: ReactNode;
 }) {
@@ -113,7 +115,7 @@ export function SidebarApplications({ applications, loading, error, onRetry, onN
       </div>
       : !applications.length ? <p className={note}>아직 넣은 지원서가 없어요.</p>
       : rows ?? <ul className="m-0 grid min-h-0 list-none content-start gap-1 overflow-y-auto p-0">{recentApplications(applications).map(a => <li key={a.id} className="relative">
-        <Link href={applicationHref(a)} className={`${sidebarApplicationRow} hover:bg-canvas/60`}><SidebarApplicationText application={a} /></Link>
+        <Link href={applicationHref(a)} onNavigate={onPick ? event => { event.preventDefault(); onPick(a); } : undefined} className={`${sidebarApplicationRow} hover:bg-canvas/60`}><SidebarApplicationText application={a} /></Link>
         <span className="pointer-events-none absolute top-2 right-1.5 inline-flex h-6 items-center rounded-full bg-surface-soft px-2.5 text-xs font-medium whitespace-nowrap text-body">{APPLICATION_STATUS_LABEL[a.applicationStatus]}</span>
       </li>)}</ul>}
     {/* 0개로 확인됐으면 넣으러 가는 길(FE#243) — /questions 의 지원서 넣는 칸. 「모든 지원서」는 위 「내 지원서」 메뉴와 겹쳐 뺐다(FE#364) */}

@@ -3,7 +3,7 @@
 import { InfoTip } from "@/components/ui/info-tip";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { PostingTab } from "./posting-tab";
 import { peekApplicationText, takeApplicationText } from "@/lib/application-handoff";
 import { ArrowSquareOutIcon, ArrowsClockwiseIcon, MagnifyingGlassIcon, PlusIcon, WarningCircleIcon } from "@phosphor-icons/react";
@@ -60,6 +60,7 @@ const hostOf = (url: string) => { try { return new URL(url).hostname.replace(/^w
  *  오른쪽 차곡이 패널: 요구사항 · 보완 재사용 · 되묻기(FE#51). 배치는 ETC 시안 6 apply.html. 답 입력 · 근거 점검(S-45)은 추천 상태와 따로 쓴다 */
 export function ApplicationScreen() {
   const params = useSearchParams();
+  const router = useRouter();
   const rawRun = Number(params.get("run"));
   const restoreRun = Number.isSafeInteger(rawRun) && rawRun > 0 ? rawRun : null;
   const matching = useApplications(params.get("new") === "1");
@@ -200,7 +201,7 @@ export function ApplicationScreen() {
         <Mascot size={20} /><span className="max-lg:sr-only">차곡이</span>{unanswered > 0 && !panelOpen && <span className="rounded-full bg-primary px-1.5 text-xs leading-5 text-on-primary tabular-nums"><span className="max-lg:hidden">질문 </span>{unanswered}</span>}
         {factsPending && !panelOpen && <span aria-hidden="true" data-testid="chagok-facts-dot" className="size-2 shrink-0 rounded-full bg-primary" />}
       </Button>}
-      applicationList={{ applications: matching.applications, loading: matching.loading, error: matching.error, onRetry: () => { void matching.refresh(); } }} />
+      applicationList={{ onPick: pick, applications: matching.applications, loading: matching.loading, error: matching.error, onRetry: () => { void matching.refresh(); } }} />
     <div className="flex-1 xl:flex xl:items-start">
     <div className="min-w-0 flex-1">
     <main className="mx-auto max-w-[1280px] px-4.5 py-5 lg:px-8 lg:py-6">
@@ -227,7 +228,7 @@ export function ApplicationScreen() {
           <ApplicationList {...list} />
         </aside>}
         <section id="selected-application" className={cn("min-w-0 scroll-mt-5 lg:scroll-mt-20", listFirst && "max-lg:hidden", composing && "grid lg:min-h-[calc(100dvh-14rem)] lg:content-center")} aria-label={composing ? "새 지원서 입력" : "선택한 지원서"}>
-          {composing ? <ApplicationForm key={pasted} pastedText={pasted} onCancel={() => setComposing(false)} onSubmit={async (req, targetLengths) => {
+          {composing ? <ApplicationForm key={pasted} pastedText={pasted} onCancel={() => { setComposing(false); router.push("/applications"); }} onSubmit={async (req, targetLengths) => {
             const saved = await matching.submit(req, targetLengths);
             if (saved) { setComposing(false); scrollToDetail(); }
           }} /> : open ? <>
