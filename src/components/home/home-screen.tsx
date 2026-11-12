@@ -32,9 +32,10 @@ function HomeContent() {
   const { overview, refresh } = useHomeOverview(mode === "empty" || mode === "error" ? mode : null, me?.id);
   const [addOpen, setAddOpen] = useState(false);
   const openAdd = () => setAddOpen(true);
-  const [notice, setNotice] = useState<string | null>(null);
+  // 완료 안내 — 「내 경험 보기」는 방금 만든 활동(여럿이면 첫 번째)의 세부로 바로 연다(FE#593)
+  const [notice, setNotice] = useState<{ text: string; activityId: number } | null>(null);
   // 완료 문구를 먼저 띄우고 요약을 다시 읽는다 — 읽는 동안 화면을 옮겨도 놓치지 않게(FE#244)
-  const analysis = useAnalysisJob(async (job, { batch }) => { setNotice(!batch && job.activityIds.length ? `분석이 완료됐어요. 활동 ${job.activityIds.length}개를 확인해 보세요.` : null); await refresh(); });
+  const analysis = useAnalysisJob(async (job, { batch }) => { setNotice(!batch && job.activityIds.length ? { text: `분석이 완료됐어요. 활동 ${job.activityIds.length}개를 확인해 보세요.`, activityId: job.activityIds[0] } : null); await refresh(); });
   const view = analysisView(analysis.tracked);
   const mockAnalysis = params.get("analysis");
   const mock = mockAnalysis === "fail" || mockAnalysis === "empty" ? mockAnalysis : null;
@@ -47,7 +48,7 @@ function HomeContent() {
         analysisStatus={(view && analysis.tracked) || analysis.jobs.length > 1 || notice ? <>
           {view && analysis.tracked && <AnalysisBanner view={view} tracked={analysis.tracked} onRetry={analysis.retry} onRecheck={analysis.recheck} onDismiss={analysis.dismiss} onAddSource={() => { analysis.dismiss(); openAdd(); }} />}
           {analysis.jobs.length > 1 && <AnalysisBatch jobs={analysis.jobs} onRetry={analysis.retryJob} onRecheck={analysis.recheckJob} onDismiss={analysis.dismiss} />}
-          {notice && <p role="status" className="m-0 text-center text-sm text-body">{notice} <Link href="/experience" className="font-semibold underline underline-offset-4">내 경험 보기</Link></p>}
+          {notice && <p role="status" className="m-0 text-center text-sm text-body">{notice.text} <Link href={`/experience?activity=${notice.activityId}`} className="font-semibold underline underline-offset-4">내 경험 보기</Link></p>}
         </> : null} />
     </main>
     <AddSourceDialog open={addOpen} onOpenChange={setAddOpen} mock={mock} onSubmitted={analysis.start} />
