@@ -43,6 +43,31 @@ test("내 지원서는 시기별로 묶이고 종류별로 바꿔 볼 수 있다
   await expect(page).toHaveURL(/\/questions\?question=21/);
 });
 
+// FE#605 — 줄 호버 배경이 이름 앞 여백과 지우기 버튼까지 감싸고, 상태 칩이 호버한 줄에 묻히지 않는다(배경과 칩 색이 다르다)
+test("내 지원서 줄 — 호버 배경 안에 이름 앞 여백 · 지우기 버튼이 들고 상태 칩이 묻히지 않는다", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "마우스 호버 — PC 에서");
+  await page.route("https://cdn.jsdelivr.net/**", route => route.abort());
+  await new FakeQuestionApi().install(page);
+  await page.route("**/api/applications", route => route.request().method() === "GET" ? route.fulfill({ json: { applications: list } }) : route.fallback());
+  await page.goto("/applications");
+  const row = page.getByRole("main").locator("li").filter({ has: page.getByRole("link", { name: /OO 백엔드 부트캠프/ }) });
+  await row.hover();
+  const pad = await row.evaluate(li => {
+    const back = getComputedStyle(li, "::before");
+    const box = li.getBoundingClientRect();
+    const left = box.left + parseFloat(back.left), right = box.right - parseFloat(back.right);
+    const name = li.querySelector("a")!.getBoundingClientRect();
+    const trash = li.querySelector("button[aria-label^='지원서 지우기']")!.getBoundingClientRect();
+    return { color: back.backgroundColor, nameGap: name.left - left, trashGap: right - trash.right };
+  });
+  await expect.poll(() => row.evaluate(li => getComputedStyle(li, "::before").backgroundColor)).toBe("rgb(250, 250, 250)");
+  expect(pad.nameGap).toBeGreaterThanOrEqual(8);
+  expect(pad.trashGap).toBeGreaterThanOrEqual(0);
+  const chip = await row.getByRole("combobox", { name: /지원 상태/ }).locator("span").first().evaluate(el => getComputedStyle(el).backgroundColor);
+  expect(chip).not.toBe("rgb(250, 250, 250)");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
 // FE#374 — 「새 지원서」는 1번 지원서로 가지 않고 새 지원 입력을 연다
 test("내 지원서의 「새 지원서」 · 「첫 지원서 넣기」는 새 지원서 입력을 연다", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop");
