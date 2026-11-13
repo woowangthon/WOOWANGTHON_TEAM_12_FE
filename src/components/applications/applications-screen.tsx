@@ -125,7 +125,9 @@ function ApplicationRow({ application: a, by, onSave, onDelete }: {
   const href = applicationHref(a);
   return (
     // 링크 안에 버튼을 둘 수 없어 상태 태그와 메뉴는 z-10으로 두고 줄 전체를 stretched link로 이동하게 한다
-    <li className="group relative flex items-center gap-1 border-b border-hairline transition-colors hover:bg-surface-soft">
+    // 호버 배경은 뒤에 깐 판(before)으로 양옆 12px 넓힌다 — 글자 · 아이콘 · 구분선 자리는 그대로, 이름 앞 여백이 생기고 지우기 버튼이 배경 안에 든다.
+    // 상태 칩(surface-soft)이 호버한 줄에 묻히지 않게 배경은 한 단계 옅게(FE#605 — 지원 화면 목록과 같은 surface-faint)
+    <li className="group relative isolate flex items-center gap-1 border-b border-hairline before:absolute before:inset-y-0 before:-inset-x-3 before:-z-10 before:rounded-sm before:transition-colors hover:before:bg-surface-faint">
       <div className="-ml-2 grid min-w-0 flex-1 gap-1 rounded-sm px-2 py-3.5 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-x-8">
         <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <Link href={href} className="min-w-0 truncate text-ui font-semibold text-ink hover:underline after:absolute after:inset-0 after:content-['']" title={name}>
