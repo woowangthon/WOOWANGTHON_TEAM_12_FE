@@ -169,6 +169,38 @@ test("문항을 못 찾으면 자주 나오는 문항 입구가 한 줄로 보�
   await expect.poll(() => calls.applications).toEqual([{ organization: "OO 동아리", organizationType: "CLUB", questions: [{ text: stripped(firstText) }, { text: stripped(secondText) }] }]);
 });
 
+// FE#613 — 홈 「새 지원서」 창 안의 문항 고르기: 아래 막대가 창 바닥에 붙어 그 아래로 목록이 비치지 않는다(창엔 아래 탭바가 없다)
+test("홈 새 지원서 창의 문항 고르기 — 아래 막대가 창 바닥에 붙는다", async ({ page }) => {
+  const calls = await setup(page, "APPLICATION");
+  calls.parsed = { organization: "OO 동아리", organizationType: "CLUB", jobRole: null, questions: [] };
+  await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
+  await page.getByLabel("홈에 넣을 글").fill("OO 동아리 모집 안내입니다.");
+  await page.getByRole("button", { name: "보내기", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("region", { name: "자주 나오는 문항", exact: true }).getByRole("button", { name: /에서 고르기$/ }).click();
+  const picker = dialog.getByRole("region", { name: "문항 고르기" });
+  const bar = picker.getByRole("button", { name: "문항을 골라 주세요", exact: true }).locator("..");
+  await expect(bar).toBeVisible();
+  // 창 아래 끝과 막대 아래 끝 사이 틈 — 스크롤 맨 위 · 가운데 · 맨 아래에서
+  const gap = () => page.evaluate(() => {
+    const box = document.querySelector<HTMLElement>("[data-slot=dialog-content]")!;
+    const bar = [...box.querySelectorAll("button")].find(b => b.textContent === "문항을 골라 주세요")!.parentElement!;
+    // 스크롤 위치는 정수로 반올림돼 끝에선 1px 미만이 남을 수 있다 — 1px 미만은 붙은 것으로
+    return Math.abs(box.getBoundingClientRect().bottom - bar.getBoundingClientRect().bottom) < 1 ? 0 : Math.round(box.getBoundingClientRect().bottom - bar.getBoundingClientRect().bottom);
+  });
+  const scrollTo = (where: "middle" | "end") => page.evaluate(w => {
+    const box = document.querySelector<HTMLElement>("[data-slot=dialog-content]")!;
+    box.scrollTop = w === "end" ? box.scrollHeight : (box.scrollHeight - box.clientHeight) / 2;
+  }, where);
+  expect(await page.evaluate(() => { const b = document.querySelector<HTMLElement>("[data-slot=dialog-content]")!; return b.scrollHeight > b.clientHeight; }), "목록이 길어 창이 스크롤된다").toBe(true);
+  expect(await gap(), "맨 위").toBe(0);
+  await scrollTo("middle");
+  expect(await gap(), "가운데").toBe(0);
+  await scrollTo("end");
+  expect(await gap(), "맨 아래").toBe(0);
+  await expect(bar.getByRole("button", { name: "취소", exact: true })).toBeVisible();
+});
+
 for (const status of [502, 504]) {
   test(`나누기 ${status} 면 칸을 채우지 않고 다시 시도 · 직접 채우기를 보인다`, async ({ page }) => {
     const calls = await setup(page, "APPLICATION");

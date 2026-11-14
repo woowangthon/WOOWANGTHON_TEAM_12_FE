@@ -41,13 +41,15 @@ export function pickNote(room: number, picked: number) {
 
 /** 「내가 넣었던 문항」(S-40) · 「자주 나오는 문항」(S-26)에서 여러 개 골라 문항 칸에 넣는다. 넣은 뒤엔 칸에서 고친다.
  *  지원 넣기의 따로 화면(단계) — 창 위에 창을 띄우지 않고 「← 돌아가기」로 온 화면에 돌아간다(FE#542). 아래 「취소」는 넣기 전체 닫기(FE#565) */
-export function CommonQuestionPicker({ room, onPick, onBack, onCancel }: {
+export function CommonQuestionPicker({ room, onPick, onBack, onCancel, inDialog = false }: {
   /** 더 넣을 수 있는 문항 수 — 빈 칸 + 더할 수 있는 칸 */
   room: number;
   onPick: (texts: string[]) => void;
   onBack: () => void;
   /** 넣기 전체 닫기 — 닫을 창이 없는 자리(지원서 0개 화면)면 없다 */
   onCancel?: () => void;
+  /** 홈 「새 지원서」 창 안 — 창이 스크롤하고 아래 탭바가 없다(FE#613) */
+  inDialog?: boolean;
 }) {
   const [picked, setPicked] = useState<string[]>([]);
   const [past, setPast] = useState<Past>({ state: "loading" });
@@ -110,8 +112,11 @@ export function CommonQuestionPicker({ room, onPick, onBack, onCancel }: {
           ))}
         </div>
 
-      {/* 목록이 길어 넣기 버튼은 아래에 붙여 둔다 — 1024 미만은 아래 탭바 위에 */}
-      <div className="sticky bottom-0 flex flex-wrap items-center justify-end gap-x-3 gap-y-2 border-t border-hairline bg-canvas py-3 max-lg:bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))]">
+      {/* 목록이 길어 넣기 버튼은 아래에 붙여 둔다 — 1024 미만은 아래 탭바 위에.
+          창 안에선 탭바가 없고 창 아래 여백(모바일 24px + 안전 영역 · lg 28px)까지 내려가 덮는다 — 그 틈으로 목록이 비치지 않게(FE#613). 버튼 자리는 여백만큼 아래 패딩으로 지킨다 */}
+      <div className={cn("sticky flex flex-wrap items-center justify-end gap-x-3 gap-y-2 border-t border-hairline bg-canvas",
+        inDialog ? "bottom-[calc(-1*(24px+env(safe-area-inset-bottom,0px)))] mb-[calc(-1*(24px+env(safe-area-inset-bottom,0px)))] pt-3 pb-[calc(12px+24px+env(safe-area-inset-bottom,0px))] lg:-bottom-7 lg:-mb-7 lg:pb-10"
+          : "bottom-0 py-3 max-lg:bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))]")}>
         <p className="m-0 mr-auto min-w-0 flex-1 basis-48 text-note text-muted" aria-live="polite">{pickNote(room, picked.length)}</p>
         {onCancel && <Button type="button" variant="ghost" className="min-h-11 lg:min-h-10" onClick={onCancel}>취소</Button>}
         <Button type="button" className="min-h-11 lg:min-h-10" disabled={picked.length === 0} onClick={() => onPick(picked)}>
