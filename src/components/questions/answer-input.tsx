@@ -107,7 +107,9 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
   // 다 쓴 답은 지금 초안보다 나중일 때만 기준이다(FE#370) — 새 초안 문장은 옛 다 쓴 답과 달라 전부 「다 쓴 뒤 고친 문장」이 되기 때문.
   // 새 초안으로 다시 「다 썼어요」를 누르면 그때부터 기준
   const settled = a.answer && !(ready && !later(a.answer.confirmedAt, ready.createdAt)) ? a.answer.text : null;
-  const analysis = useMemo(() => analyze(question, ready, NONE, box.local, box.seen, settled, text, g.check), [question, ready, box.local, box.seen, settled, text, g.check]);
+  // 근거 점검도 같다(FE#646) — 지금 초안보다 먼저 한 점검은 옛 글의 결과라, 새 초안 문장에 「고치기 전 결과」 · 점선을 달지 않는다
+  const check = g.check && !(ready && !later(g.check.createdAt, ready.createdAt)) ? g.check : null;
+  const analysis = useMemo(() => analyze(question, ready, NONE, box.local, box.seen, settled, text, check), [question, ready, box.local, box.seen, settled, text, check]);
   const latest = useRef(analysis);
   useEffect(() => { latest.current = analysis; });
   const target = question.targetLength ?? null;
@@ -174,7 +176,8 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
     g.setText(draftText); setEditBase(draftText); setSelected(null);
   };
   // 수정 이력 창의 「다 쓴 답 불러오기」 · 「초안 글 다시 넣기」(FE#463)
-  const canLoadConfirmed = !!a.answer && text !== a.answer.text;
+  // 초안을 만드는 동안엔 답칸을 바꾸지 않는다 — 곧 새 초안이 들어온다(FE#646)
+  const canLoadConfirmed = !!a.answer && text !== a.answer.text && !drafting;
   const copy = async () => {
     setAsk(null);
     try { await navigator.clipboard.writeText(text); showToast("답칸의 글을 복사했어요. 표시는 복사하지 않아요."); }
@@ -210,7 +213,12 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
   // 첫 줄 소제목(S-86)은 직접 쓴 문장이 아니다 — 고쳐도 소제목 자리면 세지 않는다(FE#615). 확인할 곳으로도 세지 않는 것과 같은 기준
   const inTitle = (p: { start: number; end: number }) => !!analysis.title && analysis.title.start < p.end && p.start < analysis.title.end;
   const ownText = splitSentences(text).some(p => p.text.trim() && !inTitle(p) && !analysis.marks.some(m => m.start < p.end && p.start < m.end));
-  const showGround = editedFacts > 0 || ownText || analyzing || g.busy || !!g.failure || g.check?.status === "FAILED";
+  const groundNow = editedFacts > 0 || ownText || analyzing || g.busy || !!g.failure || g.check?.status === "FAILED";
+  // 초안을 만드는 동안엔 답칸이 곧 바뀐다 — 초안 표시가 빠져 옛 글이 전부 「직접 쓴 문장」으로 세어져도 버튼을 새로 띄우지 않는다.
+  // 만들기 직전 그대로 두고(떠 있었으면 막는다), 초안이 들어오면 새 글로 다시 정한다(FE#646)
+  const [groundKept, setGroundKept] = useState(groundNow);
+  if (!drafting && groundKept !== groundNow) setGroundKept(groundNow);
+  const showGround = drafting ? groundKept : groundNow;
   // 빈 답칸에는 잃을 글이 없으니 초안 글을 다시 넣을 수 있다(FE#519)
   const canLoadDraft = (confirmedNotDraft || (draftText !== null && !text.trim())) && !drafting;
   const copyAnswer = () => { if (warnFirst) setAsk("copy"); else void copy(); };
@@ -259,7 +267,8 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
     <div className="grid min-w-0 overflow-hidden rounded-md border border-hairline bg-canvas has-[textarea:focus-visible]:outline-2 has-[textarea:focus-visible]:outline-offset-2 has-[textarea:focus-visible]:outline-ink">
       <DraftEditor handleRef={editor} inputId={`answer-${questionId}`} question={question} draft={ready} analysis={analysis} local={box.local}
         text={text} onText={g.setText} placeholder="여기에 답을 쓰거나, 차곡이에게 초안을 부탁해 보세요."
-        disabled={g.loading || g.busy || analyzing || !g.initialized || locked} cardsDisabled={draftBusy || locked}
+        // 초안을 만드는 동안엔 고칠 수 없다 — 곧 새 초안으로 바뀐다(다시 만들기 전 경고에서 알렸다 · FE#646)
+        disabled={g.loading || g.busy || analyzing || !g.initialized || locked || drafting} cardsDisabled={drafting || locked}
         selected={selected} onSelect={setSelected} onConfirm={confirm} onActorDecided={onRefresh} onSupposed={settleSupposed}
         onConfirmOwn={o => setBox(b => ({ ...b, seen: new Set(b.seen).add(o.text) }))}
         onAnswer={async (chip, answer) => {
@@ -284,7 +293,7 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
           {a.answer && !same && <span role="status" className="text-xs text-muted">다 쓴 답과 달라요</span>}
           {/* 같은 글은 다시 점검하지 않는다 — 분석 1회를 아끼고 판정이 오락가락하지 않게(FE#317). 실패한 점검은 아래 「같은 글로 다시 시도」 */}
           {showGround && <><AnalysisButton variant="ghost" className="min-h-11 lg:min-h-10" running={g.busy || analyzing} title={checkedSame ? "이미 점검한 글이에요 — 고치면 다시 점검할 수 있어요" : undefined}
-            disabled={!valid || g.loading || g.busy || analyzing || !g.initialized || checkedSame} onClick={() => void g.submit(text)}>
+            disabled={!valid || g.loading || g.busy || analyzing || !g.initialized || checkedSame || drafting} onClick={() => void g.submit(text)}>
             {g.busy || analyzing ? "근거 점검 중…" : checkedSame ? "점검했어요" : "근거 점검"}
           </AnalysisButton>
           {!checkedSame && <AnalysisCost running={g.busy || analyzing} className="-ml-1.5" />}</>}
@@ -292,7 +301,7 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
         <div className="flex flex-wrap items-center gap-2">
           {draftLabel && <Button variant="secondary" className="min-h-11 lg:min-h-10" onClick={onAskDraft}>{draftLabel}</Button>}
           <Button className="min-h-11 lg:min-h-10" title={same ? "다 쓴 답과 같은 글이에요 — 고치면 다시 누를 수 있어요" : undefined}
-            disabled={!valid || g.loading || g.busy || analyzing || !g.initialized || locked || same} onClick={() => { if (warnFirst) setAsk("confirm"); else finish(); }}>{a.busy ? "처리 중…" : "다 썼어요"}</Button>
+            disabled={!valid || g.loading || g.busy || analyzing || !g.initialized || locked || same || drafting} onClick={() => { if (warnFirst) setAsk("confirm"); else finish(); }}>{a.busy ? "처리 중…" : "다 썼어요"}</Button>
         </div>
       </div>
     </div>
