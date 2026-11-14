@@ -11,5 +11,6 @@ export const GROUNDING_EXAMPLE: GroundingCheck = {
     { text: "개발자가 되고 싶습니다.", status: "OPINION", evidence: [], note: null },
     { text: "예전에 확인한 문장입니다.", status: "SOURCE", evidence: [], note: null },
   ],
-  createdAt: "2026-11-05T15:00:00+09:00", updatedAt: "2026-11-05T15:00:12+09:00",
+  // 시험의 초안(DRAFT_EXAMPLE 11-04 · DRAFT_S79 11-08 · 다시 만든 초안 11-09)보다 나중 — 초안보다 먼저 한 점검은 옛 결과로 본다(FE#646)
+  createdAt: "2026-11-10T15:00:00+09:00", updatedAt: "2026-11-10T15:00:12+09:00",
 };
