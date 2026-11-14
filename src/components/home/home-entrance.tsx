@@ -222,7 +222,6 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     {exhausted && <p id="entrance-exhausted" role="status" className="mt-1 mb-0 text-center text-sm text-review">{ANALYSIS_EXHAUSTED_NOTE}</p>}
     {readingFile && <p role="status" className="mt-4 text-center text-sm text-muted">파일을 읽고 있어요…</p>}
     {fileError && <p role="alert" className="mt-4 text-sm text-error">{fileError}</p>}
-    {readingFile && <p role="status" className="mt-3 text-sm text-muted">파일에서 글자를 읽는 중…</p>}
     {file?.notice && <p className="mt-3 text-sm text-review">{file.notice}</p>}
     {sourceSubmitting && <p role="status" className="mt-4 text-center text-sm text-muted">자료를 보내고 있어요…</p>}
     {isMockMode() && showMockControls && <label className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs text-muted">목 분류 결과 (AI 호출 없음)

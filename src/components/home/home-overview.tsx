@@ -51,7 +51,8 @@ export function HomeMascot({ overview, onRefresh, mode }: { overview: HomeOvervi
 }
 
 export function ContinueCards({ overview, onRefresh, onNewApplication }: { overview: HomeOverview; onRefresh: () => void; onNewApplication: () => void }) {
-  const recent = overview.applications?.filter(a => a.questions.length).toSorted((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || b.id - a.id)[0];
+  // 공고만 넣은 지원(문항 0개 · 공고 요건 줄만)도 최근 지원서 후보다(FE#619)
+  const recent = overview.applications?.filter(a => a.questions.length || a.postingLines?.length).toSorted((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || b.id - a.id)[0];
   const last = overview.activities?.find(a => a.id === overview.lastViewedId);
   const past = overview.now && overview.details && !overview.detailError ? thisTimeLastYear(overview.details, overview.now) : null;
   const card = "group flex min-w-0 flex-col items-start gap-1 rounded-md border border-hairline bg-canvas/80 px-4 py-3 text-left transition-colors hover:border-muted-soft";
@@ -60,7 +61,7 @@ export function ContinueCards({ overview, onRefresh, onNewApplication }: { overv
     <div className="grid gap-3 sm:grid-cols-3">
       {overview.applicationError ? <div className={card}><FileTextIcon className="size-5 text-record-pink" /><span className="text-note text-error">{overview.applicationError}</span><Button variant="link" onClick={onRefresh}>다시 시도</Button></div>
         : overview.applications === null ? <ContinueCardSkeleton label="최근 지원서를 불러오고 있어요" />
-        : recent ? <Link href={applicationHref(recent)} className={card}><FileTextIcon className="size-5 text-record-pink" /><span className="text-xs text-muted">최근 지원서</span><b className="text-sm leading-relaxed font-semibold">{recent.organization || "지원처 이름 없음"}</b><small className="text-xs text-muted">문항 {recent.questions.length}개 · 분석 중 {recent.questions.filter(q => q.status === "ANALYZING").length}개</small></Link>
+        : recent ? <Link href={applicationHref(recent)} className={card}><FileTextIcon className="size-5 text-record-pink" /><span className="text-xs text-muted">최근 지원서</span><b className="text-sm leading-relaxed font-semibold">{recent.organization || "지원처 이름 없음"}</b><small className="text-xs text-muted">{recent.questions.length ? `문항 ${recent.questions.length}개 · 분석 중 ${recent.questions.filter(q => q.status === "ANALYZING").length}개` : `공고 요건 ${recent.postingLines?.length ?? 0}줄`}</small></Link>
         : <button type="button" className={card} onClick={onNewApplication}><FileTextIcon className="size-5 text-record-pink" /><span className="text-xs text-muted">지원서 시작하기</span><b className="text-sm leading-relaxed font-semibold">지원서 문항을 붙여 넣어 보세요</b><small className="text-note text-muted">어떤 경험을 꺼내 쓸지 찾아요</small></button>}
       {/* 활동을 읽기 전엔 「내 경험 이어 보기」를 그렸다가 마지막 활동으로 바꾸지 않는다 — 뼈대로 자리만 */}
       {overview.activities === null && !overview.activityError ? <ContinueCardSkeleton label="마지막으로 연 활동을 불러오고 있어요" />
