@@ -753,6 +753,48 @@ test("adding questions to an existing application can pick several and adds them
   await expect(page.getByLabel("이 지원서에 문항 더하기")).toHaveCount(0);
 });
 
+// FE#632 — 375px · 큰 기본 글자(20px)에서 상단 헤더의 로고와 오른쪽 버튼(차곡이 · 찾기 · 소식 · 계정)이 겹치지 않는다
+test("mobile header keeps the logo and the buttons apart at 375px with a large font", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.addInitScript(() => { const big = () => { if (document.documentElement) document.documentElement.style.fontSize = "20px"; }; big(); document.addEventListener("DOMContentLoaded", big); });
+  await fake(page);
+  await page.goto("/questions");
+  await startApplication(page);
+  await page.getByRole("button", { name: "직접 쓰기", exact: true }).click();
+  await page.getByLabel("문항 1", { exact: true }).fill("첫 문항");
+  await page.getByRole("button", { name: "문항 1개로 경험 찾기", exact: true }).click();
+  await expect(page.getByRole("tablist", { name: "문항" }).getByRole("tab")).toHaveCount(1);
+  const header = page.locator("header").filter({ has: page.getByRole("link", { name: "차곡 — 홈" }) }).first();
+  const logo = await header.getByRole("link", { name: "차곡 — 홈" }).boundingBox();
+  const boxes = await header.locator("button:visible").evaluateAll(els => els.map(e => e.getBoundingClientRect()).map(r => ({ x: r.x, right: r.right })));
+  expect(logo).not.toBeNull();
+  expect(boxes.length).toBeGreaterThan(0);
+  for (const b of boxes) expect(b.x).toBeGreaterThanOrEqual(logo!.x + logo!.width - 1);
+  for (const b of boxes) expect(b.right).toBeLessThanOrEqual(375 + 1);
+});
+
+// FE#633 — 모바일 문항 고르기: 아래로 스크롤해 탭바가 숨으면 하단 막대도 바닥에 붙는다(떠 있는 틈으로 목록이 비치지 않게)
+test("mobile question picker bar follows the tab bar when it hides on scroll", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.startsWith("mobile"), "탭바는 1024 미만에만 있다");
+  await fake(page);
+  await page.goto("/questions");
+  await startApplication(page);
+  await page.getByRole("button", { name: "직접 쓰기", exact: true }).click();
+  await page.getByLabel("문항 1", { exact: true }).fill("첫 문항");
+  await page.getByRole("button", { name: "문항 1개로 경험 찾기", exact: true }).click();
+  await page.getByRole("button", { name: "문항 더하기", exact: true }).click();
+  await page.getByRole("button", { name: "넣었던 · 자주 나오는 문항에서 고르기", exact: true }).click();
+  const bar = page.getByRole("region", { name: "문항 고르기" }).getByRole("button", { name: "문항을 골라 주세요" }).locator("..");
+  const tabBar = page.locator("[data-slot=tab-bar]");
+  const height = page.viewportSize()!.height;
+  await page.mouse.wheel(0, 600);
+  await expect(tabBar).toHaveAttribute("data-hidden", "true");
+  await expect.poll(async () => Math.round((await bar.boundingBox())!.y + (await bar.boundingBox())!.height)).toBeGreaterThanOrEqual(height - 1);
+  await page.mouse.wheel(0, -300);
+  await expect(tabBar).not.toHaveAttribute("data-hidden", "true");
+  await expect.poll(async () => Math.round((await bar.boundingBox())!.y + (await bar.boundingBox())!.height)).toBeLessThan(height - 40);
+});
+
 test("daily limit (429) keeps the draft and says nothing was saved", async ({ page }) => {
   await fake(page, { limit: true });
   await page.goto("/questions");

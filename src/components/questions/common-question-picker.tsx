@@ -127,7 +127,8 @@ export function CommonQuestionPicker({ room, onPick, onBack, onCancel, inDialog 
           창 안에선 탭바가 없고 창 아래 여백(모바일 24px + 안전 영역 · lg 28px)까지 내려가 덮는다 — 그 틈으로 목록이 비치지 않게(FE#613). 버튼 자리는 여백만큼 아래 패딩으로 지킨다 */}
       <div className={cn("sticky flex flex-wrap items-center justify-end gap-x-3 gap-y-2 border-t border-hairline bg-canvas",
         inDialog ? "bottom-[calc(-1*(24px+env(safe-area-inset-bottom,0px)))] mb-[calc(-1*(24px+env(safe-area-inset-bottom,0px)))] pt-3 pb-[calc(12px+24px+env(safe-area-inset-bottom,0px))] lg:-bottom-7 lg:-mb-7 lg:pb-10"
-          : "bottom-0 py-3 max-lg:bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))]")}>
+          // 탭바가 아래로 숨으면(아래로 스크롤) 막대도 바닥에 붙는다 — 떠 있는 틈으로 목록이 비치지 않게(FE#633)
+          : "bottom-0 py-3 transition-[bottom] duration-150 motion-reduce:transition-none max-lg:bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))] max-lg:[body:has([data-slot=tab-bar][data-hidden])_&]:bottom-0 max-lg:[body:has([data-slot=tab-bar][data-hidden])_&]:pb-[calc(12px+env(safe-area-inset-bottom,0px))]")}>
         <p className="m-0 mr-auto min-w-0 flex-1 basis-48 text-note text-muted" aria-live="polite">{pickNote(room, picked.length)}</p>
         {onCancel && <Button type="button" variant="ghost" className="min-h-11 lg:min-h-10" onClick={onCancel}>취소</Button>}
         <Button type="button" className="min-h-11 lg:min-h-10" disabled={picked.length === 0} onClick={() => onPick(picked)}>
