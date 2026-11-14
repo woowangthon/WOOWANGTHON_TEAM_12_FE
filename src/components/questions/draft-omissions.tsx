@@ -10,7 +10,7 @@ import { DraftComposer } from "./draft-composer";
 import { isSupposedPair } from "./answer-draft";
 import { getBoxShows, subscribeBoxShows } from "./answer-box-state";
 import { requestError } from "./draft-errors";
-import { scrollWithinContainer } from "@/lib/scroll";
+import { revealWithinContainer } from "@/lib/scroll";
 import { cn } from "@/lib/utils";
 
 export function answerError(e: unknown) {
@@ -66,32 +66,33 @@ export type DraftPanelActions = {
 
 /** 시안 6 mateFeed: 빠진 사실 질문 → 내 답 → 보완 저장 안내 → 초안 다시 만들기.
  *  다 된 초안이 있으면 「초안 다시 만들기」 설정을 늘 펼쳐 두지 않는다 — 패널 아래 칩 줄의 「초안 다시 만들기」가 연다(FE#547) */
-export function DraftFollowUp({ question, onGenerate, onRefresh, savingAnswer, requestingDraft, focusRequest, picks, onResetPicks, composerOpen = false, onComposerClose }: {
+export function DraftFollowUp({ question, onGenerate, onRefresh, savingAnswer, requestingDraft, picks, onResetPicks, composerOpen = false, onComposerClose, revealRequest = 0 }: {
   question: QuestionDetail;
-  /** 칩으로 「초안 다시 만들기」를 펼쳤다 */
+  /** 칩 · 「초안 설정 열기」로 「초안 다시 만들기」를 펼쳤다 */
   composerOpen?: boolean; onComposerClose?: () => void;
+  /** 바뀌면 설정 카드를 보이고 강조한다 — 칩 · 가운데 「초안 부탁하기 · 초안 설정 열기」 어느 쪽이든(FE#627) */
+  revealRequest?: number;
 } & DraftPanelActions) {
   const target = useRef<HTMLElement>(null);
   const composer = useRef<HTMLDivElement>(null);
-  // 칩을 누르면 펼친 설정이 보이게 — 패널 안에서만 움직인다
-  useEffect(() => { if (composerOpen && composer.current) scrollWithinContainer(composer.current); }, [composerOpen]);
   const pending = useRef(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // 「초안 부탁하기」(FE#249) — 패널이 이미 열려 있어도 반응이 보이게: 패널 안에서만 「초안 준비」로 옮기고, 카드를 한 번 강조하고,
-  // 초점은 「초안 만들기」로(못 누르는 상태면 카드로). 메인 페이지는 움직이지 않는다
+  // 「초안 부탁하기」(FE#249) — 패널이 이미 열려 있어도 반응이 보이게: 패널 안에서만 설정 카드가 보이게 옮기고, 카드를 한 번 강조하고,
+  // 초점은 「초안 만들기 · 다시 만들기」로(못 누르는 상태면 카드로). 메인 페이지는 움직이지 않는다.
+  // 강조 · 초점은 바깥 「초안 보완」 말고 설정 카드에 — 칩으로 펼칠 때도 같다(FE#627)
   const [highlight, setHighlight] = useState(false);
   useEffect(() => {
-    if (!focusRequest || !target.current) return;
-    const section = target.current;
-    scrollWithinContainer(section);
-    const generate = section.querySelector<HTMLButtonElement>("[data-draft-generate]");
-    (generate && !generate.disabled ? generate : section).focus({ preventScroll: true });
+    const card = composer.current ?? target.current;
+    if (!revealRequest || !card) return;
+    revealWithinContainer(card);
+    const generate = card.querySelector<HTMLButtonElement>("[data-draft-generate]");
+    (generate && !generate.disabled ? generate : card).focus({ preventScroll: true });
     // 렌더 중이 아니라 효과 안에서 한 번 켰다가 끈다 — 같은 요청을 여러 번 눌러도 다시 강조한다
     const on = setTimeout(() => setHighlight(true), 0);
     const off = setTimeout(() => setHighlight(false), 1200);
     return () => { clearTimeout(on); clearTimeout(off); setHighlight(false); };
-  }, [focusRequest]);
+  }, [revealRequest]);
   const draft = question.draft;
   // 답칸이 다 쓴 답을 보이거나 비어 있으면 「초안을 답칸에 넣었어요」라고 하지 않는다(FE#384 · FE#519)
   const shows = useSyncExternalStore(subscribeBoxShows, () => getBoxShows(question.id), () => null);
@@ -109,10 +110,7 @@ export function DraftFollowUp({ question, onGenerate, onRefresh, savingAnswer, r
     catch (e) { setError(requestError(e)); }
     finally { pending.current = false; setRefreshing(false); }
   };
-  return <section ref={target} tabIndex={-1} aria-label="차곡이의 초안" data-highlight={highlight || undefined}
-    // 강조는 테두리 한 번 — 움직임 줄이기면 서서히 사라지지 않고 바로 켜졌다 꺼진다
-    className={cn("mt-3 grid min-w-0 scroll-mt-4 gap-2.5 rounded-sm border-t border-hairline pt-4 outline-2 outline-offset-4 motion-safe:transition-[outline-color] motion-safe:duration-700",
-      highlight ? "outline-ink" : "outline-transparent")}>
+  return <section ref={target} tabIndex={-1} aria-label="차곡이의 초안" className="mt-3 grid min-w-0 scroll-mt-4 gap-2.5 border-t border-hairline pt-4 outline-none">
     <h3 className="m-0 text-xs font-semibold text-muted">{draft ? "초안 보완" : "초안 준비"}</h3>
     {analyzing ? <p role="status" className={bubble}>고른 경험과 보완을 읽고 초안을 만드는 중이에요…</p> : draft ? <>
       {draft?.status === "FAILED" ? <p className={bubble}>초안을 완성하지 못했어요. 아래 설정에서 다시 요청해 주세요.</p> : <>
@@ -123,7 +121,10 @@ export function DraftFollowUp({ question, onGenerate, onRefresh, savingAnswer, r
       </>}
       {savingAnswer && <p role="status" className={bubble}>보완으로 쌓는 중이에요…</p>}
     </> : null}
-    {!folded && <div ref={composer} className="min-w-0 scroll-mt-4">
+    {/* 강조는 테두리 한 번 — 움직임 줄이기면 서서히 사라지지 않고 바로 켜졌다 꺼진다 */}
+    {!folded && <div ref={composer} tabIndex={-1} data-highlight={highlight || undefined}
+      className={cn("min-w-0 scroll-mt-4 rounded-md outline-2 outline-offset-2 motion-safe:transition-[outline-color] motion-safe:duration-700",
+        highlight ? "outline-ink" : "outline-transparent")}>
       <DraftComposer question={question} onRefresh={onRefresh} savingAnswer={savingAnswer} requestingDraft={requestingDraft || refreshing} picks={picks} onResetPicks={onResetPicks}
         onGenerate={async (...args) => { await onGenerate(...args); onComposerClose?.(); }} />
     </div>}

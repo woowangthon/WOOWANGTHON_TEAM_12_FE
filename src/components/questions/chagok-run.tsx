@@ -203,7 +203,8 @@ export function ChagokRunFeed({ control, currentQuestionId, rematch }: {
 }
 
 /** 칩 줄의 「초안 다시 만들기」(FE#547) — 다 된 초안이 있을 때만. 차곡이에게 말을 보내는 칩(분석 1회)과 달리 위 설정을 펼치는 버튼이라
- *  아이콘 · 흰 바탕으로 모양을 달리 한다. 새 답이 있어 공짜일 때만(draft.freeRegenerate) 진하게 강조한다 */
+ *  아이콘 · 흰 바탕으로 모양을 달리 한다. 새 답이 있어 공짜일 때만(draft.freeRegenerate) 진하게 강조한다.
+ *  펼쳤을 때는 공짜든 아니든 꺾쇠가 뒤집히고 테두리가 진해진다 — 옆 칩 · 마우스 올림 색과 헷갈리지 않게(FE#627) */
 export type RedraftChip = { open: boolean; free: boolean; newAnswers: number; onToggle: () => void };
 
 export function ChagokComposer({ control, hasQuestion, hasDraft, redraft }: { control: ChagokRunControl; hasQuestion: boolean; hasDraft: boolean; redraft?: RedraftChip | null }) {
@@ -238,9 +239,10 @@ export function ChagokComposer({ control, hasQuestion, hasDraft, redraft }: { co
       {redraft && <button type="button" aria-expanded={redraft.open} onClick={redraft.onToggle}
         className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
           redraft.free ? "border-primary bg-primary text-on-primary hover:opacity-90" : "border-hairline bg-canvas text-ink hover:bg-surface-soft",
-          redraft.open && !redraft.free && "bg-surface-strong")}>
+          redraft.open && (redraft.free ? "ring-2 ring-primary ring-offset-2 ring-offset-canvas" : "border-ink"))}>
         <ArrowsClockwiseIcon aria-hidden="true" className="size-3.5" />
         {redraft.free ? redraft.newAnswers > 0 ? `새 답 ${redraft.newAnswers}개 넣어 다시 만들기` : "새 답 넣어 다시 만들기" : "초안 다시 만들기"}
+        <CaretDownIcon aria-hidden="true" className={cn("size-3 motion-safe:transition-transform", redraft.open && "rotate-180")} />
       </button>}
     </div>}
     <form className="flex items-end gap-1.5 rounded-md border border-hairline py-1 pr-1 pl-3.5" onSubmit={e => { e.preventDefault(); submit(); }}>

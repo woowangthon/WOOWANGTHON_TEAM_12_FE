@@ -108,7 +108,10 @@ export function ApplicationScreen() {
   const { wide, collapsed } = useSidebar();
   // 지원서를 넣는 동안엔 패널을 저절로 열지 않는다 — 이 단계엔 보일 게 없다(FE#508). 사용자가 열면 열린다
   const panelOpen = panelChoice ?? (restoreRun !== null || (wide && !composing));
-  const [draftFocus, setDraftFocus] = useState<{ questionId: number; request: number } | null>(null);
+  const [draftFocus, setDraftFocus] = useState<{ questionId: number | null; request: number } | null>(null);
+  // 패널을 닫으면 「초안 부탁하기 · 초안 설정 열기」 요청은 끝난 것 — 다른 버튼으로 다시 열 때 설정을 또 펼치지 않는다(FE#627).
+  // 번호는 남겨 둔다 — 요청 번호는 늘기만 한다
+  if (!panelOpen && draftFocus?.questionId != null) setDraftFocus({ questionId: null, request: draftFocus.request });
   const selectedIndex = open?.application.questions.findIndex(q => q.id === matching.questionId) ?? -1;
   const summary = open?.application.questions[selectedIndex] ?? null;
   const selected = open?.details[selectedIndex] ?? null;
