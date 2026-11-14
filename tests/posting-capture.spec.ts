@@ -162,6 +162,23 @@ test("adding an application is two steps: one box and one button, then a review 
 });
 
 // FE#564 — 넣기 첫 화면의 안내는 치면 사라지는 플레이스홀더가 아니라 제목 아래 설명 줄에 둔다. 칸에는 짧은 예시 한 줄만
+// FE#617 — 글 끝 괄호에 최소 · 최대가 같이 있으면 최대가 목표 글자 수, 괄호는 뗀다. 숫자가 하나인 표기는 지금처럼
+test("a question ending with a min and a max length takes the max as the target", async ({ page }) => {
+  await new FakeQuestionApi({ empty: true }).install(page);
+  const base = ["지원 동기를 적어 주세요.", "협업 경험을 적어 주세요.", "실패 경험을 적어 주세요.", "성장 경험을 적어 주세요.", "앞으로의 목표를 적어 주세요."];
+  const tails = [" (최소 500자, 최대 1,500자)", " (500자 이상 1,500자 이내)", " (1000자)", " (공백 포함 500자 이내)", " 최대 1,000자."];
+  await page.route("**/api/entrance/parse-application", r => r.fulfill({ json: {
+    organization: "OO 연합 동아리", organizationType: "CLUB", jobRole: null, postingLines: [], readFrom: "TEXT", questions: base.map((q, i) => q + tails[i]),
+  } }));
+  await page.goto("/questions?new=1");
+  await page.getByLabel("공고 · 문항 글이나 공고 링크").fill("[OO 연합 동아리] 문항 다섯 개");
+  await page.getByRole("button", { name: "읽기", exact: true }).click();
+  for (const [i, target] of ["1500", "1500", "1000", "500", "1000"].entries()) {
+    await expect(page.getByLabel(`문항 ${i + 1}`, { exact: true })).toHaveValue(base[i]);
+    await expect(page.getByLabel(`문항 ${i + 1} 목표 글자 수`, { exact: true })).toHaveValue(target);
+  }
+});
+
 test("the first step explains what to put in under the title, and the box only holds a short example", async ({ page }) => {
   await new FakeQuestionApi({ empty: true }).install(page);
   await page.goto("/questions");
