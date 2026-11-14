@@ -134,12 +134,16 @@ test("account menu shows today's analyses and logs out", async ({ page }) => {
   const state = await setup(page, { signedIn: true });
   await timelineReady(page);
   await page.getByRole("button", { name: "계정 메뉴: test" }).click();
-  // FE#242 — 쓴 횟수(3 / 200)가 아니라 남은 횟수, FE#599 — ✦ 뜻은 계정 메뉴에 한 줄로
-  await expect(page.getByRole("menu")).toContainText("오늘 남은 분석 197회");
-  await expect(page.getByRole("menu")).toContainText("✦ 가 붙은 버튼은 누를 때마다 분석 횟수를 써요");
+  const menu = page.getByRole("menu");
+  // FE#242 — 쓴 횟수(3 / 200)가 아니라 남은 횟수, FE#636 — ✦ 뜻은 ⓘ 를 눌렀을 때만 보인다
+  await expect(menu).toContainText("오늘 남은 분석 197회");
+  await expect(menu).not.toContainText("✦ 가 붙은 버튼은 누를 때마다 분석 횟수를 써요");
   // 넉넉할 땐 충전 안내를 숨기고 3회 이하일 때만 보인다(FE#301)
-  await expect(page.getByRole("menu")).not.toContainText("자정에 다시 채워져요");
-  await expect(page.getByRole("menu")).not.toContainText("/ 200");
+  await expect(menu).not.toContainText("자정에 다시 채워져요");
+  await expect(menu).not.toContainText("/ 200");
+  await menu.getByRole("button", { name: "분석 횟수 설명", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "분석 횟수 설명" })).toContainText("✦ 가 붙은 버튼은 누를 때마다 분석 횟수를 써요");
+  await expect(menu).toBeVisible();
   await page.getByRole("menuitem", { name: "로그아웃" }).click();
   await expect(page.getByRole("heading", { name: "로그인", exact: true })).toBeVisible();
   expect(state.posts.map((p) => p.path)).toContain("/api/auth/logout");

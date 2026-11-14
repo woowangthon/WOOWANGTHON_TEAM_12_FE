@@ -7,6 +7,7 @@ import { DropdownMenu } from "radix-ui";
 import { cn } from "@/lib/utils";
 import { AnalysisMark } from "./analysis-cost";
 import { useAuth } from "./auth-gate";
+import { InfoTip } from "@/components/ui/info-tip";
 import { MENU_CONTENT } from "@/components/ui/menu";
 
 export function AccountMenu({ variant = "bar" }: { variant?: "bar" | "sidebar" | "rail" }) {
@@ -37,11 +38,13 @@ export function AccountMenu({ variant = "bar" }: { variant?: "bar" | "sidebar" |
         >
           <div className="grid gap-0.5 px-3 py-2.5">
             <span className="text-sm font-semibold text-ink">{me.loginId}</span>
-            <span className={cn("inline-flex items-center gap-1 text-xs tabular-nums", left <= 3 ? "font-medium text-review" : "text-muted")}>
+            <div className={cn("flex items-center gap-1 text-xs tabular-nums", left <= 3 ? "font-medium text-review" : "text-muted")}>
               <AnalysisMark className="size-3.5 shrink-0" />
-              {left === 0 ? "오늘 분석을 모두 썼어요" : `오늘 남은 분석 ${left}회`}{left <= 3 && " · 한국 시간 자정에 다시 채워져요"}
-            </span>
-            <span className="text-xs text-muted">✦ 가 붙은 버튼은 누를 때마다 분석 횟수를 써요</span>
+              <span>{left === 0 ? "오늘 분석을 모두 썼어요" : `오늘 남은 분석 ${left}회`}{left <= 3 && " · 한국 시간 자정에 다시 채워져요"}</span>
+              <InfoTip label="분석 횟수" align={variant === "bar" ? "end" : "start"} portal={false}>
+                ✦ 가 붙은 버튼은 누를 때마다 분석 횟수를 써요. 한국 시간 자정에 다시 채워져요.
+              </InfoTip>
+            </div>
           </div>
           <DropdownMenu.Separator className="my-1 h-px bg-hairline" />
           <DropdownMenu.Item asChild><Link href="/guidelines" className="flex min-h-11 lg:min-h-10 items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">작성 지침</Link></DropdownMenu.Item>
