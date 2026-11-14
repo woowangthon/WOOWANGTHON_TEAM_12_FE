@@ -170,6 +170,50 @@ for (const width of [1440, 1024, 390]) {
   });
 }
 
+// FE#616 — 보던 문항으로 다시 들어오면 열어 둔 새 지원서 · 문항 더하기 · 목록을 닫고 그 문항을 보인다(숨겨 둔 화면이 상태째 다시 보여도)
+for (const width of [1440, 390]) for (const opened of ["new", "add", "list"] as const) {
+  // 「지원서 목록으로」는 좁은 화면에만 있다
+  if (opened === "list" && width !== 390) continue;
+  test(`보던 문항으로 다시 들어오면 열어 둔 입력 · 목록이 닫힌다 — ${opened} — ${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
+    const narrow = width < 1024;
+    await page.route("https://cdn.jsdelivr.net/**", route => route.abort());
+    await new FakeQuestionApi().install(page);
+    await page.goto("/questions?question=41");
+    const section = page.locator("#selected-application");
+    const question = page.getByRole("tabpanel", { name: "선택한 문항", exact: true });
+    await expect(question).toBeVisible();
+
+    if (opened === "new") {
+      const nav = narrow ? page.getByRole("navigation", { name: "주 메뉴", exact: true }) : page.getByRole("complementary", { name: "사이드바", exact: true });
+      await nav.getByRole("button", { name: "추가", exact: true }).click();
+      await page.getByRole("menuitem", { name: /^새 지원서/ }).click();
+      await expect(section).toHaveAttribute("aria-label", "새 지원서 입력");
+      await page.waitForTimeout(500); // 연 입력이 저절로 닫히지 않는다
+      await expect(section).toHaveAttribute("aria-label", "새 지원서 입력");
+      // 좁은 화면은 입력칸에 포커스가 있는 동안(자판이 뜬 동안) 아래 탭바를 숨긴다 — 자판을 내린다
+      await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    } else if (opened === "add") {
+      await page.getByRole("button", { name: "문항 더하기", exact: true }).click();
+      await expect(page.getByRole("button", { name: "문항 더하기", exact: true })).toHaveAttribute("aria-pressed", "true");
+      await expect(question).toBeHidden();
+    } else {
+      await page.getByRole("button", { name: "지원서 목록으로", exact: true }).click();
+      await expect(section).toBeHidden();
+    }
+
+    await page.locator('a[href="/applications"]:visible').first().click();
+    await expect(page.getByRole("heading", { name: /^내 지원서/, level: 1 })).toBeVisible();
+    await page.locator("main a[href='/questions?question=41']").click();
+    await expect(page).toHaveURL(/question=41$/);
+    await expect(section).toHaveAttribute("aria-label", "선택한 지원서");
+    await expect(section).toBeVisible();
+    await expect(question).toBeVisible();
+    await expect(page.getByRole("tab", { name: /^문항 1/ })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("button", { name: "문항 더하기", exact: true })).toHaveAttribute("aria-pressed", "false");
+  });
+}
+
 // FE#581 — 최종 URL뿐 아니라 화면 전환 중 실제로 노출되는 문항도 검사한다.
 async function startApplicationFlashProbe(page: Page) {
   await page.evaluate(() => {

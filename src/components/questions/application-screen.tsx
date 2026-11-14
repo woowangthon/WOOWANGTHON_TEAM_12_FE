@@ -124,6 +124,13 @@ export function ApplicationScreen() {
     const timer = setTimeout(() => { openedWorkQuestion.current = linkedQuestion; void matching.openLinkedQuestion(linkedQuestion); setComposing(false); setAdding(false); setListShown(false); }, 0);
     return () => clearTimeout(timer);
   }, [linkedQuestion, matching]);
+  // 주소로 문항이 들어오면 — 이미 고른 문항이어도 — 열어 둔 새 지원서 · 문항 더하기 · 목록을 닫는다(FE#616).
+  // 숨겨 둔 화면이 상태째 다시 보일 때도 효과가 다시 돌아 닫힌다(cacheComponents). 주소 문항이 바뀔 때만 돌아, 화면 안에서 연 입력은 저절로 닫지 않는다
+  useLayoutEffect(() => {
+    if (!linkedQuestion) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 들어온 주소에 맞춰 첫 페인트 전에 닫아야 입력창이 한 프레임도 문항을 가리지 않는다(FE#581 과 같은 방식).
+    setComposing(false); setAdding(false); setListShown(false);
+  }, [linkedQuestion]);
   useEffect(() => {
     if (restoreRun === null) return;
     const timer = setTimeout(() => { setPanelChoice(true); setComposing(false); setAdding(false); setListShown(false); }, 0);
