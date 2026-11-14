@@ -51,7 +51,7 @@ export function CommonQuestionPicker({ room, onPick, onBack, onCancel, inDialog 
   onCancel?: () => void;
   /** 홈 「새 지원서」 창 안 — 창이 스크롤하고 아래 탭바가 없다(FE#613) */
   inDialog?: boolean;
-  /** 이미 지원서에 들어 있는 문항 — 겹치는 추천은 뺀다(FE#597) */
+  /** 이미 지원서에 들어 있는 문항 — 자주 나오는 문항에선 빼고, 내가 넣었던 문항은 이미 들어 있다고 비활성으로 보인다(FE#597 · FE#634) */
   existingQuestions?: string[];
 }) {
   const [picked, setPicked] = useState<string[]>([]);
@@ -60,7 +60,6 @@ export function CommonQuestionPicker({ room, onPick, onBack, onCancel, inDialog 
   const full = picked.length >= room;
   const toggle = (text: string) => setPicked(prev => (prev.includes(text) ? prev.filter(t => t !== text) : [...prev, text]));
   const existingKeys = new Set(existingQuestions.map(questionKey).filter(Boolean));
-  const visiblePast = past.state === "ready" ? past.questions.filter(q => !existingKeys.has(questionKey(q.text))) : [];
   const visibleGroups = COMMON_QUESTIONS
     .map(group => ({ ...group, questions: group.questions.filter(text => !existingKeys.has(questionKey(text))) }))
     .filter(group => group.questions.length > 0);
@@ -76,9 +75,9 @@ export function CommonQuestionPicker({ room, onPick, onBack, onCancel, inDialog 
       .catch(e => setPast({ state: "error", message: e instanceof Error ? e.message : "넣었던 문항을 불러오지 못했어요." }));
   }, [attempt]);
 
-  const option = (key: string | number, text: string, sub?: string) => {
-    const checked = picked.includes(text);
-    return <QuestionOption key={key} text={text} sub={sub} checked={checked} disabled={!checked && full} onToggle={() => toggle(text)} />;
+  const option = (key: string | number, text: string, sub?: string, exists = false) => {
+    const checked = !exists && picked.includes(text);
+    return <QuestionOption key={key} text={text} sub={sub} checked={checked} disabled={exists || (!checked && full)} onToggle={() => toggle(text)} />;
   };
 
   return (
@@ -103,15 +102,14 @@ export function CommonQuestionPicker({ room, onPick, onBack, onCancel, inDialog 
             {past.state === "ready" && past.questions.length === 0 && (
               <p className="m-0 px-3 text-sm text-muted">아직 넣은 문항이 없어요. 지원서를 넣으면 여기서 다시 고를 수 있어요.</p>
             )}
-            {past.state === "ready" && past.questions.length > 0 && visiblePast.length === 0 && (
-              <p className="m-0 px-3 text-sm text-muted">넣었던 문항은 이미 다 들어 있어요.</p>
-            )}
-            {past.state === "ready" && visiblePast.map(q => (
-              option(q.id, q.text, [
+            {past.state === "ready" && past.questions.map(q => {
+              const exists = existingKeys.has(questionKey(q.text));
+              return option(q.id, q.text, [
                 q.organization || "지원처 이름 없음",
                 q.questionType && `${QUESTION_TYPE_LABEL[q.questionType]}${q.questionTypeBy === "AI" ? " (AI 해석)" : ""}`,
-              ].filter(Boolean).join(" · "))
-            ))}
+                exists && "이미 이 지원서에 있음",
+              ].filter(Boolean).join(" · "), exists);
+            })}
           </fieldset>
 
           {visibleGroups.length > 0 && <>

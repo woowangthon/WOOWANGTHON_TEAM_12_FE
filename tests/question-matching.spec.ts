@@ -462,6 +462,7 @@ test("common questions fill blank slots first, stay editable and stop at the sub
   await expect(picker).toContainText("7개까지 고를 수 있어요.");
   // 「내가 넣었던 문항」(계약 예시 2개)이 다 온 뒤에 센다 — 목록이 늦게 오면 체크박스 순서가 밀린다
   await expect(picker.getByRole("group", { name: "내가 넣었던 문항" }).getByRole("checkbox")).toHaveCount(2);
+  await expect(picker.getByRole("group", { name: "IT 연합 동아리" }).getByRole("checkbox", { name: /^실천의 관점에서/ })).toHaveCount(0);
   const boxes = picker.getByRole("checkbox");
   await boxes.nth(0).check();
   await expect(picker).toContainText("1개 골랐어요 · 6개 더 고를 수 있어요.");
@@ -687,13 +688,13 @@ test("a question can be added to an existing application and blank slots are nam
   await page.getByRole("button", { name: "문항 1개로 경험 찾기", exact: true }).click();
   await expect(page.getByRole("tablist", { name: "문항" }).getByRole("tab")).toHaveCount(1);
   await page.getByRole("button", { name: "문항 더하기", exact: true }).click();
-  // FE#597 — 이미 만든 지원서의 「+ 문항 더하기」에도 넣었던 · 자주 나오는 문항 고르기 버튼을 둔다
+  // FE#597 · FE#634 — 이미 만든 지원서의 「+ 문항 더하기」에도 넣었던 · 자주 나오는 문항 고르기 버튼을 두고, 이미 들어 있는 문항은 내가 넣었던 문항에서 비활성으로 보인다
   await page.getByRole("button", { name: "넣었던 · 자주 나오는 문항에서 고르기", exact: true }).click();
   const picker = page.getByRole("region", { name: "문항 고르기" });
   const past = picker.getByRole("group", { name: "내가 넣었던 문항" });
-  await expect(past.getByRole("checkbox").first()).toBeVisible();
-  await expect(picker.getByRole("checkbox", { name: /^첫 문항$/ })).toHaveCount(0);
-  await past.getByRole("checkbox").first().check();
+  await expect(past.getByRole("checkbox", { name: /^첫 문항/ })).toBeDisabled();
+  await expect(past.locator("label").filter({ hasText: "첫 문항" })).toContainText("이미 이 지원서에 있음");
+  await past.getByRole("checkbox", { disabled: false }).first().check();
   await picker.getByRole("button", { name: "고른 문항 1개 넣기", exact: true }).click();
   await expect(picker).toHaveCount(0);
   await expect(page.getByLabel("이 지원서에 문항 더하기")).not.toHaveValue("");
@@ -704,6 +705,20 @@ test("a question can be added to an existing application and blank slots are nam
   await expect(tabs.nth(1)).toHaveAttribute("aria-selected", "true");
   await expect(result(page).getByRole("heading", { name: "본인의 장단점을 적어 주세요.", exact: true })).toBeVisible();
   expect(posts(api).at(-1)).toEqual({ call: "POST /api/applications/23/questions", body: { text: "본인의 장단점을 적어 주세요." } });
+
+  // 자주 나오는 문항을 현재 지원서에 넣은 뒤 다시 고르기 화면을 열면, 자주 나오는 문항에서는 숨겨지지만 내가 넣었던 문항에서는 「이미 이 지원서에 있음」으로 남는다
+  await page.getByRole("button", { name: "문항 더하기", exact: true }).click();
+  await page.getByRole("button", { name: "넣었던 · 자주 나오는 문항에서 고르기", exact: true }).click();
+  const common = picker.getByRole("group", { name: "SW 교육 프로그램" });
+  await common.getByRole("checkbox", { name: /^왜 개발자가 되고 싶나요\?/ }).check();
+  await picker.getByRole("button", { name: "고른 문항 1개 넣기", exact: true }).click();
+  await page.getByRole("button", { name: "문항 더하고 경험 찾기", exact: true }).click();
+  await expect(tabs).toHaveCount(3);
+  await page.getByRole("button", { name: "문항 더하기", exact: true }).click();
+  await page.getByRole("button", { name: "넣었던 · 자주 나오는 문항에서 고르기", exact: true }).click();
+  await expect(common.getByRole("checkbox", { name: /^왜 개발자가 되고 싶나요\?/ })).toHaveCount(0);
+  await expect(past.getByRole("checkbox", { name: /^왜 개발자가 되고 싶나요\?/ })).toBeDisabled();
+  await expect(past.locator("label").filter({ hasText: "왜 개발자가 되고 싶나요?" })).toContainText("이미 이 지원서에 있음");
 });
 
 test("daily limit (429) keeps the draft and says nothing was saved", async ({ page }) => {
