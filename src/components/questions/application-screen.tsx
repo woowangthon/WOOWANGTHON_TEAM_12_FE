@@ -266,7 +266,7 @@ export function ApplicationScreen() {
               posting={open.application.postingLines?.length ? { selected: postingOpen, status: open.application.postingMatch?.status ?? "ANALYZING", onPick: () => { setAdding(false); matching.selectPosting(open.application.id); } } : null}
               onPick={id => { setAdding(false); matching.selectQuestion(id); }} onAdd={() => setAdding(true)} />
             <div className="pt-5">
-              {adding ? <AddQuestionForm onCancel={() => setAdding(false)} onSubmit={async text => {
+              {adding ? <AddQuestionForm existingQuestions={open.application.questions.map(q => q.text)} onCancel={() => setAdding(false)} onSubmit={async text => {
                 const saved = await matching.addQuestion(open.application.id, text);
                 if (saved) setAdding(false);
               }} /> : postingOpen ? <PostingTab key={`posting-${open.application.id}`} application={open.application}

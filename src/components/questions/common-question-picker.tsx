@@ -8,6 +8,7 @@ import { COMMON_QUESTIONS } from "@/lib/common-questions";
 import { fetchQuestions } from "@/lib/api/questions";
 import { ArrowLeftIcon, ArrowRightIcon } from "@phosphor-icons/react";
 import { MAX_QUESTIONS_PER_SUBMIT, QUESTION_TYPE_LABEL, type OrganizationType, type QuestionSummary } from "@/lib/api/question-types";
+import { questionKey } from "@/lib/target-length";
 import { cn } from "@/lib/utils";
 
 type Past = { state: "loading" } | { state: "error"; message: string } | { state: "ready"; questions: QuestionSummary[] };
@@ -41,7 +42,7 @@ export function pickNote(room: number, picked: number) {
 
 /** 「내가 넣었던 문항」(S-40) · 「자주 나오는 문항」(S-26)에서 여러 개 골라 문항 칸에 넣는다. 넣은 뒤엔 칸에서 고친다.
  *  지원 넣기의 따로 화면(단계) — 창 위에 창을 띄우지 않고 「← 돌아가기」로 온 화면에 돌아간다(FE#542). 아래 「취소」는 넣기 전체 닫기(FE#565) */
-export function CommonQuestionPicker({ room, onPick, onBack, onCancel, inDialog = false }: {
+export function CommonQuestionPicker({ room, onPick, onBack, onCancel, inDialog = false, existingQuestions = [] }: {
   /** 더 넣을 수 있는 문항 수 — 빈 칸 + 더할 수 있는 칸 */
   room: number;
   onPick: (texts: string[]) => void;
@@ -50,12 +51,19 @@ export function CommonQuestionPicker({ room, onPick, onBack, onCancel, inDialog 
   onCancel?: () => void;
   /** 홈 「새 지원서」 창 안 — 창이 스크롤하고 아래 탭바가 없다(FE#613) */
   inDialog?: boolean;
+  /** 이미 지원서에 들어 있는 문항 — 겹치는 추천은 뺀다(FE#597) */
+  existingQuestions?: string[];
 }) {
   const [picked, setPicked] = useState<string[]>([]);
   const [past, setPast] = useState<Past>({ state: "loading" });
   const [attempt, setAttempt] = useState(0);
   const full = picked.length >= room;
   const toggle = (text: string) => setPicked(prev => (prev.includes(text) ? prev.filter(t => t !== text) : [...prev, text]));
+  const existingKeys = new Set(existingQuestions.map(questionKey).filter(Boolean));
+  const visiblePast = past.state === "ready" ? past.questions.filter(q => !existingKeys.has(questionKey(q.text))) : [];
+  const visibleGroups = COMMON_QUESTIONS
+    .map(group => ({ ...group, questions: group.questions.filter(text => !existingKeys.has(questionKey(text))) }))
+    .filter(group => group.questions.length > 0);
 
   // 화면을 열 때마다 다시 받는다 — 그사이 넣은 지원이 있을 수 있다. 이미 저장된 문항이라 AI 를 부르지 않는다.
   // 시도마다 한 번만 — 개발 모드의 두 번 붙이기에도 두 번 부르지 않는다
@@ -95,7 +103,10 @@ export function CommonQuestionPicker({ room, onPick, onBack, onCancel, inDialog 
             {past.state === "ready" && past.questions.length === 0 && (
               <p className="m-0 px-3 text-sm text-muted">아직 넣은 문항이 없어요. 지원서를 넣으면 여기서 다시 고를 수 있어요.</p>
             )}
-            {past.state === "ready" && past.questions.map(q => (
+            {past.state === "ready" && past.questions.length > 0 && visiblePast.length === 0 && (
+              <p className="m-0 px-3 text-sm text-muted">넣었던 문항은 이미 다 들어 있어요.</p>
+            )}
+            {past.state === "ready" && visiblePast.map(q => (
               option(q.id, q.text, [
                 q.organization || "지원처 이름 없음",
                 q.questionType && `${QUESTION_TYPE_LABEL[q.questionType]}${q.questionTypeBy === "AI" ? " (AI 해석)" : ""}`,
@@ -103,13 +114,15 @@ export function CommonQuestionPicker({ room, onPick, onBack, onCancel, inDialog 
             ))}
           </fieldset>
 
-          <div className="flex items-center gap-0.5 border-t border-hairline pt-3"><p className="m-0 text-note font-medium text-muted">자주 나오는 문항</p><InfoTip label="자주 나오는 문항">실제 지원서에서 모았어요. 지원처 이름은 지웠어요.</InfoTip></div>
-          {COMMON_QUESTIONS.map(group => (
-            <fieldset key={group.kind} className="m-0 grid gap-1 border-0 p-0">
-              <legend className="mb-1.5 p-0 text-sm font-semibold text-ink">{group.kind}</legend>
-              {group.questions.map(text => option(text, text))}
-            </fieldset>
-          ))}
+          {visibleGroups.length > 0 && <>
+            <div className="flex items-center gap-0.5 border-t border-hairline pt-3"><p className="m-0 text-note font-medium text-muted">자주 나오는 문항</p><InfoTip label="자주 나오는 문항">실제 지원서에서 모았어요. 지원처 이름은 지웠어요.</InfoTip></div>
+            {visibleGroups.map(group => (
+              <fieldset key={group.kind} className="m-0 grid gap-1 border-0 p-0">
+                <legend className="mb-1.5 p-0 text-sm font-semibold text-ink">{group.kind}</legend>
+                {group.questions.map(text => option(text, text))}
+              </fieldset>
+            ))}
+          </>}
         </div>
 
       {/* 목록이 길어 넣기 버튼은 아래에 붙여 둔다 — 1024 미만은 아래 탭바 위에.
