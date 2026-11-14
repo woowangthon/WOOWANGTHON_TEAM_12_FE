@@ -22,18 +22,20 @@ const draftChecked = (): Sentence[] => DRAFT_S79.sentences.map((s, i) => ({ text
 const unsupportedOwn = (): Sentence => ({ text: OWN, status: "UNSUPPORTED", evidence: [], note: "문장의 숫자(100)가 받치는 근거가 없어요" });
 
 /** sentences 는 점검을 눌렀을 때 돌려줄 결과 — 점검한 글(text)은 그 시점의 입력칸 글이다 */
-async function setup(page: Page, opts: { draft?: boolean; sentences: Sentence[] }) {
+async function setup(page: Page, opts: { draft?: boolean; sentences: Sentence[]; saved?: GroundingCheck }) {
   const api = new FakeQuestionApi({ sameApplication: true });
   if (opts.draft) api.edit(41, q => { q.draft = structuredClone(DRAFT_S79); });
   await api.install(page);
-  const state = { saved: null as GroundingCheck | null, sentences: opts.sentences, posts: [] as { text: string }[] };
+  const state = { saved: opts.saved ?? null as GroundingCheck | null, sentences: opts.sentences, posts: [] as { text: string }[] };
   await page.route("**/api/questions/*/grounding-check", async route => {
     const id = Number(new URL(route.request().url()).pathname.split("/")[3]);
     if (id !== 41) return route.fulfill({ json: { groundingCheck: null } });
     if (route.request().method() === "POST") {
       const body = route.request().postDataJSON() as { text: string };
       state.posts.push(body);
-      state.saved = { ...structuredClone(GROUNDING_EXAMPLE), text: body.text, status: "COMPLETED", sentences: structuredClone(state.sentences) };
+      // 점검은 누른 때 만든다 — 지금 초안보다 나중이다(FE#646 은 초안보다 먼저 한 점검을 옛 결과로 본다)
+      const now = new Date().toISOString();
+      state.saved = { ...structuredClone(GROUNDING_EXAMPLE), text: body.text, status: "COMPLETED", sentences: structuredClone(state.sentences), createdAt: now, updatedAt: now };
       return route.fulfill({ status: 202, json: state.saved });
     }
     return route.fulfill({ json: { groundingCheck: state.saved } });
@@ -175,4 +177,51 @@ test("근거 점검은 필요할 때만 — 손대지 않은 초안엔 버튼이
   await expect(page.locator("summary").filter({ hasText: "근거 점검" })).toHaveCount(0);
   await answerBox(page).fill(COMPOSED); // 직접 쓴 문장을 지우면 다시 숨는다
   await expect(page.getByRole("button", { name: /근거 점검|점검했어요/ })).toHaveCount(0);
+});
+
+// FE#646 — 초안을 다시 만드는 동안 답칸 · 다 썼어요 · 근거 점검은 잠기고, 새 초안에는 옛 점검이 붙지 않는다
+/** 「초안 설정 열기」 → 「다시 만들기」(덮이는 것이 있으면 경고에서 「그래도」). 좁은 폭은 패널 시트를 닫아 답칸으로 돌아온다 */
+async function regenerate(page: Page) {
+  await page.getByRole("button", { name: "초안 설정 열기", exact: true }).click();
+  await page.getByRole("region", { name: "초안 설정", exact: true }).getByRole("button", { name: "다시 만들기", exact: true }).click();
+  const confirm = page.getByRole("dialog", { name: /바뀌어요/ }).getByRole("button", { name: /^그래도/ });
+  if (await confirm.waitFor({ state: "visible", timeout: 1500 }).then(() => true, () => false)) await confirm.click();
+  await expect(page.getByText("차곡이가 초안을 만들고 있어요. 다 되면 답칸에 들어와요.")).toBeVisible();
+  if (narrow(page)) { await page.getByRole("button", { name: "차곡이 닫기", exact: true }).click(); await expect(page.getByRole("dialog")).toHaveCount(0); }
+}
+const done = (page: Page) => page.getByRole("button", { name: "다 썼어요", exact: true });
+
+test("초안을 만드는 동안 답칸 · 다 썼어요 · 떠 있던 근거 점검을 막고, 새 초안엔 옛 점검 표시가 없다 (FE#646)", async ({ page }) => {
+  const { api } = await setup(page, { draft: true, sentences: [...draftChecked(), unsupportedOwn()] });
+  await runCheck(page, `${COMPOSED} ${OWN}`);
+  await answerBox(page).fill(`${COMPOSED} ${OWN.replace("하루에", "매일")}`); // 점검 뒤 고친 문장 — 다시 점검할 수 있다
+  await expect(check(page)).toBeEnabled();
+  await expect(done(page)).toBeEnabled();
+  api.holdDraft = true;
+  await regenerate(page);
+  await expect(answerBox(page)).toBeDisabled();
+  await expect(done(page)).toBeDisabled();
+  await expect(check(page)).toBeVisible(); // 떠 있던 버튼은 남고 막힌다
+  await expect(check(page)).toBeDisabled();
+  api.holdDraft = false;
+  await expect(page.getByText("차곡이가 초안을 만들고 있어요. 다 되면 답칸에 들어와요.")).toHaveCount(0, { timeout: 10000 });
+  await expect(answerBox(page)).toBeEnabled();
+  await expect(answerBox(page)).not.toHaveValue(new RegExp(OWN.replace("하루에", "매일")));
+  // 새 초안 문장에 옛 점검의 「고치기 전 결과」 · 점선 · 점검 블록이 없다
+  await expect(page.locator('[data-mark^="g-"]')).toHaveCount(0);
+  await expect(page.locator('[class*="decoration-dotted"][class*="underline-offset-[5px]"]')).toHaveCount(0); // 답칸 표시층의 점선
+  await openMark(page, "s-0");
+  await expect(sentenceCard(page).getByText(/^고치기 전 결과/)).toHaveCount(0);
+  await expect(sentenceCard(page).getByText(/^점검/)).toHaveCount(0);
+});
+
+test("근거 점검이 안 보이던 답칸은 초안을 만드는 동안에도 버튼이 새로 나타나지 않는다 (FE#646)", async ({ page }) => {
+  const { api } = await setup(page, { draft: true, sentences: draftChecked() });
+  await expect(check(page)).toHaveCount(0); // 손대지 않은 초안
+  api.holdDraft = true;
+  await regenerate(page);
+  await expect(answerBox(page)).toBeDisabled();
+  await page.waitForTimeout(300);
+  await expect(check(page)).toHaveCount(0);
+  await expect(done(page)).toBeDisabled();
 });
