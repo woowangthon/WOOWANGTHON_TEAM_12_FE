@@ -13,7 +13,7 @@ import { InfoTip } from "@/components/ui/info-tip";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-gate";
-import { AnalysisMark } from "@/components/auth/analysis-cost";
+import { AnalysisCost, AnalysisMark } from "@/components/auth/analysis-cost";
 import { dailyLimitMessage } from "@/lib/api/auth";
 import { ApiError, submitSource, submitSources, type MockAnalysis } from "@/lib/api/experience";
 import type { DuplicateSource } from "@/lib/api/errors";
@@ -330,12 +330,8 @@ export function AddSourceDialog({ open, onOpenChange, mock, onSubmitted, initial
           </DialogFooter>
         ) : (
         <DialogFooter>
-          {/* ✦ 의 뜻을 처음 배우는 자리(FE#434) — 남은 횟수 옆 ⓘ 하나 */}
-          {/* 모자라면 위 경고 줄이 같은 숫자를 말한다 — 여기선 숨긴다 */}
-          {left !== null && left > 0 && requests.length <= left && <span className="inline-flex items-center gap-1 text-note text-muted tabular-nums sm:mr-auto">
-            <AnalysisMark className="size-[1.1em]" />오늘 {left}회 남음
-            <InfoTip label="분석 횟수">✦ 가 붙은 버튼은 누를 때마다 분석 횟수를 1회 써요. 한국 시간 자정에 다시 채워져요.</InfoTip>
-          </span>}
+          {/* 남은 횟수는 3회 이하일 때나 여러 개 넣을 때만(S-15 · FE#599). 모자라면 위 경고 줄이 말한다 */}
+          {left !== null && left > 0 && requests.length <= left && <AnalysisCost running={submitting} count={Math.max(1, requests.length)} className="sm:mr-auto" />}
           {github && <Button variant="link" onClick={() => { clearNotice(); setGithub(false); }} disabled={submitting}>돌아가기</Button>}
           {onMoveToApplication && !usingFiles && !github && <Button variant="link" disabled={submitting || !text.trim()} onClick={() => onMoveToApplication(text)}>지원서로 만들기</Button>}
           <Button variant="link" onClick={() => changeOpen(false)} disabled={submitting}>
