@@ -21,6 +21,7 @@ import { ExperienceEditor } from "./experience-editor";
 import { SourceFileButton } from "./source-viewer";
 import { RevisionDialog } from "@/components/revisions/revision-list";
 import { MENU_CONTENT, MENU_ITEM } from "@/components/ui/menu";
+import { MenuRoot, MenuTrigger } from "@/components/ui/tap-menu";
 import { cn } from "@/lib/utils";
 import { ExportStatus, useMarkdownExport } from "@/components/export/markdown-export";
 import { fetchActivity, organizeStar } from "@/lib/api/experience";
@@ -100,10 +101,10 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
           <ActivityNameField key={current.id} activity={{ ...summary, name: current.name, period }} readOnly={readOnly || !activity} onSaved={onActivitySaved} />
           {/* 활동이 하나여도 메뉴는 있다 — 수정 이력(S-80) · 지우기(S-88). 합치기만 둘 이상일 때 */}
           {activity && !readOnly && (
-            <DropdownMenu.Root>
-              <DropdownMenu.Trigger asChild>
+            <MenuRoot>
+              <MenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="size-11 lg:size-9" title="더 보기" aria-label="활동 메뉴"><DotsThreeIcon /></Button>
-              </DropdownMenu.Trigger>
+              </MenuTrigger>
               <DropdownMenu.Portal>
                 <DropdownMenu.Content align="end" sideOffset={4} className={cn(MENU_CONTENT, "z-50 min-w-40")}>
                   {onMergeRequest && <DropdownMenu.Item onSelect={onMergeRequest} className={MENU_ITEM}>다른 활동과 합치기</DropdownMenu.Item>}
@@ -112,7 +113,7 @@ export function ActivityDetailView({ summary, state, now, onClose, onRetry, onAc
                   {onDeleteRequest && <DropdownMenu.Item onSelect={onDeleteRequest} className={cn(MENU_ITEM, "text-error")}>지우기</DropdownMenu.Item>}
                 </DropdownMenu.Content>
               </DropdownMenu.Portal>
-            </DropdownMenu.Root>
+            </MenuRoot>
           )}
           {/* 활동과 지금 속한 경험의 기록을 한 곳에서(FE#467 · BE#168). 되돌리면 연 세부 · 경험 줄이 그 자리에서 바뀐다(restore-bus) */}
           {activity && !readOnly && <RevisionDialog open={historyOpen} onOpenChange={setHistoryOpen} target={null} activityId={activity.id} title="수정 이력"

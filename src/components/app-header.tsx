@@ -17,6 +17,7 @@ import type { Application } from "@/lib/api/question-types";
 import { WorkStatus } from "@/components/work/work-provider";
 import { RecentRevisionsButton } from "@/components/revisions/revision-list";
 import { MENU_CONTENT } from "@/components/ui/menu";
+import { MenuRoot, MenuTrigger } from "@/components/ui/tap-menu";
 
 type Page = "home" | "timeline" | "applications" | "questions" | "connections" | "guidelines";
 type HeaderProps = {
@@ -69,7 +70,7 @@ export function AppHeader({ hideTabBar, panelToggle, addSource, applicationList,
   return <Tooltip.Provider delayDuration={200}>
     {/* 1024 미만 — 한 줄. 높이는 스크롤해도 붙어 있는 줄 하나(45px)로 두어 본화면을 줄이지 않는다(FE#201).
         좁은 폭 · 큰 기본 글자에선 오른쪽 버튼이 로고 위로 넘친다 — 줄이 23rem 보다 좁으면 「최근 수정」을 숨긴다(FE#632).
-        최근 수정은 경험 · 활동 메뉴와 답칸에서도 열린다 */}
+        숨겨도 계정 메뉴의 「최근 수정」으로 연다(FE#642) */}
     <header className="@container/mheader sticky top-0 z-40 flex h-11.25 items-center gap-1 border-b border-hairline bg-canvas pr-2 pl-4 lg:hidden">
       <Link href="/" aria-label="차곡 — 홈" className="shrink-0"><Logo className="h-5 w-auto" /></Link>
       {!desktop && <WorkStatus className="min-w-0 flex-1 shrink justify-end">{panelToggle}<QuickFindButton /></WorkStatus>}
@@ -150,12 +151,12 @@ function SidebarNavigation({ collapsed = false, activePage = "timeline", experie
   return <nav id={id} className="relative flex shrink-0 flex-col gap-0.5" aria-label="주 메뉴">
     <AddMenu side={collapsed ? "right" : "bottom"} align="start" busy={addSourceBusy} onAddSource={() => { onNavigate?.(); onAddSource(); }} onNewApplication={() => { onNavigate?.(); onNewApplication(); }}>
       <RailTip label="추가" enabled={collapsed}>
-        <DropdownMenu.Trigger asChild>
+        <MenuTrigger asChild>
           <button type="button" aria-label="추가" className={cn(navItem, "hover:bg-canvas/60 data-[state=open]:bg-canvas/60")}>
             <span className="flex size-5 shrink-0 items-center justify-center" aria-hidden="true"><PlusIcon className="size-4.5" /></span>
             <span className="sidebar-label shrink-0" aria-hidden={collapsed || undefined}>추가</span>
           </button>
-        </DropdownMenu.Trigger>
+        </MenuTrigger>
       </RailTip>
     </AddMenu>
     {/* 지원서 화면(/questions)도 「내 지원서」 영역이다(FE#347) */}
@@ -185,7 +186,7 @@ function AddMenu({ side, align, busy, onAddSource, onNewApplication, children }:
   const item = "flex cursor-pointer gap-3 rounded-sm px-3 py-2.5 outline-none focus:bg-surface-soft data-disabled:cursor-default data-disabled:opacity-60";
   const text = (title: string, detail: string) => <span className="grid"><span className="text-sm leading-4 font-semibold text-ink">{title}</span><span className="text-note leading-normal text-muted">{detail}</span></span>;
   const label = "px-3 pt-2 pb-1 text-xs font-medium text-muted";
-  return <DropdownMenu.Root modal={false}>
+  return <MenuRoot modal={false}>
     {children}
     <DropdownMenu.Portal>
       <DropdownMenu.Content align={align} side={side} sideOffset={6} className={cn(MENU_CONTENT, "z-60 grid w-70 gap-0.5")}>
@@ -202,7 +203,7 @@ function AddMenu({ side, align, busy, onAddSource, onNewApplication, children }:
         </DropdownMenu.Item>
       </DropdownMenu.Content>
     </DropdownMenu.Portal>
-  </DropdownMenu.Root>;
+  </MenuRoot>;
 }
 
 /** 1024 미만 아래 탭바 — 위 막대의 글자 메뉴 · 내 경험의 떠 있는 버튼을 대신한다(FE#201) */
@@ -221,11 +222,11 @@ function TabBar({ page, busy, onAddSource, onNewApplication }: { page: Page; bus
   return <nav data-slot="tab-bar" data-hidden={hidden || undefined} aria-label="주 메뉴" className={cn("fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-hairline bg-canvas pb-[env(safe-area-inset-bottom,0px)] [transition:transform_150ms,visibility_0s_200ms] has-focus-visible:translate-y-0 motion-reduce:[transition:visibility_0s_200ms] lg:hidden [body:has(input:focus,textarea:focus)_&]:invisible", hidden && "translate-y-full")}>
     {link(tabs[0])}{link(tabs[1])}
     <AddMenu side="top" align="center" busy={busy} onAddSource={onAddSource} onNewApplication={onNewApplication}>
-      <DropdownMenu.Trigger asChild>
+      <MenuTrigger asChild>
         <button type="button" aria-label="추가" className={cn(tab, "text-ink")}>
           <span className="flex size-9 items-center justify-center rounded-full bg-primary text-on-primary" aria-hidden="true"><PlusIcon className="size-5" /></span>
         </button>
-      </DropdownMenu.Trigger>
+      </MenuTrigger>
     </AddMenu>
     {link(tabs[2])}{link(tabs[3])}
   </nav>;

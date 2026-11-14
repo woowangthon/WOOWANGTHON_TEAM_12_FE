@@ -213,3 +213,35 @@ test("activity with no experiences shows a neutral empty state that leads to dir
   await expect(detail.getByText("아직 이 활동에 적힌 경험이 없어요", { exact: true })).toHaveCount(0);
   expect(state.posts).toEqual([{ content: "First manual experience", competencies: [], actor: "ME" }]);
 });
+
+// FE#640 — 「…」 위에서 스크롤을 시작해도 메뉴가 올라오지 않는다. 터치는 손을 떼어 탭이 됐을 때만 연다
+test("experience menu opens on a tap, not when a touch only lands on it", async ({ page }) => {
+  await setup(page);
+  const trigger = page.getByRole("button", { name: "경험 메뉴: Original 1", exact: true });
+  // 손가락이 닿기만 함 — 스크롤로 이어지면 click 이 오지 않는다
+  await trigger.dispatchEvent("pointerdown", { pointerType: "touch", button: 0, isPrimary: true, pointerId: 7 });
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  if (test.info().project.use.hasTouch) await trigger.tap();
+  else await trigger.click(); // 마우스는 그대로 누르는 순간 열린다
+  await expect(page.getByRole("menuitem", { name: "지우기", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toHaveCount(0);
+});
+
+// FE#641 — 「수행 주체」 글자 줄 옆 빈 곳을 눌러도 선택창이 열리지 않는다. 선택창 상자를 눌러야 열린다
+test("actor select opens only from its own box, not from the blank beside its caption", async ({ page }) => {
+  await setup(page);
+  await page.getByRole("button", { name: "경험 직접 추가", exact: true }).click();
+  // 선택창 바로 위 글자 줄의 오른쪽 끝(글자 없는 빈 곳)
+  const select = page.getByLabel("수행 주체", { exact: true });
+  await select.scrollIntoViewIfNeeded();
+  const box = (await select.boundingBox())!;
+  const [x, y] = [box.x + box.width - 4, box.y - 12];
+  if (test.info().project.use.hasTouch) await page.touchscreen.tap(x, y);
+  else await page.mouse.click(x, y);
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await pickOption(page.getByLabel("수행 주체", { exact: true }), "팀");
+  await expect(page.getByLabel("수행 주체", { exact: true })).toHaveText("팀");
+});

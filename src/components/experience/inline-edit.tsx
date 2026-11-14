@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { MonthField } from "./activity-editor";
 import { CompetencyPicker } from "./competency-picker";
 import { MENU_CONTENT } from "@/components/ui/menu";
+import { MenuRoot, MenuTrigger } from "@/components/ui/tap-menu";
 
 const ACTOR: Record<Actor, string> = { ME: "나", TEAM: "팀", UNKNOWN: "알 수 없음" };
 const HOVER = "cursor-text rounded-sm hover:bg-surface-soft focus-visible:bg-surface-soft";
@@ -234,8 +235,8 @@ export function ActorField({ experience: e, onSaved }: { experience: Experience;
     finally { setSaving(false); }
   };
   return <>
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger asChild>
+    <MenuRoot>
+      <MenuTrigger asChild>
         <button type="button" disabled={saving} aria-label={`수행 주체 고치기: ${ACTOR[e.actor]}`} title="눌러서 수행 주체 고치기" className={cn(MENU_HOVER, "group/edit -mx-1 inline-flex items-center gap-0.5 px-1 disabled:opacity-50")}>
           {e.actor === "UNKNOWN"
             // 정하지 않은 주체는 눈에 띄게 — 정하면 초안이 「제가」 · 「팀은」으로 쓴다(S-76 의 일괄 정하기 대신).
@@ -243,7 +244,7 @@ export function ActorField({ experience: e, onSaved }: { experience: Experience;
             ? <span className={cn(EDITABLE, "font-semibold text-ink")}>누가 했나요?</span>
             : <span className={EDITABLE}>{ACTOR[e.actor]}</span>}<CaretDownIcon className={cn("size-[0.9em] group-hover/edit:text-ink", e.actor === "UNKNOWN" ? "text-ink" : "text-muted")} aria-hidden="true" />
         </button>
-      </DropdownMenu.Trigger>
+      </MenuTrigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="start" sideOffset={4} className={cn(MENU_CONTENT, "z-50 max-w-[calc(100vw-2rem)] min-w-40")}>
           <DropdownMenu.Label className="px-3 pt-1.5 pb-1 text-xs text-muted">누가 한 일인가요?</DropdownMenu.Label>
@@ -255,7 +256,7 @@ export function ActorField({ experience: e, onSaved }: { experience: Experience;
           </DropdownMenu.RadioGroup>
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
-    </DropdownMenu.Root>
+    </MenuRoot>
     {error && <span role="alert" className="text-note font-medium text-error">수행 주체를 저장하지 못했어요({error}). 다시 골라 주세요.</span>}
   </>;
 }
