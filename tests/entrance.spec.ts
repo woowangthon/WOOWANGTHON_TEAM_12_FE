@@ -65,7 +65,7 @@ test("자료 분류는 확인 전 저장하지 않고 양쪽 전환에서도 수
   const text = "  프로젝트 회고\n나는 화면을 만들었다.  ";
   await page.getByLabel("홈에 넣을 글").fill(text);
   await page.getByRole("button", { name: "보내기", exact: true }).evaluate((button: HTMLButtonElement) => { button.click(); button.click(); });
-  await expect(page.getByRole("status")).toContainText("가르고 있어요");
+  await expect(page.getByRole("status")).toContainText("질문 · 지원서 · 자료 중 가르고 있어요");
   await expect(page.getByLabel("붙여넣을 자료")).toHaveValue(text);
   expect(calls.sources).toHaveLength(0);
   const edited = text + "\n수정한 사실";

@@ -236,7 +236,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     {asking && <p role="status" className="mt-4 text-center text-sm text-muted">쌓인 경험에서 찾고 있어요…</p>}
     {answer && <AskAnswer answer={answer} busy={busy} onMakeApplication={() => makeApplication(answer.text)} />}
     {askFailure && <AskFailureNotice failure={askFailure} busy={busy} onRetry={() => void ask(askFailure.text, mockAsk)} onMakeApplication={() => makeApplication(askFailure.text)} />}
-    {routing && !parse.parsing && !asking && <p role="status" className="mt-4 text-center text-sm text-muted">글을 읽고 자료인지 지원서인지 가르고 있어요…</p>}
+    {routing && !parse.parsing && !asking && <p role="status" className="mt-4 text-center text-sm text-muted">글을 읽고 질문 · 지원서 · 자료 중 가르고 있어요…</p>}
     {parse.parsing && <p role="status" className="mt-4 text-center text-sm text-muted">{singleLink(text) ? "링크를 읽고 지원처와 문항을 나누고 있어요…" : "글을 읽고 지원처와 문항을 나누고 있어요…"}</p>}
     {parse.failure && <ParseFailureNotice className="mt-4" failure={parse.failure}
       onRetry={() => { const input = parse.failure!.input; void ("url" in input ? fillFromLink(input.url) : "text" in input && fillApplication(input.text)); /* 홈은 캡처를 받지 않는다 */ }}
