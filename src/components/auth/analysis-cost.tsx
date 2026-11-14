@@ -2,7 +2,7 @@
 
 // 분석 횟수 표시(S-15 · FE#183 · FE#434) — 분석 횟수를 쓰는 버튼은 글자 앞 ✦ 하나로 알린다. 마우스를 올리면 「분석 N회」.
 // 글자는 예상 밖일 때만 — 여러 회를 한 번에 쓸 때(「분석 N회」)와 남은 횟수가 3회 이하일 때. 0회면 ✦ 버튼을 막는다(FE#391).
-// 자료 넣기 창은 남은 횟수를 늘 따로 보인다
+// 남은 횟수와 ✦ 뜻은 계정 메뉴(AccountMenu)에 늘 보인다(FE#599)
 import type { ComponentProps } from "react";
 import { useEffect } from "react";
 import { SparkleIcon } from "@phosphor-icons/react";

@@ -134,8 +134,9 @@ test("account menu shows today's analyses and logs out", async ({ page }) => {
   const state = await setup(page, { signedIn: true });
   await timelineReady(page);
   await page.getByRole("button", { name: "계정 메뉴: test" }).click();
-  // FE#242 — 쓴 횟수(3 / 200)가 아니라 남은 횟수
+  // FE#242 — 쓴 횟수(3 / 200)가 아니라 남은 횟수, FE#599 — ✦ 뜻은 계정 메뉴에 한 줄로
   await expect(page.getByRole("menu")).toContainText("오늘 남은 분석 197회");
+  await expect(page.getByRole("menu")).toContainText("✦ 가 붙은 버튼은 누를 때마다 분석 횟수를 써요");
   // 넉넉할 땐 충전 안내를 숨기고 3회 이하일 때만 보인다(FE#301)
   await expect(page.getByRole("menu")).not.toContainText("자정에 다시 채워져요");
   await expect(page.getByRole("menu")).not.toContainText("/ 200");
@@ -175,6 +176,7 @@ test("daily limit: remaining count in the dialog, and a 429 keeps the text with 
   await page.reload();
   await timelineReady(page);
   await openAddSource(page);
+  await expect(page.getByRole("dialog")).not.toContainText("오늘 197회 남음");
   await dialog.getByRole("textbox").fill("오늘 넣어 보는 자료");
   await page.getByRole("button", { name: "넣기", exact: true }).click();
   await expect(dialog.getByRole("alert")).toContainText("오늘 분석 횟수를 다 썼어요");
