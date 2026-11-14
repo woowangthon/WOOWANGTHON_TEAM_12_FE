@@ -13,7 +13,7 @@ import { isPostingUrl, MAX_PARSE_TEXT_LENGTH, MAX_POSTING_URL_LENGTH, singleLink
 import { ApiError } from "@/lib/api/errors";
 import { isMockMode } from "@/lib/api/http";
 import {
-  JOB_ROLE_LABEL, MAX_ORGANIZATION_LENGTH, MAX_QUESTION_LENGTH, MAX_QUESTIONS_PER_SUBMIT, ORGANIZATION_TYPE_LABEL,
+  JOB_ROLE_LABEL, MAX_ORGANIZATION_LENGTH, MAX_QUESTION_LENGTH, MAX_QUESTIONS_PER_APPLICATION, MAX_QUESTIONS_PER_SUBMIT, ORGANIZATION_TYPE_LABEL,
   type CreateApplicationRequest, type JobRole, type OrganizationType, type ReadFrom,
 } from "@/lib/api/question-types";
 import { Select, optionsOf } from "@/components/ui/select";
@@ -396,37 +396,76 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
   );
 }
 
-/** 이미 넣은 지원에 문항 하나 더하기 */
-export function AddQuestionForm({ onSubmit, onCancel, existingQuestions = [] }: { onSubmit: (text: string) => Promise<unknown>; onCancel: () => void; existingQuestions?: string[] }) {
+/** 이미 넣은 지원에 문항 더하기 — 직접 쓴 하나, 또는 고르기에서 여러 개(하나씩 차례로 넣는다).
+ *  고른 첫 문항은 입력칸에 넣어 고칠 수 있고, 나머지는 「함께 더할 문항」 목록에 둔다. onSubmit 은 문항 하나를 넣는다 — null 이면 이미 넣는 중 */
+export function AddQuestionForm({ onSubmit, onDone, onCancel, existingQuestions = [] }: {
+  onSubmit: (text: string) => Promise<unknown>; onDone: () => void; onCancel: () => void; existingQuestions?: string[];
+}) {
   const [picking, setPicking] = useState(false);
   const [text, setText] = useState("");
+  const [extra, setExtra] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const pending = useRef(false);
+  // 지원서 하나에 문항은 MAX_QUESTIONS_PER_APPLICATION 까지 — 고르기는 한 번에 MAX_QUESTIONS_PER_SUBMIT 까지
+  const room = Math.min(MAX_QUESTIONS_PER_SUBMIT,
+    MAX_QUESTIONS_PER_APPLICATION - existingQuestions.length - extra.length - (text.trim() ? 1 : 0));
+  const all = [...(text.trim() ? [text] : []), ...extra];
   if (picking) return (
-    <CommonQuestionPicker room={1} existingQuestions={existingQuestions}
-      onPick={([picked]) => { if (picked) setText(picked); setPicking(false); setError(null); }}
+    <CommonQuestionPicker room={Math.max(room, 0)} existingQuestions={[...existingQuestions, text, ...extra].filter(t => t.trim())}
+      onPick={picked => {
+        const [first, ...rest] = text.trim() ? ["", ...picked] : picked;
+        if (first) setText(first);
+        setExtra(prev => [...prev, ...rest]);
+        setPicking(false); setError(null);
+      }}
       onBack={() => setPicking(false)} onCancel={onCancel} />
   );
   return (
     <form className="grid gap-3" aria-busy={saving} aria-label="문항 더하기" onSubmit={async event => {
       event.preventDefault();
       if (pending.current) return;
-      if (!text.trim()) { setError("더할 문항을 입력해 주세요."); return; }
+      if (!all.length) { setError("더할 문항을 입력해 주세요."); return; }
       pending.current = true; setSaving(true); setError(null);
-      try { await onSubmit(text); }
-      catch (e) { setError(submitErrorMessage(e, "문항을 넣지 못했어요.")); }
-      finally { pending.current = false; setSaving(false); }
+      // 하나씩 넣는다 — 중간에 실패하면 넣은 것은 목록에서 빼고 남은 것으로 다시 시도할 수 있게 둔다
+      let done = 0;
+      try {
+        for (const one of all) {
+          if (await onSubmit(one) === null) break;
+          done++;
+        }
+        if (done === all.length) onDone();
+      } catch (e) {
+        setError(submitErrorMessage(e, all.length > 1 ? `문항을 넣지 못했어요(${done}개는 넣었어요).` : "문항을 넣지 못했어요."));
+      } finally {
+        if (done && done < all.length) {
+          const left = all.slice(done);
+          setText(left[0]); setExtra(left.slice(1));
+        }
+        pending.current = false; setSaving(false);
+      }
     }}>
       <label htmlFor="add-question" className="text-title-md font-semibold">이 지원서에 문항 더하기</label>
       <textarea id="add-question" autoFocus rows={4} maxLength={MAX_QUESTION_LENGTH} value={text} disabled={saving} onChange={e => setText(e.target.value)} className="w-full resize-y rounded-sm border border-hairline bg-canvas p-3 text-base leading-relaxed font-normal" placeholder="더할 문항을 붙여 넣어 주세요." />
       <span className="text-right text-xs text-muted tabular-nums">{text.length.toLocaleString("ko-KR")} / 5,000</span>
+      {extra.length > 0 && <div className="grid gap-1.5">
+        <p className="m-0 text-sm font-semibold">함께 더할 문항 {extra.length}개</p>
+        <ul aria-label="함께 더할 문항" className="m-0 grid list-none gap-1.5 p-0">
+          {extra.map((q, i) => <li key={`${i}-${q}`} className="flex items-start justify-between gap-2 rounded-sm bg-surface-soft px-3 py-2 text-sm">
+            <span className="min-w-0 break-words">{q}</span>
+            <Button type="button" variant="ghost" size="icon" className="max-lg:size-11" aria-label={`함께 더할 문항 ${i + 1} 빼기`} disabled={saving}
+              onClick={() => setExtra(prev => prev.filter((_, j) => j !== i))}><XIcon /></Button>
+          </li>)}
+        </ul>
+      </div>}
       {error && <p role="alert" className="m-0 text-sm text-error">{error}</p>}
       <div className="flex flex-wrap items-center gap-2">
-        <AnalysisButton type="submit" className="min-h-11 lg:min-h-10" running={saving} disabled={saving}>{saving ? "문항을 넣고 있어요…" : "문항 더하고 경험 찾기"}</AnalysisButton>
+        <AnalysisButton type="submit" className="min-h-11 lg:min-h-10" cost={Math.max(all.length, 1)} running={saving} disabled={saving}>
+          {saving ? "문항을 넣고 있어요…" : all.length > 1 ? `문항 ${all.length}개 더하고 경험 찾기` : "문항 더하고 경험 찾기"}</AnalysisButton>
         <Button type="button" variant="ghost" disabled={saving} onClick={onCancel}>취소</Button>
         <AnalysisCost running={saving} />
-        <Button type="button" variant="link" className="min-h-11 lg:min-h-10 sm:ml-auto" disabled={saving} onClick={() => setPicking(true)}>넣었던 · 자주 나오는 문항에서 고르기</Button>
+        <Button type="button" variant="link" className="min-h-11 lg:min-h-10 sm:ml-auto" disabled={saving || room <= 0}
+          title={room <= 0 ? `문항은 지원서 하나에 ${MAX_QUESTIONS_PER_APPLICATION}개까지 넣을 수 있어요` : undefined} onClick={() => setPicking(true)}>넣었던 · 자주 나오는 문항에서 고르기</Button>
       </div>
     </form>
   );

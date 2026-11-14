@@ -266,10 +266,8 @@ export function ApplicationScreen() {
               posting={open.application.postingLines?.length ? { selected: postingOpen, status: open.application.postingMatch?.status ?? "ANALYZING", onPick: () => { setAdding(false); matching.selectPosting(open.application.id); } } : null}
               onPick={id => { setAdding(false); matching.selectQuestion(id); }} onAdd={() => setAdding(true)} />
             <div className="pt-5">
-              {adding ? <AddQuestionForm existingQuestions={open.application.questions.map(q => q.text)} onCancel={() => setAdding(false)} onSubmit={async text => {
-                const saved = await matching.addQuestion(open.application.id, text);
-                if (saved) setAdding(false);
-              }} /> : postingOpen ? <PostingTab key={`posting-${open.application.id}`} application={open.application}
+              {adding ? <AddQuestionForm existingQuestions={open.application.questions.map(q => q.text)} onCancel={() => setAdding(false)}
+                onSubmit={text => matching.addQuestion(open.application.id, text)} onDone={() => setAdding(false)} /> : postingOpen ? <PostingTab key={`posting-${open.application.id}`} application={open.application}
                 pollStopped={matching.postingPollStopped(open.application.id)} onResumePoll={() => matching.resumePostingPoll(open.application.id)}
                 onRetry={() => matching.retryPosting(open.application.id)} onAnswer={(id, answer) => matching.answerPosting(open.application.id, id, answer)} /> : <SelectedQuestion key={matching.questionId} summary={summary} question={selected} application={open.application} index={selectedIndex}
                 loadError={matching.detailError} onReload={matching.reloadQuestion}

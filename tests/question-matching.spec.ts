@@ -721,6 +721,38 @@ test("a question can be added to an existing application and blank slots are nam
   await expect(past.locator("label").filter({ hasText: "왜 개발자가 되고 싶나요?" })).toContainText("이미 이 지원서에 있음");
 });
 
+// 「+ 문항 더하기」 고르기에서 여러 개를 골라 한 번에 더한다 — 첫 문항은 입력칸, 나머지는 「함께 더할 문항」, 하나씩 차례로 넣는다
+test("adding questions to an existing application can pick several and adds them one by one", async ({ page }) => {
+  const api = await fake(page);
+  await page.goto("/questions");
+  await startApplication(page);
+  await page.getByRole("button", { name: "직접 쓰기", exact: true }).click();
+  await page.getByLabel("문항 1", { exact: true }).fill("첫 문항");
+  await page.getByRole("button", { name: "문항 1개로 경험 찾기", exact: true }).click();
+  const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab");
+  await expect(tabs).toHaveCount(1);
+  await page.getByRole("button", { name: "문항 더하기", exact: true }).click();
+  await page.getByRole("button", { name: "넣었던 · 자주 나오는 문항에서 고르기", exact: true }).click();
+  const picker = page.getByRole("region", { name: "문항 고르기" });
+  const common = picker.getByRole("group", { name: "SW 교육 프로그램" });
+  const boxes = common.getByRole("checkbox");
+  await boxes.nth(0).check();
+  await boxes.nth(1).check();
+  await expect(boxes.nth(1)).toBeChecked();
+  await picker.getByRole("button", { name: "고른 문항 2개 넣기", exact: true }).click();
+  await expect(picker).toHaveCount(0);
+  await expect(page.getByLabel("이 지원서에 문항 더하기")).not.toHaveValue("");
+  const extra = page.getByRole("list", { name: "함께 더할 문항" });
+  await expect(extra.getByRole("listitem")).toHaveCount(1);
+  const before = posts(api).length;
+  await page.getByRole("button", { name: "문항 2개 더하고 경험 찾기", exact: true }).click();
+  await expect(tabs).toHaveCount(3);
+  const added = posts(api).slice(before);
+  expect(added).toHaveLength(2);
+  expect(added.every(c => c.call === "POST /api/applications/23/questions")).toBe(true);
+  await expect(page.getByLabel("이 지원서에 문항 더하기")).toHaveCount(0);
+});
+
 test("daily limit (429) keeps the draft and says nothing was saved", async ({ page }) => {
   await fake(page, { limit: true });
   await page.goto("/questions");
