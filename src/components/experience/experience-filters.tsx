@@ -9,6 +9,7 @@ import { Select, optionsOf } from "@/components/ui/select";
 import { ACTIVITY_CATEGORIES, COMPETENCIES, type ActivityCategory, type Competency, type ExperienceSearch } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 import { MENU_CONTENT } from "@/components/ui/menu";
+import { MenuRoot, MenuTrigger } from "@/components/ui/tap-menu";
 
 export type ExperienceFilters = Omit<ExperienceSearch, "query">;
 
@@ -38,13 +39,13 @@ export function ExperienceFilterBar({ value, onChange, years, clearable, onDone,
     <div role="group" aria-label="경험 거르기" className={cn("flex flex-wrap items-center gap-1.5", className)}>
       <Select<ActivityCategory> aria-label="활동 분류" value={value.category ?? ""} onChange={(next) => change({ category: next || undefined })} onClosed={onDone} triggerLabel={value.category ? undefined : "분류"} className={cn(chip, chipState(!!value.category))}
         options={[{ value: "", label: "모든 분류" }, ...optionsOf(ACTIVITY_CATEGORIES)]} />
-      <DropdownMenu.Root>
-        <DropdownMenu.Trigger asChild>
+      <MenuRoot>
+        <MenuTrigger asChild>
           <button type="button" className={cn(chip, "inline-flex", chipState(competencies.length > 0))}>
             역량{competencies.length > 0 && <span className="tabular-nums">{competencies.length}</span>}
             <CaretDownIcon aria-hidden="true" />
           </button>
-        </DropdownMenu.Trigger>
+        </MenuTrigger>
         <DropdownMenu.Portal>
           <DropdownMenu.Content align="start" sideOffset={4} onCloseAutoFocus={onDone && ((e) => { e.preventDefault(); onDone(); })}
             className={cn(MENU_CONTENT, "z-50 max-h-[min(60dvh,420px)] min-w-40 overflow-auto")}>
@@ -67,7 +68,7 @@ export function ExperienceFilterBar({ value, onChange, years, clearable, onDone,
             ))}
           </DropdownMenu.Content>
         </DropdownMenu.Portal>
-      </DropdownMenu.Root>
+      </MenuRoot>
       <Select aria-label="연도" value={value.year == null ? "" : String(value.year)} onChange={(next) => change({ year: next ? Number(next) : undefined })} onClosed={onDone} triggerLabel={value.year == null ? "연도" : undefined} className={cn(chip, chipState(value.year != null))}
         options={[{ value: "", label: "모든 연도" }, ...years.map((y) => ({ value: String(y), label: `${y}년` }))]} />
       <ToggleChip on={value.sourceStatus === "NEEDS_REVIEW"} onToggle={(on) => { change({ sourceStatus: on ? "NEEDS_REVIEW" : undefined }); onDone?.(); }}>확인 필요만</ToggleChip>

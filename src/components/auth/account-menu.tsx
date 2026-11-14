@@ -1,6 +1,6 @@
 "use client";
 
-// 계정 메뉴 — 누가 로그인했나 · 오늘 남은 분석 횟수(S-15) · 로그아웃 (FE#37). 목 모드에선 보이지 않는다
+// 계정 메뉴 — 누가 로그인했나 · 오늘 남은 분석 횟수(S-15) · 최근 수정(모바일) · 로그아웃 (FE#37). 목 모드에선 보이지 않는다
 import Link from "next/link";
 import { SignOutIcon, UserCircleIcon } from "@phosphor-icons/react";
 import { DropdownMenu } from "radix-ui";
@@ -8,7 +8,9 @@ import { cn } from "@/lib/utils";
 import { AnalysisMark } from "./analysis-cost";
 import { useAuth } from "./auth-gate";
 import { InfoTip } from "@/components/ui/info-tip";
-import { MENU_CONTENT } from "@/components/ui/menu";
+import { openRecentRevisions } from "@/components/revisions/revision-list";
+import { MENU_CONTENT, MENU_ITEM } from "@/components/ui/menu";
+import { MenuRoot, MenuTrigger } from "@/components/ui/tap-menu";
 
 export function AccountMenu({ variant = "bar" }: { variant?: "bar" | "sidebar" | "rail" }) {
   const { me, refresh, signOut } = useAuth();
@@ -17,8 +19,8 @@ export function AccountMenu({ variant = "bar" }: { variant?: "bar" | "sidebar" |
   // 계정 메뉴는 직접 열어 보는 곳이라 3회 이하 「경고」와 달리 늘 보인다. 3회 이하면 같은 주의 색
   const left = Math.max(0, me.dailyAnalysis.limit - me.dailyAnalysis.used);
   return (
-    <DropdownMenu.Root onOpenChange={(open) => open && refresh()}>
-      <DropdownMenu.Trigger
+    <MenuRoot onOpenChange={(open) => open && refresh()}>
+      <MenuTrigger
         aria-label={`계정 메뉴: ${me.loginId}`}
         className={cn(
           "inline-flex min-h-10 max-w-full items-center gap-2 rounded-full text-sm font-medium text-ink transition-colors outline-none hover:bg-surface-strong focus-visible:outline-2 focus-visible:outline-ink",
@@ -28,7 +30,7 @@ export function AccountMenu({ variant = "bar" }: { variant?: "bar" | "sidebar" |
         <UserCircleIcon className="size-5 shrink-0" aria-hidden="true" />
         <span aria-hidden={variant === "rail" || undefined}
           className={cn(variant === "bar" ? "truncate max-lg:sr-only" : "sidebar-label shrink-0")}>{me.loginId}</span>
-      </DropdownMenu.Trigger>
+      </MenuTrigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content
           align={variant !== "bar" ? "start" : "end"}
@@ -38,22 +40,20 @@ export function AccountMenu({ variant = "bar" }: { variant?: "bar" | "sidebar" |
           // 폭을 정해 둔다 — 정하지 않으면 남은 횟수 줄이 한 줄로 길어져 휴대폰 화면 밖으로 나간다
           className={cn(MENU_CONTENT, "z-50 w-64 max-w-[calc(100vw-1rem)]")}
         >
-          <div className="grid gap-2 px-3 py-2.5">
+          <div className="grid gap-0.5 px-3 py-2.5">
             <span className="truncate text-sm font-semibold text-ink">{me.loginId}</span>
-            {/* 남은 분석은 작은 칸 하나 — 이름표 왼쪽 · 숫자 오른쪽, 3회 이하면 숫자와 「자정에 다시」 줄만 주의 색(FE#636 뒤 다듬기) */}
-            <div className="grid gap-1 rounded-sm bg-surface-soft px-2.5 py-2">
-              <div className="flex items-center gap-1.5 text-xs">
-                <AnalysisMark className="size-3.5 shrink-0 text-muted" />
-                <span className="min-w-0 text-muted">{left === 0 ? "오늘 분석을 모두 썼어요" : "오늘 남은 분석"}</span>
-                {left > 0 && <>{" "}<span className={cn("ml-auto font-semibold tabular-nums", left <= 3 ? "text-review" : "text-ink")}>{left}회</span></>}
-                <InfoTip label="분석 횟수" align="end" portal={false} className={cn(left === 0 && "ml-auto")}>
-                  ✦ 가 붙은 버튼은 누를 때마다 분석 횟수를 써요. 한국 시간 자정에 다시 채워져요.
-                </InfoTip>
-              </div>
-              {left <= 3 && <p className="m-0 text-xs text-review">한국 시간 자정에 다시 채워져요</p>}
+            {/* 남은 분석은 이름 아래 한 줄 — 칸으로 감싸지 않는다(FE#642). 메뉴 폭이 정해져 있어 긴 문구는 줄을 바꾼다 */}
+            <div className={cn("flex items-center gap-1 text-xs tabular-nums", left <= 3 ? "font-medium text-review" : "text-muted")}>
+              <AnalysisMark className="size-3.5 shrink-0" />
+              <span className="min-w-0">{left === 0 ? "오늘 분석을 모두 썼어요" : `오늘 남은 분석 ${left}회`}{left <= 3 && " · 한국 시간 자정에 다시 채워져요"}</span>
+              <InfoTip label="분석 횟수" align={variant === "bar" ? "end" : "start"} portal={false}>
+                ✦ 가 붙은 버튼은 누를 때마다 분석 횟수를 써요. 한국 시간 자정에 다시 채워져요.
+              </InfoTip>
             </div>
           </div>
           <DropdownMenu.Separator className="my-1 h-px bg-hairline" />
+          {/* 모바일 머리(bar)는 좁으면 「최근 수정」 아이콘을 숨긴다(FE#632) — 폭과 상관없이 여기에도 둔다(FE#642). PC 는 머리에 늘 있다 */}
+          {variant === "bar" && <DropdownMenu.Item onSelect={() => openRecentRevisions()} className={MENU_ITEM}>최근 수정</DropdownMenu.Item>}
           <DropdownMenu.Item asChild><Link href="/guidelines" className="flex min-h-11 lg:min-h-10 items-center rounded-sm px-3 text-sm outline-none focus:bg-surface-soft">작성 지침</Link></DropdownMenu.Item>
           <DropdownMenu.Item
             onSelect={() => void signOut()}
@@ -64,6 +64,6 @@ export function AccountMenu({ variant = "bar" }: { variant?: "bar" | "sidebar" |
           </DropdownMenu.Item>
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
-    </DropdownMenu.Root>
+    </MenuRoot>
   );
 }

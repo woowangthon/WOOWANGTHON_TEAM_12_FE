@@ -18,6 +18,7 @@ import { UsedInChip, UsedInList } from "./used-in";
 import { hasStarSlots, StarPanel, StarStatus } from "./star-slots";
 import { AiMark } from "@/components/ui/ai-mark";
 import { MENU_CONTENT } from "@/components/ui/menu";
+import { MenuRoot, MenuTrigger } from "@/components/ui/tap-menu";
 
 const ACTOR: Record<Actor, string> = { ME: "나", TEAM: "팀", UNKNOWN: "알 수 없음" };
 
@@ -171,10 +172,10 @@ export function ExperienceItem({ experience, open, onToggle, onShowSheet, onRetr
           {save.saved && !editing && <span title="저장한 경험이에요" className="flex h-11 lg:h-10 shrink-0 items-center px-1 text-ink">
             <BookmarkSimpleIcon className="size-4" weight="fill" aria-hidden="true" /><span className="sr-only">저장함</span>
           </span>}
-          <DropdownMenu.Root>
-            <DropdownMenu.Trigger asChild>
+          <MenuRoot>
+            <MenuTrigger asChild>
               <Button variant="ghost" size="icon" className="size-11 lg:size-10" title="더 보기" aria-label={`경험 메뉴: ${e.content}`}><DotsThreeIcon /></Button>
-            </DropdownMenu.Trigger>
+            </MenuTrigger>
             <DropdownMenu.Portal>
               {/* 순서: 켜고 끄는 것(저장 · 프로필) → 옮기기 · 합치기 → 지우기. 본문 고치기는 본문을 누르면 돼서 메뉴에 없다(FE#293) */}
               <DropdownMenu.Content align="end" sideOffset={4} className={cn(MENU_CONTENT, "z-50 min-w-44")}>
@@ -187,7 +188,7 @@ export function ExperienceItem({ experience, open, onToggle, onShowSheet, onRetr
                 <DropdownMenu.Item onSelect={() => onDelete(e)} className={cn(MENU_ITEM, "text-error")}>지우기</DropdownMenu.Item>
               </DropdownMenu.Content>
             </DropdownMenu.Portal>
-          </DropdownMenu.Root>
+          </MenuRoot>
         </>}
         {/* 펼침 — 본문 누르기(고치기)와 겹치지 않게 오른쪽 끝 꺾쇠만. PC 는 줄 아래, 모바일은 하단 시트 */}
         {!editing && <>

@@ -46,7 +46,8 @@ export function ExperienceEditor({ experience, activityId, onSaved, onCancel }: 
       <fieldset disabled={saving} className="grid min-w-0 gap-3 border-0 p-0">
         <label className="grid gap-1">경험 내용<textarea autoFocus rows={5} className="w-full rounded-sm border border-hairline p-2 text-base" value={content} onChange={(e) => setContent(e.target.value)} /></label>
         <CompetencyPicker value={competencies} onChange={setCompetencies} />
-        <label className="grid gap-1">수행 주체<Select<Actor> aria-label="수행 주체" value={actor} onChange={(next) => { if (next) setActor(next); }} options={[{ value: "ME", label: "나" }, { value: "TEAM", label: "팀" }, { value: "UNKNOWN", label: "알 수 없음" }]} /></label>
+        {/* label 로 감싸지 않는다 — 감싸면 글자 줄 옆 빈 곳을 눌러도 선택창이 열린다(FE#641). 이름은 aria-label 로 */}
+        <div className="grid gap-1"><span>수행 주체</span><Select<Actor> aria-label="수행 주체" value={actor} onChange={(next) => { if (next) setActor(next); }} options={[{ value: "ME", label: "나" }, { value: "TEAM", label: "팀" }, { value: "UNKNOWN", label: "알 수 없음" }]} /></div>
       </fieldset>
       {error && <p role="alert" className="m-0 text-error">{error}</p>}
       <div className="flex gap-2"><Button type="submit" disabled={saving}>{saving ? "저장 중…" : "저장"}</Button><Button type="button" variant="ghost" disabled={saving} onClick={onCancel}>취소</Button></div>
