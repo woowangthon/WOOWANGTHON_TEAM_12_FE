@@ -185,7 +185,8 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
         <textarea aria-label="홈에 넣을 글" aria-describedby="entrance-note entrance-length" aria-invalid={tooLong}
           id="home-text" rows={2} value={text} disabled={busy || !!file} onChange={e => { setText(e.target.value); setChoosing(false); setError(null); setDuplicate(null); parse.clear(); }}
           placeholder={mode === "out" ? "한 줄로 물어보거나, 지원서 문항 · 공고(링크도 돼요)를 그대로 붙여 넣어 보세요" : "오늘 한 일 한 줄이나, README · 회고를 붙여 넣어 보세요"}
-          className="min-h-12 w-full resize-none border-0 bg-transparent text-base leading-relaxed outline-none placeholder:text-muted focus-visible:outline-none" />
+          // 글 따라 늘어난다 — 처음은 지금처럼 두 줄, 9줄쯤(240px)에서 멈추고 칸 안에서 스크롤(FE#611)
+          className="field-sizing-content min-h-[2lh] max-h-60 w-full resize-none border-0 bg-transparent text-base leading-relaxed outline-none placeholder:text-muted focus-visible:outline-none" />
         <div className="mt-1.5 flex items-center justify-between gap-3">
           <input ref={fileInput} type="file" accept={SOURCE_FILE_ACCEPT} aria-label="홈 첨부 파일" className="sr-only" disabled={busy || sourceBusy} onChange={e => { void pickFile(e.target.files?.[0]); e.target.value = ""; }} />
           <Button type="button" variant="ghost" size="icon" className="size-11 bg-surface-soft lg:size-9" aria-label="파일 올리기" disabled={busy || sourceBusy} onClick={() => fileInput.current?.click()}><PlusIcon aria-hidden="true" /></Button>

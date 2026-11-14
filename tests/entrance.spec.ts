@@ -201,6 +201,24 @@ test("홈 새 지원서 창의 문항 고르기 — 아래 막대가 창 바닥�
   await expect(bar.getByRole("button", { name: "취소", exact: true })).toBeVisible();
 });
 
+// FE#611 — 홈 입력칸은 글 따라 늘어난다(4줄은 안쪽 스크롤 없이). 아주 긴 글은 240px 에서 멈추고 칸 안에서 스크롤, 지우면 처음 높이로
+test("홈 입력칸은 글 길이에 맞춰 늘어나고 최대 높이에서 멈춘다", async ({ page }) => {
+  await setup(page);
+  const box = page.getByLabel("홈에 넣을 글");
+  const size = () => box.evaluate((el: HTMLTextAreaElement) => ({ height: el.getBoundingClientRect().height, scroll: el.scrollHeight, client: el.clientHeight }));
+  const empty = await size();
+  await box.fill("[도서관 좌석 예약 앱 회고]\n- 팀 4명 중 백엔드 API 를 맡았다\n- 좌석 중복 예약 문제를 DB 락으로 해결했다\n- 배운 점: 일정 공유를 더 자주 했어야 했다");
+  const four = await size();
+  expect(four.height, "4줄이면 처음보다 높다").toBeGreaterThan(empty.height);
+  expect(four.scroll, "4줄은 안쪽 스크롤이 없다").toBeLessThanOrEqual(four.client);
+  await box.fill(Array.from({ length: 100 }, (_, i) => `${i + 1}번째 줄`).join("\n"));
+  const long = await size();
+  expect(long.height, "최대 240px").toBeLessThanOrEqual(240);
+  expect(long.scroll, "넘치면 칸 안에서 스크롤").toBeGreaterThan(long.client);
+  await box.fill("");
+  expect((await size()).height, "지우면 처음 높이").toBe(empty.height);
+});
+
 for (const status of [502, 504]) {
   test(`나누기 ${status} 면 칸을 채우지 않고 다시 시도 · 직접 채우기를 보인다`, async ({ page }) => {
     const calls = await setup(page, "APPLICATION");
