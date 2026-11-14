@@ -34,16 +34,23 @@ export function AccountMenu({ variant = "bar" }: { variant?: "bar" | "sidebar" |
           align={variant !== "bar" ? "start" : "end"}
           side={variant !== "bar" ? "top" : "bottom"}
           sideOffset={6}
-          className={cn(MENU_CONTENT, "z-50 min-w-52")}
+          collisionPadding={8}
+          // 폭을 정해 둔다 — 정하지 않으면 남은 횟수 줄이 한 줄로 길어져 휴대폰 화면 밖으로 나간다
+          className={cn(MENU_CONTENT, "z-50 w-64 max-w-[calc(100vw-1rem)]")}
         >
-          <div className="grid gap-0.5 px-3 py-2.5">
-            <span className="text-sm font-semibold text-ink">{me.loginId}</span>
-            <div className={cn("flex items-center gap-1 text-xs tabular-nums", left <= 3 ? "font-medium text-review" : "text-muted")}>
-              <AnalysisMark className="size-3.5 shrink-0" />
-              <span>{left === 0 ? "오늘 분석을 모두 썼어요" : `오늘 남은 분석 ${left}회`}{left <= 3 && " · 한국 시간 자정에 다시 채워져요"}</span>
-              <InfoTip label="분석 횟수" align={variant === "bar" ? "end" : "start"} portal={false}>
-                ✦ 가 붙은 버튼은 누를 때마다 분석 횟수를 써요. 한국 시간 자정에 다시 채워져요.
-              </InfoTip>
+          <div className="grid gap-2 px-3 py-2.5">
+            <span className="truncate text-sm font-semibold text-ink">{me.loginId}</span>
+            {/* 남은 분석은 작은 칸 하나 — 이름표 왼쪽 · 숫자 오른쪽, 3회 이하면 숫자와 「자정에 다시」 줄만 주의 색(FE#636 뒤 다듬기) */}
+            <div className="grid gap-1 rounded-sm bg-surface-soft px-2.5 py-2">
+              <div className="flex items-center gap-1.5 text-xs">
+                <AnalysisMark className="size-3.5 shrink-0 text-muted" />
+                <span className="min-w-0 text-muted">{left === 0 ? "오늘 분석을 모두 썼어요" : "오늘 남은 분석"}</span>
+                {left > 0 && <>{" "}<span className={cn("ml-auto font-semibold tabular-nums", left <= 3 ? "text-review" : "text-ink")}>{left}회</span></>}
+                <InfoTip label="분석 횟수" align="end" portal={false} className={cn(left === 0 && "ml-auto")}>
+                  ✦ 가 붙은 버튼은 누를 때마다 분석 횟수를 써요. 한국 시간 자정에 다시 채워져요.
+                </InfoTip>
+              </div>
+              {left <= 3 && <p className="m-0 text-xs text-review">한국 시간 자정에 다시 채워져요</p>}
             </div>
           </div>
           <DropdownMenu.Separator className="my-1 h-px bg-hairline" />

@@ -137,6 +137,10 @@ test("account menu shows today's analyses and logs out", async ({ page }) => {
   const menu = page.getByRole("menu");
   // FE#242 — 쓴 횟수(3 / 200)가 아니라 남은 횟수, FE#636 — ✦ 뜻은 ⓘ 를 눌렀을 때만 보인다
   await expect(menu).toContainText("오늘 남은 분석 197회");
+  // 메뉴가 화면 밖으로 나가지 않는다(휴대폰 폭에서 남은 횟수 줄이 길어 넘쳤다)
+  const box = (await menu.boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width);
   await expect(menu).not.toContainText("✦ 가 붙은 버튼은 누를 때마다 분석 횟수를 써요");
   // 넉넉할 땐 충전 안내를 숨기고 3회 이하일 때만 보인다(FE#301)
   await expect(menu).not.toContainText("자정에 다시 채워져요");
@@ -156,7 +160,8 @@ test("account menu says when today's analyses are used up and when few are left 
   await timelineReady(page);
   const open = async () => { await page.getByRole("button", { name: "계정 메뉴: test" }).click(); return page.getByRole("menu"); };
   let menu = await open();
-  await expect(menu).toContainText("오늘 분석을 모두 썼어요 · 한국 시간 자정에 다시 채워져요");
+  await expect(menu).toContainText("오늘 분석을 모두 썼어요");
+  await expect(menu).toContainText("한국 시간 자정에 다시 채워져요");
   await expect(menu).not.toContainText("남은 분석 0회");
   await page.screenshot({ path: `artifacts/account-menu-used-up-${info.project.name}.png`, style: "nextjs-portal { display: none !important; }" });
   await page.keyboard.press("Escape");

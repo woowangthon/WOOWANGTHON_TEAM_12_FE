@@ -205,7 +205,7 @@ export function ApplicationScreen() {
 
   return <ActivityCategoriesProvider><div className="flex min-h-dvh flex-col bg-canvas">
     <AppHeader activePage="questions" onNewApplication={startNew}
-      panelToggle={open && !composing && <Button variant="secondary" size="sm" className="shrink-0 max-lg:h-11 max-lg:min-w-11 max-lg:gap-1 max-lg:border-0 max-lg:px-1" aria-label={unanswered > 0 && !panelOpen ? `차곡이 질문 ${unanswered}` : factsPending && !panelOpen ? "차곡이 — 새 경험 후보" : "차곡이"} aria-expanded={panelOpen} aria-controls="chagok-panel" onClick={() => { if (isRevisionPanelOpen()) { closeRevisionPanel(); setPanelChoice(true); } else setPanelChoice(!panelOpen); }}>
+      panelToggle={open && !composing && <Button variant="secondary" size="sm" className="shrink-0 max-lg:h-11 max-lg:min-w-11 max-lg:gap-1 max-lg:rounded-full max-lg:border-0 max-lg:bg-transparent max-lg:px-1 max-lg:shadow-none max-lg:hover:bg-surface-soft" aria-label={unanswered > 0 && !panelOpen ? `차곡이 질문 ${unanswered}` : factsPending && !panelOpen ? "차곡이 — 새 경험 후보" : "차곡이"} aria-expanded={panelOpen} aria-controls="chagok-panel" onClick={() => { if (isRevisionPanelOpen()) { closeRevisionPanel(); setPanelChoice(true); } else setPanelChoice(!panelOpen); }}>
         <Mascot size={20} /><span className="max-lg:sr-only">차곡이</span>{unanswered > 0 && !panelOpen && <span className="rounded-full bg-primary px-1.5 text-xs leading-5 text-on-primary tabular-nums"><span className="max-lg:hidden">질문 </span>{unanswered}</span>}
         {factsPending && !panelOpen && <span aria-hidden="true" data-testid="chagok-facts-dot" className="size-2 shrink-0 rounded-full bg-primary" />}
       </Button>}

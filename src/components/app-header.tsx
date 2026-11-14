@@ -67,11 +67,13 @@ export function AppHeader({ hideTabBar, panelToggle, addSource, applicationList,
   const onAddSource = addSource?.onClick ?? (() => router.push("/experience?add=1"));
   useQuickFindActions({ ...quickFind, addSource: addSource?.onClick, addSourceBusy: addSource?.busy, newApplication: onNewApplication });
   return <Tooltip.Provider delayDuration={200}>
-    {/* 1024 미만 — 한 줄. 높이는 스크롤해도 붙어 있는 줄 하나(45px)로 두어 본화면을 줄이지 않는다(FE#201) */}
-    <header className="sticky top-0 z-40 flex h-11.25 items-center gap-1 border-b border-hairline bg-canvas pr-2 pl-4 lg:hidden">
+    {/* 1024 미만 — 한 줄. 높이는 스크롤해도 붙어 있는 줄 하나(45px)로 두어 본화면을 줄이지 않는다(FE#201).
+        좁은 폭 · 큰 기본 글자에선 오른쪽 버튼이 로고 위로 넘친다 — 줄이 23rem 보다 좁으면 「최근 수정」을 숨긴다(FE#632).
+        최근 수정은 경험 · 활동 메뉴와 답칸에서도 열린다 */}
+    <header className="@container/mheader sticky top-0 z-40 flex h-11.25 items-center gap-1 border-b border-hairline bg-canvas pr-2 pl-4 lg:hidden">
       <Link href="/" aria-label="차곡 — 홈" className="shrink-0"><Logo className="h-5 w-auto" /></Link>
       {!desktop && <WorkStatus className="min-w-0 flex-1 shrink justify-end">{panelToggle}<QuickFindButton /></WorkStatus>}
-      {!desktop && <RecentRevisionsButton compact />}
+      {!desktop && <div className="shrink-0 @max-[23rem]/mheader:hidden"><RecentRevisionsButton compact /></div>}
       <AccountMenu />
     </header>
     <header className="hidden h-14 items-center gap-4 border-b border-hairline bg-canvas px-6 lg:sticky lg:top-0 lg:z-20 lg:flex">
@@ -215,7 +217,8 @@ function TabBar({ page, busy, onAddSource, onNewApplication }: { page: Page; bus
   </Link>;
   // 화면 키보드가 떠 있는 동안은 숨긴다. 입력칸에서 버튼을 누르는 순간 초점이 빠져도 그 자리에 탭바가
   // 바로 나오면 누르기가 탭바에 끝나 버튼이 안 눌린다 — 나오기를 200ms 늦춘다
-  return <nav data-slot="tab-bar" aria-label="주 메뉴" className={cn("fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-hairline bg-canvas pb-[env(safe-area-inset-bottom,0px)] [transition:transform_150ms,visibility_0s_200ms] has-focus-visible:translate-y-0 motion-reduce:[transition:visibility_0s_200ms] lg:hidden [body:has(input:focus,textarea:focus)_&]:invisible", hidden && "translate-y-full")}>
+  // data-hidden — 탭바 위에 붙는 막대(문항 고르기)가 같이 내려가게 알린다(FE#633)
+  return <nav data-slot="tab-bar" data-hidden={hidden || undefined} aria-label="주 메뉴" className={cn("fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-hairline bg-canvas pb-[env(safe-area-inset-bottom,0px)] [transition:transform_150ms,visibility_0s_200ms] has-focus-visible:translate-y-0 motion-reduce:[transition:visibility_0s_200ms] lg:hidden [body:has(input:focus,textarea:focus)_&]:invisible", hidden && "translate-y-full")}>
     {link(tabs[0])}{link(tabs[1])}
     <AddMenu side="top" align="center" busy={busy} onAddSource={onAddSource} onNewApplication={onNewApplication}>
       <DropdownMenu.Trigger asChild>
