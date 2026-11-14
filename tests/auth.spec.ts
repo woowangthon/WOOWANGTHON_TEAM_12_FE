@@ -240,3 +240,19 @@ test("connection failure (Cloudflare Access not signed in) links to the API addr
   await page.getByRole("button", { name: "다시 시도" }).click();
   await timelineReady(page);
 });
+
+// FE#642 — 모바일 머리는 좁으면 「최근 수정」 아이콘을 숨긴다. 계정 메뉴에서 늘 열 수 있다(PC 는 머리에 늘 있어 넣지 않는다)
+test("mobile account menu opens recent revisions", async ({ page }) => {
+  await setup(page, { signedIn: true });
+  await timelineReady(page);
+  await page.getByRole("button", { name: "계정 메뉴: test" }).click();
+  const item = page.getByRole("menuitem", { name: "최근 수정", exact: true });
+  if (!test.info().project.use.isMobile) {
+    await expect(page.getByRole("menuitem", { name: "로그아웃" })).toBeVisible();
+    await expect(item).toHaveCount(0);
+    return;
+  }
+  await item.click();
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "최근 수정" })).toBeVisible();
+});

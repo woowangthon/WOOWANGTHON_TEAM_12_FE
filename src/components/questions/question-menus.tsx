@@ -6,6 +6,7 @@ import { useState, type ReactNode } from "react";
 import { DotsThreeIcon, TrashIcon } from "@phosphor-icons/react";
 import { DropdownMenu } from "radix-ui";
 import { MENU_CONTENT, MENU_ITEM } from "@/components/ui/menu";
+import { MenuRoot, MenuTrigger } from "@/components/ui/tap-menu";
 import { AnalysisButton, AnalysisCost } from "@/components/auth/analysis-cost";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -48,17 +49,17 @@ export function ApplicationActions({ label, onDelete, onExport, exporting = fals
   if (!onExport) return <div className={cn("flex shrink-0 items-center", className)}>
     <IconAction label={`지원서 지우기: ${label}`} title="지원서 지우기" onClick={onDelete} className="hover:text-error"><TrashIcon aria-hidden="true" /></IconAction>
   </div>;
-  return <DropdownMenu.Root>
-    <DropdownMenu.Trigger asChild>
+  return <MenuRoot>
+    <MenuTrigger asChild>
       <Button variant="ghost" size="icon" className={cn("size-11 shrink-0 text-muted hover:text-ink lg:size-9", className)} title="더 보기" aria-label={`지원서 메뉴: ${label}`}><DotsThreeIcon aria-hidden="true" /></Button>
-    </DropdownMenu.Trigger>
+    </MenuTrigger>
     <DropdownMenu.Portal>
       <DropdownMenu.Content align="end" sideOffset={4} className={cn(MENU_CONTENT, "z-50 min-w-40")}>
         <DropdownMenu.Item disabled={exporting} onSelect={onExport} className={MENU_ITEM}>Markdown 으로 내보내기</DropdownMenu.Item>
         <DropdownMenu.Item onSelect={onDelete} className={cn(MENU_ITEM, "text-error")}>지원서 지우기</DropdownMenu.Item>
       </DropdownMenu.Content>
     </DropdownMenu.Portal>
-  </DropdownMenu.Root>;
+  </MenuRoot>;
 }
 
 /** 문항 지우기 — 휴지통 하나(글 고치기는 문항 글을 눌러서). 답칸 머리줄 오른쪽 복사 · 수정 이력 옆에 같은 크기로 놓는다(FE#543).

@@ -98,9 +98,10 @@ function CandidateCard({ candidate: c, activities, unavailable, busy, decide, qu
     {c.status === "PENDING" ? <>
       <label className="grid min-w-0 gap-1 text-xs text-muted">경험 문장<textarea rows={3} className={field} value={content} disabled={busy} onChange={e => setContent(e.target.value)} /></label>
       <div className="grid min-w-0 gap-3">
-        <label className="grid min-w-0 gap-1 text-xs text-muted">수행 주체<Select<Actor> value={actor} disabled={busy} onChange={next => { if (next) setActor(next); }} className="min-h-10" options={[{ value: "ME", label: "나" }, { value: "TEAM", label: "팀" }, { value: "UNKNOWN", label: "알 수 없음" }]} /></label>
-        <label className="grid min-w-0 gap-1 text-xs text-muted">붙일 활동<Select value={creating || chosen ? activity : ""} disabled={busy || (unavailable && !creating)} onChange={setActivity} className="min-h-10" placeholder="활동을 골라 주세요"
-          options={[...activities.map(a => ({ value: String(a.id), label: a.name })), { value: NEW, label: "+ 새 활동 만들기" }]} /></label>
+        {/* 선택창은 label 로 감싸지 않는다 — 글자 줄 옆 빈 곳을 눌러도 열리지 않게(FE#641) */}
+        <div className="grid min-w-0 gap-1 text-xs text-muted"><span>수행 주체</span><Select<Actor> aria-label="수행 주체" value={actor} disabled={busy} onChange={next => { if (next) setActor(next); }} className="min-h-10" options={[{ value: "ME", label: "나" }, { value: "TEAM", label: "팀" }, { value: "UNKNOWN", label: "알 수 없음" }]} /></div>
+        <div className="grid min-w-0 gap-1 text-xs text-muted"><span>붙일 활동</span><Select aria-label="붙일 활동" value={creating || chosen ? activity : ""} disabled={busy || (unavailable && !creating)} onChange={setActivity} className="min-h-10" placeholder="활동을 골라 주세요"
+          options={[...activities.map(a => ({ value: String(a.id), label: a.name })), { value: NEW, label: "+ 새 활동 만들기" }]} /></div>
       </div>
       {c.activityName ? <p className="m-0 break-words text-note text-muted">AI가 제안한 활동 — {c.activityName}</p>
         : c.activityId === null && <p className="m-0 break-words text-note text-muted">맞는 활동이 없어 보여요. 새 활동을 만들어 붙이거나 기존 활동을 골라 주세요.</p>}
