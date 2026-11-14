@@ -34,6 +34,12 @@ async function openRedraft(page: Page) {
   const chip = redraftChip(page);
   if (await chip.count() && (await chip.getAttribute("aria-expanded")) === "false") await chip.click();
 }
+/** 펼쳐져 있으면 접는다 — 「초안 설정 열기」는 설정을 펼친 채 패널을 연다(FE#627) */
+async function foldRedraft(page: Page) {
+  const chip = redraftChip(page);
+  if ((await chip.getAttribute("aria-expanded")) === "true") await chip.click();
+  await expect(chip).toHaveAttribute("aria-expanded", "false");
+}
 /** 다시 만들기 — 덮이는 것이 있으면(답하지 않은 빠진 사실 질문 · 고친 글) 확인 대화상자가 먼저 뜬다 */
 async function regenerate(page: Page, scope: Locator) {
   await openRedraft(page);
@@ -723,10 +729,11 @@ test("초안 부탁하기 — 열린 패널에서도 「초안 준비」를 강�
     const follow = draftFollowUp(page);
     await expect(follow).toBeVisible();
     await expect(follow.getByRole("button", { name: "초안 만들기", exact: true })).toBeFocused();
-    if (wide) await expect(follow).toHaveAttribute("data-highlight", "true");
+    // 강조는 바깥 「초안 준비」가 아니라 설정 카드에(FE#627)
+    if (wide) await expect(follow.locator('[data-highlight="true"]').getByRole("region", { name: "초안 설정", exact: true })).toBeVisible();
     expect(await page.evaluate(() => window.scrollY)).toBe(before);
   }
-  if (wide) await expect(draftFollowUp(page)).not.toHaveAttribute("data-highlight", "true"); // 강조는 한 번 — 곧 사라진다
+  if (wide) await expect(draftFollowUp(page).locator('[data-highlight="true"]')).toHaveCount(0); // 강조는 한 번 — 곧 사라진다
   await page.screenshot({ path: `artifacts/draft-ask-${info.project.name}.png`, style: "nextjs-portal { display: none !important; }" });
   if (!wide) return;
   // 1024 는 패널이 Sheet 로 올라온다(넓은 배치는 1280 부터) — 지금처럼 열리고 「초안 준비」로 간다
@@ -801,6 +808,7 @@ test("a completed draft folds regeneration into one chip that is highlighted onl
   await setup(page, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
   const composer = page.getByRole("region", { name: "초안 설정", exact: true });
   await openDraftFollowUp(page);
+  await foldRedraft(page); // 좁은 폭은 「초안 설정 열기」로 패널을 열어 설정이 펼쳐져 있다(FE#627)
   await expect(composer).toHaveCount(0);
   await expect(redraftChip(page)).toHaveText("초안 다시 만들기");
   await redraftChip(page).click();
@@ -816,8 +824,51 @@ test("a completed draft folds regeneration into one chip that is highlighted onl
     q.draft = { ...draft, freeRegenerate: true };
   });
   await openDraftFollowUp(page);
+  await foldRedraft(page);
   await expect(redraftChip(page)).toHaveText("새 답 1개 넣어 다시 만들기");
   await askShot(page, info.project.name, "redraft-free");
   await redraftChip(page).click();
   await expect(composer).toContainText("이번 다시 만들기는 분석 횟수를 쓰지 않아요");
+});
+
+// FE#627 — 다 된 초안에서 가운데 「초안 설정 열기」와 패널 칩은 같은 설정 카드를 펼치고 · 보이고 · 강조한다.
+// 「초안 설정 열기」는 접어 둔 「차곡이가 물어볼 것」을 억지로 펼치지 않는다
+test("초안 설정 열기 and the redraft chip open and highlight the composer card, leaving the folded asks alone", async ({ page }) => {
+  await setup(page, q => { q.draft = structuredClone(DRAFT_EXAMPLE); });
+  const wide = page.viewportSize()!.width >= 1280;
+  const composer = page.getByRole("region", { name: "초안 설정", exact: true });
+  const highlighted = page.locator('[data-highlight="true"]').getByRole("region", { name: "초안 설정", exact: true });
+  const regenerate = composer.getByRole("button", { name: "다시 만들기", exact: true });
+  const isOpen = () => asksBlock(page).evaluate(el => (el as HTMLDetailsElement).open);
+  // 질문 블록을 접어 둔다 — 좁은 화면은 패널을 열어 접고 다시 닫는다
+  if (!wide) await page.getByRole("button", { name: /^차곡이( ?질문 \d+)?$/ }).click();
+  await expect(asksBlock(page)).toBeVisible();
+  if (await isOpen()) await asksBlock(page).locator(":scope > summary").click({ position: { x: 14, y: 14 } });
+  expect(await isOpen()).toBe(false);
+  if (!wide) { await page.keyboard.press("Escape"); await expect(asksBlock(page)).toBeHidden(); }
+
+  await page.getByRole("button", { name: "초안 설정 열기", exact: true }).click();
+  await expect(redraftChip(page)).toHaveAttribute("aria-expanded", "true");
+  await expect(highlighted).toBeVisible();
+  await expect(regenerate).toBeFocused();
+  await expect(regenerate).toBeInViewport();
+  expect(await isOpen()).toBe(false);
+  await expect(page.locator('[data-highlight="true"]')).toHaveCount(0); // 강조는 한 번
+
+  // 칩으로 접고 다시 펼쳐도 같은 카드가 보이고 강조된다
+  await redraftChip(page).click();
+  await expect(composer).toHaveCount(0);
+  await expect(redraftChip(page)).toHaveAttribute("aria-expanded", "false");
+  await redraftChip(page).click();
+  await expect(highlighted).toBeVisible();
+  await expect(regenerate).toBeFocused();
+  await expect(regenerate).toBeInViewport();
+  expect(await isOpen()).toBe(false);
+
+  // 패널을 닫았다 차곡이 버튼으로 다시 열면 설정은 접힌 채다 — 「초안 설정 열기」 요청은 이미 끝났다
+  if (wide) await page.getByRole("button", { name: "차곡이 닫기", exact: true }).click();
+  else await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: /^차곡이( ?질문 \d+)?$/ }).click();
+  await expect(redraftChip(page)).toHaveAttribute("aria-expanded", "false");
+  await expect(composer).toHaveCount(0);
 });

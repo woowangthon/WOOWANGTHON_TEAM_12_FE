@@ -72,10 +72,22 @@ export function ChagokPanel({ question, index, originOf, onAnswer, onClose, draf
   const [redraftFor, setRedraftFor] = useState<number | null>(null);
   const redraftOpen = question !== null && redraftFor === question.id;
   const draft = question?.draft;
+  // 설정 카드를 보이고 강조하라는 요청 — 칩으로 펼칠 때 · 가운데 「초안 부탁하기 · 초안 설정 열기」를 누를 때(FE#627).
+  // 가운데 요청 번호는 문항마다가 아니라 화면 전체에서 늘기만 한다 — 문항을 바꿨다 돌아와 같은 번호를 다시 받아도 다시 펼치지 않는다
+  const [reveal, setReveal] = useState(0);
+  const [seenFocus, setSeenFocus] = useState(0);
+  if (draftActions.focusRequest > seenFocus) {
+    setSeenFocus(draftActions.focusRequest);
+    if (question && draft?.status === "COMPLETED") setRedraftFor(question.id);
+    setReveal(r => r + 1);
+  }
   const redraft: RedraftChip | null = question && draft?.status === "COMPLETED" ? {
     open: redraftOpen, free: !!draft.freeRegenerate,
     newAnswers: draft.omitted.filter(o => o.supplementId !== null && !isSupposedPair(draft, o)).length,
-    onToggle: () => setRedraftFor(redraftOpen ? null : question.id),
+    onToggle: () => {
+      if (redraftOpen) { setRedraftFor(null); return; }
+      setRedraftFor(question.id); setReveal(r => r + 1);
+    },
   } : null;
   return <div className="flex h-full min-h-0 flex-col bg-surface-soft">
     <header className="flex items-center gap-2 border-b border-hairline bg-canvas px-4 py-3">
@@ -87,7 +99,7 @@ export function ChagokPanel({ question, index, originOf, onAnswer, onClose, draf
     <div ref={body} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
       {control.restoring && <p role="status" className={bubble}>차곡이 일을 다시 열고 있어요…</p>}
       {control.restoreError && <div role="alert" className={bubble}><p>{control.restoreError}</p><Button variant="secondary" onClick={control.restore}>일 다시 불러오기</Button></div>}
-      {question ? <Feed key={question.id} question={question} originOf={originOf} onAnswer={onAnswer} draftActions={draftActions} composerOpen={redraftOpen} onComposerClose={() => setRedraftFor(null)} /> : <p className={bubble}>{postingOpen ? "공고 줄 되묻기는 공고 탭에서 답할 수 있어요. 문항을 더하면 문항도 같이 봐 둘게요." : "문항을 고르면 읽어 보고 맞는 경험을 찾아 둘게요."}</p>}
+      {question ? <Feed key={question.id} question={question} originOf={originOf} onAnswer={onAnswer} draftActions={draftActions} composerOpen={redraftOpen} onComposerClose={() => setRedraftFor(null)} revealRequest={reveal} /> : <p className={bubble}>{postingOpen ? "공고 줄 되묻기는 공고 탭에서 답할 수 있어요. 문항을 더하면 문항도 같이 봐 둘게요." : "문항을 고르면 읽어 보고 맞는 경험을 찾아 둘게요."}</p>}
       {/* 흐름의 끝 — 다 쓴 답에서 새로 쓴 사실을 경험으로(S-48) */}
       {question?.answer && <PanelNewFacts key={`facts-${question.id}`} question={question} {...newFacts} />}
       {!control.restoring && !control.restoreError && <ChagokRunFeed control={control} currentQuestionId={question?.id ?? null}
@@ -186,7 +198,8 @@ function AsksBlock({ question: q, onAnswer, draftActions }: { question: Question
   if (!left && !skipped.length && !attention) return null;
   const draftDisabled = draftActions.savingAnswer || draftActions.requestingDraft || q.draft?.status === "ANALYZING";
   const refreshDraft = () => { void draftActions.onRefresh().catch(() => { /* 실패하면 다음 갱신에서 다시 읽는다 */ }); };
-  return <ClarifyBlock questionId={q.id} title="차곡이가 물어볼 것" info="답은 그 경험에 보완으로 쌓이고 다음 초안에 들어가요. 기억나지 않는 질문은 건너뛰어도 돼요." left={left} attention={attention} openSignal={draftActions.focusRequest}>
+  // 「초안 부탁하기」는 초안 전에 답할 질문을 같이 연다. 초안이 있으면(「초안 설정 열기」) 설정 카드만 펼친다(FE#627)
+  return <ClarifyBlock questionId={q.id} title="차곡이가 물어볼 것" info="답은 그 경험에 보완으로 쌓이고 다음 초안에 들어가요. 기억나지 않는 질문은 건너뛰어도 돼요." left={left} attention={attention} openSignal={q.draft ? 0 : draftActions.focusRequest}>
     {byExperience(live).map((group, i) => <div key={group.key} className={cn("grid min-w-0 pt-3", i > 0 && "border-t border-hairline-soft")}>
       <AskGroupHead entry={group.entries[0]} question={q} />
       <ul aria-label="차곡이의 질문" className={clarifyList}>
@@ -229,7 +242,7 @@ function ReusedBubble({ reused, originOf, asked }: { reused: { activity: string;
   </div>;
 }
 
-function Feed({ question: q, originOf, onAnswer, draftActions, composerOpen, onComposerClose }: { question: QuestionDetail; originOf: SupplementOrigin; onAnswer: AnswerHandler; draftActions: DraftPanelActions; composerOpen: boolean; onComposerClose: () => void }) {
+function Feed({ question: q, originOf, onAnswer, draftActions, composerOpen, onComposerClose, revealRequest }: { question: QuestionDetail; originOf: SupplementOrigin; onAnswer: AnswerHandler; draftActions: DraftPanelActions; composerOpen: boolean; onComposerClose: () => void; revealRequest: number }) {
   if (q.status === "ANALYZING") return <div role="status" aria-live="polite" className={bubble}>문항을 읽고, 쌓인 경험에서 맞는 걸 찾고 있어요…</div>;
   if (q.status === "FAILED") return <p className={bubble}>이 문항은 분석하지 못했어요. 가운데의 「다시 시도」를 눌러 주세요.</p>;
 
@@ -260,6 +273,6 @@ function Feed({ question: q, originOf, onAnswer, draftActions, composerOpen, onC
       </>}</div>
     {reused.length > 0 && <ReusedBubble reused={reused} originOf={originOf} asked={text => q.clarifications.some(c => c.question === text)} />}
     <AsksBlock question={q} onAnswer={onAnswer} draftActions={draftActions} />
-    <DraftFollowUp question={q} {...draftActions} composerOpen={composerOpen} onComposerClose={onComposerClose} />
+    <DraftFollowUp question={q} {...draftActions} composerOpen={composerOpen} onComposerClose={onComposerClose} revealRequest={revealRequest} />
   </div>;
 }

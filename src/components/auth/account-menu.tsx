@@ -42,13 +42,17 @@ export function AccountMenu({ variant = "bar" }: { variant?: "bar" | "sidebar" |
         >
           <div className="grid gap-0.5 px-3 py-2.5">
             <span className="truncate text-sm font-semibold text-ink">{me.loginId}</span>
-            {/* 남은 분석은 이름 아래 한 줄 — 칸으로 감싸지 않는다(FE#642). 메뉴 폭이 정해져 있어 긴 문구는 줄을 바꾼다 */}
-            <div className={cn("flex items-center gap-1 text-xs tabular-nums", left <= 3 ? "font-medium text-review" : "text-muted")}>
-              <AnalysisMark className="size-3.5 shrink-0" />
-              <span className="min-w-0">{left === 0 ? "오늘 분석을 모두 썼어요" : `오늘 남은 분석 ${left}회`}{left <= 3 && " · 한국 시간 자정에 다시 채워져요"}</span>
-              <InfoTip label="분석 횟수" align={variant === "bar" ? "end" : "start"} portal={false}>
-                ✦ 가 붙은 버튼은 누를 때마다 분석 횟수를 써요. 한국 시간 자정에 다시 채워져요.
-              </InfoTip>
+            {/* 남은 분석은 이름 아래 한 줄 — 칸으로 감싸지 않는다(FE#642). 3회 이하면 「자정에 다시」를 아랫줄 한 덩어리로 —
+                메뉴 폭에 밀려 문구 중간에서 끊기지 않게, 글자 시작(✦ 다음)에 맞춘다 */}
+            <div className={cn("grid gap-0.5 text-xs tabular-nums", left <= 3 ? "font-medium text-review" : "text-muted")}>
+              <div className="flex items-center gap-1">
+                <AnalysisMark className="size-3.5 shrink-0" />
+                <span className="min-w-0 break-keep">{left === 0 ? "오늘 분석을 모두 썼어요" : `오늘 남은 분석 ${left}회`}</span>
+                <InfoTip label="분석 횟수" align={variant === "bar" ? "end" : "start"} portal={false}>
+                  ✦ 가 붙은 버튼은 누를 때마다 분석 횟수를 써요. 한국 시간 자정에 다시 채워져요.
+                </InfoTip>
+              </div>
+              {left <= 3 && <p className="m-0 pl-4.5 break-keep">한국 시간 자정에 다시 채워져요</p>}
             </div>
           </div>
           <DropdownMenu.Separator className="my-1 h-px bg-hairline" />
