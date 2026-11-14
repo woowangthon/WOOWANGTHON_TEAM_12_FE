@@ -113,3 +113,37 @@ test("내 지침 · 활동 세부도 불러오는 동안 뼈대 — 끝나면 �
   await expect(detailPane.getByText("실시간 협업 에디터에서 한 일")).toBeVisible();
   await expect(detailPane.getByRole("status").filter({ hasText: "경험을 불러오고 있어요" })).toHaveCount(0);
 });
+
+// FE#594 — 홈 말고는 본문을 왼쪽 정렬하고 왼쪽 여백을 내 경험과 맞춘다. 로그인을 확인하는 동안의 뼈대도 그 자리에서 시작한다(자리가 튀지 않는다)
+test("app pages start their content at 내 경험's left edge, and so do their auth-check skeletons", async ({ page }) => {
+  let hold: Gate | null = null;
+  await page.route("**/api/**", async route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/auth/me") {
+      if (!hold) return route.fallback();
+      const g = hold; g.enter(); await g.wait;
+      return route.fulfill({ json: { id: 1, loginId: "test", dailyAnalysis: { used: 3, limit: 200 } } });
+    }
+    if (path.startsWith("/api/auth/") || path === "/api/work") return route.fallback();
+    if (path === "/api/activities") return route.fulfill({ json: { activities } });
+    if (path === "/api/applications") return route.fulfill({ json: { applications: [] } });
+    if (path === "/api/guidelines") return route.fulfill({ json: { guidelines: [] } });
+    return route.fulfill({ status: 404, json: { error: { code: "NOT_FOUND_IN_TEST", message: "x" } } });
+  });
+  const contentLeft = () => page.locator("main").last().evaluate(m => Math.round(m.getBoundingClientRect().x + parseFloat(getComputedStyle(m).paddingLeft)));
+  await page.goto("/experience");
+  await expect(page.getByRole("heading", { name: "내 경험", level: 1 })).toBeVisible();
+  const left = await contentLeft();
+  for (const path of ["/applications", "/connections", "/guidelines", "/questions"]) {
+    const g = gate();
+    hold = g;
+    await page.goto(path);
+    await g.entered;
+    const skeleton = await page.locator("main").last().locator(".animate-pulse").first().boundingBox();
+    expect(Math.round(skeleton!.x), `${path} 뼈대`).toBe(left);
+    hold = null; g.open();
+    await expect(page.getByRole("status").filter({ hasText: "로그인 상태를 확인하고 있어요" })).toHaveCount(0);
+    await expect(page.locator("main").last().locator("h1")).toBeAttached();
+    expect(await contentLeft(), path).toBe(left);
+  }
+});
