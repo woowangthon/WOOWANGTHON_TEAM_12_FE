@@ -12,8 +12,8 @@ import { cn } from "@/lib/utils";
 const navRow = "flex h-11 w-full shrink-0 items-center gap-2.5 px-3 lg:h-10";
 // 그 밖의 화면 뼈대 — 실제 화면 본문과 같은 폭 · 위 여백. 왼쪽 여백은 모두 내 경험과 같다(FE#594)
 const PAGE_FRAME: Record<string, string> = {
-  "/applications": "max-w-4xl pt-8 lg:pt-12", "/connections": "max-w-3xl pt-8 lg:pt-12",
-  "/guidelines": "max-w-4xl pt-7", "/questions": "max-w-[1280px] pt-5 lg:pt-6",
+  "/applications": "pt-8 lg:pt-12", "/connections": "pt-8 lg:pt-12",
+  "/guidelines": "pt-7", "/questions": "max-w-[1280px] pt-5 lg:pt-6",
 };
 
 /** 로그인을 확인하는 동안(FE#402) — 흰 화면에 글 한 줄 대신 앱 틀(사이드바 · 위 막대 · 탭바)과 그 주소 화면의 뼈대를 그린다.
