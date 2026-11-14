@@ -207,7 +207,9 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
   const editedFacts = analysis?.marks.filter(m => m.edited && ready?.sentences[m.index].kind === "FACT").length ?? 0;
   const groundFirst = editedFacts > 0 && !(g.check?.status === "COMPLETED" && g.check.text === text);
   // 근거 점검은 필요할 때만(FE#336) — 손대지 않은 초안은 문장마다 근거가 이미 붙어 있다. 고친 사실 문장 · 초안 밖에서 직접 쓴 문장이 있거나 점검이 진행 · 실패 중일 때 보인다
-  const ownText = splitSentences(text).some(p => p.text.trim() && !analysis.marks.some(m => m.start < p.end && p.start < m.end));
+  // 첫 줄 소제목(S-86)은 직접 쓴 문장이 아니다 — 고쳐도 소제목 자리면 세지 않는다(FE#615). 확인할 곳으로도 세지 않는 것과 같은 기준
+  const inTitle = (p: { start: number; end: number }) => !!analysis.title && analysis.title.start < p.end && p.start < analysis.title.end;
+  const ownText = splitSentences(text).some(p => p.text.trim() && !inTitle(p) && !analysis.marks.some(m => m.start < p.end && p.start < m.end));
   const showGround = editedFacts > 0 || ownText || analyzing || g.busy || !!g.failure || g.check?.status === "FAILED";
   // 빈 답칸에는 잃을 글이 없으니 초안 글을 다시 넣을 수 있다(FE#519)
   const canLoadDraft = (confirmedNotDraft || (draftText !== null && !text.trim())) && !drafting;
