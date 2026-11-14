@@ -105,10 +105,24 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     setError(null);
   };
 
+  /** 마지막으로 나눈 글과 그 결과 — 「자료로 쌓기」에 갔다가 글 그대로 돌아오면 AI 를 다시 부르지 않고 칸을 되살린다(FE#614) */
+  const lastSplit = useRef<{ text: string; prefill: ParsedApplication } | null>(null);
+
   /** 지원 나누기 → 칸을 채워 지원 넣기로. 실패하면 오류 · 다시 시도 · 직접 채우기(S-30) */
   const fillApplication = async (value: string) => {
     const outcome = await parse.run({ text: value });
-    if (outcome && "parsed" in outcome) { setDestination({ kind: "application", text: value, prefill: outcome.parsed }); setChoosing(false); setError(null); }
+    if (outcome && "parsed" in outcome) {
+      lastSplit.current = { text: value, prefill: outcome.parsed };
+      setDestination({ kind: "application", text: value, prefill: outcome.parsed }); setChoosing(false); setError(null);
+    }
+  };
+
+  /** 자료 창의 「지원서로 만들기」 — 나눴던 글 그대로면 나눈 칸으로, 고쳤으면 지금처럼 그 글을 문항 하나로(AI 없이, FE#614) */
+  const backToApplication = (value: string) => {
+    const kept = lastSplit.current;
+    if (!kept || kept.text !== value) { openDestination("application", value); return; }
+    setText(value);
+    setDestination({ kind: "application", text: value, prefill: kept.prefill }); setChoosing(false); setError(null);
   };
 
   /** S-46 링크만 넣은 홈 입력 — 가르기 없이 링크로 나눈다. 못 읽으면(422) 지원 넣기로 가서 원문 링크를 두고 본문 붙여 넣기로 잇는다 */
@@ -241,12 +255,12 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
     </div>}
     {destination?.kind === "source" && <AddSourceDialog open onOpenChange={open => { if (!open) setDestination(null); }} mock={mockAnalysis}
       initialText={destination.text}
-      onMoveToApplication={value => openDestination("application", value)}
+      onMoveToApplication={backToApplication}
       onSubmitted={jobs => { onSourceSubmitted(jobs); setText(""); setDestination(null); }} />}
     <Dialog open={destination?.kind === "application"} onOpenChange={open => { if (!open && !saving) setDestination(null); }}>
       <DialogContent>
         <DialogHeader className="pr-10"><DialogTitle>새 지원서</DialogTitle><DialogDescription>{destination?.url ? (destination.prefill ? "링크에서 나눈 내용으로 칸을 채웠어요. 고친 뒤 넣어 주세요." : destination.failure ? "링크를 읽지 못했어요. 공고 본문을 붙여 넣으면 칸을 채워요." : "원문 링크를 남겨 뒀어요. 지원처와 문항을 넣어 주세요.") : destination?.prefill ? "글에서 나눈 내용으로 칸을 채웠어요. 고친 뒤 넣어 주세요." : destination?.text ? "입력한 글을 문항 하나로 옮겼어요. 지원처와 문항을 확인하고 넣어 주세요." : "지원처와 문항을 넣어 주세요."}</DialogDescription></DialogHeader>
-        {destination?.kind === "application" && <ApplicationForm key={`${destination.prefill ? "filled" : "plain"}:${destination.url ?? ""}`} initialText={destination.text} prefill={destination.prefill} pastedText={destination.prefill ? destination.text : ""}
+        {destination?.kind === "application" && <ApplicationForm key={`${destination.prefill ? "filled" : "plain"}:${destination.url ?? ""}`} initialText={destination.text} prefill={destination.prefill} pastedText={destination.text /* 나누지 않고 옮긴 글도 「← 돌아가기」 입력 칸에 남긴다(FE#614) */}
           initialUrl={destination.url} initialFailure={destination.failure} onSavingChange={setSaving} moveToSourceDisabled={sourceBusy} inDialog
           onMoveToSource={value => openDestination("source", value)} onCancel={() => setDestination(null)}
           onSubmit={async (req, targetLengths) => { const result = await submitApplication(req, targetLengths); setDestination(null); setText(""); router.push(result.questionIds.length ? `/questions?question=${result.questionIds[0]}` : `/questions?application=${result.applicationId}&tab=posting`); }} />}

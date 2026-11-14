@@ -219,6 +219,54 @@ test("홈 입력칸은 글 길이에 맞춰 늘어나고 최대 높이에서 멈
   expect((await size()).height, "지우면 처음 높이").toBe(empty.height);
 });
 
+// FE#614 — 새 지원서 창 → 「자료로 쌓기」 → 「지원서로 만들기」로 돌아오면: 글을 안 고쳤으면 나눈 칸을 AI 다시 부르지 않고 되살리고,
+// 고쳤으면 그 글을 문항 하나로(지금처럼 AI 없이). 어느 쪽이든 「← 돌아가기」의 입력 칸에 원문이 남는다
+const SPLIT_TEXT = "모집 공고\n1. 협업한 경험을 적어 주세요.\n2. 지원 동기는?";
+const pasteBox = (page: Page) => page.getByLabel("공고 · 문항 글이나 공고 링크");
+async function splitThenSource(page: Page) {
+  const calls = await setup(page, "APPLICATION");
+  await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
+  await page.getByLabel("홈에 넣을 글").fill(SPLIT_TEXT);
+  await page.getByRole("button", { name: "보내기", exact: true }).click();
+  await expect(page.getByLabel("문항 2", { exact: true })).toHaveValue(PARSED.questions[1]);
+  await page.getByRole("button", { name: "자료로 쌓기", exact: true }).click();
+  await expect(page.getByLabel("붙여넣을 자료")).toHaveValue(SPLIT_TEXT);
+  return calls;
+}
+
+test("나눈 지원서 → 자료로 쌓기 → 글 그대로 돌아오면 나눈 칸을 되살리고 원문을 남긴다", async ({ page }) => {
+  const calls = await splitThenSource(page);
+  await page.getByRole("button", { name: "지원서로 만들기", exact: true }).click();
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(PARSED.questions[0]);
+  await expect(page.getByLabel("문항 2", { exact: true })).toHaveValue(PARSED.questions[1]);
+  await expect(page.getByLabel("지원처 이름", { exact: true })).toHaveValue(PARSED.organization);
+  expect(calls.parses, "AI 를 다시 부르지 않는다").toHaveLength(1);
+  await page.getByRole("button", { name: "돌아가기", exact: true }).click();
+  await expect(pasteBox(page)).toHaveValue(SPLIT_TEXT);
+});
+
+test("나눈 지원서 → 자료로 쌓기 → 글을 고쳐 돌아오면 그 글을 문항 하나로 두고 원문 칸에도 남긴다", async ({ page }) => {
+  const calls = await splitThenSource(page);
+  const edited = `${SPLIT_TEXT}\n3. 고친 문항`;
+  await page.getByLabel("붙여넣을 자료").fill(edited);
+  await page.getByRole("button", { name: "지원서로 만들기", exact: true }).click();
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue(edited);
+  await expect(page.getByLabel("문항 2", { exact: true })).toHaveCount(0);
+  expect(calls.parses).toHaveLength(1);
+  await page.getByRole("button", { name: "돌아가기", exact: true }).click();
+  await expect(pasteBox(page)).toHaveValue(edited);
+});
+
+test("고르기에서 「지원서로 만들기」로 온 글도 「← 돌아가기」의 입력 칸에 남는다", async ({ page }) => {
+  await setup(page, "UNSURE");
+  await page.getByLabel("홈에 넣을 글").fill("직접 넣은 문항");
+  await page.getByRole("button", { name: "보내기", exact: true }).click();
+  await page.getByRole("button", { name: "지원서로 만들기", exact: true }).click();
+  await expect(page.getByLabel("문항 1", { exact: true })).toHaveValue("직접 넣은 문항");
+  await page.getByRole("button", { name: "돌아가기", exact: true }).click();
+  await expect(pasteBox(page)).toHaveValue("직접 넣은 문항");
+});
+
 for (const status of [502, 504]) {
   test(`나누기 ${status} 면 칸을 채우지 않고 다시 시도 · 직접 채우기를 보인다`, async ({ page }) => {
     const calls = await setup(page, "APPLICATION");
