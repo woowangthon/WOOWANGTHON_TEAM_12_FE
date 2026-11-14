@@ -10,7 +10,7 @@ const activities: ActivityDetail[] = [
 ];
 
 async function setup(page: Page) {
-  const state = { failActivities: false, failApplications: false, empty: false, noReview: false, posts: 0 };
+  const state = { failActivities: false, failApplications: false, empty: false, noReview: false, postingOnly: false, posts: 0 };
   await page.clock.setFixedTime(new Date("2026-11-05T03:00:00Z"));
   await page.route("**/api/**", async route => {
     const req = route.request(); const path = new URL(req.url()).pathname;
@@ -22,6 +22,7 @@ async function setup(page: Page) {
     if (path === "/api/applications") return state.failApplications ? route.fulfill({ status: 503, json: { error: { code: "UNAVAILABLE", message: "지원서 조회 실패" } } }) : route.fulfill({ json: { applications: state.empty ? [] : [
       { id: 1, organization: "이전 지원서", createdAt: "2026-11-01T00:00:00Z", questions: [{ id: 41, status: "COMPLETED" }] },
       { id: 2, organization: "최근 부트캠프 지원서", createdAt: "2026-11-04T00:00:00Z", questions: [{ id: 42, status: "COMPLETED" }, { id: 43, status: "ANALYZING" }] },
+      ...(state.postingOnly ? [{ id: 3, organization: "공고만 넣은 회사", createdAt: "2026-11-04T12:00:00Z", questions: [], postingLines: [1, 2, 3].map(id => ({ id, section: "REQUIRED", text: `요건 ${id}`, ksa: null, readFrom: "TEXT" })) }] : []),
     ] } });
     throw new Error(`Unexpected API ${path}`);
   });
@@ -134,4 +135,18 @@ test("기존 홈의 활동·자료 넣기 링크는 내 경험으로 이어진�
   await expect(page).toHaveURL(/\/experience$/);
   await page.reload();
   await expect(page.getByRole("dialog", { name: "자료 쌓기" })).toHaveCount(0);
+});
+
+// FE#619 — 문항 없이 공고 요건 줄만 넣은 지원도 「최근 지원서」 후보다. 문항 있는 지원의 문구는 그대로
+test("최근 지원서 카드는 공고만 넣은 지원도 보이고 공고 요건 줄 수를 적는다", async ({ page }) => {
+  const state = await setup(page);
+  await page.goto("/");
+  const recent = page.getByRole("region", { name: "이어서", exact: true }).getByRole("link", { name: /최근 지원서/ });
+  await expect(recent).toContainText("최근 부트캠프 지원서");
+  await expect(recent).toContainText("문항 2개 · 분석 중 1개");
+  state.postingOnly = true;
+  await page.reload();
+  await expect(recent).toContainText("공고만 넣은 회사");
+  await expect(recent).toContainText("공고 요건 3줄");
+  await expect(recent).toHaveAttribute("href", "/questions?application=3&tab=posting");
 });
