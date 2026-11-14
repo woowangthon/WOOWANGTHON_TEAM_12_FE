@@ -10,6 +10,11 @@ import { cn } from "@/lib/utils";
 
 // 사이드바 줄과 같은 높이 · 안쪽 여백(app-header.tsx navItem)
 const navRow = "flex h-11 w-full shrink-0 items-center gap-2.5 px-3 lg:h-10";
+// 그 밖의 화면 뼈대 — 실제 화면 본문과 같은 폭 · 위 여백. 왼쪽 여백은 모두 내 경험과 같다(FE#594)
+const PAGE_FRAME: Record<string, string> = {
+  "/applications": "max-w-4xl pt-8 lg:pt-12", "/connections": "max-w-3xl pt-8 lg:pt-12",
+  "/guidelines": "max-w-4xl pt-7", "/questions": "max-w-[1280px] pt-5 lg:pt-6",
+};
 
 /** 로그인을 확인하는 동안(FE#402) — 흰 화면에 글 한 줄 대신 앱 틀(사이드바 · 위 막대 · 탭바)과 그 주소 화면의 뼈대를 그린다.
  *  확인이 끝나 화면이 「불러오는 중」 뼈대로 넘어가도 같은 자리라 두 번 깜빡이지 않는다.
@@ -49,7 +54,7 @@ export function AuthChecking() {
     <div aria-hidden="true" className="flex-1">
       {path === "/experience" ? <main className="min-w-0 px-4.5 pt-4.5 pb-24 lg:px-8 lg:pt-8 lg:pb-16"><TimelineSkeleton announce={false} /></main>
         : path === "/" ? <main className="home-background min-h-[calc(100dvh-2rem)] px-4.5 pt-6 pb-10 lg:px-9 lg:pt-[6vh]"><HomeSkeleton /></main>
-        : <main className="grid max-w-4xl gap-3 px-4.5 pt-7 lg:px-10"><Skeleton className="h-8 w-40" /><Skeleton className="mb-5 h-4 w-64" />
+        : <main className={cn("grid gap-3 px-4.5 lg:px-8", PAGE_FRAME[path] ?? "max-w-4xl pt-7")}><Skeleton className="h-8 w-40" /><Skeleton className="mb-5 h-4 w-64" />
           {[0, 1, 2].map(i => <Skeleton key={i} className="h-16 w-full" />)}</main>}
     </div>
     {/* 1024 미만 — 아래 탭바 자리 */}

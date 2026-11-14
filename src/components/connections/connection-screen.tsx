@@ -177,7 +177,8 @@ export function ConnectionScreen() {
 
   return <>
     <AppHeader activePage="connections" />
-    <main className="mx-auto w-full max-w-3xl px-5 py-8 lg:px-8 lg:py-12">
+    {/* 본문은 왼쪽 정렬 · 왼쪽 여백은 내 경험과 같게 — 가운데 정렬은 홈만(FE#594) */}
+    <main className="w-full max-w-3xl px-4.5 py-8 lg:px-8 lg:py-12">
       <h1 className="text-display font-bold tracking-tight">연결 · 내보내기</h1>
       <p className="mt-2 text-sm leading-relaxed text-muted">쌓아 둔 경험을 필요한 곳에서 꺼내 쓰세요.</p>
       {mock && <p role="note" className="mt-6 rounded-sm border border-hairline bg-surface-soft p-4 text-sm leading-relaxed">

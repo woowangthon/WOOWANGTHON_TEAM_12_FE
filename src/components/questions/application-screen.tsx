@@ -215,7 +215,8 @@ export function ApplicationScreen() {
       applicationList={{ onPick: pick, applications: matching.applications, loading: matching.loading, error: matching.error, onRetry: () => { void matching.refresh(); } }} />
     <div className="flex-1 xl:flex xl:items-start">
     <div className="min-w-0 flex-1">
-    <main className="mx-auto max-w-[1280px] px-4.5 py-5 lg:px-8 lg:py-6">
+    {/* 넓은 화면에서도 가운데로 옮기지 않는다 — 가운데 정렬은 홈만(FE#594) */}
+    <main className="max-w-[1280px] px-4.5 py-5 lg:px-8 lg:py-6">
       {/* 지원서를 넣는 동안엔 제목 · ⓘ · 「+ 새 지원서」를 숨긴다 — 넣기 칸이 제목을 단다(FE#508) */}
       {working || composing || (empty && restoreRun === null) ? <h1 className="sr-only">지원서</h1> : <div className="mb-7 flex items-start justify-between gap-3">
         <div className="flex items-center gap-1"><h1 className="m-0 text-display leading-snug font-bold tracking-[-0.4px]">지원서</h1><InfoTip label="지원서">지원서의 문항마다 꺼내 볼 경험을 찾아요. 같은 경험도 문항마다 다른 점을 보여 줄 수 있어요.</InfoTip></div>

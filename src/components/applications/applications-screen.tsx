@@ -40,7 +40,8 @@ export function ApplicationsScreen() {
   return (
     <>
       <AppHeader activePage="applications" applicationList={list} />
-      <main className="mx-auto w-full max-w-4xl px-5 py-8 lg:px-8 lg:py-12">
+      {/* 본문은 왼쪽 정렬 · 왼쪽 여백은 내 경험과 같게 — 가운데 정렬은 홈만(FE#594) */}
+      <main className="w-full max-w-4xl px-4.5 py-8 lg:px-8 lg:py-12">
         <div className="flex items-center justify-between gap-3">
           <h1 className="m-0 text-display font-bold tracking-tight">내 지원서</h1>
           <Button variant="secondary" onClick={newApplication} className="max-lg:h-11"><PlusIcon aria-hidden="true" />새 지원서</Button>
