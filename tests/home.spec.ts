@@ -65,7 +65,9 @@ test("시안 6 홈은 타임라인 없이 실제 이어서·쌓인 블록·모�
   expect(modeWidths[0]).toBe(modeWidths[1]);
   await expect(page.getByRole("group", { name: "입력 예시" })).toContainText("오늘: 스터디에서 처음 발표했다");
   await page.getByRole("button", { name: "오늘: 스터디에서 처음 발표했다", exact: true }).click();
-  await expect(page.getByLabel("홈에 넣을 글")).toHaveValue("오늘: 스터디에서 처음 발표했다");
+  await expect(page.getByLabel("홈에 넣을 글")).toHaveValue("[알고리즘 · 백엔드 스터디]\n오늘 스터디에서 처음 발표를 맡아 DB 인덱스 동작 원리를 정리해 팀원들 앞에서 설명하고 질의응답을 진행했다.");
+  await page.getByRole("button", { name: "요즘 든 생각: 협업이 생각보다 재밌다", exact: true }).click();
+  await expect(page.getByLabel("홈에 넣을 글")).toHaveValue("[교내 해커톤 웹 서비스 프로젝트]\n프론트엔드 팀원과 API 응답 형식을 함께 맞추며 개발했다. 의견을 주고받으며 문제를 푸는 협업이 생각보다 재밌다는 걸 배웠다.");
   expect(state.posts).toBe(0);
   await page.getByRole("button", { name: "꺼내기", exact: true }).click();
   await page.getByLabel("홈에 넣을 글").fill("");
