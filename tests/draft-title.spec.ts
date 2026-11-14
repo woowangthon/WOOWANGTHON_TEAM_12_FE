@@ -60,6 +60,28 @@ test("소제목이 null 이면 답칸은 문장만이다", async ({ page }) => {
   await expect(page.locator('[data-mark="t"]')).toHaveCount(0);
 });
 
+// FE#615 — 소제목 줄은 「직접 쓴 문장」이 아니다. 손대지 않은 초안 · 소제목만 고친 초안엔 근거 점검이 없고, 초안 밖에 직접 쓰면 보인다
+const groundButton = (page: Page) => page.getByRole("button", { name: "근거 점검", exact: true });
+test("소제목이 붙은 초안은 손대지 않으면 근거 점검이 없다 · 소제목을 고쳐도 없다 · 직접 쓰면 보인다", async ({ page }) => {
+  await open(page);
+  await expect(answerBox(page)).toHaveValue(`${TITLE}\n${BODY}`);
+  await expect(page.locator('[data-mark="t"]')).toHaveCount(1);
+  await expect(groundButton(page)).toHaveCount(0);
+  // 소제목만 고친다 — 소제목 자리로 남는다
+  await answerBox(page).fill(`폴링을 구독으로 바꿔 푼 채팅 문제\n${BODY}`);
+  await expect(page.locator('[data-mark="t"]')).toHaveCount(1);
+  await expect(groundButton(page)).toHaveCount(0);
+  // 초안 밖에 직접 쓴 문장
+  await answerBox(page).fill(`${TITLE}\n${BODY} 이 경험으로 팀의 배포 주기를 절반으로 줄였습니다.`);
+  await expect(groundButton(page)).toBeVisible();
+});
+
+test("소제목이 없는 초안도 손대지 않으면 근거 점검이 없다", async ({ page }) => {
+  await open(page, q => { q.draft!.title = null; });
+  await expect(answerBox(page)).toHaveValue(BODY);
+  await expect(groundButton(page)).toHaveCount(0);
+});
+
 test("문항 유형 고르기 목록에 「직무 역량 · 직무 준비」가 있다", async ({ page }) => {
   const api = await open(page);
   await page.getByLabel("문항 유형", { exact: true }).click();
