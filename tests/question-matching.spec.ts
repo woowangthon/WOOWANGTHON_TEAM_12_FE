@@ -687,6 +687,16 @@ test("a question can be added to an existing application and blank slots are nam
   await page.getByRole("button", { name: "문항 1개로 경험 찾기", exact: true }).click();
   await expect(page.getByRole("tablist", { name: "문항" }).getByRole("tab")).toHaveCount(1);
   await page.getByRole("button", { name: "문항 더하기", exact: true }).click();
+  // FE#597 — 이미 만든 지원서의 「+ 문항 더하기」에도 넣었던 · 자주 나오는 문항 고르기 버튼을 둔다
+  await page.getByRole("button", { name: "넣었던 · 자주 나오는 문항에서 고르기", exact: true }).click();
+  const picker = page.getByRole("region", { name: "문항 고르기" });
+  const past = picker.getByRole("group", { name: "내가 넣었던 문항" });
+  await expect(past.getByRole("checkbox").first()).toBeVisible();
+  await expect(picker.getByRole("checkbox", { name: /^첫 문항$/ })).toHaveCount(0);
+  await past.getByRole("checkbox").first().check();
+  await picker.getByRole("button", { name: "고른 문항 1개 넣기", exact: true }).click();
+  await expect(picker).toHaveCount(0);
+  await expect(page.getByLabel("이 지원서에 문항 더하기")).not.toHaveValue("");
   await page.getByLabel("이 지원서에 문항 더하기").fill("본인의 장단점을 적어 주세요.");
   await page.getByRole("button", { name: "문항 더하고 경험 찾기", exact: true }).click();
   const tabs = page.getByRole("tablist", { name: "문항" }).getByRole("tab");

@@ -229,7 +229,7 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
   const sendNote = <p id="application-send-note" className="m-0 flex items-start gap-1.5 text-note leading-relaxed text-muted"><LockSimpleIcon className="mt-[3px] size-[13px] shrink-0" aria-hidden="true" />{SEND_NOTE}</p>;
   const moveToSource = onMoveToSource && <Button type="button" variant="secondary" className="min-h-11 lg:min-h-10" disabled={saving || moveToSourceDisabled}
     onClick={() => onMoveToSource(paste.trim() ? paste : items.map(it => it.text).join("\n\n"))}>자료로 쌓기</Button>;
-  if (step === "pick") return <CommonQuestionPicker room={room} onPick={insert} onBack={() => setStep(pickFrom)} onCancel={onCancel} inDialog={inDialog} />;
+  if (step === "pick") return <CommonQuestionPicker room={room} existingQuestions={items.map(it => it.text).filter(t => t.trim())} onPick={insert} onBack={() => setStep(pickFrom)} onCancel={onCancel} inDialog={inDialog} />;
 
   if (step === "input") return (
     <form className="mx-auto grid w-full max-w-2xl gap-4" aria-busy={parse.parsing} onSubmit={e => { e.preventDefault(); if (canRead) read(); }}>
@@ -397,11 +397,17 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
 }
 
 /** 이미 넣은 지원에 문항 하나 더하기 */
-export function AddQuestionForm({ onSubmit, onCancel }: { onSubmit: (text: string) => Promise<unknown>; onCancel: () => void }) {
+export function AddQuestionForm({ onSubmit, onCancel, existingQuestions = [] }: { onSubmit: (text: string) => Promise<unknown>; onCancel: () => void; existingQuestions?: string[] }) {
+  const [picking, setPicking] = useState(false);
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const pending = useRef(false);
+  if (picking) return (
+    <CommonQuestionPicker room={1} existingQuestions={existingQuestions}
+      onPick={([picked]) => { if (picked) setText(picked); setPicking(false); setError(null); }}
+      onBack={() => setPicking(false)} onCancel={onCancel} />
+  );
   return (
     <form className="grid gap-3" aria-busy={saving} aria-label="문항 더하기" onSubmit={async event => {
       event.preventDefault();
@@ -420,6 +426,7 @@ export function AddQuestionForm({ onSubmit, onCancel }: { onSubmit: (text: strin
         <AnalysisButton type="submit" className="min-h-11 lg:min-h-10" running={saving} disabled={saving}>{saving ? "문항을 넣고 있어요…" : "문항 더하고 경험 찾기"}</AnalysisButton>
         <Button type="button" variant="ghost" disabled={saving} onClick={onCancel}>취소</Button>
         <AnalysisCost running={saving} />
+        <Button type="button" variant="link" className="min-h-11 lg:min-h-10 sm:ml-auto" disabled={saving} onClick={() => setPicking(true)}>넣었던 · 자주 나오는 문항에서 고르기</Button>
       </div>
     </form>
   );
