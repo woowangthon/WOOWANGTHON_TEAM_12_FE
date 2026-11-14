@@ -86,12 +86,14 @@ function hostOf(url: string) {
  *  **확인**: 넣기 자리를 바꿔 끼운다 — 원문은 「원문 보기」로 넣기 화면에 돌아가 고치고 다시 읽는다, 지원처 줄 · 공고 요건(있을 때만, S-91) · 문항(S-18), 주 버튼 하나.
  *  뒤로 가는 길은 단계마다 같다(FE#565) — 첫 화면(넣기)을 뺀 단계는 위 「← 돌아가기」(온 곳으로, 칸은 그대로), 아래 「취소」는 어디서나 넣기 전체 닫기.
  *  prefill 은 홈에서 이미 나눈 값, pastedText 는 그 원문, initialUrl 은 홈에 넣은 링크(원문 링크 칸에 남긴다), initialFailure 는 홈에서 그 링크를 못 읽은 결과다 */
-export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill, pastedText = "", initialUrl = "", initialFailure = null, onMoveToSource, onSavingChange, moveToSourceDisabled = false }: {
+export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill, pastedText = "", initialUrl = "", initialFailure = null, onMoveToSource, onSavingChange, moveToSourceDisabled = false, inDialog = false }: {
   onSubmit: (req: CreateApplicationRequest, targetLengths: (number | null)[]) => Promise<unknown>; onCancel?: () => void;
   initialText?: string; prefill?: ParsedApplication; pastedText?: string;
   initialUrl?: string; initialFailure?: ParseFailure | null;
   onMoveToSource?: (text: string) => void; onSavingChange?: (saving: boolean) => void;
   moveToSourceDisabled?: boolean;
+  /** 홈 「새 지원서」 창 안 — 문항 고르기 아래 막대를 창 바닥에 붙인다(FE#613) */
+  inDialog?: boolean;
 }) {
   // 홈에서 이미 나눈 값 · 옮긴 글이 있으면 확인부터
   // pick 은 따로 화면 — 「← 돌아가기」로 온 자리에 돌아가고, 칸 값은 이 컴포넌트에 그대로 남는다(FE#542).
@@ -227,7 +229,7 @@ export function ApplicationForm({ onSubmit, onCancel, initialText = "", prefill,
   const sendNote = <p id="application-send-note" className="m-0 flex items-start gap-1.5 text-note leading-relaxed text-muted"><LockSimpleIcon className="mt-[3px] size-[13px] shrink-0" aria-hidden="true" />{SEND_NOTE}</p>;
   const moveToSource = onMoveToSource && <Button type="button" variant="secondary" className="min-h-11 lg:min-h-10" disabled={saving || moveToSourceDisabled}
     onClick={() => onMoveToSource(paste.trim() ? paste : items.map(it => it.text).join("\n\n"))}>자료로 쌓기</Button>;
-  if (step === "pick") return <CommonQuestionPicker room={room} onPick={insert} onBack={() => setStep(pickFrom)} onCancel={onCancel} />;
+  if (step === "pick") return <CommonQuestionPicker room={room} onPick={insert} onBack={() => setStep(pickFrom)} onCancel={onCancel} inDialog={inDialog} />;
 
   if (step === "input") return (
     <form className="mx-auto grid w-full max-w-2xl gap-4" aria-busy={parse.parsing} onSubmit={e => { e.preventDefault(); if (canRead) read(); }}>

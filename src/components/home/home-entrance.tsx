@@ -246,7 +246,7 @@ export function HomeEntrance({ sourceBusy, mockAnalysis, onSourceSubmitted, over
       <DialogContent>
         <DialogHeader className="pr-10"><DialogTitle>새 지원서</DialogTitle><DialogDescription>{destination?.url ? (destination.prefill ? "링크에서 나눈 내용으로 칸을 채웠어요. 고친 뒤 넣어 주세요." : destination.failure ? "링크를 읽지 못했어요. 공고 본문을 붙여 넣으면 칸을 채워요." : "원문 링크를 남겨 뒀어요. 지원처와 문항을 넣어 주세요.") : destination?.prefill ? "글에서 나눈 내용으로 칸을 채웠어요. 고친 뒤 넣어 주세요." : destination?.text ? "입력한 글을 문항 하나로 옮겼어요. 지원처와 문항을 확인하고 넣어 주세요." : "지원처와 문항을 넣어 주세요."}</DialogDescription></DialogHeader>
         {destination?.kind === "application" && <ApplicationForm key={`${destination.prefill ? "filled" : "plain"}:${destination.url ?? ""}`} initialText={destination.text} prefill={destination.prefill} pastedText={destination.prefill ? destination.text : ""}
-          initialUrl={destination.url} initialFailure={destination.failure} onSavingChange={setSaving} moveToSourceDisabled={sourceBusy}
+          initialUrl={destination.url} initialFailure={destination.failure} onSavingChange={setSaving} moveToSourceDisabled={sourceBusy} inDialog
           onMoveToSource={value => openDestination("source", value)} onCancel={() => setDestination(null)}
           onSubmit={async (req, targetLengths) => { const result = await submitApplication(req, targetLengths); setDestination(null); setText(""); router.push(result.questionIds.length ? `/questions?question=${result.questionIds[0]}` : `/questions?application=${result.applicationId}&tab=posting`); }} />}
       </DialogContent>
