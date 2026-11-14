@@ -77,6 +77,15 @@ test("문항 글의 「500자」로 한 번 채우고, 지우면 다시 채우�
   expect(patches(api)).toHaveLength(2);
 });
 
+// FE#617 — 최소 · 최대가 같이 있으면 최대를 목표로 채운다(「최대 700자」 · 「1,000자 이내」와 같은 뜻)
+for (const tail of ["(최소 500자, 최대 1,500자)", "500자 이상 1,500자 이내로 써 주세요."]) {
+  test(`최소 · 최대가 같이 있으면 최대로 채운다 — ${tail}`, async ({ page }) => {
+    const api = await openQuestion(page, q => { q.text = `기술적인 문제를 해결한 경험을 적어 주세요. ${tail}`; q.targetLength = null; });
+    await expect(header(page).getByRole("button", { name: "목표 1500자 — 고치기" })).toBeVisible();
+    expect(patches(api)).toEqual([{ targetLength: 1500 }]);
+  });
+}
+
 test("목표 글자 수는 100 ~ 5000 만 저장하고, 문항에 「N자」가 없으면 채우지 않는다", async ({ page }) => {
   const api = await openQuestion(page, q => { q.targetLength = null; });
   const chip = header(page).getByRole("button", { name: "목표 글자 수 정하기" });
