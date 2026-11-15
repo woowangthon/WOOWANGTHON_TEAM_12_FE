@@ -397,6 +397,8 @@ test("이 답에서 경험 쌓기 is blocked while a newer draft exists, warned 
   await expect(findButton(page)).toBeDisabled();
   await expect(factsBox(page)).toContainText("새 초안이 있어 이 답에선 찾을 수 없어요");
   expect(state.finds).toBe(0);
+  if (process.env.FE655_SHOTS === "1") { await factsBox(page).scrollIntoViewIfNeeded(); }
+  if (process.env.FE655_SHOTS === "1") { await page.waitForTimeout(400); await page.screenshot({ path: `docs/fe-655/blocked-${page.viewportSize()!.width}.png`, animations: "disabled", caret: "hide" }); }
   // 다시 만들기 전에 알린다
   if (wide(page)) {
     await page.getByRole("region", { name: "초안 설정", exact: true }).or(page.getByRole("button", { name: /(초안|넣어) 다시 만들기$/ })).first().waitFor();
@@ -405,7 +407,19 @@ test("이 답에서 경험 쌓기 is blocked while a newer draft exists, warned 
     await page.getByRole("region", { name: "초안 설정", exact: true }).getByRole("button", { name: "다시 만들기", exact: true }).click();
     const warn = page.getByRole("dialog", { name: "다시 만들면 답칸 글이 새 초안으로 바뀌어요" });
     await expect(warn).toContainText("다시 「다 썼어요」를 누르기 전까지 「이 답에서 경험 쌓기」는 쓸 수 없어요.");
+    if (process.env.FE655_SHOTS === "1") { await page.waitForTimeout(400); await page.screenshot({ path: `docs/fe-655/warn-${page.viewportSize()!.width}.png`, animations: "disabled", caret: "hide" }); }
     await warn.getByRole("button", { name: "취소", exact: true }).click();
+  } else if (process.env.FE655_SHOTS === "1") {
+    // 좁은 폭 — 패널 시트 안의 다시 만들기 칩으로 연다
+    const chip = page.getByRole("button", { name: /(초안|넣어) 다시 만들기$/ });
+    if ((await chip.getAttribute("aria-expanded")) === "false") await chip.click();
+    await page.getByRole("region", { name: "초안 설정", exact: true }).getByRole("button", { name: "다시 만들기", exact: true }).click();
+    const warn = page.getByRole("dialog", { name: "다시 만들면 답칸 글이 새 초안으로 바뀌어요" });
+    await expect(warn).toBeVisible();
+    if (process.env.FE655_SHOTS === "1") { await page.waitForTimeout(400); await page.screenshot({ path: `docs/fe-655/warn-${page.viewportSize()!.width}.png`, animations: "disabled", caret: "hide" }); }
+    await warn.getByRole("button", { name: "취소", exact: true }).click();
+    await page.reload(); // 시트 · 펼친 설정을 처음 상태로
+    await expect(s.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toBeEnabled();
   }
   await closeSheet(page);
   await s.getByRole("button", { name: "다 썼어요", exact: true }).click();
