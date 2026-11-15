@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ClockCounterClockwiseIcon, CopyIcon } from "@phosphor-icons/react";
+import { ArrowsClockwiseIcon, ClockCounterClockwiseIcon, CopyIcon } from "@phosphor-icons/react";
 import { RevisionDialog } from "@/components/revisions/revision-list";
 import { useRestoreListener } from "@/components/revisions/restore-bus";
 import { fetchRevisions, restoreRevision, type RestoreResult, type Revision } from "@/lib/api/revisions";
@@ -87,6 +87,9 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
   const [editBase, setEditBase] = useState(start.base);
   const [draftPlaced, setDraftPlaced] = useState<string | null>(start.placed);
   const [historyOpen, setHistoryOpen] = useState(false);
+  // 이 답의 기록이 새로 생겼다 — 열린 「수정 이력」 목록 · 「현재」 · 바로가기를 다시 불러온다(FE#652)
+  const [historyKey, setHistoryKey] = useState(0);
+  const historyChanged = () => setHistoryKey(k => k + 1);
   const [selected, setSelected] = useState<Selection>(null);
   const [ask, setAsk] = useState<"copy" | "confirm" | "ground" | "load" | null>(null);
   const { toast, showToast } = useToast();
@@ -125,7 +128,7 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
   useEffect(() => { setEditedAnswer(questionId, edited); }, [questionId, edited]);
   // 자동 저장(S-72) — 글과 이 화면의 표시 상태(답한 빈칸 · 맞아요 문장 글)를 같이
   const savedBox: SavedBox = { v: 1, draftKey, local: box.local, seen: [...box.seen] };
-  const autosave = useAnswerAutosave(questionId, { text, state: savedBox }, g.initialized, draft => onAnswerDraftChange(questionId, draft), draftPlaced, start.placed !== null);
+  const autosave = useAnswerAutosave(questionId, { text, state: savedBox }, g.initialized, draft => onAnswerDraftChange(questionId, draft), draftPlaced, start.placed !== null, historyChanged);
   // 아직 저장하지 못한 글이 있으면 새로고침 · 닫기 전에 브라우저가 묻는다
   useEffect(() => {
     if (!autosave.unsaved) return;
@@ -205,7 +208,7 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
       if (live) setBack(top?.kind === "RESTORE" && top.before.text ? top : null);
     }, () => { /* 바로가기만 못 보인다 — 이력 목록이 오류를 보인다 */ });
     return () => { live = false; };
-  }, [historyOpen, questionId]);
+  }, [historyOpen, questionId, historyKey]);
   const goBack = () => {
     if (!back) return;
     void replaceBy(async () => { const result = await restoreRevision(back.id, "BEFORE"); setBack(null); return result; }, () => setBack(null));
@@ -231,6 +234,7 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
     if (!result.answerDraft) return;
     g.setText(result.answerDraft.text); setEditBase(result.answerDraft.text); setSelected(null);
     onAnswerDraftChange(questionId, result.answerDraft);
+    historyChanged();
   };
   const isMine = (r: RestoreResult["revision"]) => r.targetType === "ANSWER" && r.targetId === questionId;
   useRestoreListener({
@@ -239,7 +243,7 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
   });
   // 「다 썼어요」 전에 기다리던 자동 저장을 버린다 — 늦게 도착하면 지운 임시 글이 되살아난다(계약)
   // 저장했다는 알림은 잠깐 떴다 사라진다 — 답칸 아래에 저장 줄을 두지 않는다(FE#543)
-  const confirmAnswer = async () => { setAsk(null); await autosave.settle(); void a.confirm(text, () => { onAnswerDraftChange(questionId, null); showToast("다 쓴 답으로 저장했어요."); }); };
+  const confirmAnswer = async () => { setAsk(null); await autosave.settle(); void a.confirm(text, () => { onAnswerDraftChange(questionId, null); showToast("다 쓴 답으로 저장했어요."); historyChanged(); }); };
 
   const locked = a.busy || a.answer?.newFacts?.status === "ANALYZING";
   // 확정 답과 같은 글은 다시 확정하지 않는다 — 서버도 아무것도 바꾸지 않는다(ETC#266)
@@ -295,11 +299,13 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
         current={text}
         // 기다리던 자동 저장을 먼저 보낸다 — 늦게 도착해 되돌린 임시 글을 덮지 않게
         beforeRestore={() => autosave.retry()}
-        onRestored={applyRestore}
+        onRestored={applyRestore} refreshKey={historyKey}
         // 다 쓴 답 · 초안 글로 돌아가는 길은 여기 하나(FE#463) — 답칸 아래에 링크를 쌓지 않는다. 답칸에 글이 있으면 덮기 전에 묻는다(FE#384)
+        // 이력 줄의 「이때로 되돌리기」와 같은 모양(FE#652) — 조건에 맞는 하나만 보인다
         actions={(canLoadConfirmed || canGoBack) && <>
-          {canLoadConfirmed && <Button variant="secondary" size="sm" className="min-h-11 lg:min-h-9" onClick={() => { setHistoryOpen(false); if (text.trim()) setAsk("load"); else loadConfirmed(); }}>다 쓴 답 불러오기</Button>}
-          {canGoBack && <Button variant="secondary" size="sm" className="min-h-11 lg:min-h-9" onClick={() => { setHistoryOpen(false); goBack(); }}>쓰던 초안으로 돌아가기</Button>}
+          <p className="m-0 w-full text-note text-muted">답칸에 넣기</p>
+          {canLoadConfirmed && <Button variant="secondary" size="sm" className="min-h-11 lg:min-h-9" onClick={() => { setHistoryOpen(false); if (text.trim()) setAsk("load"); else loadConfirmed(); }}><ArrowsClockwiseIcon />다 쓴 답 불러오기</Button>}
+          {canGoBack && <Button variant="secondary" size="sm" className="min-h-11 lg:min-h-9" onClick={() => { setHistoryOpen(false); goBack(); }}><ArrowsClockwiseIcon />쓰던 초안으로 돌아가기</Button>}
         </>} />
     </div>
     {drafting && <p role="status" className="m-0 text-sm text-muted">차곡이가 초안을 만들고 있어요. 다 되면 답칸에 들어와요.</p>}

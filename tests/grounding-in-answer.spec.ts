@@ -15,7 +15,8 @@ const narrow = (page: Page) => page.viewportSize()!.width < 1024;
 const markOf = (page: Page, key: string) => page.locator(`[data-mark="${key}"]`);
 const sentenceCard = (page: Page) => page.getByRole("group", { name: "문장 카드" }).filter({ visible: true });
 const checks = (page: Page, n: number) => expect(page.getByText(`확인할 곳 ${n}군데`, { exact: true })).toBeVisible();
-const posts = (api: FakeQuestionApi) => api.calls.filter(c => c.call.startsWith("POST") || c.call.startsWith("PUT"));
+// 답칸 자동 저장(answer-draft)은 빼고 센다 — 초안이 열리면 바로 한 번 저장한다(FE#652)
+const posts = (api: FakeQuestionApi) => api.calls.filter(c => (c.call.startsWith("POST") || c.call.startsWith("PUT")) && !c.call.endsWith("/answer-draft"));
 const check = (page: Page) => page.getByRole("button", { name: "근거 점검", exact: true });
 const ev = (text: string): Sentence["evidence"] => [{ type: "CITATION", id: 901, experienceId: 101, activityId: 7, text, sourceName: "바꿔요-회고.md", question: null, actor: "ME" }];
 const draftChecked = (): Sentence[] => DRAFT_S79.sentences.map((s, i) => ({ text: s.text, status: i === 1 ? "USER_INPUT" : i === 4 ? "OPINION" : "SOURCE", evidence: i === 1 || i === 4 ? [] : ev("원문 발췌입니다."), note: i === 1 ? "점검 메모 — 보완에 있어요" : null }));

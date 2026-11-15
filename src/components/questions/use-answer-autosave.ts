@@ -18,7 +18,9 @@ export function useAnswerAutosave(questionId: number, body: Body, enabled: boole
    *  글이 같을 때만이 아니다 — 들어오자마자 고쳤거나 저장이 실패한 뒤 고쳐 저장해도 덮인 글이 이력에 남게(FE#649) */
   fromDraftText: string | null = null,
   /** 처음 글이 서버에 아직 없다 — 열 때 들어온 초안(FE#401). 기준으로 삼지 않고 바로 저장한다 */
-  startUnsaved = false) {
+  startUnsaved = false,
+  /** 초안을 넣은 저장이 끝났다 — 서버가 수정 이력에 한 줄 남겼다(FE#652) */
+  onPlaced?: () => void) {
   const fromDraft = useRef(fromDraftText), flagged = useRef<string | null>(null);
   const key = JSON.stringify(body);
   const [saved, setSaved] = useState<string | null>(null);
@@ -26,11 +28,11 @@ export function useAnswerAutosave(questionId: number, body: Body, enabled: boole
   const [status, setStatus] = useState<AutosaveStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const latest = useRef(key), savedRef = useRef<string | null>(null), inflight = useRef<Promise<void> | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null), mounted = useRef(true), onSavedRef = useRef(onSaved);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null), mounted = useRef(true), onSavedRef = useRef(onSaved), onPlacedRef = useRef(onPlaced);
   // 기준 글 — 서버에 이미 있거나(임시 글 · 확정 답 · 초안) 새로 보이는 글이라 저장하지 않는다.
   // 서버에 없는 처음 글이면 어느 글과도 다른 빈 기준을 두어 멈춘 뒤 저장되게 한다
   if (enabled && saved === null) { setSaved(startUnsaved ? "" : key); setStartKey(key); }
-  useEffect(() => { latest.current = key; onSavedRef.current = onSaved; fromDraft.current = fromDraftText; if (savedRef.current === null) savedRef.current = saved; });
+  useEffect(() => { latest.current = key; onSavedRef.current = onSaved; onPlacedRef.current = onPlaced; fromDraft.current = fromDraftText; if (savedRef.current === null) savedRef.current = saved; });
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   const send = useCallback(async () => {
@@ -45,7 +47,7 @@ export function useAnswerAutosave(questionId: number, body: Body, enabled: boole
         const placing = fromDraft.current;
         const placed = placing !== null && flagged.current !== placing;
         const draft = await saveAnswerDraft(questionId, placed ? { ...req, fromDraft: true } : req);
-        if (placed) flagged.current = placing;
+        if (placed) { flagged.current = placing; onPlacedRef.current?.(); }
         savedRef.current = next;
         onSavedRef.current(draft);
         if (mounted.current) { setSaved(next); setStatus(latest.current === next ? "saved" : "pending"); }
@@ -58,7 +60,9 @@ export function useAnswerAutosave(questionId: number, body: Body, enabled: boole
 
   useEffect(() => {
     if (saved === null || key === saved) return;
-    timer.current = setTimeout(() => void send(), DELAY_MS);
+    // 초안을 넣은 첫 저장은 기다리지 않는다 — 초안 기록엔 원본만 남고, 바로 친 글은 다음 저장으로 간다(FE#652)
+    const placing = fromDraft.current !== null && flagged.current !== fromDraft.current;
+    timer.current = setTimeout(() => void send(), placing ? 0 : DELAY_MS);
     return () => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } };
   }, [key, saved, send]);
 
