@@ -30,7 +30,7 @@ type AnswerDraftChange = (id: number, draft: AnswerDraft | null) => void;
 // 목표 글자 수는 답칸 아래 한 곳에서 정한다(FE#269)
 // 새 경험 후보는 차곡이 패널에서만 찾고 고른다(FE#270 · FE#543) — 답칸 아래에는 저장 줄도 찾기 버튼도 두지 않는다
 // trailing — 머리줄 오른쪽 아이콘 줄 끝에 더하는 것(문항 지우기)
-type DraftHooks = { onAnswer: AnswerHandler; onRefresh: () => Promise<void>; draftBusy: boolean; onTargetLength: (targetLength: number | null) => Promise<void>; trailing?: ReactNode };
+type DraftHooks = { onAnswer: AnswerHandler; onRefresh: () => Promise<void>; draftBusy: boolean; /** 초안 요청을 보내는 중 — 되묻기 답 저장(draftBusy 에 같이 든다)과 가른다 */ requestingDraft?: boolean; onTargetLength: (targetLength: number | null) => Promise<void>; trailing?: ReactNode };
 
 /** 내가 쓴 답(S-45 · S-48 · S-79): 받아 둔 문항의 확정 답으로 시작하고, 초안이 더 새로우면 초안을 보기 상태로 담는다. 근거 점검은 독립적으로 읽는다.
  *  문항을 못 받았으면 화면의 「다시 불러오기」를 쓴다 */
@@ -61,7 +61,7 @@ function readSavedBox(state: AnswerDraft["state"], draftKey: string | null): Pic
   return { local, seen: new Set(s.seen.filter((x): x is string => typeof x === "string")) };
 }
 
-function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, draftLabel, onAskDraft, onAnswer, onRefresh, draftBusy, onTargetLength, trailing }: { question: QuestionDetail; confirmed: ReturnType<typeof useConfirmedAnswer>; onAnswerDraftChange: AnswerDraftChange; checks: GroundingChecks; draftLabel: string | null; onAskDraft: () => void } & DraftHooks) {
+function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, draftLabel, onAskDraft, onAnswer, onRefresh, draftBusy, requestingDraft = false, onTargetLength, trailing }: { question: QuestionDetail; confirmed: ReturnType<typeof useConfirmedAnswer>; onAnswerDraftChange: AnswerDraftChange; checks: GroundingChecks; draftLabel: string | null; onAskDraft: () => void } & DraftHooks) {
   const questionId = question.id;
   const draft = question.draft ?? null;
   const ready = draft?.status === "COMPLETED" && draft.sentences.length > 0 ? draft : null;
@@ -248,7 +248,8 @@ function AnswerEditor({ question, confirmed: a, onAnswerDraftChange, checks, dra
         // 되돌리면 서버가 기록을 남겨 덮인 글이 그 줄의 「덮이기 전 쓰던 글」로 남는다
         onRestored={applyRestore} refreshKey={historyKey} />
     </div>
-    {drafting && <p role="status" className="m-0 text-sm text-muted">차곡이가 초안을 만들고 있어요. 다 되면 답칸에 들어와요.</p>}
+    {/* 초안을 요청 · 만드는 동안만 — 되묻기 답을 저장하는 동안(draftBusy)은 초안을 만드는 게 아니다 */}
+    {(requestingDraft || draft?.status === "ANALYZING") && <p role="status" className="m-0 text-sm text-muted">차곡이가 초안을 만들고 있어요. 다 되면 답칸에 들어와요.</p>}
     {draft?.status === "FAILED" && !drafting && <p role="alert" className="m-0 text-sm text-error">{failureReason(draft.error)} 차곡이에서 다시 만들 수 있어요.</p>}
     <label htmlFor={`answer-${questionId}`} className="sr-only">내가 쓴 답</label>
     <div className="grid min-w-0 overflow-hidden rounded-md border border-hairline bg-canvas has-[textarea:focus-visible]:outline-2 has-[textarea:focus-visible]:outline-offset-2 has-[textarea:focus-visible]:outline-ink">
