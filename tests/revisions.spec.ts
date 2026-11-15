@@ -589,3 +589,35 @@ test("이력 창을 연 채 「다 썼어요」를 누르면 다시 열지 않�
   await expect.poll(lists).toBeGreaterThan(before);
   await expect(page.getByRole("dialog", { name: "수정 이력" })).toBeVisible();
 });
+
+test("헤더 「최근 수정」에서도 답 줄은 같은 이름 · 덮이기 전 쓰던 글 · 기타 — 사이에 경험 기록이 끼어도 (FE#652)", async ({ page }) => {
+  const api = new FakeQuestionApi({ sameApplication: true });
+  await api.install(page);
+  await hideDevOverlay(page);
+  const all: Revision[] = [
+    answerRow(1046, "RESTORE", "12:36", "초안", "다 쓴 답"),
+    answerRow(1045, "RESTORE", "12:35", "다 쓴 답", "초안"),
+    { ...EXPERIENCE_EDIT, id: 1099, by: "USER", client: null, mcpChangeId: null, createdAt: "2026-11-15T12:34:30+09:00" },
+    answerRow(1044, "RESTORE", "12:34", "초안", "다 쓴 답"),
+    answerRow(1043, "RESTORE", "12:33", "다 쓴 답", "초안"),
+    answerRow(1042, "RESTORE", "12:32", "초안", "다 쓴 답"),
+    answerRow(1041, "DRAFT_OVERWRITE", "12:00", "고친 글", "초안"),
+    answerRow(1040, "CONFIRM", "11:58", "", "다 쓴 답"),
+  ];
+  // 전체 목록을 한 번에 — 경험 기록이 사이에 끼어도 같은 문항의 앞 기록과 견준다
+  await page.route("**/api/revisions**", route => route.fulfill({ json: { revisions: all, nextCursor: null } }));
+  await page.route("**/api/mcp/changes", route => route.fulfill({ json: { changes: [] } }));
+  await page.goto("/questions?question=41");
+  await expect(page.getByRole("region", { name: "내가 쓴 답", exact: true }).getByRole("textbox", { name: "내가 쓴 답", exact: true })).toBeEnabled();
+  if (page.viewportSize()!.width >= 1024) await page.getByRole("button", { name: "최근 수정" }).filter({ visible: true }).click();
+  else { await page.getByRole("button", { name: /^계정 메뉴/ }).filter({ visible: true }).click(); await page.getByRole("menuitem", { name: "최근 수정", exact: true }).click(); }
+  const dialog = page.getByRole("dialog", { name: "최근 수정" });
+  // 그 문항의 가장 새 줄은 늘 보인다 · 경험 기록 아래 이어진 왕복 셋은 기타로 · 경험 기록 위 12:35 하나는 접지 않는다
+  await expect(dialog.getByRole("button", { name: /^초안으로 되돌렸어요/ })).toHaveCount(1);
+  await expect(dialog.getByRole("button", { name: /^다 쓴 답으로 되돌렸어요/ })).toHaveCount(1);
+  await expect(dialog.getByRole("button", { name: /^기타 3개/ })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: /^경험 「/ }).or(dialog.getByRole("button", { name: /바꿨어요|고쳤어요/ })).first()).toBeVisible();
+  await expect(dialog.getByRole("button", { name: /^덮이기 전 쓰던 글/ })).toHaveCount(1); // 12:00 에 덮인 고친 글
+  await expect(dialog.getByText(/임시 글|현재/)).toHaveCount(0); // 최근 수정은 답칸 글을 모른다 — 「현재」 없음
+  if (process.env.FE652_SHOTS === "1") { await page.waitForTimeout(400); await page.screenshot({ path: `docs/fe-652/recent-${page.viewportSize()!.width}.png`, animations: "disabled", caret: "hide" }); }
+});

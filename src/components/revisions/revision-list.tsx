@@ -588,7 +588,7 @@ export const isRevisionPanelOpen = () => activePanel !== null;
  *  그보다 좁으면 차곡이처럼 오른쪽 시트 */
 export function RevisionDialog({ open, onOpenChange, title, description, actions, ...list }: Parameters<typeof RevisionList>[0] & {
   open: boolean; onOpenChange: (open: boolean) => void; title: string; description: string;
-  /** 목록 위 버튼 줄 — 답칸의 「다 쓴 답 불러오기」 · 「쓰던 초안으로 돌아가기」(FE#463 · FE#649 · FE#652). 기록이 없거나 못 불러와도 보인다 */
+  /** 목록 위 버튼 줄 — 기록이 없거나 못 불러와도 보인다. 지금 쓰는 곳 없음(답칸 바로가기는 FE#652 에서 이력 줄로 옮겼다) */
   actions?: ReactNode;
 }) {
   const id = useId();
