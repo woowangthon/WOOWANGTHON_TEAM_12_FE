@@ -87,7 +87,8 @@ test("넓은 폭 카드는 「내가 쓴 답」 칸 밖을 누르면 닫힌다",
   await open(page);
   await openMark(page, S_805);
   await expect(sentenceCard(page)).toBeVisible();
-  await page.locator("#question-panel header h3").click();
+  // 문항 글은 눌러서 고치는 버튼이라(S-89) 누르면 사라진다 — 누를 것이 없는 머리의 「현재 위치」를 누른다
+  await page.getByRole("navigation", { name: "현재 위치" }).locator("strong").click();
   await expect(sentenceCard(page)).toHaveCount(0);
 });
 test("문장 카드에는 고치기 · 직접 고치기가 없고, 초안 글은 처음부터 입력칸에 있다", async ({ page }) => {

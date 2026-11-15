@@ -35,7 +35,8 @@ test("responsive breakpoint: JS and CSS agree at the browser default font size",
     }
     if (wide) {
       await expect(page.locator("#application-list")).toHaveCount(0);
-      await expect(sidebar.getByRole("button", { name: /OO 연합 동아리/ })).toBeVisible();
+      // 펼친 사이드바의 최근 지원서는 링크다(FE#551)
+      await expect(sidebar.getByRole("link", { name: /OO 연합 동아리/ })).toBeVisible();
     } else if (desktop) {
       await expect(page.locator("#application-list")).toBeVisible();
     } else {

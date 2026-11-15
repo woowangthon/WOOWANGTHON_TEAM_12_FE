@@ -89,6 +89,13 @@ async function setupTimeline(page: Page) {
 }
 
 // PR 스크린샷(FE430_SHOTS=1) — 폭마다 docs/fe-430/<이름>-<폭>.png
+/** 헤더 「최근 수정」을 연다 — 좁은 휴대폰 머리는 아이콘을 숨겨(FE#632) 계정 메뉴의 「최근 수정」으로 연다(FE#642) */
+async function openRecent(page: Page) {
+  if (page.viewportSize()!.width >= 1024) { await page.getByRole("button", { name: "최근 수정" }).filter({ visible: true }).click(); return; }
+  await page.getByRole("button", { name: /^계정 메뉴/ }).filter({ visible: true }).click();
+  await page.getByRole("menuitem", { name: "최근 수정", exact: true }).click();
+}
+
 const shot = async (page: Page, name: string) => {
   if (process.env.FE430_SHOTS !== "1") return;
   await page.waitForTimeout(400);
@@ -97,7 +104,7 @@ const shot = async (page: Page, name: string) => {
 
 test("헤더 「최근 수정」 — 접힌 요약 · 펼치면 바뀐 부분만 · 더 보기 · 지운 항목은 못 감", async ({ page }) => {
   const state = await setupTimeline(page);
-  await page.getByRole("button", { name: "최근 수정" }).filter({ visible: true }).click();
+  await openRecent(page);
   const dialog = page.getByRole("dialog", { name: "최근 수정" });
   // 전체 목록은 다 접혀 있다 — 요약 · 대상 · 누가만
   const experienceRow = dialog.getByRole("button", { name: /^본문을 고쳤어요/ });
@@ -254,7 +261,7 @@ for (const [before, after, label] of [
     const state = await setupTimeline(page);
     state.all = [{ ...EXPERIENCE_EDIT, by: "USER", client: null, mcpChangeId: null,
       before: snap("그대로인 경험", before), after: snap("그대로인 경험", after) }];
-    await page.getByRole("button", { name: "최근 수정" }).filter({ visible: true }).click();
+    await openRecent(page);
     const dialog = page.getByRole("dialog", { name: "최근 수정" });
     await dialog.getByRole("button", { name: label ? /^출처 상태를 바꿨어요/ : /^고쳤어요/ }).click();
     if (label) await expect(dialog.getByText(label, { exact: true })).toBeVisible();
@@ -334,7 +341,7 @@ test("헤더 「최근 수정」에서 되돌리면 열어 둔 활동 세부가 
   state.all = [{ ...EXPERIENCE_EDIT, id: 905, before: EXPERIENCE_EDIT.after, after: snap("백엔드 API 설계를 전부 맡았다") }, OLDER];
   await page.getByRole("button", { name: /바꿔요/ }).first().click();
   await expect(page.getByRole("button", { name: /^경험 고치기: 백엔드 API 중/ })).toBeVisible();
-  await page.getByRole("button", { name: "최근 수정" }).filter({ visible: true }).click();
+  await openRecent(page);
   const dialog = page.getByRole("dialog", { name: "최근 수정" });
   await dialog.getByRole("button", { name: /^본문을 고쳤어요/ }).click();
   await dialog.getByRole("button", { name: "이때로 되돌리기" }).click();
@@ -368,7 +375,7 @@ test("헤더 「최근 수정」에서 연 답을 되돌리면 답칸이 그 자
   const region = page.getByRole("region", { name: "내가 쓴 답", exact: true });
   const box = region.getByRole("textbox", { name: "내가 쓴 답", exact: true });
   await expect(box).toBeEnabled();
-  await page.getByRole("button", { name: "최근 수정" }).filter({ visible: true }).click();
+  await openRecent(page);
   const dialog = page.getByRole("dialog", { name: "최근 수정" });
   await dialog.getByRole("button", { name: /^초안을 답칸에 넣었어요/ }).click();
   await dialog.getByRole("button", { name: "이때로 되돌리기" }).click();
