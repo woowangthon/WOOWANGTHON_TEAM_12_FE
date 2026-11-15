@@ -3,6 +3,7 @@ import { pickOption } from "./pick-option";
 import type { Page } from "@playwright/test";
 import { test, expect } from "./signed-in";
 import { FakeQuestionApi } from "./fake-question-api";
+import { DRAFT_EXAMPLE } from "./fixtures/draft-example";
 import type { Answer, NewFactCandidate, SaveNewFactRequest } from "../src/lib/api/question-types";
 import type { Experience } from "../src/lib/api/types";
 
@@ -376,4 +377,42 @@ test("이 답에서 경험 쌓기 shows in the panel only after 다 썼어요, n
   await expect(s.getByRole("button", { name: /경험 후보 찾기|차곡이에서 보기|경험 쌓기/ })).toHaveCount(0);
   await showFacts(page);
   await expect(findButton(page)).toBeVisible();
+});
+
+// FE#655 — 다 쓴 답보다 나중 초안이 있으면 찾기를 막는다. BE 는 지금 초안 칸의 문장을 빼는데, 그 초안이 다 쓴 답의 짝이 아니면
+// 옛 초안 문장 · 확인 안 한 AI 가정이 「새로 쓴 사실」로 넘어간다. 다시 「다 썼어요」를 누르면 짝이 맞아 다시 찾을 수 있다
+test("이 답에서 경험 쌓기 is blocked while a newer draft exists, warned before redrafting, and opens again after 다 썼어요 (FE#655)", async ({ page }) => {
+  const { state, api } = await setup(page, answer());
+  api.questions[0].detail.draft = { ...structuredClone(DRAFT_EXAMPLE), createdAt: "2026-11-06T10:00:00Z", updatedAt: "2026-11-06T10:00:21Z" };
+  // 다시 다 쓰면 그때 시각이 확정 시각이다
+  await page.route("**/api/questions/41/answer", async route => {
+    const { text } = route.request().postDataJSON() as { text: string }; state.puts.push(text);
+    state.saved = { ...answer(), text, confirmedAt: new Date().toISOString() }; api.questions[0].detail.answerDraft = null;
+    return route.fulfill({ json: { answer: state.saved } });
+  });
+  await page.reload();
+  const s = screen(page);
+  await expect(s.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toBeEnabled();
+  await showFacts(page);
+  await expect(findButton(page)).toBeDisabled();
+  await expect(factsBox(page)).toContainText("새 초안이 있어 이 답에선 찾을 수 없어요");
+  expect(state.finds).toBe(0);
+  // 다시 만들기 전에 알린다
+  if (wide(page)) {
+    await page.getByRole("region", { name: "초안 설정", exact: true }).or(page.getByRole("button", { name: /(초안|넣어) 다시 만들기$/ })).first().waitFor();
+    const chip = page.getByRole("button", { name: /(초안|넣어) 다시 만들기$/ });
+    if ((await chip.getAttribute("aria-expanded")) === "false") await chip.click();
+    await page.getByRole("region", { name: "초안 설정", exact: true }).getByRole("button", { name: "다시 만들기", exact: true }).click();
+    const warn = page.getByRole("dialog", { name: "다시 만들면 답칸 글이 새 초안으로 바뀌어요" });
+    await expect(warn).toContainText("다시 「다 썼어요」를 누르기 전까지 「이 답에서 경험 쌓기」는 쓸 수 없어요.");
+    await warn.getByRole("button", { name: "취소", exact: true }).click();
+  }
+  await closeSheet(page);
+  await s.getByRole("button", { name: "다 썼어요", exact: true }).click();
+  const go = page.getByRole("dialog").getByRole("button", { name: /다 썼어요/ });
+  if (await go.waitFor({ state: "visible", timeout: 1500 }).then(() => true, () => false)) await go.click();
+  await expect(savedToast(page)).toBeVisible();
+  await showFacts(page);
+  await expect(findButton(page)).toBeEnabled();
+  await expect(factsBox(page)).not.toContainText("새 초안이 있어");
 });

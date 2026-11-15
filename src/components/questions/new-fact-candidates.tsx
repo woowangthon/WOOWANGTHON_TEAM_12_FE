@@ -19,7 +19,7 @@ const field = "min-h-11 lg:min-h-10 w-full min-w-0 rounded-sm border border-hair
 /** 이 답에서 경험 쌓기(S-48 · FE#543 — 옛 이름 「새 경험 후보」) — 차곡이 패널에서만 찾고 고른다(FE#270). 「다 썼어요」 뒤에만 보인다.
  *  답칸에는 저장 줄도 찾기 버튼도 없다 — 찾는 중 · 고를 후보가 있으면 위 막대 차곡이 버튼의 점이 알린다.
  *  이름은 「경험 다시 찾기」(경험 → 문항)와 헷갈리지 않게 「답 → 경험」 방향을 말한다 */
-export function NewFactCandidates({ confirmed: a }: { confirmed: Confirmed }) {
+export function NewFactCandidates({ confirmed: a, stale = false }: { confirmed: Confirmed; /** 다 쓴 답보다 나중 초안이 있다 — 찾기를 막는다(FE#655) */ stale?: boolean }) {
   const [activities, setActivities] = useState<ActivitySummary[]>([]);
   const [activityError, setActivityError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -38,20 +38,21 @@ export function NewFactCandidates({ confirmed: a }: { confirmed: Confirmed }) {
   if (!a.answer) return null;
   return <section aria-label="이 답에서 경험 쌓기" className="grid min-w-0 gap-3 rounded-sm border border-hairline bg-canvas px-3.5 py-3 text-sm">
     <div className="flex items-center gap-0.5"><h4 className="m-0 text-sm font-semibold">이 답에서 경험 쌓기</h4><InfoTip label="이 답에서 경험 쌓기">다 쓴 답에서 새로 쓴 사실을 찾아요. 경험은 저장을 눌러야 쌓여요.</InfoTip></div>
+    {stale && facts?.status !== "ANALYZING" && <p role="note" className="m-0 text-note text-review">새 초안이 있어 이 답에선 찾을 수 없어요. 「다 썼어요」를 다시 누르면 찾을 수 있어요.</p>}
     {a.failure && <div className="grid justify-items-start gap-2">
       <p role="alert" className="m-0 text-sm text-error">{a.failure.message}{a.pollFailures >= 3 && " 자동 확인을 멈췄어요."}</p>
-      {!a.failure.limit && <Button variant="secondary" title={a.failure.action === "find" ? "분석 1회" : undefined} disabled={a.busy || (a.failure.action === "find" && exhausted)} onClick={() => void (a.failure?.action === "find" ? a.retryFind() : a.refresh())}>
+      {!a.failure.limit && <Button variant="secondary" title={a.failure.action === "find" ? "분석 1회" : undefined} disabled={a.busy || (a.failure.action === "find" && (exhausted || stale))} onClick={() => void (a.failure?.action === "find" ? a.retryFind() : a.refresh())}>
         {a.failure.action === "find" ? "다시 찾기" : "상태 다시 확인"}
       </Button>}
     </div>}
     {!facts && !a.failure && <>
       <p className="m-0 text-body">다 쓴 답에서 내가 새로 쓴 사실을 찾아 경험으로 쌓을 수 있어요.</p>
-      <div className="flex flex-wrap items-center gap-2"><AnalysisButton variant="secondary" running={a.busy} disabled={a.busy} onClick={() => void a.retryFind()}>{a.busy ? "찾기 시작하는 중…" : "이 답에서 경험 쌓기"}</AnalysisButton><AnalysisCost running={a.busy} /></div>
+      <div className="flex flex-wrap items-center gap-2"><AnalysisButton variant="secondary" running={a.busy} disabled={a.busy || stale} onClick={() => void a.retryFind()}>{a.busy ? "찾기 시작하는 중…" : "이 답에서 경험 쌓기"}</AnalysisButton><AnalysisCost running={a.busy} /></div>
     </>}
     {facts?.status === "ANALYZING" && <p role="status" className="m-0 text-muted">새 경험 후보를 찾고 있어요… 새로고침해도 이어서 확인해요.</p>}
     {facts?.status === "FAILED" && !a.failure && <div className="grid justify-items-start gap-2">
       <p role="alert" className="m-0 text-error">답은 저장했어요 · {facts.error?.message || "후보를 찾지 못했어요."}</p>
-      <div className="flex flex-wrap items-center gap-2"><Button variant="secondary" title="분석 1회" disabled={a.busy || exhausted} onClick={() => void a.retryFind()}>다시 찾기</Button><AnalysisCost running={a.busy} /></div>
+      <div className="flex flex-wrap items-center gap-2"><Button variant="secondary" title="분석 1회" disabled={a.busy || exhausted || stale} onClick={() => void a.retryFind()}>다시 찾기</Button><AnalysisCost running={a.busy} /></div>
     </div>}
     {facts?.status === "COMPLETED" && !facts.candidates.length && <p role="status" className="m-0 text-muted">새로 쓴 사실이 없어요</p>}
     {facts?.status === "COMPLETED" && facts.candidates.length > 0 && <p className="m-0 text-muted">AI 제안이니 확인하고 고쳐 주세요.</p>}
