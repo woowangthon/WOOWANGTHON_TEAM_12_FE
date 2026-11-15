@@ -528,6 +528,11 @@ test("되돌린 줄은 무엇으로 갔는지 · 언제 것인지 보인다 — 
   // 기록이 없던 덮인 글(12:20 의 A 글 · 12:35 의 B 글)만 그 줄 아래 「덮이기 전 쓰던 글」. 12:40 · 12:45 에 덮인 글은 바로 앞 줄에 있다
   await expect(dialog.getByRole("button", { name: /^덮이기 전 쓰던 글/ })).toHaveCount(2);
   if (process.env.FE652_SHOTS === "1") { await page.waitForTimeout(400); await page.screenshot({ path: `docs/fe-652/labels-${page.viewportSize()!.width}.png`, animations: "disabled", caret: "hide" }); }
+  if (process.env.FE652_SHOTS === "1") {
+    await dialog.getByRole("button", { name: /^덮이기 전 쓰던 글/ }).last().click(); // 12:20 에 덮인 A 글
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `docs/fe-652/kept-open-${page.viewportSize()!.width}.png`, animations: "disabled", caret: "hide" });
+  }
 });
 
 test("「덮이기 전 쓰던 글」은 지금 답칸 글이어도 사라지지 않고 「지금 값이에요」 (FE#652)", async ({ page }) => {
