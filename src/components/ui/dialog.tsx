@@ -65,6 +65,8 @@ function DialogContent({
           "fixed z-50 grid w-full gap-4 bg-popover text-popover-foreground shadow-float duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
           "inset-x-0 bottom-0 max-h-[92dvh] overflow-auto rounded-t-lg px-5 pt-6 pb-[calc(24px+env(safe-area-inset-bottom,0px))] data-open:slide-in-from-bottom-10",
           "lg:inset-x-auto lg:top-1/2 lg:bottom-auto lg:left-1/2 lg:max-h-[85dvh] lg:max-w-xl lg:-translate-x-1/2 lg:-translate-y-1/2 lg:rounded-md lg:p-7 lg:data-open:slide-in-from-bottom-0 lg:data-open:zoom-in-95 lg:data-closed:zoom-out-95",
+          // 오른쪽 위 닫기(X)와 제목이 겹치지 않게 — 긴 제목은 그 앞에서 줄을 바꾼다
+          showCloseButton && "[&_[data-slot=dialog-title]]:pr-9",
           className
         )}
         {...props}

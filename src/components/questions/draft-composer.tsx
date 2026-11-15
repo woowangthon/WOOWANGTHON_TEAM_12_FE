@@ -41,14 +41,19 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
   // 덮인 글은 수정 이력에 남는다 — 그 줄 아래 「덮어쓰기 전 쓰던 글」로 돌아간다(FE#649). 만드는 동안엔 답칸을 고칠 수 없다(FE#646)
   const kept = "바뀌기 전 글은 「수정 이력」에서 되찾을 수 있어요.";
   const locked = "만드는 동안에는 답칸을 고칠 수 없어요.";
+  // 다 쓴 답보다 나중 초안이 생기면 「이 답에서 경험 쌓기」는 다시 다 쓸 때까지 막힌다(FE#655 — 뺄 초안 문장의 짝이 어긋난다)
+  const factsLocked = "다시 「다 썼어요」를 누르기 전까지 「이 답에서 경험 쌓기」는 쓸 수 없어요.";
   const losses = () => {
-    if (!draft) return hasEditedAnswer(question.id) ? [`쓴 글은 초안으로 바뀌어요. ${kept}`, locked] : [];
+    if (!draft) {
+      const list = [...(hasEditedAnswer(question.id) ? [`쓴 글은 초안으로 바뀌어요. ${kept}`] : []), ...(question.answer ? ["다 쓴 답은 그대로 남아요.", factsLocked] : [])];
+      return list.length ? [...list, locked] : [];
+    }
     // AI 가정의 짝은 답칸 문장 카드에서 맞아요 · 빼기로 처리한다 — 빠진 사실 질문으로 세지 않는다(FE#435 · S-79 · ADR-014)
     const open = draft.status === "COMPLETED" ? draft.omitted.filter(o => !isSupposedPair(draft, o) && o.clarificationId !== null && o.supplementId === null).length : 0;
     return [
       ...(hasEditedAnswer(question.id) ? [`고친 글은 새 초안으로 바뀌어요. ${kept}`] : []),
       ...(open ? [`답하지 않은 빠진 사실 질문 ${open}개가 사라져요. 새 초안이 필요한 것을 다시 물어요.`] : []),
-      ...(question.answer ? ["다 쓴 답은 그대로 남아요."] : []),
+      ...(question.answer ? ["다 쓴 답은 그대로 남아요.", factsLocked] : []),
       ...(hasEditedAnswer(question.id) || open || question.answer ? [locked] : []),
     ];
   };

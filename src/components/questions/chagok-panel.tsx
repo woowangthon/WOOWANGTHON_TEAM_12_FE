@@ -112,7 +112,11 @@ export function ChagokPanel({ question, index, originOf, onAnswer, onClose, draf
 function PanelNewFacts({ question, onAnswerChange }: { question: QuestionDetail } & NewFactActions) {
   // 진행 중 확인은 답칸이 한다 — 패널이 닫혀도 「다 썼어요」 잠금이 풀리게
   const confirmed = useConfirmedAnswer(question.id, question.answer ?? null, onAnswerChange, { poll: false });
-  return <div className="mt-2.5"><NewFactCandidates confirmed={confirmed} /></div>;
+  // 다 쓴 답보다 나중 초안(만드는 중 · 완성 · 실패)이 있으면 찾기를 막는다 — BE 는 지금 초안 칸의 문장을 빼는데,
+  // 그 초안이 다 쓴 답의 짝이 아니라 옛 초안 문장 · 확인 안 한 AI 가정이 후보로 샌다(FE#655 · 정석 수정은 BE#198)
+  const answer = question.answer, draft = question.draft;
+  const stale = !!answer && !!draft && Date.parse(draft.createdAt) > Date.parse(answer.confirmedAt);
+  return <div className="mt-2.5"><NewFactCandidates confirmed={confirmed} stale={stale} /></div>;
 }
 
 /** 「차곡이가 물어볼 것」의 질문 하나 — 문항 되묻기(S-22) 또는 초안 빈칸 질문(S-27). 글자가 같은 중복은 ids 에 모은다 */
