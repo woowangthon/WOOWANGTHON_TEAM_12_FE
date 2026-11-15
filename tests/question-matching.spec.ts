@@ -804,9 +804,13 @@ test("daily limit (429) keeps the draft and says nothing was saved", async ({ pa
   await page.getByRole("button", { name: "문항 2개로 경험 찾기", exact: true }).click();
   await expect(page.locator("form").getByRole("alert")).toContainText("오늘 분석 횟수를 다 썼어요");
   await expect(page.getByLabel("문항 2", { exact: true })).toHaveValue(QUESTION_EXAMPLES[1].text);
-  // 좁은 폭은 넣는 동안 목록이 없다 — 취소하면 지원으로 돌아가고 거기서 목록을 연다(FE#159)
-  if (page.viewportSize()!.width < 1024) await page.getByRole("button", { name: "취소", exact: true }).click();
-  await openList(page);
+  // 좁은 폭은 넣는 동안 목록이 없다 — 취소하면 내 지원서 목록으로 간다(#579) · 넓으면 사이드바 목록
+  if (page.viewportSize()!.width < 1024) {
+    await page.getByRole("button", { name: "취소", exact: true }).click();
+    await expect(page.getByRole("heading", { level: 1, name: /^내 지원서/ })).toBeVisible();
+    await expect(page.getByRole("main").getByRole("listitem").filter({ hasText: /지원처 이름 없음|OO/ })).toHaveCount(2);
+    return;
+  }
   await expect(applications(page).filter({ hasText: /지원처 이름 없음|OO/ })).toHaveCount(2);
 });
 
