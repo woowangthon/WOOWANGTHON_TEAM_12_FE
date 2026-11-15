@@ -3,14 +3,16 @@
 // 수정 이력(S-80 · ADR-013 · revision-api.md) — 언제 · 누가(나 / 외부 AI) · 무엇이 바뀌었나, 줄마다 「이때로 되돌리기」.
 // 되돌리기는 그 줄에 보이는 그때 값(after)으로 — 「수정 전으로」는 처음 넣은 초안 줄에서 답칸을 비웠다(FE#430).
 // 맨 처음 값(첫 수정 전)은 항목 이력 맨 아래 「처음 값」 줄, 지금 값과 같은 줄에는 버튼을 두지 않는다.
+// 답을 통째로 바꾼 기록(초안 덮어쓰기 · 되돌리기)은 덮인 쓰던 글이 before 에만 있다 — 그 아래 「덮어쓰기 전 쓰던 글」 줄을 화면에서만 더 그려
+// 그 글로도 「이때로 되돌리기」가 되게 한다(FE#649 — 자동 저장은 이력에 안 남아 쓰던 글로 돌아갈 길이 여기뿐이다)
 // 「최근 수정」(헤더 — 전체)과 「수정 이력」(경험 · 활동 메뉴, 답칸 줄 — 그 항목만)이 같이 쓴다.
 // 줄은 세로선 타임라인에 접어 두고 한 줄 요약만 보인다 — 펼치면 바뀐 부분만 강조한 글 · 짧은 값 · 되돌리기(FE#413)
 // 「최근 수정」에는 외부 AI 변경 기록(mcp-api)도 시간순으로 섞는다 — 맞아요 · 되돌리기는 그 줄에서. 같은 변경(mcpChangeId)의
 // 수정 이력 줄은 변경 기록 줄 하나로 보인다(S-54 · S-80 · FE#517 — 계약은 그대로, FE 가 합친다)
-import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { ArrowRightIcon, ArrowsClockwiseIcon, CaretDownIcon, ClockCounterClockwiseIcon, FlagIcon, RobotIcon, UserIcon, XIcon } from "@phosphor-icons/react";
+import { ArrowRightIcon, ArrowsClockwiseIcon, CaretDownIcon, ClockCounterClockwiseIcon, FlagIcon, PencilSimpleLineIcon, RobotIcon, UserIcon, XIcon } from "@phosphor-icons/react";
 import { diff } from "@/components/questions/draft-match";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -95,7 +97,7 @@ function wordDiff(b: string, a: string) {
 function summary(r: Revision) {
   if (r.kind === "RESTORE") return r.targetType === "ANSWER" ? "그때 답을 답칸에 되돌렸어요 · 임시 글" : "예전 값으로 되돌렸어요";
   if (r.kind === "CONFIRM") return "답을 다 썼어요";
-  if (r.kind === "DRAFT_OVERWRITE") return "초안을 답칸에 넣었어요";
+  if (r.kind === "DRAFT_OVERWRITE") return r.before.text ? "새 초안으로 덮어썼어요" : "초안을 답칸에 넣었어요";
   const key = TEXT_KEY[r.targetType], name = TEXT_NAME[r.targetType];
   const b = r.before[key] ?? "", a = r.after[key] ?? "";
   const fields = fieldChanges(r).map(f => f[0]);
@@ -251,6 +253,33 @@ function OriginRow({ oldest: r, current, beforeRestore, onRestored }: {
   </li>;
 }
 
+/** 답을 통째로 바꾼 기록의 덮인 쓰던 글(before) — 그 기록 바로 아래에 그린다. prev 는 그보다 앞선 기록의 글(차이를 보일 기준, 모르면 null) */
+function KeptRow({ revision: r, prev, last, beforeRestore, onRestored }: {
+  revision: Revision; prev: string | null; last: boolean; beforeRestore?: BeforeRestore; onRestored: (result: RestoreResult) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const text = r.before.text ?? "";
+  return <li className="relative grid grid-cols-[2rem_minmax(0,1fr)] gap-x-2 pb-2">
+    {!last && <span aria-hidden="true" className="absolute top-10 bottom-0 left-4 w-px -translate-x-1/2 bg-hairline" />}
+    <span aria-hidden="true" className="mt-1.5 flex size-8 items-center justify-center rounded-full bg-surface-soft text-muted"><PencilSimpleLineIcon className="size-4" /></span>
+    <div className="min-w-0">
+      <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)}
+        className={cn("flex min-h-11 w-full min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-left hover:bg-surface-soft focus-visible:outline-2 focus-visible:outline-ink", open && "bg-surface-soft")}>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-ink">덮어쓰기 전 쓰던 글</span>
+          <span className="mt-0.5 block text-note text-muted">자동 저장된 글 · <time dateTime={r.createdAt}>{timestamp(r.createdAt)}</time>까지</span>
+        </span>
+        <CaretDownIcon aria-hidden="true" className={cn("size-4 shrink-0 text-muted transition-transform", !open && "-rotate-90")} />
+      </button>
+      {open && <div className="mt-2 grid gap-3 rounded-sm border border-hairline-soft p-3">
+        {prev !== null && prev !== text ? <TextDiff before={prev} after={text} />
+          : <p className="m-0 max-h-60 overflow-auto whitespace-pre-wrap break-words text-sm leading-relaxed text-body">{text}</p>}
+        <RestoreAction revision={r} to="BEFORE" label="이때로 되돌리기" question="덮어쓰기 전 쓰던 글로 되돌릴까요?" beforeRestore={beforeRestore} onRestored={onRestored} />
+      </div>}
+    </div>
+  </li>;
+}
+
 /** 외부 AI 변경 한 줄 — 머리는 수정 이력 줄과 같은 모양(누가 · 무엇을 · 대상 · 상태 · 언제), 펼치면 변경 카드(맞아요 · 되돌리기) */
 function ChangeRow({ change: c, last, outcome, onChange, onStale, onNavigate }: {
   change: McpChange; last: boolean; outcome?: string;
@@ -287,6 +316,19 @@ function ChangeRow({ change: c, last, outcome, onChange, onStale, onNavigate }: 
       </div>}
     </div>
   </li>;
+}
+
+/** 「덮어쓰기 전 쓰던 글」 줄을 둘 기록인가 — 답을 통째로 바꾼 기록(초안 덮어쓰기 · 되돌리기)의 before 가 비었거나,
+ *  바로 앞 기록 글 그대로(그 사이 고친 게 없다 — 앞 줄로 돌아가면 된다)거나, 지금 답칸 글이면 두지 않는다.
+ *  prev — 바로 앞 기록의 글. 아직 안 불러온 쪽에 있으면 null */
+function keptOf(list: Revision[], i: number, current?: string): { prev: string | null } | null {
+  const r = list[i];
+  if (r.targetType !== "ANSWER" || (r.kind !== "DRAFT_OVERWRITE" && r.kind !== "RESTORE") || r.target.deleted) return null;
+  const text = r.before.text ?? "";
+  const earlier = list.slice(i + 1).find(x => x.targetType === r.targetType && x.targetId === r.targetId);
+  const prev = earlier ? earlier.after.text ?? "" : null;
+  if (!text || prev === text || current === text) return null;
+  return { prev };
 }
 
 type ChangeState = { status: "loading" } | { status: "error" } | { status: "ready"; changes: McpChange[] };
@@ -410,7 +452,13 @@ export function RevisionList({ target, activityId, current, beforeRestore, onRes
       <Button size="sm" variant="secondary" className="min-h-11 lg:min-h-9" onClick={() => { setChanges({ status: "loading" }); void loadChanges(); }}>다시 시도</Button>
     </div>}
     <MergedRows revisions={state.revisions} nextCursor={state.nextCursor} changes={changes.status === "ready" ? changes.changes : []}
-      renderRevision={(r, last) => <Row key={`r${r.id}`} revision={r} all current={false} badge={false} last={last} defaultOpen={false} beforeRestore={before} onRestored={restored} onNavigate={onNavigate} />}
+      renderRevision={(r, last) => {
+        const kept = keptOf(state.revisions, state.revisions.indexOf(r));
+        return <Fragment key={`r${r.id}`}>
+          <Row revision={r} all current={false} badge={false} last={last && !kept} defaultOpen={false} beforeRestore={before} onRestored={restored} onNavigate={onNavigate} />
+          {kept && <KeptRow revision={r} prev={kept.prev} last={last} beforeRestore={before} onRestored={restored} />}
+        </Fragment>;
+      }}
       renderChange={(c, last) => <ChangeRow key={`c${c.id}`} change={c} last={last} outcome={changeOutcomes[c.id]} onChange={decided} onStale={() => void loadChanges()} onNavigate={onNavigate} />} />
     {moreButton}
   </div>;
@@ -418,7 +466,15 @@ export function RevisionList({ target, activityId, current, beforeRestore, onRes
     {outcome && <p role="status" className="m-0 mb-1 rounded-sm bg-surface-soft px-3 py-2 text-sm text-body">{outcome}</p>}
     {state.revisions.length === 0
       ? <p className="m-0 py-4 text-sm text-body">{target || activityId != null ? "아직 고친 기록이 없어요. 고치면 바뀌기 전 값이 여기에 남아요." : "아직 고친 기록이 없어요."}</p>
-      : <ul className="m-0 list-none p-0 pt-2">{state.revisions.map((r, i) => <Row key={r.id} revision={r} all={!target} linkable={!target && activityId == null} origin={isOrigin(r)} current={isNow(r.after, r.targetType, r)} badge={activityId != null ? latest(r) === r && isNow(r.after, r.targetType, r) : i === nowIndex} last={i === state.revisions.length - 1 && !origin} defaultOpen={!!target && i === 0} beforeRestore={before} onRestored={restored} onNavigate={onNavigate} />)}
+      : <ul className="m-0 list-none p-0 pt-2">{state.revisions.map((r, i) => {
+        // 맨 아래 기록의 before 는 「처음 값」 줄이 이미 보인다
+        const kept = r === origin ? null : keptOf(state.revisions, i, current);
+        const end = i === state.revisions.length - 1 && !origin;
+        return <Fragment key={r.id}>
+          <Row revision={r} all={!target} linkable={!target && activityId == null} origin={isOrigin(r)} current={isNow(r.after, r.targetType, r)} badge={activityId != null ? latest(r) === r && isNow(r.after, r.targetType, r) : i === nowIndex} last={end && !kept} defaultOpen={!!target && i === 0} beforeRestore={before} onRestored={restored} onNavigate={onNavigate} />
+          {kept && <KeptRow revision={r} prev={kept.prev} last={end} beforeRestore={before} onRestored={restored} />}
+        </Fragment>;
+      })}
         {origin && <OriginRow oldest={origin} current={isNow(origin.before, origin.targetType)} beforeRestore={before} onRestored={restored} />}</ul>}
     {moreButton}
   </div>;
@@ -459,7 +515,7 @@ export const isRevisionPanelOpen = () => activePanel !== null;
  *  그보다 좁으면 차곡이처럼 오른쪽 시트 */
 export function RevisionDialog({ open, onOpenChange, title, description, actions, ...list }: Parameters<typeof RevisionList>[0] & {
   open: boolean; onOpenChange: (open: boolean) => void; title: string; description: string;
-  /** 목록 위 버튼 줄 — 답칸의 「다 쓴 답 불러오기」 · 「초안 글 다시 넣기」(FE#463). 기록이 없거나 못 불러와도 보인다 */
+  /** 목록 위 버튼 줄 — 답칸의 「다 쓴 답 불러오기」 · 「쓰던 초안으로 돌아가기」(FE#463 · FE#649). 기록이 없거나 못 불러와도 보인다 */
   actions?: ReactNode;
 }) {
   const id = useId();

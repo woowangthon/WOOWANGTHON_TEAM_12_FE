@@ -38,14 +38,17 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
   const pendingAnswers = scope.reduce((n, r) => n + r.experience.supplements.filter(s => s.mcpChange).length, 0);
   // 다시 만들기가 무료인지는 BE 가 정한다(freeRegenerate — 빠진 사실에 답함 · 주체를 정함, S-77)
   const free = !!draft?.freeRegenerate && !analyzing;
+  // 덮인 글은 수정 이력에 남는다 — 그 줄 아래 「덮어쓰기 전 쓰던 글」로 돌아간다(FE#649). 만드는 동안엔 답칸을 고칠 수 없다(FE#646)
+  const kept = "바뀌기 전 글은 답칸 위 「수정 이력」의 「덮어쓰기 전 쓰던 글」에서 다시 넣을 수 있어요.";
   const losses = () => {
-    if (!draft) return hasEditedAnswer(question.id) ? ["답칸에 쓴 글이 새 초안으로 바뀌어요."] : [];
+    if (!draft) return hasEditedAnswer(question.id) ? [`답칸에 쓴 글은 초안으로 바뀌어요. ${kept}`, "초안을 만드는 동안에는 답칸을 고칠 수 없어요."] : [];
     // AI 가정의 짝은 답칸 문장 카드에서 맞아요 · 빼기로 처리한다 — 빠진 사실 질문으로 세지 않는다(FE#435 · S-79 · ADR-014)
     const open = draft.status === "COMPLETED" ? draft.omitted.filter(o => !isSupposedPair(draft, o) && o.clarificationId !== null && o.supplementId === null).length : 0;
     return [
-      ...(hasEditedAnswer(question.id) ? ["답칸에서 고친 글이 새 초안으로 바뀌어요."] : []),
+      ...(hasEditedAnswer(question.id) ? [`답칸에서 고친 글은 새 초안으로 바뀌어요. ${kept}`] : []),
       ...(open ? [`답하지 않은 빠진 사실 질문 ${open}개가 사라져요. 새 초안이 필요한 것을 다시 물어요.`] : []),
-      ...(question.answer ? ["다 쓴 답은 저장돼 있어요 — 답칸 위 「수정 이력」에서 불러올 수 있어요."] : []),
+      ...(question.answer ? ["다 쓴 답은 그대로 남아요 — 답칸 위 「수정 이력」에서 불러올 수 있어요."] : []),
+      ...(hasEditedAnswer(question.id) || open || question.answer ? ["초안을 만드는 동안에는 답칸을 고칠 수 없어요."] : []),
     ];
   };
   const ask = () => {
@@ -101,7 +104,7 @@ export function DraftComposer({ question, onGenerate, onRefresh, savingAnswer, r
     {draft?.status === "FAILED" && !analyzing && <p role="alert" className="m-0 text-sm text-error">{failureReason(draft.error)} 「다시 만들기」로 같은 경험을 다시 요청할 수 있어요.</p>}
     <Dialog open={warning !== null} onOpenChange={o => { if (!o) setWarning(null); }}>
       <DialogContent>
-        <DialogTitle>{draft ? "다시 만들면 답칸이 새 초안으로 바뀌어요" : "초안을 만들면 답칸이 초안으로 바뀌어요"}</DialogTitle>
+        <DialogTitle>{draft ? "다시 만들면 답칸 글이 새 초안으로 바뀌어요" : "초안을 만들면 답칸 글이 초안으로 바뀌어요"}</DialogTitle>
         <DialogDescription asChild><ul className="m-0 grid gap-1.5 pl-4">{warning?.map(w => <li key={w}>{w}</li>)}</ul></DialogDescription>
         <DialogFooter>
           <Button className="min-h-11 lg:min-h-10" variant="secondary" onClick={() => setWarning(null)}>취소</Button>

@@ -188,9 +188,27 @@ test("다 쓴 답에 그대로 있어 세지 않는 근거 없음 문장은 평�
   await expect(markOf(page, "g-5")).toHaveClass(/bg-evidence-soft/);
 });
 
-test("새 초안이 답칸에 있으면 「다 쓴 답 불러오기」는 먼저 묻고, 불러온 뒤 패널 안내가 바뀌며 초안 글로 돌아갈 수 있다 (FE#384)", async ({ page }, info) => {
+test("새 초안이 답칸에 있으면 「다 쓴 답 불러오기」는 먼저 묻고, 불러온 뒤 패널 안내가 바뀌며 쓰던 초안으로 돌아갈 수 있다 (FE#384 · FE#649)", async ({ page }, info) => {
   const OLD = "예전에 다 쓴 답입니다.";
   await setup(page, { draft: true, freshDraft: true, answer: OLD, responses: [] });
+  // 수정 이력 — 「답을 다 썼어요」 기록 하나. 「다 쓴 답 불러오기」는 그 기록을 그때 값으로 되돌려 덮인 글을 기록에 남긴다(FE#649)
+  const T = "2026-11-09T10:00:00+09:00";
+  const target = { deleted: false, activityId: null, activityName: null, questionId: 41, questionText: "문항", applicationId: 22, organization: null };
+  const confirmRow = { id: 960, kind: "CONFIRM", targetType: "ANSWER", targetId: 41, by: "USER", client: null, mcpChangeId: null, restoredFromId: null, createdAt: T, target, before: { text: "" }, after: { text: OLD } };
+  const revisions = { all: [confirmRow] as Record<string, unknown>[], calls: [] as string[], shown: COMPOSED };
+  await page.route("**/api/revisions**", async route => {
+    const url = new URL(route.request().url());
+    if (route.request().method() !== "POST") return route.fulfill({ json: { revisions: revisions.all, nextCursor: null } });
+    const id = Number(url.pathname.match(/revisions\/(\d+)\/restore/)![1]);
+    const to = (route.request().postDataJSON() as { to: "BEFORE" | "AFTER" }).to;
+    revisions.calls.push(`${id}:${to}`);
+    const source = revisions.all.find(r => r.id === id) as { before: { text: string }; after: { text: string } };
+    const text = (to === "AFTER" ? source.after : source.before).text;
+    const revision = { ...confirmRow, id: 961 + revisions.calls.length, kind: "RESTORE", restoredFromId: id, createdAt: new Date().toISOString(), before: { text: revisions.shown }, after: { text } };
+    revisions.shown = text;
+    revisions.all = [revision, ...revisions.all];
+    return route.fulfill({ json: { revision, experience: null, activity: null, answerDraft: { text, state: null, updatedAt: new Date().toISOString() } } });
+  });
   const wide = page.viewportSize()!.width >= 1280;
   const followUp = page.getByRole("region", { name: "차곡이의 초안", exact: true });
   await expect(answerBox(page)).toHaveText(COMPOSED);
@@ -208,8 +226,11 @@ test("새 초안이 답칸에 있으면 「다 쓴 답 불러오기」는 먼저
   await expect(answerBox(page)).toHaveText(OLD);
   if (wide) { await expect(followUp).toContainText("지금 답칸엔 다 쓴 답이 있어요"); await expect(followUp).not.toContainText("초안을 답칸에 넣었어요"); }
   await page.screenshot({ path: `docs/fe-384/loaded-${info.project.name}.png` });
+  expect(revisions.calls).toEqual(["960:AFTER"]); // 기록이 남는 되돌리기로 불러왔다
   await page.getByRole("button", { name: "수정 이력", exact: true }).click(); // 돌아가는 길은 수정 이력 창 하나(FE#463)
-  await page.getByRole("button", { name: "초안 글 다시 넣기", exact: true }).click();
+  await expect(page.getByRole("button", { name: "초안 글 다시 넣기" })).toHaveCount(0); // 초안 원본은 이력 줄로(FE#649)
+  await page.getByRole("button", { name: "쓰던 초안으로 돌아가기", exact: true }).click();
   await expect(answerBox(page)).toHaveText(COMPOSED);
+  expect(revisions.calls).toEqual(["960:AFTER", "962:BEFORE"]); // 불러오며 남은 되돌리기 기록의 before 로
   if (wide) await expect(followUp).toContainText("초안을 답칸에 넣었어요");
 });

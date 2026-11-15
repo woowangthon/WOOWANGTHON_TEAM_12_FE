@@ -401,3 +401,89 @@ test("다른 화면에 있을 때 끝난 초안 — 열어서 답칸에 들어�
   await page.waitForTimeout(1500);
   expect(drafts()).toHaveLength(1);
 });
+
+// FE#649 — 답을 통째로 바꾼 기록(새 초안 덮어쓰기)은 덮인 쓰던 글로도 돌아간다 — 그 줄 아래 「덮어쓰기 전 쓰던 글」
+test("새 초안으로 덮어쓴 줄 아래 「덮어쓰기 전 쓰던 글」로 고치던 글이 돌아온다 (FE#649)", async ({ page }) => {
+  const api = new FakeQuestionApi({ sameApplication: true });
+  await api.install(page);
+  await hideDevOverlay(page);
+  const answer = { questionId: 41, questionText: "문항", applicationId: 22, organization: "OO 부트캠프" };
+  const FIRST: Revision = { ...base, id: 980, kind: "DRAFT_OVERWRITE", targetType: "ANSWER", targetId: 41, target: target(answer), createdAt: "2026-11-10T09:00:00+09:00",
+    before: { text: "" }, after: { text: "처음 초안입니다." } };
+  const OVERWRITE: Revision = { ...FIRST, id: 981, createdAt: T, before: { text: "처음 초안입니다. 직접 고친 문장이에요." }, after: { text: "새로 만든 초안입니다." } };
+  const state: State = { all: [OVERWRITE, FIRST], calls: [], restoreFail: "" };
+  await routeRevisions(page, state, (id, to) => {
+    const source = state.all.find(r => r.id === id)!;
+    const text = (to === "AFTER" ? source.after : source.before).text!;
+    const revision: Revision = { ...OVERWRITE, id: 982, kind: "RESTORE", restoredFromId: id, before: { text: "새로 만든 초안입니다." }, after: { text } };
+    state.all = [revision, ...state.all];
+    return { revision, experience: null, activity: null, answerDraft: { text, state: null, updatedAt: new Date().toISOString() } };
+  });
+  await page.goto("/questions?question=41");
+  const region = page.getByRole("region", { name: "내가 쓴 답", exact: true });
+  const box = region.getByRole("textbox", { name: "내가 쓴 답", exact: true });
+  await expect(box).toBeEnabled();
+  await region.getByRole("button", { name: "수정 이력" }).click();
+  const dialog = page.getByRole("dialog", { name: "수정 이력" });
+  // 덮인 글이 있으면 줄 이름이 「새 초안으로 덮어썼어요」, 빈 답칸에 넣은 줄은 그대로
+  await expect(dialog.getByRole("button", { name: /^새 초안으로 덮어썼어요/ })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: /^초안을 답칸에 넣었어요/ })).toBeVisible();
+  const kept = dialog.getByRole("button", { name: /^덮어쓰기 전 쓰던 글/ });
+  await expect(kept).toHaveCount(1);
+  await kept.click();
+  // 앞 기록(처음 초안)에서 고친 곳만 강조한다
+  await expect(dialog.locator("ins").filter({ hasText: "직접 고친 문장이에요." })).toBeVisible();
+  if (process.env.FE649_SHOTS === "1") { await page.waitForTimeout(400); await page.screenshot({ path: `docs/fe-649/kept-${page.viewportSize()!.width}.png`, animations: "disabled", caret: "hide" }); }
+  await kept.locator("xpath=..").getByRole("button", { name: "이때로 되돌리기" }).click();
+  await expect(dialog.getByText(/덮어쓰기 전 쓰던 글로 되돌릴까요/)).toBeVisible();
+  await dialog.getByRole("button", { name: "되돌리기", exact: true }).click();
+  await expect(dialog.getByText(/답칸에 그때 글을 넣었어요/)).toBeVisible();
+  expect(state.calls.filter(c => c.startsWith("restore"))).toEqual(["restore:981:BEFORE"]);
+  await page.keyboard.press("Escape");
+  await expect(box).toContainText("직접 고친 문장이에요.");
+});
+
+test("덮인 글이 앞 기록 그대로(고친 것 없음)거나 맨 아래 기록이면 「덮어쓰기 전 쓰던 글」 줄을 따로 두지 않는다 (FE#649)", async ({ page }) => {
+  test.skip(test.info().project.name !== "desktop");
+  const api = new FakeQuestionApi({ sameApplication: true });
+  await api.install(page);
+  await hideDevOverlay(page);
+  const answer = { questionId: 41, questionText: "문항", applicationId: 22, organization: "OO 부트캠프" };
+  // 맨 아래 기록의 before 는 「처음 값」 줄이 보인다 — 겹쳐 그리지 않는다
+  const FIRST: Revision = { ...base, id: 990, kind: "DRAFT_OVERWRITE", targetType: "ANSWER", targetId: 41, target: target(answer), createdAt: "2026-11-10T09:00:00+09:00",
+    before: { text: "직접 쓴 처음 글" }, after: { text: "처음 초안입니다." } };
+  // 처음 초안을 고치지 않고 다시 만들었다 — 쓰던 글이 앞 줄 그대로
+  const AGAIN: Revision = { ...FIRST, id: 991, createdAt: T, before: { text: "처음 초안입니다." }, after: { text: "새로 만든 초안입니다." } };
+  const state: State = { all: [AGAIN, FIRST], calls: [], restoreFail: "" };
+  await routeRevisions(page, state, () => ({}));
+  await page.goto("/questions?question=41");
+  const region = page.getByRole("region", { name: "내가 쓴 답", exact: true });
+  await expect(region.getByRole("textbox", { name: "내가 쓴 답", exact: true })).toBeEnabled();
+  await region.getByRole("button", { name: "수정 이력" }).click();
+  const dialog = page.getByRole("dialog", { name: "수정 이력" });
+  await expect(dialog.getByRole("button", { name: /^새 초안으로 덮어썼어요/ })).toHaveCount(2);
+  await expect(dialog.getByRole("button", { name: /^처음 값/ })).toHaveCount(1);
+  await expect(dialog.getByRole("button", { name: /^덮어쓰기 전 쓰던 글/ })).toHaveCount(0);
+});
+
+test("초안이 들어오자마자 고쳐도 첫 저장에 fromDraft 를 싣는다 — 덮어쓰기 기록이 빠지지 않게 (FE#649)", async ({ page }) => {
+  test.skip(test.info().project.name !== "desktop");
+  const api = new FakeQuestionApi({ sameApplication: true });
+  api.edit(41, q => { q.draft = { ...structuredClone(DRAFT_EXAMPLE), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }; });
+  await api.install(page);
+  await hideDevOverlay(page);
+  await page.goto("/questions?question=41");
+  const region = page.getByRole("region", { name: "내가 쓴 답", exact: true });
+  const box = region.getByRole("textbox", { name: "내가 쓴 답", exact: true });
+  await expect(box).toContainText("폴링을 WebSocket 으로 바꿔");
+  // 들어온 글이 저장되기 전(1초 안)에 고친다
+  await box.press("End");
+  await box.pressSequentially(" 덧붙인 말");
+  const drafts = () => api.calls.filter(c => c.call.endsWith("/answer-draft")).map(c => ({ fromDraft: (c.body as { fromDraft?: boolean }).fromDraft ?? false, text: (c.body as { text: string }).text }));
+  await expect.poll(drafts, { timeout: 10000 }).not.toHaveLength(0);
+  const [first] = drafts();
+  expect(first.fromDraft).toBe(true);
+  await box.pressSequentially(" 하나 더");
+  await expect.poll(() => drafts().length, { timeout: 10000 }).toBeGreaterThan(1);
+  expect(drafts().slice(1).every(d => !d.fromDraft)).toBe(true); // 두 번째 저장부터는 평소 자동 저장
+});
