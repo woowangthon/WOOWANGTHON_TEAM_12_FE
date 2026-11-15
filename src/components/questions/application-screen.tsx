@@ -437,7 +437,7 @@ function SelectedQuestion({ summary, question, application, index, loadError, on
       {question && <SimilarAnswers question={question} application={application} />}
     </header>
     <AnswerInput key={`answer-${summary.id}`} questionId={summary.id} question={question} loadFailed={!!loadError} onAnswerChange={onAnswerChange} onAnswerDraftChange={onAnswerDraftChange} checks={groundingChecks} onAskDraft={onOpenOmissions} trailing={menu}
-      onAnswer={onAnswerClarification} onRefresh={onRefresh} draftBusy={savingAnswer || requestingDraft} onTargetLength={length => onTargetLengthChange(summary.id, length)} />
+      onAnswer={onAnswerClarification} onRefresh={onRefresh} draftBusy={savingAnswer || requestingDraft} requestingDraft={requestingDraft} onTargetLength={length => onTargetLengthChange(summary.id, length)} />
     {!question ? loadError ? <div role="alert" className="grid justify-items-start gap-3 py-8">
       <p className="m-0 text-error">{loadError}</p><Button variant="secondary" onClick={() => onReload(summary.id)}>다시 불러오기</Button>
     </div> : <div role="status" aria-label="문항을 불러오고 있어요"><AnswerSkeleton /></div>
