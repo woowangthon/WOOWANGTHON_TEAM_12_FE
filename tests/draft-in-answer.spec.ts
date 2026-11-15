@@ -77,6 +77,6 @@ test("초안 설정 — 보조 재료 토글 없음 · 다시 만들기 전 경�
   await composer.scrollIntoViewIfNeeded();
   await shot(page, "composer");
   await composer.getByRole("button", { name: "다시 만들기", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "다시 만들면 답칸이 새 초안으로 바뀌어요" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "다시 만들면 답칸 글이 새 초안으로 바뀌어요" })).toBeVisible();
   await shot(page, "regenerate-warning");
 });

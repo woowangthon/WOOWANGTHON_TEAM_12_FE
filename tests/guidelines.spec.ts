@@ -197,7 +197,7 @@ test('explicit NONE and saved CARL survive panel regeneration and reload', async
   await expect(controls.getByRole('combobox', { name: '구성 틀', exact: true })).toHaveText(DRAFT_FRAMES.CARL.name);
   await controls.getByRole('button', { name: '다시 만들기', exact: true }).click();
   // 답하지 않은 빠진 사실 질문이 남은 초안을 덮으니 확인 대화상자가 먼저 뜬다
-  await page.getByRole('dialog', { name: '다시 만들면 답칸이 새 초안으로 바뀌어요' }).getByRole('button', { name: '그래도 다시 만들기', exact: true }).click();
+  await page.getByRole('dialog', { name: '다시 만들면 답칸 글이 새 초안으로 바뀌어요' }).getByRole('button', { name: '그래도 다시 만들기', exact: true }).click();
   await expect.poll(() => api.calls.filter(c => c.call.endsWith('/draft')).length).toBe(3);
   expect(api.calls.filter(c => c.call.endsWith('/draft')).at(-1)!.body).toMatchObject({ experienceIds: [101], frame: 'CARL' });
 });

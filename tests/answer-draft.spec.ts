@@ -44,7 +44,7 @@ async function foldRedraft(page: Page) {
 async function regenerate(page: Page, scope: Locator) {
   await openRedraft(page);
   await scope.getByRole("button", { name: "다시 만들기", exact: true }).click();
-  const confirm = page.getByRole("dialog", { name: "다시 만들면 답칸이 새 초안으로 바뀌어요" }).getByRole("button", { name: "그래도 다시 만들기", exact: true });
+  const confirm = page.getByRole("dialog", { name: "다시 만들면 답칸 글이 새 초안으로 바뀌어요" }).getByRole("button", { name: "그래도 다시 만들기", exact: true });
   if (await confirm.waitFor({ state: "visible", timeout: 1500 }).then(() => true, () => false)) await confirm.click();
 }
 const draftFollowUp = (page: Page) => page.getByRole("region", { name: "차곡이의 초안", exact: true });

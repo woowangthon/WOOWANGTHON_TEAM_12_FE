@@ -14,7 +14,8 @@ export type AutosaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
  *  enabled 가 처음 참이 될 때의 글을 기준으로 삼고, 그 뒤 바뀌면 멈춘 뒤 저장한다. 실패해도 글은 그대로 두고 오류 · 다시 시도를 보인다.
  *  onSaved 는 받아 둔 문항에 임시 글을 옮긴다 — 탭을 돌아와도 새 글로 시작하게. 떠나기 전 기다리던 저장은 바로 보낸다 */
 export function useAnswerAutosave(questionId: number, body: Body, enabled: boolean, onSaved: (draft: AnswerDraft) => void,
-  /** 초안을 답칸에 넣은 글 — 이 글을 처음 저장할 때 한 번 fromDraft 를 싣는다(수정 이력 DRAFT_OVERWRITE · S-80) */
+  /** 초안을 답칸에 넣은 글 — 넣은 뒤 첫 저장에 한 번 fromDraft 를 싣는다(수정 이력 DRAFT_OVERWRITE · S-80).
+   *  글이 같을 때만이 아니다 — 들어오자마자 고쳤거나 저장이 실패한 뒤 고쳐 저장해도 덮인 글이 이력에 남게(FE#649) */
   fromDraftText: string | null = null,
   /** 처음 글이 서버에 아직 없다 — 열 때 들어온 초안(FE#401). 기준으로 삼지 않고 바로 저장한다 */
   startUnsaved = false) {
@@ -41,9 +42,10 @@ export function useAnswerAutosave(questionId: number, body: Body, enabled: boole
     inflight.current = (async () => {
       try {
         const req = JSON.parse(next) as Body;
-        const placed = fromDraft.current !== null && req.text === fromDraft.current && flagged.current !== req.text;
+        const placing = fromDraft.current;
+        const placed = placing !== null && flagged.current !== placing;
         const draft = await saveAnswerDraft(questionId, placed ? { ...req, fromDraft: true } : req);
-        if (placed) flagged.current = req.text;
+        if (placed) flagged.current = placing;
         savedRef.current = next;
         onSavedRef.current(draft);
         if (mounted.current) { setSaved(next); setStatus(latest.current === next ? "saved" : "pending"); }
