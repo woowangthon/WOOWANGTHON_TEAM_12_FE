@@ -214,6 +214,8 @@ test("새 초안이 답칸에 있으면 「다 쓴 답 불러오기」는 먼저
   await expect(answerBox(page)).toHaveText(COMPOSED);
   if (wide) await expect(followUp).toContainText("초안을 답칸에 넣었어요");
   await page.getByRole("button", { name: "수정 이력", exact: true }).click(); // 돌아가는 길은 수정 이력 창 하나(FE#463)
+  await expect(page.getByRole("button", { name: "다 쓴 답 불러오기", exact: true })).toBeVisible();
+  if (process.env.FE652_SHOTS === "1") { await page.waitForTimeout(400); await page.screenshot({ path: `docs/fe-652/put-confirmed-${page.viewportSize()!.width}.png`, animations: "disabled", caret: "hide" }); }
   await page.getByRole("button", { name: "다 쓴 답 불러오기", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "다 쓴 답을 불러올까요?" });
   await expect(dialog).toContainText("초안 글은 다 쓴 답으로 바뀌어요");
@@ -229,6 +231,8 @@ test("새 초안이 답칸에 있으면 「다 쓴 답 불러오기」는 먼저
   expect(revisions.calls).toEqual(["960:AFTER"]); // 기록이 남는 되돌리기로 불러왔다
   await page.getByRole("button", { name: "수정 이력", exact: true }).click(); // 돌아가는 길은 수정 이력 창 하나(FE#463)
   await expect(page.getByRole("button", { name: "초안 글 다시 넣기" })).toHaveCount(0); // 초안 원본은 이력 줄로(FE#649)
+  await expect(page.getByRole("button", { name: "쓰던 초안으로 돌아가기", exact: true })).toBeVisible();
+  if (process.env.FE652_SHOTS === "1") { await page.waitForTimeout(400); await page.screenshot({ path: `docs/fe-652/put-back-${page.viewportSize()!.width}.png`, animations: "disabled", caret: "hide" }); }
   await page.getByRole("button", { name: "쓰던 초안으로 돌아가기", exact: true }).click();
   await expect(answerBox(page)).toHaveText(COMPOSED);
   expect(revisions.calls).toEqual(["960:AFTER", "962:BEFORE"]); // 불러오며 남은 되돌리기 기록의 before 로
